@@ -72,9 +72,35 @@ pnpm tauri build
 src-tauri/target/release/bundle/
 ```
 
-当前构建默认使用 ad-hoc 签名，适合 Apple Silicon 本机测试。项目暂未提供正式签名、公证和稳定发布包。
+当前构建默认使用 ad-hoc 签名，适合本机测试。项目暂未提供正式签名、公证和稳定发布渠道；GitHub Release 也会明确标注这一点。
 
 如果要进行正式分发，需要准备 Apple `Developer ID Application` 证书和公证凭据，并按照 Tauri 的发布流程配置签名与公证。不要把证书、密码或 `.p8` 私钥提交进仓库。
+
+## GitHub Actions 发布
+
+仓库中的 `.github/workflows/release.yml` 会在推送 `v*` 标签时自动构建 macOS 安装包，并创建 GitHub Release。当前会分别构建 Apple Silicon 和 Intel 两种架构。
+
+发布新版本前，请同步修改以下文件中的版本号：
+
+- `package.json`
+- `src-tauri/Cargo.toml`
+- `src-tauri/tauri.conf.json`
+
+然后提交代码并推送版本标签：
+
+```bash
+git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json
+git commit -m "chore: release v0.1.0"
+git push origin main
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+推送标签后，GitHub Actions 会自动创建对应 Release 并上传构建产物。将示例中的 `v0.1.0` 替换为实际版本号即可。
+
+如果仓库的 Actions 默认权限是只读，请在 GitHub 的 `Settings → Actions → General → Workflow permissions` 中允许工作流读写仓库内容；工作流本身已经声明了 `contents: write`。
+
+当前发布包使用 ad-hoc 签名，没有 Apple Developer ID 签名和公证。首次安装时，macOS 可能需要在 Finder 中右键应用并选择“打开”，或在“系统设置 → 隐私与安全性”中手动允许。
 
 ## 开发备注
 
