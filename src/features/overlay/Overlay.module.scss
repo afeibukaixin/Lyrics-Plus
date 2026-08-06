@@ -1,0 +1,210 @@
+.overlay {
+  --lyric-size: 30px;
+  width: 100vw; height: 100vh; display: grid; place-items: center; position: relative; overflow: hidden;
+  padding: 42px 26px 22px; opacity: var(--overlay-opacity); -webkit-user-select: none; user-select: none;
+  border: 0; border-radius: 18px;
+  clip-path: inset(0 round 18px);
+  background: linear-gradient(135deg, rgba(14,14,18,.82), rgba(26,23,36,.72));
+  box-shadow: inset 0 1px rgba(255,255,255,.1), 0 18px 50px rgba(0,0,0,.35);
+  backdrop-filter: blur(18px) saturate(1.2);
+  transition: background .16s ease, backdrop-filter .16s ease;
+}
+.overlay[data-interactive="true"] { cursor: grab; }
+.overlay[data-interactive="true"]:active { cursor: grabbing; }
+.overlay[data-background="transparent"] {
+  outline: none; background: transparent; box-shadow: none; backdrop-filter: none;
+}
+.overlay[data-background="transparent"][data-interactive="true"]:hover {
+  background: rgba(16,17,23,.34); backdrop-filter: blur(12px) saturate(1.08);
+}
+.overlay[data-background="solid"] {
+  background: var(--solid-color); box-shadow: 0 14px 42px rgba(0,0,0,.28); backdrop-filter: none;
+}
+.overlay[data-orientation="vertical"] { padding: 26px 42px 26px 24px; }
+
+.lines {
+  width: max-content; height: max-content; max-width: var(--content-max-width); max-height: var(--content-max-height);
+  min-width: 0; display: grid; align-items: center; gap: 8px; pointer-events: none;
+}
+.overlay:not([data-orientation="vertical"]) .lines { min-width: var(--content-min-width); }
+.overlay[data-layout="double"][data-orientation="horizontal"] .active,
+.overlay[data-layout="double"][data-orientation="horizontal"] .next { width: 100%; }
+.overlay[data-orientation="vertical"] .lines {
+  width: max-content; height: max-content; min-height: 0; display: flex; align-items: center; justify-content: center;
+}
+.overlay[data-layout="double"][data-orientation="vertical"] .lines { flex-direction: row-reverse; align-items: stretch; gap: 14px; }
+.overlay[data-alignment="distributed"][data-layout="double"][data-orientation="vertical"] .lines { height: var(--line-height-limit); }
+.overlay[data-orientation="vertical"] .active,
+.overlay[data-orientation="vertical"] .next {
+  width: max-content; max-height: var(--content-max-height); writing-mode: vertical-rl; text-orientation: mixed; white-space: nowrap;
+  overflow: visible; overflow-wrap: normal; text-wrap: nowrap;
+}
+.overlay[data-alignment="center"] .lines { text-align: center; }
+.overlay[data-alignment="distributed"][data-layout="double"][data-orientation="horizontal"] .active { text-align: left; }
+.overlay[data-alignment="distributed"][data-layout="double"][data-orientation="horizontal"] .next { text-align: right; }
+.overlay[data-alignment="distributed"][data-layout="double"][data-orientation="vertical"] .active { text-align: start; }
+.overlay[data-alignment="distributed"][data-layout="double"][data-orientation="vertical"] .next { text-align: end; }
+.overlay[data-alignment="distributed"][data-layout="double"][data-orientation="vertical"] .active,
+.overlay[data-alignment="distributed"][data-layout="double"][data-orientation="vertical"] .next { height: 100%; }
+.active, .next {
+  min-width: 0; overflow: visible; color: var(--active-color); font-weight: 800; line-height: 1.2;
+  letter-spacing: -.02em; white-space: nowrap; text-overflow: clip; text-shadow: 0 1px 4px rgba(0,0,0,.55);
+}
+.next { color: var(--inactive-color); font-weight: 550; }
+.karaokeText { white-space: pre; }
+.karaokeWord {
+  display: inline-grid; position: relative; vertical-align: baseline; text-orientation: inherit;
+}
+.karaokeWordBase, .karaokeWordFill {
+  grid-area: 1 / 1; white-space: pre; color: var(--inactive-color);
+}
+.karaokeWordFill {
+  color: var(--active-color); clip-path: inset(0 calc(100% - var(--word-progress)) 0 0);
+  transition: clip-path .08s linear; will-change: clip-path;
+}
+.overlay[data-orientation="vertical"] .karaokeWordFill {
+  clip-path: inset(0 0 calc(100% - var(--word-progress)) 0);
+}
+.karaokeText[data-karaoke="highlight"] .karaokeWordFill { clip-path: inset(0); }
+.karaokeText[data-karaoke="bounce"] .karaokeWordFill { clip-path: inset(0 100% 0 0); }
+.karaokeText[data-karaoke="bounce"] .karaokeWord[data-complete="true"] .karaokeWordFill,
+.karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] .karaokeWordFill { clip-path: inset(0); }
+.karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] {
+  display: inline-grid; animation: word-bounce .42s ease-out both;
+}
+.active[data-empty="true"], .next[data-empty="true"] { visibility: hidden; }
+.overlay[data-long-text="shrink"] .active,
+.overlay[data-long-text="shrink"] .next {
+  overflow: visible; white-space: nowrap; overflow-wrap: normal; text-wrap: nowrap;
+}
+.overlay[data-long-text="wrap"][data-constrained="true"]:not([data-orientation="vertical"]) .lines {
+  width: var(--line-width-limit); max-width: var(--line-width-limit);
+}
+.overlay[data-long-text="wrap"][data-constrained="true"]:not([data-orientation="vertical"]) .active,
+.overlay[data-long-text="wrap"][data-constrained="true"]:not([data-orientation="vertical"]) .next {
+  width: 100%; max-width: var(--line-width-limit); overflow: visible;
+  white-space: normal; overflow-wrap: anywhere; text-align: left; text-wrap: pretty;
+}
+.overlay[data-long-text="wrap"][data-constrained="true"]:not([data-orientation="vertical"]) .karaokeText { white-space: pre-wrap; }
+.overlay[data-long-text="wrap"][data-constrained="true"][data-orientation="vertical"] .lines {
+  height: var(--line-height-limit); max-height: var(--line-height-limit);
+}
+.overlay[data-long-text="wrap"][data-constrained="true"][data-orientation="vertical"] .active,
+.overlay[data-long-text="wrap"][data-constrained="true"][data-orientation="vertical"] .next {
+  height: 100%; max-height: var(--line-height-limit); white-space: normal;
+  overflow-wrap: anywhere; text-wrap: wrap;
+}
+.overlay[data-long-text="wrap"][data-constrained="true"][data-orientation="vertical"] .karaokeText { white-space: pre-wrap; }
+.overlay[data-long-text="marquee"][data-constrained="true"]:not([data-orientation="vertical"]) .lines {
+  width: var(--marquee-line-width-limit); min-width: var(--marquee-line-width-limit); max-width: var(--marquee-line-width-limit);
+}
+.overlay[data-long-text="marquee"][data-constrained="true"]:not([data-orientation="vertical"]) .active,
+.overlay[data-long-text="marquee"][data-constrained="true"]:not([data-orientation="vertical"]) .next { width: 100%; max-width: var(--marquee-line-width-limit); }
+.overlay[data-long-text="marquee"][data-constrained="true"][data-orientation="vertical"] .lines {
+  height: var(--marquee-line-height-limit); max-height: var(--marquee-line-height-limit);
+}
+.overlay[data-long-text="marquee"][data-constrained="true"][data-orientation="vertical"] .active,
+.overlay[data-long-text="marquee"][data-constrained="true"][data-orientation="vertical"] .next { height: 100%; max-height: var(--marquee-line-height-limit); }
+.active[data-marquee="true"] > span, .next[data-marquee="true"] > span {
+  display: inline-block; padding-inline-end: .25em;
+  animation: marquee-once var(--marquee-duration) ease-in-out 1 forwards;
+}
+.active[data-marquee="true"], .next[data-marquee="true"] {
+  overflow: hidden; text-align: left;
+}
+.overlay[data-orientation="vertical"] .active[data-marquee="true"] > span,
+.overlay[data-orientation="vertical"] .next[data-marquee="true"] > span {
+  animation-name: vertical-marquee-once;
+}
+.overlay[data-orientation="vertical"] .active[data-marquee="true"],
+.overlay[data-orientation="vertical"] .next[data-marquee="true"] {
+  text-align: start;
+}
+
+.resizeHandle { position: absolute; z-index: 8; touch-action: none; }
+.resizeHandle::after {
+  content: ""; position: absolute; border-radius: 99px; background: rgba(255,255,255,.72);
+  box-shadow: 0 1px 4px rgba(0,0,0,.28); opacity: 0; transition: opacity .15s;
+}
+.resizeHandle:hover::after, .resizeHandle[data-active="true"]::after { opacity: .9; }
+.resizeHandle[data-edge="left"], .resizeHandle[data-edge="right"] { top: 0; bottom: 0; width: 20px; cursor: ew-resize; }
+.resizeHandle[data-edge="left"] { left: 0; }
+.resizeHandle[data-edge="right"] { right: 0; }
+.resizeHandle[data-edge="left"]::after, .resizeHandle[data-edge="right"]::after {
+  top: 50%; width: 3px; height: 28px; transform: translateY(-50%);
+}
+.resizeHandle[data-edge="left"]::after { left: 3px; }
+.resizeHandle[data-edge="right"]::after { right: 3px; }
+.resizeHandle[data-edge="top"], .resizeHandle[data-edge="bottom"] { right: 8px; left: 8px; height: 20px; cursor: ns-resize; }
+.resizeHandle[data-edge="top"] { top: 0; }
+.resizeHandle[data-edge="bottom"] { bottom: 0; }
+.resizeHandle[data-edge="top"]::after, .resizeHandle[data-edge="bottom"]::after {
+  left: 50%; width: 28px; height: 3px; transform: translateX(-50%);
+}
+.resizeHandle[data-edge="top"]::after { top: 3px; }
+.resizeHandle[data-edge="bottom"]::after { bottom: 3px; }
+
+@keyframes word-bounce {
+  0% { transform: translateY(0) scale(1); }
+  45% { transform: translateY(-.16em) scale(1.07); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+.toolbar {
+  position: absolute; top: 6px; left: 50%; z-index: 10; max-width: calc(100% - 6px); height: 34px;
+  display: flex; align-items: center; gap: 3px; padding: 3px 5px; overflow-x: auto; overflow-y: hidden;
+  border: 1px solid rgba(255,255,255,.12); border-radius: 9px; background: rgba(13,14,19,.88);
+  box-shadow: 0 8px 24px rgba(0,0,0,.38); opacity: 0; pointer-events: none;
+  transform: translate(-50%, -5px); transition: opacity .16s, transform .16s; backdrop-filter: blur(14px);
+  cursor: default;
+}
+.overlay:hover .toolbar, .toolbar:focus-within { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+.overlay[data-orientation="vertical"] .toolbar {
+  top: 50%; right: 6px; left: auto; width: 36px; height: auto; max-width: none; max-height: calc(100% - 12px);
+  flex-direction: column; padding: 5px 3px; overflow-x: hidden; overflow-y: auto;
+  transform: translate(5px, -50%);
+}
+.overlay[data-orientation="vertical"]:hover .toolbar,
+.overlay[data-orientation="vertical"] .toolbar:focus-within { transform: translate(0, -50%); }
+.toolbar button {
+  width: 26px; height: 26px; flex: none; display: grid; place-items: center; padding: 0;
+  border-radius: 7px; color: rgba(255,255,255,.68);
+}
+.toolbar button:hover:not(:disabled), .toolbar button[data-on="true"] { background: rgba(157,131,255,.19); color: #fff; }
+.toolbar button:disabled { cursor: not-allowed; opacity: .34; }
+.offsetControl {
+  flex: none; display: flex; align-items: center; gap: 1px; padding: 1px;
+  border: 1px solid rgba(255,255,255,.09); border-radius: 8px; background: rgba(255,255,255,.035);
+}
+.overlay[data-orientation="vertical"] .offsetControl { flex-direction: column; }
+.toolbar .offsetControl > button { width: 23px; height: 22px; border-radius: 6px; }
+.toolbar .offsetValue {
+  width: auto; min-width: 40px; padding: 0 4px; color: rgba(255,255,255,.8);
+  font-size: 8px; font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+}
+.overlay[data-orientation="vertical"] .toolbar .offsetValue { width: 23px; min-width: 23px; padding: 0 1px; }
+.toolbar .offsetValue:disabled { opacity: .7; }
+.toolbar .trackToggle { border: 1px solid transparent; font-size: 9px; font-weight: 750; }
+.toolbar .trackToggle[data-available="false"] { border-color: rgba(238,198,107,.3); color: rgba(238,198,107,.6); }
+.toolbar .trackToggle[data-available="false"][data-on="true"] { background: rgba(238,198,107,.12); color: #f0c66b; }
+.toolbar button svg {
+  width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.toolbar label { flex: none; display: flex; align-items: center; gap: 4px; color: rgba(255,255,255,.52); font-size: 8px; }
+.toolbar input { width: 62px; accent-color: #9d83ff; }
+.toolbar::-webkit-scrollbar { display: none; }
+@keyframes marquee-once {
+  0%, 12% { transform: translateX(0); }
+  88%, 100% { transform: translateX(calc(0px - var(--marquee-distance))); }
+}
+
+@keyframes vertical-marquee-once {
+  0%, 12% { transform: translateY(0); }
+  88%, 100% { transform: translateY(calc(0px - var(--marquee-distance))); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .active[data-marquee="true"] > span, .next[data-marquee="true"] > span { animation: none; }
+  .karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] { animation: none; }
+}

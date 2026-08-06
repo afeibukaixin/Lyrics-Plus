@@ -1,0 +1,33 @@
+{
+  "name": "lyrics-plus",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "node scripts/tauri.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2.7.2",
+    "@tauri-apps/plugin-log": "^2.9.0",
+    "@tauri-apps/plugin-opener": "^2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router": "^7.9.4"
+  },
+  "devDependencies": {
+    "@iconify/json": "^2.2.399",
+    "@tauri-apps/cli": "^2",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
+    "baseline-browser-mapping": "^2.11.12",
+    "sass-embedded": "^1.93.2",
+    "typescript": "~5.8.3",
+    "unocss": "^66.5.4",
+    "vite": "^7.0.4"
+  }
+}

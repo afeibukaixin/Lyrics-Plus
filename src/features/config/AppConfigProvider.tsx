@@ -1,0 +1,100 @@
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { api, isTauriRuntime } from "../../shared/api";
+import { createTauriListenerCleanup } from "../../shared/tauriEvent";
+import { defaultOverlayStyle, type AppConfig } from "../../shared/types";
+
+const defaultConfig: AppConfig = {
+  schemaVersion: 7,
+  app: { uiFontScale: 100, playerSelection: "auto", hideDockIcon: false },
+  lyrics: {
+    providers: {
+      mode: "smart",
+      providers: [
+        { id: "lrclib", enabled: true },
+        { id: "kugou", enabled: true },
+        { id: "qqmusic", enabled: true },
+        { id: "netease", enabled: true },
+      ],
+    },
+  },
+  overlay: {
+    visible: true,
+    locked: false,
+    appearance: {
+      fontSize: defaultOverlayStyle.fontSize,
+      activeColor: defaultOverlayStyle.activeColor,
+      inactiveColor: defaultOverlayStyle.inactiveColor,
+      opacity: defaultOverlayStyle.opacity,
+      background: defaultOverlayStyle.background,
+      solidColor: defaultOverlayStyle.solidColor,
+      layout: defaultOverlayStyle.layout,
+      orientation: defaultOverlayStyle.orientation,
+      alignment: defaultOverlayStyle.alignment,
+      longText: defaultOverlayStyle.longText,
+      secondaryDisplay: defaultOverlayStyle.secondaryDisplay,
+      autoCenterWithTranslationOrRomanization: defaultOverlayStyle.autoCenterWithTranslationOrRomanization,
+      karaokeStyle: defaultOverlayStyle.karaokeStyle,
+      translationFontScale: defaultOverlayStyle.translationFontScale,
+      romanizationFontScale: defaultOverlayStyle.romanizationFontScale,
+      translationColor: defaultOverlayStyle.translationColor,
+      romanizationColor: defaultOverlayStyle.romanizationColor,
+    },
+  },
+};
+
+type AppConfigContextValue = {
+  config: AppConfig;
+  setUiFontScale: (scale: number) => Promise<void>;
+  setDockIconHidden: (hidden: boolean) => Promise<void>;
+  syncConfig: (config: AppConfig) => void;
+};
+
+const AppConfigContext = createContext<AppConfigContextValue | null>(null);
+
+export function AppConfigProvider({ children }: { children: React.ReactNode }) {
+  const [config, setConfig] = useState(defaultConfig);
+
+  useEffect(() => {
+    document.documentElement.dataset.window = "main";
+    if (!isTauriRuntime()) return;
+    void api.getAppConfig().then(setConfig);
+    return createTauriListenerCleanup(
+      listen<AppConfig>("config://changed", ({ payload }) => setConfig(payload)),
+    );
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${19.2 * config.app.uiFontScale / 100}px`;
+  }, [config.app.uiFontScale]);
+
+  const value = useMemo<AppConfigContextValue>(() => ({
+    config,
+    setUiFontScale: async (scale) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({ ...current, app: { ...current.app, uiFontScale: scale } }));
+        return;
+      }
+      setConfig(await api.setUiFontScale(scale));
+    },
+    setDockIconHidden: async (hidden) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({
+          ...current,
+          app: { ...current.app, hideDockIcon: hidden },
+        }));
+        return;
+      }
+      setConfig(await api.setDockIconHidden(hidden));
+    },
+    syncConfig: setConfig,
+  }), [config]);
+
+  return <AppConfigContext.Provider value={value}>{children}</AppConfigContext.Provider>;
+}
+
+export function useAppConfig() {
+  const value = useContext(AppConfigContext);
+  if (!value) throw new Error("useAppConfig 必须在 AppConfigProvider 内使用");
+  return value;
+}

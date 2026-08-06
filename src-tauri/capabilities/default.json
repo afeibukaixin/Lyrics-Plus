@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capabilities for the main, lyrics overlay, and unlock handle windows",
+  "windows": ["main", "lyrics-overlay", "lyrics-unlock-handle"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-start-resize-dragging",
+    "opener:default",
+    "dialog:allow-open",
+    "log:default",
+    "global-shortcut:default",
+    "window-state:default"
+  ]
+}
