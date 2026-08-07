@@ -5,11 +5,12 @@ import { createTauriListenerCleanup } from "../../shared/tauriEvent";
 import { defaultOverlayStyle, type AppConfig } from "../../shared/types";
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 7,
+  schemaVersion: 8,
   app: { uiFontScale: 100, playerSelection: "auto", hideDockIcon: false },
   lyrics: {
     providers: {
       mode: "smart",
+      autoApplyThreshold: 60,
       providers: [
         { id: "lrclib", enabled: true },
         { id: "kugou", enabled: true },

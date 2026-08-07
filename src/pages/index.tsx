@@ -166,7 +166,7 @@ export default function App() {
             <div className={styles.emptyState}>
               <span>{lyrics.searching ? "◌" : "♪"}</span>
               <strong>{lyrics.searching ? "正在从多个歌词源匹配" : "还没有可显示的同步歌词"}</strong>
-              <p>{lyrics.error ?? "播放歌曲后会自动搜索，高匹配结果将直接采用。"}</p>
+              <p>{lyrics.error ?? "播放歌曲后会自动搜索，达到设置相似度的同步歌词将直接采用。"}</p>
             </div>
           ) : lines.map((line, index) => {
             const translation = findAlignedAuxiliaryLine(translations, line)?.text;

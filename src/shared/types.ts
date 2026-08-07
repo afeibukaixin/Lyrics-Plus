@@ -102,6 +102,7 @@ export type ProviderPreference = {
 export type ProviderSettings = {
   mode: ProviderOrderMode;
   providers: ProviderPreference[];
+  autoApplyThreshold: number;
 };
 
 export type ProviderHealth = "unknown" | "available" | "degraded" | "unavailable";

@@ -387,7 +387,7 @@ pub async fn search_lyrics(
         .secondary_display;
     prefer_candidate_capabilities(&mut outcome.results, secondary_display);
     Ok(SearchResponse {
-        auto_apply: can_auto_apply(&outcome.results),
+        auto_apply: can_auto_apply(&outcome.results, outcome.auto_apply_threshold),
         results: outcome.results,
         provider_statuses: outcome.statuses,
     })

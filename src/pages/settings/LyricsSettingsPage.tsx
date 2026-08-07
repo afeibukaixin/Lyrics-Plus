@@ -1,7 +1,7 @@
 import type { ProviderSettings, ProviderStatus } from "../../shared/types";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
-import { SettingsCard, SettingsHeading } from "./components";
+import { RangeRow, SettingsCard, SettingsHeading } from "./components";
 
 function formatTime(value: number | null | undefined) {
   const seconds = Math.max(0, Math.round((value ?? 0) / 1000));
@@ -58,7 +58,13 @@ export default function LyricsSettingsPage() {
 
   return (
     <>
-      <SettingsHeading title="歌词与搜索" description="高匹配同步歌词会自动采用；其他结果会留在首页等待确认。" onReset={() => void resetSection("lyrics")} resetting={resettingSection === "lyrics"} confirming={confirmingReset === "lyrics"} />
+      <SettingsHeading title="歌词与搜索" description="达到设定相似度的同步歌词会自动采用；其他结果会留在首页等待确认。" onReset={() => void resetSection("lyrics")} resetting={resettingSection === "lyrics"} confirming={confirmingReset === "lyrics"} />
+      <SettingsCard title="自动匹配">
+        <RangeRow label="自动匹配相似度" value={providerView?.settings.autoApplyThreshold ?? 60} min={0} max={100} suffix="%" onChange={(autoApplyThreshold) => {
+          if (providerView) void saveProviderSettings({ ...providerView.settings, autoApplyThreshold });
+        }} />
+        <p className={styles.cardHint}>首条同步歌词达到此相似度时自动采用；低于阈值的结果仍可手动选择。</p>
+      </SettingsCard>
       <SettingsCard title="当前歌曲">
         <div className={styles.currentTrack}><div><strong>{playback.snapshot.title ?? "没有正在播放的歌曲"}</strong><small>{playback.snapshot.artist ?? "—"}</small></div><em>{lyrics.document?.metadata.source ?? "未关联歌词"}</em></div>
         <p className={styles.cardHint}>{lyricCapabilities}</p>

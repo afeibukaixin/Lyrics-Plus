@@ -13,11 +13,11 @@ use crate::lyrics::provider::{validate_settings, ProviderOrderMode, ProviderSett
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 7;
+pub const CONFIG_SCHEMA_VERSION: u16 = 8;
 
 pub const DEFAULT_CONFIG_JSONC: &str = r###"{
   // 配置格式版本。通常不需要手动修改。
-  "schemaVersion": 7,
+  "schemaVersion": 8,
   "app": {
     // 主界面字号：80–150，每 10% 一档。
     "uiFontScale": 100,
@@ -28,6 +28,8 @@ pub const DEFAULT_CONFIG_JSONC: &str = r###"{
   },
   "lyrics": {
     "providers": {
+      // 自动采用同步歌词所需的最低相似度：0–100。
+      "autoApplyThreshold": 60,
       // strict 严格按顺序；smart 允许高质量结果优先。
       "mode": "smart",
       // 歌词源数组一旦提供会整体替换；至少启用一个来源。
@@ -596,7 +598,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
     if let Some(lyrics) = value.get("lyrics") {
         check_keys(lyrics, raw, &["providers"])?;
         if let Some(providers) = lyrics.get("providers") {
-            check_keys(providers, raw, &["mode", "providers"])?;
+            check_keys(providers, raw, &["mode", "providers", "autoApplyThreshold"])?;
             if let Some(items) = providers.get("providers").and_then(Value::as_array) {
                 for item in items {
                     check_keys(item, raw, &["id", "enabled"])?;
@@ -670,6 +672,7 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
     for (pointer, key) in [
         ("/schemaVersion", "schemaVersion"),
         ("/app/uiFontScale", "uiFontScale"),
+        ("/lyrics/providers/autoApplyThreshold", "autoApplyThreshold"),
         ("/overlay/appearance/fontSize", "fontSize"),
     ] {
         if value
@@ -846,6 +849,12 @@ fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftEr
             value.pointer("/overlay/appearance/fontSize"),
             16.0,
             72.0,
+        ),
+        (
+            "autoApplyThreshold",
+            value.pointer("/lyrics/providers/autoApplyThreshold"),
+            0.0,
+            100.0,
         ),
         (
             "opacity",
@@ -1265,7 +1274,7 @@ mod tests {
             assert!(parsed.migrated);
             assert_eq!(parsed.config.overlay.appearance.layout, layout);
             assert_eq!(parsed.config.overlay.appearance.orientation, orientation);
-            assert!(parsed.normalized_json.contains("\"schemaVersion\": 7"));
+            assert!(parsed.normalized_json.contains("\"schemaVersion\": 8"));
         }
     }
 
@@ -1278,10 +1287,10 @@ mod tests {
             "vertical_double",
         ] {
             let raw = format!(
-                r#"{{"schemaVersion":7,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
+                r#"{{"schemaVersion":8,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
             );
             let validation = validate_config_draft(&raw);
-            assert!(!validation.valid, "{layout} should be invalid in schema 7");
+            assert!(!validation.valid, "{layout} should be invalid in schema 8");
             assert!(validation.error.unwrap().message.contains("orientation"));
         }
     }
@@ -1312,7 +1321,7 @@ mod tests {
     fn current_schema_preserves_explicit_legacy_provider_order() {
         let parsed = parse_config_draft(
             r#"{
-              "schemaVersion": 7,
+              "schemaVersion": 8,
               "lyrics": { "providers": {
                 "mode": "smart",
                 "providers": [
@@ -1361,6 +1370,14 @@ mod tests {
             (r#"{"app":{"hideDockIcon":"yes"}}"#, "hideDockIcon"),
             (r#"{"app":{"playerSelection":"music"}}"#, "playerSelection"),
             (r#"{"app":{"uiFontScale":151}}"#, "uiFontScale"),
+            (
+                r#"{"lyrics":{"providers":{"autoApplyThreshold":101}}}"#,
+                "autoApplyThreshold",
+            ),
+            (
+                r#"{"lyrics":{"providers":{"autoApplyThreshold":60.5}}}"#,
+                "autoApplyThreshold",
+            ),
             (
                 r#"{"overlay":{"appearance":{"layout":"triple"}}}"#,
                 "layout",
@@ -1416,6 +1433,29 @@ mod tests {
         assert!(parsed
             .normalized_json
             .contains("\"autoCenterWithTranslationOrRomanization\": false"));
+    }
+
+    #[test]
+    fn legacy_config_defaults_auto_apply_threshold_to_sixty() {
+        let parsed = parse_config_draft(r#"{"schemaVersion":7}"#).unwrap();
+        assert!(parsed.migrated);
+        assert_eq!(parsed.config.lyrics.providers.auto_apply_threshold, 60);
+        assert!(parsed
+            .normalized_json
+            .contains("\"autoApplyThreshold\": 60"));
+    }
+
+    #[test]
+    fn auto_apply_threshold_round_trips_at_boundaries() {
+        for threshold in [0, 100] {
+            let raw =
+                format!(r#"{{"lyrics":{{"providers":{{"autoApplyThreshold":{threshold}}}}}}}"#);
+            let parsed = parse_config_draft(&raw).unwrap();
+            assert_eq!(
+                parsed.config.lyrics.providers.auto_apply_threshold,
+                threshold
+            );
+        }
     }
 
     #[test]

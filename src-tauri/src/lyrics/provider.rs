@@ -122,6 +122,12 @@ pub struct ProviderPreference {
 pub struct ProviderSettings {
     pub mode: ProviderOrderMode,
     pub providers: Vec<ProviderPreference>,
+    #[serde(default = "default_auto_apply_threshold")]
+    pub auto_apply_threshold: u8,
+}
+
+const fn default_auto_apply_threshold() -> u8 {
+    60
 }
 
 impl Default for ProviderSettings {
@@ -135,6 +141,7 @@ impl Default for ProviderSettings {
                     enabled: true,
                 })
                 .collect(),
+            auto_apply_threshold: default_auto_apply_threshold(),
         }
     }
 }
@@ -149,6 +156,7 @@ pub struct ProviderSettingsView {
 pub struct ProviderSearchOutcome {
     pub results: Vec<LyricsSearchResult>,
     pub statuses: Vec<ProviderStatus>,
+    pub auto_apply_threshold: u8,
 }
 
 #[allow(dead_code)]
@@ -316,6 +324,7 @@ impl ProviderRegistry {
             Ok(ProviderSearchOutcome {
                 results,
                 statuses: self.statuses(),
+                auto_apply_threshold: settings.auto_apply_threshold,
             })
         }
     }
@@ -408,6 +417,9 @@ fn provider_definitions() -> [(&'static str, &'static str); 4] {
 }
 
 pub(crate) fn validate_settings(settings: &ProviderSettings) -> Result<(), String> {
+    if settings.auto_apply_threshold > 100 {
+        return Err("自动匹配相似度必须在 0–100 之间".into());
+    }
     let known = provider_definitions()
         .into_iter()
         .map(|(id, _)| id)
@@ -478,11 +490,11 @@ pub fn score_candidate(input: &LyricsSearchInput, result: &LyricsSearchResult) -
     .clamp(0.0, 1.0)
 }
 
-pub fn can_auto_apply(results: &[LyricsSearchResult]) -> bool {
+pub fn can_auto_apply(results: &[LyricsSearchResult], threshold_percent: u8) -> bool {
     let Some(first) = results.first() else {
         return false;
     };
-    first.score >= 0.86 && first.synced
+    first.score >= f64::from(threshold_percent) / 100.0 && first.synced
 }
 
 #[cfg(test)]
@@ -583,19 +595,23 @@ mod tests {
     }
 
     #[test]
-    fn auto_apply_requires_confidence_but_not_a_clear_lead() {
-        assert!(can_auto_apply(&[
-            result("a", 0.94, "one"),
-            result("b", 0.84, "two")
-        ]));
-        assert!(can_auto_apply(&[
-            result("a", 0.94, "one"),
-            result("b", 0.90, "two")
-        ]));
-        assert!(!can_auto_apply(&[result("a", 0.82, "one")]));
+    fn auto_apply_uses_configured_threshold_and_requires_synced_lyrics() {
+        assert!(can_auto_apply(
+            &[result("a", 0.94, "one"), result("b", 0.84, "two")],
+            60
+        ));
+        assert!(can_auto_apply(
+            &[result("a", 0.94, "one"), result("b", 0.90, "two")],
+            60
+        ));
+        assert!(can_auto_apply(&[result("a", 0.60, "one")], 60));
+        assert!(!can_auto_apply(&[result("a", 0.59, "one")], 60));
+        assert!(can_auto_apply(&[result("a", 0.0, "one")], 0));
+        assert!(can_auto_apply(&[result("a", 1.0, "one")], 100));
+        assert!(!can_auto_apply(&[result("a", 0.99, "one")], 100));
         let mut unsynced = result("a", 0.99, "one");
         unsynced.synced = false;
-        assert!(!can_auto_apply(&[unsynced]));
+        assert!(!can_auto_apply(&[unsynced], 60));
     }
 
     #[test]
@@ -616,6 +632,7 @@ mod tests {
                 id: "unknown".into(),
                 enabled: true,
             }],
+            auto_apply_threshold: 60,
         })
         .is_err());
         assert!(validate_settings(&ProviderSettings {
@@ -624,6 +641,12 @@ mod tests {
                 id: "lrclib".into(),
                 enabled: false,
             }],
+            auto_apply_threshold: 60,
+        })
+        .is_err());
+        assert!(validate_settings(&ProviderSettings {
+            auto_apply_threshold: 101,
+            ..ProviderSettings::default()
         })
         .is_err());
     }
@@ -650,6 +673,7 @@ mod tests {
     fn default_settings_use_current_smart_priority() {
         let settings = ProviderSettings::default();
         assert_eq!(settings.mode, ProviderOrderMode::Smart);
+        assert_eq!(settings.auto_apply_threshold, 60);
         assert_eq!(
             settings
                 .providers
@@ -665,6 +689,7 @@ mod tests {
         let registry = ProviderRegistry::default();
         let settings = ProviderSettings {
             mode: ProviderOrderMode::Smart,
+            auto_apply_threshold: 60,
             providers: ["netease", "qqmusic", "kugou", "lrclib"]
                 .into_iter()
                 .map(|id| ProviderPreference {
@@ -682,6 +707,7 @@ mod tests {
     fn mock_registry(mode: ProviderOrderMode, netease_fails: bool) -> ProviderRegistry {
         let settings = ProviderSettings {
             mode,
+            auto_apply_threshold: 60,
             providers: vec![
                 ProviderPreference {
                     id: "lrclib".into(),
@@ -798,6 +824,7 @@ mod tests {
             for target in ["netease", "qqmusic", "kugou", "lrclib"] {
                 let settings = ProviderSettings {
                     mode: ProviderOrderMode::Smart,
+                    auto_apply_threshold: 60,
                     providers: provider_definitions()
                         .into_iter()
                         .map(|(id, _)| ProviderPreference {
