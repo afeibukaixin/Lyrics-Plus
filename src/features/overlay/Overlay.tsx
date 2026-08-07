@@ -30,8 +30,8 @@ const orientationLabels: Record<OverlayStyle["orientation"], string> = {
 };
 
 const HORIZONTAL_OVERLAY_HORIZONTAL_PADDING = 52;
-const HORIZONTAL_OVERLAY_VERTICAL_PADDING = 66;
-const VERTICAL_OVERLAY_HORIZONTAL_PADDING = 66;
+const HORIZONTAL_OVERLAY_VERTICAL_PADDING = 90;
+const VERTICAL_OVERLAY_HORIZONTAL_PADDING = 96;
 const VERTICAL_OVERLAY_VERTICAL_PADDING = 52;
 const HORIZONTAL_LINE_GAP = 8;
 const VERTICAL_COLUMN_GAP = 14;
@@ -758,6 +758,7 @@ export default function Overlay() {
         "--inactive-color": style.inactiveColor,
         "--overlay-opacity": style.opacity,
         "--background-opacity": style.backgroundOpacity,
+        "--background-blur": `${style.backgroundBlur}px`,
         "--solid-color": style.solidColor,
         "--translation-color": style.translationColor,
         "--romanization-color": style.romanizationColor,
@@ -771,35 +772,37 @@ export default function Overlay() {
       } as React.CSSProperties}
       tabIndex={settings.locked ? -1 : 0}
     >
-      <div className={styles.lines} ref={linesRef}>
-        <div
-          className={styles.active}
-          data-empty={!primaryText}
-          data-marquee={style.longText === "marquee" && marqueeMetrics[0]?.overflowing}
-          ref={activeRef}
-          style={{
-            fontSize: `${style.fontSize * fitScale}px`,
-            "--marquee-distance": `${marqueeMetrics[0]?.distance ?? 0}px`,
-            "--marquee-duration": `${marqueeMetrics[0]?.duration ?? DEFAULT_MARQUEE_DURATION_SECONDS}s`,
-          } as React.CSSProperties}
-        >
-          <KaraokeLine key={primaryLineKey} line={lyrics.currentLine} fallback={primaryText} positionMs={lyrics.adjustedPositionMs} style={style} />
-        </div>
-        {supportingLines.map((line, index) => (
+      <div className={styles.surface}>
+        <div className={styles.lines} ref={linesRef}>
           <div
-            className={styles.next}
-            data-kind={line.kind}
-            data-marquee={style.longText === "marquee" && marqueeMetrics[index + 1]?.overflowing}
-            key={`${line.kind}:${line.text}`}
-            ref={(element) => { supportingRefs.current[index] = element; }}
+            className={styles.active}
+            data-empty={!primaryText}
+            data-marquee={style.longText === "marquee" && marqueeMetrics[0]?.overflowing}
+            ref={activeRef}
             style={{
-              color: line.color,
-              fontSize: `${line.baseSize * fitScale}px`,
-              "--marquee-distance": `${marqueeMetrics[index + 1]?.distance ?? 0}px`,
-              "--marquee-duration": `${marqueeMetrics[index + 1]?.duration ?? DEFAULT_MARQUEE_DURATION_SECONDS}s`,
+              fontSize: `${style.fontSize * fitScale}px`,
+              "--marquee-distance": `${marqueeMetrics[0]?.distance ?? 0}px`,
+              "--marquee-duration": `${marqueeMetrics[0]?.duration ?? DEFAULT_MARQUEE_DURATION_SECONDS}s`,
             } as React.CSSProperties}
-          ><span>{line.text}</span></div>
-        ))}
+          >
+            <KaraokeLine key={primaryLineKey} line={lyrics.currentLine} fallback={primaryText} positionMs={lyrics.adjustedPositionMs} style={style} />
+          </div>
+          {supportingLines.map((line, index) => (
+            <div
+              className={styles.next}
+              data-kind={line.kind}
+              data-marquee={style.longText === "marquee" && marqueeMetrics[index + 1]?.overflowing}
+              key={`${line.kind}:${line.text}`}
+              ref={(element) => { supportingRefs.current[index] = element; }}
+              style={{
+                color: line.color,
+                fontSize: `${line.baseSize * fitScale}px`,
+                "--marquee-distance": `${marqueeMetrics[index + 1]?.distance ?? 0}px`,
+                "--marquee-duration": `${marqueeMetrics[index + 1]?.duration ?? DEFAULT_MARQUEE_DURATION_SECONDS}s`,
+              } as React.CSSProperties}
+            ><span>{line.text}</span></div>
+          ))}
+        </div>
       </div>
 
       {!settings.locked && (

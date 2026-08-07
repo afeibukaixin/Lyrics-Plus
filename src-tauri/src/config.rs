@@ -14,11 +14,11 @@ use crate::lyrics::provider::{validate_settings, ProviderOrderMode, ProviderSett
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 9;
+pub const CONFIG_SCHEMA_VERSION: u16 = 10;
 
 pub const DEFAULT_CONFIG_JSONC: &str = r###"{
   // 配置格式版本。通常不需要手动修改。
-  "schemaVersion": 9,
+  "schemaVersion": 10,
   "app": {
     // 主界面字号：80–150，每 10% 一档。
     "uiFontScale": 100,
@@ -61,7 +61,9 @@ pub const DEFAULT_CONFIG_JSONC: &str = r###"{
       "opacity": 1.0,
       // 背景透明度：0–1.0，不影响歌词文字。
       "backgroundOpacity": 1.0,
-      // 背景：glass、transparent、solid。
+      // 毛玻璃模糊强度：0–40px。
+      "backgroundBlur": 18.0,
+      // 背景组合状态：glass（纯色+毛玻璃）、transparent、solid。
       "background": "glass",
       "solidColor": "#171821",
       // 歌词布局：single、double；文字方向：horizontal、vertical。
@@ -207,6 +209,7 @@ pub struct OverlayAppearance {
     pub inactive_color: String,
     pub opacity: f64,
     pub background_opacity: f64,
+    pub background_blur: f64,
     pub background: OverlayBackground,
     pub solid_color: String,
     pub layout: OverlayLayout,
@@ -237,6 +240,7 @@ impl From<&OverlayStyleSettings> for OverlayAppearance {
             inactive_color: style.inactive_color.clone(),
             opacity: style.opacity,
             background_opacity: style.background_opacity,
+            background_blur: style.background_blur,
             background: style.background,
             solid_color: style.solid_color.clone(),
             layout: style.layout,
@@ -264,6 +268,7 @@ impl OverlayAppearance {
             inactive_color: self.inactive_color,
             opacity: self.opacity,
             background_opacity: self.background_opacity,
+            background_blur: self.background_blur,
             background: self.background,
             solid_color: self.solid_color,
             layout: self.layout,
@@ -694,6 +699,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                     "inactiveColor",
                     "opacity",
                     "backgroundOpacity",
+                    "backgroundBlur",
                     "background",
                     "solidColor",
                     "layout",
@@ -958,6 +964,12 @@ fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftEr
             value.pointer("/overlay/appearance/backgroundOpacity"),
             0.0,
             1.0,
+        ),
+        (
+            "backgroundBlur",
+            value.pointer("/overlay/appearance/backgroundBlur"),
+            0.0,
+            40.0,
         ),
         (
             "secondaryFontScale",
@@ -1345,13 +1357,22 @@ mod tests {
     fn schema_eight_adds_shortcuts_and_independent_overlay_controls() {
         let parsed = parse_config_draft(r#"{"schemaVersion":8}"#).unwrap();
         assert!(parsed.migrated);
-        assert_eq!(parsed.config.schema_version, 9);
+        assert_eq!(parsed.config.schema_version, CONFIG_SCHEMA_VERSION);
         assert_eq!(
             parsed.config.app.shortcuts,
             GlobalShortcutSettings::default()
         );
         assert_eq!(parsed.config.overlay.appearance.secondary_font_scale, 0.8);
         assert_eq!(parsed.config.overlay.appearance.background_opacity, 1.0);
+        assert_eq!(parsed.config.overlay.appearance.background_blur, 18.0);
+    }
+
+    #[test]
+    fn schema_nine_adds_background_blur() {
+        let parsed = parse_config_draft(r#"{"schemaVersion":9}"#).unwrap();
+        assert!(parsed.migrated);
+        assert_eq!(parsed.config.schema_version, CONFIG_SCHEMA_VERSION);
+        assert_eq!(parsed.config.overlay.appearance.background_blur, 18.0);
     }
 
     #[test]
@@ -1404,7 +1425,7 @@ mod tests {
             assert!(parsed.migrated);
             assert_eq!(parsed.config.overlay.appearance.layout, layout);
             assert_eq!(parsed.config.overlay.appearance.orientation, orientation);
-            assert!(parsed.normalized_json.contains("\"schemaVersion\": 9"));
+            assert!(parsed.normalized_json.contains("\"schemaVersion\": 10"));
         }
     }
 
@@ -1417,10 +1438,10 @@ mod tests {
             "vertical_double",
         ] {
             let raw = format!(
-                r#"{{"schemaVersion":9,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
+                r#"{{"schemaVersion":10,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
             );
             let validation = validate_config_draft(&raw);
-            assert!(!validation.valid, "{layout} should be invalid in schema 9");
+            assert!(!validation.valid, "{layout} should be invalid in schema 10");
             assert!(validation.error.unwrap().message.contains("orientation"));
         }
     }
@@ -1451,7 +1472,7 @@ mod tests {
     fn current_schema_preserves_explicit_legacy_provider_order() {
         let parsed = parse_config_draft(
             r#"{
-              "schemaVersion": 9,
+              "schemaVersion": 10,
               "lyrics": { "providers": {
                 "mode": "smart",
                 "providers": [

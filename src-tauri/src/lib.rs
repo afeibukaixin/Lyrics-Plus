@@ -734,7 +734,9 @@ pub(crate) fn move_overlay_to_primary(app: &tauri::AppHandle, window: &tauri::We
     }
 }
 
-const UNLOCK_HANDLE_EDGE_INSET: f64 = 6.0;
+const HORIZONTAL_OVERLAY_SURFACE_INSET: f64 = 46.0;
+const VERTICAL_OVERLAY_SURFACE_INSET: f64 = 48.0;
+const UNLOCK_HANDLE_BACKGROUND_GAP: f64 = 6.0;
 const UNLOCK_HANDLE_MONITOR_INTERVAL: Duration = Duration::from_millis(50);
 const UNLOCK_HANDLE_HIDE_DELAY: Duration = Duration::from_millis(200);
 const UNLOCK_HANDLE_HOVER_EVENT: &str = "unlock-handle://hover";
@@ -757,7 +759,8 @@ fn unlock_handle_position(
     overlay_position: tauri::PhysicalPosition<i32>,
     overlay_size: tauri::PhysicalSize<u32>,
     handle_size: tauri::PhysicalSize<u32>,
-    edge_inset: u32,
+    surface_inset: u32,
+    background_gap: u32,
 ) -> tauri::PhysicalPosition<i32> {
     let available_width = overlay_size.width.saturating_sub(handle_size.width);
     let available_height = overlay_size.height.saturating_sub(handle_size.height);
@@ -766,13 +769,20 @@ fn unlock_handle_position(
             overlay_position
                 .x
                 .saturating_add((available_width / 2) as i32),
-            overlay_position
-                .y
-                .saturating_add(edge_inset.min(available_height) as i32),
+            overlay_position.y.saturating_add(
+                surface_inset
+                    .saturating_sub(background_gap)
+                    .saturating_sub(handle_size.height)
+                    .min(available_height) as i32,
+            ),
         ),
         OverlayOrientation::Vertical => tauri::PhysicalPosition::new(
             overlay_position.x.saturating_add(
-                available_width.saturating_sub(edge_inset.min(available_width)) as i32,
+                overlay_size
+                    .width
+                    .saturating_sub(surface_inset)
+                    .saturating_add(background_gap)
+                    .min(available_width) as i32,
             ),
             overlay_position
                 .y
@@ -809,13 +819,19 @@ fn position_unlock_handle(app: &tauri::AppHandle) {
     } else {
         1.0
     };
-    let edge_inset = (UNLOCK_HANDLE_EDGE_INSET * scale).round() as u32;
+    let surface_inset = (match orientation {
+        OverlayOrientation::Horizontal => HORIZONTAL_OVERLAY_SURFACE_INSET,
+        OverlayOrientation::Vertical => VERTICAL_OVERLAY_SURFACE_INSET,
+    } * scale)
+        .round() as u32;
+    let background_gap = (UNLOCK_HANDLE_BACKGROUND_GAP * scale).round() as u32;
     let _ = handle.set_position(unlock_handle_position(
         orientation,
         position,
         size,
         handle_size,
-        edge_inset,
+        surface_inset,
+        background_gap,
     ));
 }
 
@@ -1640,9 +1656,10 @@ mod tests {
                 overlay_position,
                 overlay_size,
                 handle_size,
+                46,
                 6,
             ),
-            tauri::PhysicalPosition::new(466, 206),
+            tauri::PhysicalPosition::new(466, 212),
         );
     }
 
@@ -1657,9 +1674,10 @@ mod tests {
                 overlay_position,
                 overlay_size,
                 handle_size,
-                12,
+                48,
+                6,
             ),
-            tauri::PhysicalPosition::new(250, 496),
+            tauri::PhysicalPosition::new(248, 496),
         );
     }
 

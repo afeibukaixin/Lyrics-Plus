@@ -69,6 +69,7 @@ export default function OverlaySettingsPage() {
     : style.layout === "double"
       ? "主副分居会将主歌词靠左、副歌词靠右"
       : "当前布局固定居中";
+  const backgroundMode = style.background === "transparent" ? "transparent" : "solid";
   const activeColorPreset = overlayColorPresets.find((preset) => matchesColorPreset(style, preset));
 
   const applyColorPreset = async (preset: OverlayColorPreset) => {
@@ -106,9 +107,15 @@ export default function OverlaySettingsPage() {
         <SelectRow label="卡拉 OK 效果" value={style.karaokeStyle} onChange={(karaokeStyle) => void updateStyle({ karaokeStyle: karaokeStyle as OverlayStyle["karaokeStyle"] })} options={[["sweep", "逐词扫光"], ["bounce", "逐词弹跳"], ["highlight", "纯高亮"]]} />
       </SettingsCard>
       <SettingsCard title="背景与排版">
-        <SelectRow label="背景" value={style.background} onChange={(background) => void updateStyle({ background: background as OverlayStyle["background"] })} options={[["glass", "毛玻璃"], ["transparent", "纯透明"], ["solid", "纯色"]]} />
-        <RangeRow label="背景透明度" disabled={style.background === "transparent"} value={style.backgroundOpacity} min={0} max={1} step={0.05} suffix="%" displayValue={Math.round(style.backgroundOpacity * 100)} onChange={(backgroundOpacity) => void updateStyle({ backgroundOpacity })} />
-        {style.background === "solid" && <ColorRow label="背景颜色" value={style.solidColor} onChange={(solidColor) => void updateStyle({ solidColor })} />}
+        <SelectRow label="背景" value={backgroundMode} onChange={(background) => void updateStyle({ background: background as "transparent" | "solid" })} options={[["transparent", "纯透明"], ["solid", "纯色"]]} />
+        {style.background !== "transparent" && (
+          <>
+            <RangeRow label="背景透明度" value={style.backgroundOpacity} min={0} max={1} step={0.05} suffix="%" displayValue={Math.round(style.backgroundOpacity * 100)} onChange={(backgroundOpacity) => void updateStyle({ backgroundOpacity })} />
+            <ColorRow label="背景颜色" value={style.solidColor} onChange={(solidColor) => void updateStyle({ solidColor })} />
+            <ToggleRow label="毛玻璃" description="在当前纯色背景后添加模糊效果" value={style.background === "glass"} onChange={(enabled) => updateStyle({ background: enabled ? "glass" : "solid" })} />
+            {style.background === "glass" && <RangeRow label="模糊强度" value={style.backgroundBlur} min={0} max={40} suffix="px" onChange={(backgroundBlur) => void updateStyle({ backgroundBlur })} />}
+          </>
+        )}
         <SelectRow label="歌词布局" value={style.layout} onChange={(value) => void updateStyle({ layout: value as OverlayStyle["layout"] })} options={[["single", "单歌词"], ["double", "双歌词"]]} />
         <SelectRow label="文字方向" value={style.orientation} onChange={(value) => void updateStyle({ orientation: value as OverlayStyle["orientation"] })} options={[["horizontal", "横排"], ["vertical", "竖排"]]} />
         <SelectRow label="歌词对齐" description={alignmentDescription} disabled={!alignmentAvailable} value={alignmentAvailable ? style.alignment : "center"} onChange={(alignment) => void updateStyle({ alignment: alignment as OverlayStyle["alignment"] })} options={[["center", "居中"], ["distributed", "主副分居"]]} />

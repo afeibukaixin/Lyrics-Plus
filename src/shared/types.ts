@@ -250,6 +250,7 @@ export type OverlayStyle = {
   inactiveColor: string;
   opacity: number;
   backgroundOpacity: number;
+  backgroundBlur: number;
   background: "glass" | "transparent" | "solid";
   solidColor: string;
   layout: "single" | "double";
@@ -288,6 +289,7 @@ export const defaultOverlayStyle: OverlayStyle = {
   inactiveColor: "#c8d2df",
   opacity: 1,
   backgroundOpacity: 1,
+  backgroundBlur: 18,
   background: "glass",
   solidColor: "#171821",
   layout: "single",

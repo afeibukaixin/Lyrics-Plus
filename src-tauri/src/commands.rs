@@ -128,6 +128,7 @@ pub struct OverlayStyleSettings {
     pub inactive_color: String,
     pub opacity: f64,
     pub background_opacity: f64,
+    pub background_blur: f64,
     pub background: OverlayBackground,
     pub solid_color: String,
     pub layout: OverlayLayout,
@@ -159,6 +160,7 @@ impl Default for OverlayStyleSettings {
             inactive_color: "#c8d2df".into(),
             opacity: 1.0,
             background_opacity: 1.0,
+            background_blur: 18.0,
             background: OverlayBackground::Glass,
             solid_color: "#171821".into(),
             layout: OverlayLayout::Single,
@@ -195,6 +197,7 @@ impl OverlayStyleSettings {
         self.font_size = self.font_size.clamp(16, 72);
         self.opacity = self.opacity.clamp(0.2, 1.0);
         self.background_opacity = self.background_opacity.clamp(0.0, 1.0);
+        self.background_blur = self.background_blur.clamp(0.0, 40.0);
         self.secondary_font_scale = self.secondary_font_scale.clamp(0.35, 1.0);
         self.translation_font_scale = self.translation_font_scale.clamp(0.35, 1.0);
         self.romanization_font_scale = self.romanization_font_scale.clamp(0.35, 1.0);
@@ -1585,6 +1588,7 @@ mod tests {
         let style = style.normalized();
         assert_eq!(style.font_size, 42);
         assert_eq!(style.background, OverlayBackground::Glass);
+        assert_eq!(style.background_blur, 18.0);
         assert_eq!(style.layout, OverlayLayout::Single);
         assert_eq!(style.orientation, OverlayOrientation::Horizontal);
         assert_eq!(style.secondary_display, SecondaryDisplayMode::Translation);
@@ -1772,6 +1776,7 @@ mod tests {
             inactive_color: String::new(),
             opacity: -1.0,
             background_opacity: 2.0,
+            background_blur: 100.0,
             secondary_font_scale: 0.1,
             solid_color: String::new(),
             horizontal_max_width: Some(80.0),
@@ -1782,6 +1787,7 @@ mod tests {
         assert_eq!(style.font_size, 72);
         assert_eq!(style.opacity, 0.2);
         assert_eq!(style.background_opacity, 1.0);
+        assert_eq!(style.background_blur, 40.0);
         assert_eq!(style.secondary_font_scale, 0.35);
         assert_eq!(style.active_color, "#c4b5fd");
         assert_eq!(style.solid_color, "#171821");
