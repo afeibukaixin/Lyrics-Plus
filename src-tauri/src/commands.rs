@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager, State};
@@ -24,6 +24,7 @@ pub struct AppState {
     pub overlay_settings: Arc<RwLock<OverlaySettings>>,
     pub overlay_style: Arc<RwLock<OverlayStyleSettings>>,
     pub overlay_monitor: Arc<RwLock<Option<String>>>,
+    pub overlay_placement: Arc<Mutex<crate::OverlayPlacementState>>,
     pub last_snapshot: Arc<RwLock<PlaybackSnapshot>>,
     pub storage: Arc<Storage>,
     pub config: Arc<ConfigStore>,
@@ -817,6 +818,11 @@ pub fn reset_overlay_bounds(app: tauri::AppHandle) -> Result<OverlayStyleSetting
         .overlay_monitor
         .write()
         .unwrap_or_else(|error| error.into_inner()) = None;
+    state
+        .overlay_placement
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .preferred_monitor = None;
     let (reset_width, reset_height) =
         reset_overlay_dimensions(style.orientation, current_width, current_height);
     window
@@ -827,7 +833,7 @@ pub fn reset_overlay_bounds(app: tauri::AppHandle) -> Result<OverlayStyleSetting
         .map_err(|error| error.to_string())?;
     let _ = window.set_focusable(!locked);
     let _ = window.set_resizable(false);
-    crate::move_overlay_to_primary(&window);
+    crate::move_overlay_to_primary(&app, &window);
     persist_overlay_style_for_current_monitor(&app, &state, &style)?;
     window.show().map_err(|error| error.to_string())?;
     state
@@ -1135,8 +1141,7 @@ pub fn show_main_window(app: tauri::AppHandle, page: Option<String>) -> Result<(
             .eval("window.location.hash = '#/settings'")
             .map_err(|error| error.to_string())?;
     }
-    window.show().map_err(|error| error.to_string())?;
-    window.set_focus().map_err(|error| error.to_string())
+    crate::show_main_window_centered(&app)
 }
 
 #[tauri::command]
@@ -1371,6 +1376,11 @@ pub fn reset_settings_section(
                 .overlay_monitor
                 .write()
                 .unwrap_or_else(|error| error.into_inner()) = None;
+            state
+                .overlay_placement
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .preferred_monitor = None;
             *state
                 .overlay_settings
                 .write()

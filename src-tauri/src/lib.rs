@@ -5,7 +5,7 @@ mod lyrics;
 mod player;
 mod storage;
 
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use commands::{AppState, OverlayOrientation, OverlaySettings, OverlayStyleSettings};
@@ -172,10 +172,7 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show-main" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
+                let _ = show_main_window_centered(app);
             }
             "toggle-overlay" => {
                 let visible = app
@@ -247,7 +244,7 @@ fn start_player_monitor(app: tauri::AppHandle) {
             let _ = app.emit("playback://snapshot", &snapshot);
             if let Some(window) = app.get_webview_window("lyrics-overlay") {
                 if window.is_visible().unwrap_or(false) {
-                    ensure_overlay_on_connected_monitor(&window);
+                    reconcile_overlay_placement(&app, &window);
                 }
             }
             let any_window_visible = ["main", "lyrics-overlay"].iter().any(|label| {
@@ -276,10 +273,85 @@ pub(crate) fn monitor_id(monitor: &tauri::Monitor) -> String {
     })
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct StoredBounds {
     x: i32,
     y: i32,
+    #[serde(default)]
+    work_x: Option<i32>,
+    #[serde(default)]
+    work_y: Option<i32>,
+    #[serde(default)]
+    work_width: Option<u32>,
+    #[serde(default)]
+    work_height: Option<u32>,
+    #[serde(default)]
+    scale_factor: Option<f64>,
+    #[serde(default)]
+    relative_x: Option<f64>,
+    #[serde(default)]
+    relative_y: Option<f64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MonitorTopologyEntry {
+    id: String,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    work_x: i32,
+    work_y: i32,
+    work_width: u32,
+    work_height: u32,
+    scale_factor_bits: u64,
+}
+
+const PROGRAMMATIC_MOVE_SUPPRESSION: Duration = Duration::from_secs(2);
+
+#[derive(Default)]
+pub(crate) struct OverlayPlacementState {
+    preferred_monitor: Option<String>,
+    topology: Vec<MonitorTopologyEntry>,
+    expected_programmatic_position: Option<tauri::PhysicalPosition<i32>>,
+    programmatic_move_started_at: Option<Instant>,
+}
+
+impl OverlayPlacementState {
+    fn update_topology(&mut self, next: Vec<MonitorTopologyEntry>) -> bool {
+        if self.topology.is_empty() {
+            self.topology = next;
+            return false;
+        }
+        if self.topology == next {
+            return false;
+        }
+        self.topology = next;
+        self.expected_programmatic_position = None;
+        self.programmatic_move_started_at = None;
+        true
+    }
+
+    fn consume_programmatic_move(&mut self, position: tauri::PhysicalPosition<i32>) -> bool {
+        let expected = self.expected_programmatic_position.take();
+        self.programmatic_move_started_at = None;
+        let Some(expected) = expected else {
+            return false;
+        };
+        expected.x.abs_diff(position.x) <= 2 && expected.y.abs_diff(position.y) <= 2
+    }
+
+    fn suppress_persistence(&mut self, now: Instant) -> bool {
+        let active = self.programmatic_move_started_at.is_some_and(|started| {
+            now.saturating_duration_since(started) <= PROGRAMMATIC_MOVE_SUPPRESSION
+        });
+        if !active {
+            self.expected_programmatic_position = None;
+            self.programmatic_move_started_at = None;
+        }
+        active
+    }
 }
 
 #[derive(Default, serde::Serialize, serde::Deserialize)]
@@ -313,14 +385,123 @@ fn overlay_geometry(storage: &storage::Storage, monitor_id: Option<&str>) -> Sto
         .unwrap_or_default()
 }
 
-pub(crate) fn move_overlay_to_primary(window: &tauri::WebviewWindow) {
+fn monitor_topology(monitors: &[tauri::Monitor]) -> Vec<MonitorTopologyEntry> {
+    let mut topology = monitors
+        .iter()
+        .map(|monitor| {
+            let position = monitor.position();
+            let size = monitor.size();
+            let work_area = monitor.work_area();
+            MonitorTopologyEntry {
+                id: monitor_id(monitor),
+                x: position.x,
+                y: position.y,
+                width: size.width,
+                height: size.height,
+                work_x: work_area.position.x,
+                work_y: work_area.position.y,
+                work_width: work_area.size.width,
+                work_height: work_area.size.height,
+                scale_factor_bits: monitor.scale_factor().to_bits(),
+            }
+        })
+        .collect::<Vec<_>>();
+    topology.sort_by(|left, right| {
+        (&left.id, left.x, left.y, left.width, left.height).cmp(&(
+            &right.id,
+            right.x,
+            right.y,
+            right.width,
+            right.height,
+        ))
+    });
+    topology
+}
+
+fn centered_position(
+    work_position: tauri::PhysicalPosition<i32>,
+    work_size: tauri::PhysicalSize<u32>,
+    window_size: tauri::PhysicalSize<u32>,
+) -> tauri::PhysicalPosition<i32> {
+    tauri::PhysicalPosition::new(
+        work_position.x + work_size.width.saturating_sub(window_size.width) as i32 / 2,
+        work_position.y + work_size.height.saturating_sub(window_size.height) as i32 / 2,
+    )
+}
+
+fn monitor_contains_point(monitor: &tauri::Monitor, point: tauri::PhysicalPosition<f64>) -> bool {
+    let position = monitor.position();
+    let size = monitor.size();
+    point.x >= position.x as f64
+        && point.x < position.x as f64 + size.width as f64
+        && point.y >= position.y as f64
+        && point.y < position.y as f64 + size.height as f64
+}
+
+fn center_main_window_on_cursor(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+) -> Result<(), String> {
+    let monitors = window
+        .available_monitors()
+        .map_err(|error| error.to_string())?;
+    let cursor = app.cursor_position().ok();
+    let monitor = cursor
+        .and_then(|point| {
+            monitors
+                .iter()
+                .find(|monitor| monitor_contains_point(monitor, point))
+        })
+        .cloned()
+        .or_else(|| window.primary_monitor().ok().flatten())
+        .or_else(|| monitors.first().cloned())
+        .ok_or_else(|| "没有可用的显示器".to_string())?;
+    let work_area = monitor.work_area();
+    let window_size = window.outer_size().map_err(|error| error.to_string())?;
+    window
+        .set_position(centered_position(
+            work_area.position,
+            work_area.size,
+            window_size,
+        ))
+        .map_err(|error| error.to_string())
+}
+
+pub(crate) fn show_main_window_centered(app: &tauri::AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "主窗口不存在".to_string())?;
+    if !window.is_visible().unwrap_or(false) {
+        center_main_window_on_cursor(app, &window)?;
+        window.show().map_err(|error| error.to_string())?;
+    }
+    window.set_focus().map_err(|error| error.to_string())
+}
+
+fn set_overlay_position(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+    position: tauri::PhysicalPosition<i32>,
+) {
+    if let Some(state) = app.try_state::<AppState>() {
+        let mut placement = state
+            .overlay_placement
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        placement.expected_programmatic_position = Some(position);
+        placement.programmatic_move_started_at = Some(Instant::now());
+    }
+    let _ = window.set_position(position);
+}
+
+pub(crate) fn move_overlay_to_primary(app: &tauri::AppHandle, window: &tauri::WebviewWindow) {
     if let Ok(Some(monitor)) = window.primary_monitor() {
-        let monitor_position = monitor.position();
-        let monitor_size = monitor.size();
+        let work_area = monitor.work_area();
         let window_width = window.outer_size().map(|size| size.width).unwrap_or(760);
-        let x = monitor_position.x + (monitor_size.width.saturating_sub(window_width) / 2) as i32;
-        let y = monitor_position.y + 72;
-        let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+        let x =
+            work_area.position.x + (work_area.size.width.saturating_sub(window_width) / 2) as i32;
+        let y = work_area.position.y + 72;
+        set_overlay_position(app, window, tauri::PhysicalPosition::new(x, y));
     }
 }
 
@@ -550,7 +731,91 @@ fn snap_coordinate(value: i32, start: i32, end: i32) -> i32 {
     }
 }
 
-fn persist_overlay_state(app: &tauri::AppHandle, window: &tauri::WebviewWindow) {
+fn relative_axis(position: i32, start: i32, work_length: u32, window_length: u32) -> f64 {
+    let available = work_length.saturating_sub(window_length);
+    if available == 0 {
+        0.0
+    } else {
+        ((position as i64 - start as i64) as f64 / available as f64).clamp(0.0, 1.0)
+    }
+}
+
+fn clamp_axis(position: i32, start: i32, work_length: u32, window_length: u32) -> i32 {
+    let maximum = start as i64 + work_length.saturating_sub(window_length) as i64;
+    (position as i64).clamp(start as i64, maximum.max(start as i64)) as i32
+}
+
+fn restored_overlay_position(
+    bounds: &StoredBounds,
+    work_position: tauri::PhysicalPosition<i32>,
+    work_size: tauri::PhysicalSize<u32>,
+    window_size: tauri::PhysicalSize<u32>,
+    scale_factor: f64,
+) -> tauri::PhysicalPosition<i32> {
+    let same_work_area = bounds.work_x == Some(work_position.x)
+        && bounds.work_y == Some(work_position.y)
+        && bounds.work_width == Some(work_size.width)
+        && bounds.work_height == Some(work_size.height)
+        && bounds
+            .scale_factor
+            .is_some_and(|saved| (saved - scale_factor).abs() < 0.001);
+
+    let (x, y) = if same_work_area {
+        (bounds.x, bounds.y)
+    } else {
+        let available_width = work_size.width.saturating_sub(window_size.width);
+        let available_height = work_size.height.saturating_sub(window_size.height);
+        (
+            bounds.relative_x.map_or(bounds.x, |relative| {
+                work_position.x + (relative.clamp(0.0, 1.0) * available_width as f64).round() as i32
+            }),
+            bounds.relative_y.map_or(bounds.y, |relative| {
+                work_position.y
+                    + (relative.clamp(0.0, 1.0) * available_height as f64).round() as i32
+            }),
+        )
+    };
+
+    tauri::PhysicalPosition::new(
+        clamp_axis(x, work_position.x, work_size.width, window_size.width),
+        clamp_axis(y, work_position.y, work_size.height, window_size.height),
+    )
+}
+
+fn stored_bounds(
+    position: tauri::PhysicalPosition<i32>,
+    window_size: tauri::PhysicalSize<u32>,
+    monitor: &tauri::Monitor,
+) -> StoredBounds {
+    let work_area = monitor.work_area();
+    StoredBounds {
+        x: position.x,
+        y: position.y,
+        work_x: Some(work_area.position.x),
+        work_y: Some(work_area.position.y),
+        work_width: Some(work_area.size.width),
+        work_height: Some(work_area.size.height),
+        scale_factor: Some(monitor.scale_factor()),
+        relative_x: Some(relative_axis(
+            position.x,
+            work_area.position.x,
+            work_area.size.width,
+            window_size.width,
+        )),
+        relative_y: Some(relative_axis(
+            position.y,
+            work_area.position.y,
+            work_area.size.height,
+            window_size.height,
+        )),
+    }
+}
+
+fn persist_overlay_state_at(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+    position: tauri::PhysicalPosition<i32>,
+) {
     let Ok(Some(monitor)) = window.current_monitor() else {
         return;
     };
@@ -586,75 +851,189 @@ fn persist_overlay_state(app: &tauri::AppHandle, window: &tauri::WebviewWindow) 
         let _ = app.emit("overlay://style", style);
     }
 
-    let Ok(position) = window.outer_position() else {
+    let Ok(window_size) = window.outer_size() else {
         return;
     };
-    let bounds = StoredBounds {
-        x: position.x,
-        y: position.y,
-    };
+    let bounds = stored_bounds(position, window_size, &monitor);
     if let Ok(raw) = serde_json::to_string(&bounds) {
         let _ = state.storage.set_preference("overlay.last_monitor", &id);
         let _ = state
             .storage
             .set_preference(&format!("overlay.position.{id}"), &raw);
+        state
+            .overlay_placement
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .preferred_monitor = Some(id);
     }
     position_unlock_handle(app);
 }
 
-fn ensure_overlay_on_connected_monitor(window: &tauri::WebviewWindow) {
+fn persist_overlay_state(app: &tauri::AppHandle, window: &tauri::WebviewWindow) {
+    if let Ok(position) = window.outer_position() {
+        persist_overlay_state_at(app, window, position);
+    }
+}
+
+fn overlay_intersects_any_monitor(
+    window: &tauri::WebviewWindow,
+    monitors: &[tauri::Monitor],
+) -> bool {
     let (Ok(position), Ok(size)) = (window.outer_position(), window.outer_size()) else {
-        return;
+        return false;
     };
     let right = position.x as i64 + size.width as i64;
     let bottom = position.y as i64 + size.height as i64;
-    let intersects_monitor =
-        window
-            .available_monitors()
-            .unwrap_or_default()
+    monitors.iter().any(|monitor| {
+        let monitor_position = monitor.position();
+        let monitor_size = monitor.size();
+        let monitor_right = monitor_position.x as i64 + monitor_size.width as i64;
+        let monitor_bottom = monitor_position.y as i64 + monitor_size.height as i64;
+        right > monitor_position.x as i64
+            && (position.x as i64) < monitor_right
+            && bottom > monitor_position.y as i64
+            && (position.y as i64) < monitor_bottom
+    })
+}
+
+fn apply_stored_overlay_position(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+    monitor: &tauri::Monitor,
+) -> bool {
+    let state = app.state::<AppState>();
+    let key = format!("overlay.position.{}", monitor_id(monitor));
+    let Some(bounds) = state
+        .storage
+        .get_preference(&key)
+        .ok()
+        .flatten()
+        .and_then(|raw| serde_json::from_str::<StoredBounds>(&raw).ok())
+    else {
+        return false;
+    };
+    let Ok(window_size) = window.outer_size() else {
+        return false;
+    };
+    let work_area = monitor.work_area();
+    let position = restored_overlay_position(
+        &bounds,
+        work_area.position,
+        work_area.size,
+        window_size,
+        monitor.scale_factor(),
+    );
+    set_overlay_position(app, window, position);
+    true
+}
+
+fn refresh_overlay_topology(app: &tauri::AppHandle, monitors: &[tauri::Monitor]) -> bool {
+    let state = app.state::<AppState>();
+    let next = monitor_topology(monitors);
+    let mut placement = state
+        .overlay_placement
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    placement.update_topology(next)
+}
+
+fn restore_preferred_overlay_placement(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+    monitors: &[tauri::Monitor],
+) {
+    let preferred_monitor = app
+        .state::<AppState>()
+        .overlay_placement
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .preferred_monitor
+        .clone();
+    if let Some(preferred_monitor) = preferred_monitor {
+        if let Some(monitor) = monitors
             .iter()
-            .any(|monitor| {
-                let monitor_position = monitor.position();
-                let monitor_size = monitor.size();
-                let monitor_right = monitor_position.x as i64 + monitor_size.width as i64;
-                let monitor_bottom = monitor_position.y as i64 + monitor_size.height as i64;
-                right > monitor_position.x as i64
-                    && (position.x as i64) < monitor_right
-                    && bottom > monitor_position.y as i64
-                    && (position.y as i64) < monitor_bottom
-            });
-    if !intersects_monitor {
-        move_overlay_to_primary(window);
+            .find(|monitor| monitor_id(monitor) == preferred_monitor)
+        {
+            if apply_stored_overlay_position(app, window, monitor) {
+                return;
+            }
+        } else {
+            move_overlay_to_primary(app, window);
+            return;
+        }
     }
+    if !overlay_intersects_any_monitor(window, monitors) {
+        move_overlay_to_primary(app, window);
+    }
+}
+
+fn reconcile_overlay_placement(app: &tauri::AppHandle, window: &tauri::WebviewWindow) {
+    let monitors = window.available_monitors().unwrap_or_default();
+    if monitors.is_empty() || !refresh_overlay_topology(app, &monitors) {
+        return;
+    }
+    restore_preferred_overlay_placement(app, window, &monitors);
+}
+
+fn ignore_overlay_move(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+    position: tauri::PhysicalPosition<i32>,
+) -> bool {
+    let monitors = window.available_monitors().unwrap_or_default();
+    let topology_changed = !monitors.is_empty() && refresh_overlay_topology(app, &monitors);
+    let state = app.state::<AppState>();
+    let mut placement = state
+        .overlay_placement
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    let programmatic = placement.consume_programmatic_move(position);
+    drop(placement);
+
+    if topology_changed {
+        restore_preferred_overlay_placement(app, window, &monitors);
+    }
+    topology_changed || programmatic
+}
+
+fn suppress_overlay_persistence(app: &tauri::AppHandle, window: &tauri::WebviewWindow) -> bool {
+    let monitors = window.available_monitors().unwrap_or_default();
+    let topology_changed = !monitors.is_empty() && refresh_overlay_topology(app, &monitors);
+    if topology_changed {
+        restore_preferred_overlay_placement(app, window, &monitors);
+        return true;
+    }
+    app.state::<AppState>()
+        .overlay_placement
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .suppress_persistence(Instant::now())
 }
 
 pub(crate) fn restore_overlay_position(app: &tauri::AppHandle, window: &tauri::WebviewWindow) {
     let state = app.state::<AppState>();
     let monitors = window.available_monitors().unwrap_or_default();
     let last_monitor = state
-        .storage
-        .get_preference("overlay.last_monitor")
-        .ok()
-        .flatten();
+        .overlay_placement
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .preferred_monitor
+        .clone();
 
     if let Some(monitor) = last_monitor
         .as_ref()
         .and_then(|id| monitors.iter().find(|monitor| monitor_id(monitor) == *id))
     {
-        let key = format!("overlay.position.{}", monitor_id(monitor));
-        if let Ok(Some(raw)) = state.storage.get_preference(&key) {
-            if let Ok(bounds) = serde_json::from_str::<StoredBounds>(&raw) {
-                let _ = window.set_position(tauri::PhysicalPosition::new(bounds.x, bounds.y));
-                return;
-            }
+        if apply_stored_overlay_position(app, window, monitor) {
+            return;
         }
     }
-    move_overlay_to_primary(window);
+    move_overlay_to_primary(app, window);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -666,6 +1045,7 @@ pub fn run() {
         )
         .plugin(
             tauri_plugin_window_state::Builder::default()
+                .skip_initial_state("main")
                 .skip_initial_state("lyrics-overlay")
                 .build(),
         )
@@ -719,7 +1099,11 @@ pub fn run() {
                 auto_player: Arc::new(RwLock::new(None)),
                 overlay_settings: Arc::new(RwLock::new(overlay_settings.clone())),
                 overlay_style: Arc::new(RwLock::new(overlay_style)),
-                overlay_monitor: Arc::new(RwLock::new(last_overlay_monitor)),
+                overlay_monitor: Arc::new(RwLock::new(last_overlay_monitor.clone())),
+                overlay_placement: Arc::new(Mutex::new(OverlayPlacementState {
+                    preferred_monitor: last_overlay_monitor,
+                    ..OverlayPlacementState::default()
+                })),
                 last_snapshot: Arc::new(RwLock::new(player::PlaybackSnapshot::empty())),
                 storage: Arc::new(storage),
                 config,
@@ -735,6 +1119,7 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_size(tauri::LogicalSize::new(980.0, 720.0));
                 let _ = window.set_resizable(false);
+                let _ = center_main_window_on_cursor(app.handle(), &window);
             }
 
             create_overlay(app.handle())?;
@@ -799,17 +1184,24 @@ pub fn run() {
                 if let tauri::WindowEvent::Moved(position) = event {
                     if let Some(overlay) = window.app_handle().get_webview_window("lyrics-overlay")
                     {
+                        if ignore_overlay_move(window.app_handle(), &overlay, *position) {
+                            return;
+                        }
                         let snapped = snapped_position(&overlay, *position);
                         if snapped != *position {
-                            let _ = overlay.set_position(snapped);
+                            set_overlay_position(window.app_handle(), &overlay, snapped);
+                            persist_overlay_state_at(window.app_handle(), &overlay, snapped);
+                            return;
                         }
-                        persist_overlay_state(window.app_handle(), &overlay);
+                        persist_overlay_state_at(window.app_handle(), &overlay, *position);
                     }
                 }
                 if matches!(event, tauri::WindowEvent::Resized(_)) {
                     if let Some(overlay) = window.app_handle().get_webview_window("lyrics-overlay")
                     {
-                        persist_overlay_state(window.app_handle(), &overlay);
+                        if !suppress_overlay_persistence(window.app_handle(), &overlay) {
+                            persist_overlay_state(window.app_handle(), &overlay);
+                        }
                     }
                 }
             }
@@ -856,8 +1248,14 @@ pub fn run() {
             commands::save_app_config_draft,
             commands::reset_settings_section,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Lyrics Plus");
+        .build(tauri::generate_context!())
+        .expect("error while building Lyrics Plus");
+    app.run(|app, event| {
+        #[cfg(target_os = "macos")]
+        if matches!(event, tauri::RunEvent::Reopen { .. }) {
+            let _ = show_main_window_centered(app);
+        }
+    });
 }
 
 #[cfg(test)]
@@ -876,6 +1274,116 @@ mod tests {
         let bounds: StoredBounds =
             serde_json::from_str(r#"{"x":12,"y":34,"width":760,"height":156}"#).unwrap();
         assert_eq!((bounds.x, bounds.y), (12, 34));
+        assert_eq!(bounds.relative_x, None);
+        assert_eq!(bounds.work_width, None);
+    }
+
+    #[test]
+    fn old_position_records_are_clamped_to_the_current_work_area() {
+        let bounds: StoredBounds = serde_json::from_str(r#"{"x":900,"y":700}"#).unwrap();
+        assert_eq!(
+            restored_overlay_position(
+                &bounds,
+                tauri::PhysicalPosition::new(0, 0),
+                tauri::PhysicalSize::new(800, 600),
+                tauri::PhysicalSize::new(200, 100),
+                2.0,
+            ),
+            tauri::PhysicalPosition::new(600, 500),
+        );
+    }
+
+    #[test]
+    fn relative_position_adapts_to_resolution_and_monitor_origin_changes() {
+        let bounds: StoredBounds = serde_json::from_str(
+            r#"{"x":400,"y":200,"workX":0,"workY":0,"workWidth":1000,"workHeight":800,"scaleFactor":2.0,"relativeX":0.5,"relativeY":0.25}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            restored_overlay_position(
+                &bounds,
+                tauri::PhysicalPosition::new(1920, 0),
+                tauri::PhysicalSize::new(2000, 1200),
+                tauri::PhysicalSize::new(200, 100),
+                1.0,
+            ),
+            tauri::PhysicalPosition::new(2820, 275),
+        );
+    }
+
+    #[test]
+    fn unchanged_work_area_preserves_exact_saved_position() {
+        let bounds: StoredBounds = serde_json::from_str(
+            r#"{"x":321,"y":234,"workX":0,"workY":24,"workWidth":1440,"workHeight":876,"scaleFactor":2.0,"relativeX":0.1,"relativeY":0.9}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            restored_overlay_position(
+                &bounds,
+                tauri::PhysicalPosition::new(0, 24),
+                tauri::PhysicalSize::new(1440, 876),
+                tauri::PhysicalSize::new(760, 156),
+                2.0,
+            ),
+            tauri::PhysicalPosition::new(321, 234),
+        );
+    }
+
+    #[test]
+    fn main_window_is_centered_inside_negative_origin_work_area() {
+        assert_eq!(
+            centered_position(
+                tauri::PhysicalPosition::new(-1920, 24),
+                tauri::PhysicalSize::new(1920, 1056),
+                tauri::PhysicalSize::new(980, 720),
+            ),
+            tauri::PhysicalPosition::new(-1450, 192),
+        );
+    }
+
+    #[test]
+    fn topology_changes_preserve_preferred_monitor_and_clear_programmatic_move() {
+        let topology = |width| {
+            vec![MonitorTopologyEntry {
+                id: "external".into(),
+                x: 0,
+                y: 0,
+                width,
+                height: 1080,
+                work_x: 0,
+                work_y: 24,
+                work_width: width,
+                work_height: 1056,
+                scale_factor_bits: 1.0_f64.to_bits(),
+            }]
+        };
+        let mut placement = OverlayPlacementState {
+            preferred_monitor: Some("external".into()),
+            expected_programmatic_position: Some(tauri::PhysicalPosition::new(10, 20)),
+            ..OverlayPlacementState::default()
+        };
+        assert!(!placement.update_topology(topology(1920)));
+        assert!(placement.consume_programmatic_move(tauri::PhysicalPosition::new(10, 20)));
+        placement.expected_programmatic_position = Some(tauri::PhysicalPosition::new(30, 40));
+        placement.programmatic_move_started_at = Some(Instant::now());
+        assert!(placement.update_topology(topology(2560)));
+        assert_eq!(placement.preferred_monitor.as_deref(), Some("external"));
+        assert_eq!(placement.expected_programmatic_position, None);
+        assert_eq!(placement.programmatic_move_started_at, None);
+    }
+
+    #[test]
+    fn programmatic_move_suppression_expires() {
+        let now = Instant::now();
+        let mut placement = OverlayPlacementState {
+            expected_programmatic_position: Some(tauri::PhysicalPosition::new(10, 20)),
+            programmatic_move_started_at: Some(
+                now - PROGRAMMATIC_MOVE_SUPPRESSION - Duration::from_millis(1),
+            ),
+            ..OverlayPlacementState::default()
+        };
+        assert!(!placement.suppress_persistence(now));
+        assert_eq!(placement.expected_programmatic_position, None);
     }
 
     #[test]
