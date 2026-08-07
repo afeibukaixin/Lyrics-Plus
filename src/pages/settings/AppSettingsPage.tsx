@@ -44,6 +44,7 @@ export default function AppSettingsPage() {
         <ToggleRow label="隐藏 Dock 图标和运行指示点" description="隐藏后仍可通过菜单栏图标打开 Lyrics Plus" value={config.app.hideDockIcon} onChange={(hidden) => setDockIconHidden(hidden).catch((value) => setError(messageOf(value)))} />
       </SettingsCard>
       <SettingsCard title="快捷键">
+        <div className={styles.shortcutRow}><span>打开设置</span><kbd>⌘ ,</kbd></div>
         <div className={styles.shortcutRow}><span>显示 / 隐藏桌面歌词</span><kbd>⌘ ⇧ L</kbd></div>
         <div className={styles.shortcutRow}><span>解锁桌面歌词</span><kbd>⌘ ⇧ U</kbd></div>
         <div className={styles.shortcutRow}><span>复位并显示桌面歌词</span><kbd>⌘ ⇧ 0</kbd></div>

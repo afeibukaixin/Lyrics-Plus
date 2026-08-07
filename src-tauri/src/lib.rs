@@ -11,11 +11,23 @@ use std::time::{Duration, Instant};
 use commands::{AppState, OverlayOrientation, OverlaySettings, OverlayStyleSettings};
 use config::ConfigStore;
 use player::{query_selected_player, PlayerSelection};
-use tauri::menu::{Menu, MenuItem};
-use tauri::tray::TrayIconBuilder;
+use tauri::menu::{CheckMenuItem, Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
+
+struct TrayMenuState {
+    toggle_overlay: CheckMenuItem<tauri::Wry>,
+}
+
+pub(crate) fn sync_tray_overlay_checked(app: &tauri::AppHandle, visible: bool) {
+    if let Some(tray) = app.try_state::<TrayMenuState>() {
+        if let Err(error) = tray.toggle_overlay.set_checked(visible) {
+            log::warn!("同步菜单栏歌词开关状态失败：{error}");
+        }
+    }
+}
 
 #[cfg(target_os = "macos")]
 pub(crate) fn apply_dock_icon_hidden(app: &tauri::AppHandle, hidden: bool) -> Result<(), String> {
@@ -148,24 +160,27 @@ fn create_unlock_handle(app: &tauri::App) -> tauri::Result<()> {
 }
 
 fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
-    let show_main = MenuItem::with_id(app, "show-main", "打开 Lyrics Plus", true, None::<&str>)?;
-    let toggle_overlay =
-        MenuItem::with_id(app, "toggle-overlay", "显示/隐藏歌词", true, None::<&str>)?;
-    let reset_overlay =
-        MenuItem::with_id(app, "reset-overlay", "复位桌面歌词", true, None::<&str>)?;
-    let toggle_lock =
-        MenuItem::with_id(app, "toggle-lock", "锁定/解锁桌面歌词", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-    let menu = Menu::with_items(
+    let overlay_visible = app
+        .state::<AppState>()
+        .overlay_settings
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .visible;
+    let toggle_overlay = CheckMenuItem::with_id(
         app,
-        &[
-            &show_main,
-            &toggle_overlay,
-            &reset_overlay,
-            &toggle_lock,
-            &quit,
-        ],
+        "toggle-overlay",
+        "显示桌面歌词",
+        true,
+        overlay_visible,
+        Some("CmdOrCtrl+Shift+L"),
     )?;
+    let settings = MenuItem::with_id(app, "settings", "设置", true, Some("CmdOrCtrl+,"))?;
+    let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&toggle_overlay, &settings, &quit])?;
+
+    app.manage(TrayMenuState {
+        toggle_overlay: toggle_overlay.clone(),
+    });
 
     #[cfg(target_os = "macos")]
     let tray_icon = {
@@ -188,11 +203,22 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     tray_builder
         .tooltip("Lyrics Plus")
         .menu(&menu)
-        .show_menu_on_left_click(true)
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "show-main" => {
-                let _ = show_main_window_centered(app);
+        .show_menu_on_left_click(false)
+        .on_tray_icon_event(|tray, event| {
+            if matches!(
+                event,
+                TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                }
+            ) {
+                if let Err(error) = show_main_window_centered(tray.app_handle()) {
+                    log::warn!("从菜单栏恢复主窗口失败：{error}");
+                }
             }
+        })
+        .on_menu_event(|app, event| match event.id.as_ref() {
             "toggle-overlay" => {
                 let visible = app
                     .state::<AppState>()
@@ -202,17 +228,10 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
                     .visible;
                 let _ = commands::update_overlay_visible(app, !visible);
             }
-            "reset-overlay" => {
-                let _ = commands::reset_overlay_bounds(app.clone());
-            }
-            "toggle-lock" => {
-                let locked = app
-                    .state::<AppState>()
-                    .overlay_settings
-                    .read()
-                    .unwrap_or_else(|error| error.into_inner())
-                    .locked;
-                let _ = commands::update_overlay_locked(app, !locked);
+            "settings" => {
+                if let Err(error) = show_main_window_at(app, Some("#/settings")) {
+                    log::warn!("从菜单栏打开设置失败：{error}");
+                }
             }
             "quit" => app.exit(0),
             _ => {}
@@ -487,13 +506,30 @@ fn center_main_window_on_cursor(
 }
 
 pub(crate) fn show_main_window_centered(app: &tauri::AppHandle) -> Result<(), String> {
+    show_main_window_at(app, None)
+}
+
+pub(crate) fn show_main_window_at(
+    app: &tauri::AppHandle,
+    route: Option<&str>,
+) -> Result<(), String> {
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "主窗口不存在".to_string())?;
-    if !window.is_visible().unwrap_or(false) {
-        center_main_window_on_cursor(app, &window)?;
-        window.show().map_err(|error| error.to_string())?;
+    if let Some(route) = route {
+        window
+            .eval(format!("window.location.hash = {route:?}"))
+            .map_err(|error| error.to_string())?;
     }
+    if !window.is_visible().unwrap_or(false) {
+        if let Err(error) = center_main_window_on_cursor(app, &window) {
+            log::warn!("主窗口居中失败，将在原位置显示：{error}");
+        }
+    }
+    if let Err(error) = window.unminimize() {
+        log::warn!("恢复主窗口最小化状态失败，将继续尝试显示：{error}");
+    }
+    window.show().map_err(|error| error.to_string())?;
     window.set_focus().map_err(|error| error.to_string())
 }
 
@@ -1196,6 +1232,11 @@ pub fn run() {
             if window.label() == "main" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
+                    if let Some(main_window) = window.app_handle().get_webview_window("main") {
+                        if let Err(error) = main_window.eval("window.location.hash = '#/'") {
+                            log::warn!("关闭主窗口时重置首页失败：{error}");
+                        }
+                    }
                     let _ = window.hide();
                 }
             }

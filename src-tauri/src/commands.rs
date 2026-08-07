@@ -581,6 +581,7 @@ pub fn update_overlay_visible(app: &tauri::AppHandle, visible: bool) -> Result<(
     state
         .config
         .update(|config| config.overlay.visible = visible)?;
+    crate::sync_tray_overlay_checked(app, visible);
     app.emit("overlay://settings", get_overlay_settings_inner(&state))
         .map_err(|error| error.to_string())
 }
@@ -844,6 +845,7 @@ pub fn reset_overlay_bounds(app: tauri::AppHandle) -> Result<OverlayStyleSetting
     state
         .config
         .update(|config| config.overlay.visible = true)?;
+    crate::sync_tray_overlay_checked(&app, true);
     crate::sync_unlock_handle(&app);
     app.emit("overlay://settings", get_overlay_settings_inner(&state))
         .map_err(|error| error.to_string())?;
@@ -1145,15 +1147,8 @@ pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Re
 
 #[tauri::command]
 pub fn show_main_window(app: tauri::AppHandle, page: Option<String>) -> Result<(), String> {
-    let window = app
-        .get_webview_window("main")
-        .ok_or_else(|| "主窗口不存在".to_string())?;
-    if page.as_deref() == Some("settings") {
-        window
-            .eval("window.location.hash = '#/settings'")
-            .map_err(|error| error.to_string())?;
-    }
-    crate::show_main_window_centered(&app)
+    let route = (page.as_deref() == Some("settings")).then_some("#/settings");
+    crate::show_main_window_at(&app, route)
 }
 
 #[tauri::command]
@@ -1348,6 +1343,7 @@ fn apply_app_config(
             let _ = window.set_focusable(!saved.overlay.locked);
         }
         crate::sync_unlock_handle(app);
+        crate::sync_tray_overlay_checked(app, saved.overlay.visible);
         let _ = app.emit("player://selection", saved.app.player_selection);
         let _ = app.emit("overlay://settings", get_overlay_settings_inner(&state));
     }
@@ -1411,6 +1407,7 @@ pub fn reset_settings_section(
             let _ = window.set_resizable(false);
             crate::restore_overlay_position(&app, &window);
             window.show().map_err(|error| error.to_string())?;
+            crate::sync_tray_overlay_checked(&app, true);
             crate::sync_unlock_handle(&app);
             app.emit("overlay://settings", get_overlay_settings_inner(&state))
                 .map_err(|error| error.to_string())?;
