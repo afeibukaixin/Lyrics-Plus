@@ -4,6 +4,7 @@ use std::sync::RwLock;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tauri_plugin_global_shortcut::Shortcut;
 
 use crate::commands::{
     KaraokeStyle, LongTextMode, OverlayAlignment, OverlayBackground, OverlayLayout,
@@ -13,11 +14,11 @@ use crate::lyrics::provider::{validate_settings, ProviderOrderMode, ProviderSett
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 8;
+pub const CONFIG_SCHEMA_VERSION: u16 = 9;
 
 pub const DEFAULT_CONFIG_JSONC: &str = r###"{
   // 配置格式版本。通常不需要手动修改。
-  "schemaVersion": 8,
+  "schemaVersion": 9,
   "app": {
     // 主界面字号：80–150，每 10% 一档。
     "uiFontScale": 100,
@@ -25,6 +26,12 @@ pub const DEFAULT_CONFIG_JSONC: &str = r###"{
     "playerSelection": "auto",
     // 隐藏 macOS Dock 图标及其运行指示点，应用仍可从菜单栏打开。
     "hideDockIcon": false,
+    // 全局快捷键；必须包含修饰键，且三项不能重复。
+    "shortcuts": {
+      "toggleOverlay": "CommandOrControl+Shift+KeyL",
+      "unlockOverlay": "CommandOrControl+Shift+KeyU",
+      "resetOverlay": "CommandOrControl+Shift+Digit0"
+    },
   },
   "lyrics": {
     "providers": {
@@ -52,6 +59,8 @@ pub const DEFAULT_CONFIG_JSONC: &str = r###"{
       "inactiveColor": "#c8d2df",
       // 浮窗透明度：0.2–1.0。
       "opacity": 1.0,
+      // 背景透明度：0–1.0，不影响歌词文字。
+      "backgroundOpacity": 1.0,
       // 背景：glass、transparent、solid。
       "background": "glass",
       "solidColor": "#171821",
@@ -68,7 +77,8 @@ pub const DEFAULT_CONFIG_JSONC: &str = r###"{
       "autoCenterWithTranslationOrRomanization": false,
       // 卡拉 OK：sweep、bounce、highlight。
       "karaokeStyle": "sweep",
-      // 翻译和音译字号比例：0.35–1.0。
+      // 下一句副歌词、翻译和音译字号比例：0.35–1.0。
+      "secondaryFontScale": 0.8,
       "translationFontScale": 0.8,
       "romanizationFontScale": 0.8,
       "translationColor": "#cbd5e1",
@@ -104,6 +114,7 @@ pub struct AppPreferences {
     pub ui_font_scale: u16,
     pub player_selection: PlayerSelection,
     pub hide_dock_icon: bool,
+    pub shortcuts: GlobalShortcutSettings,
 }
 
 impl Default for AppPreferences {
@@ -112,7 +123,55 @@ impl Default for AppPreferences {
             ui_font_scale: 100,
             player_selection: PlayerSelection::Auto,
             hide_dock_icon: false,
+            shortcuts: GlobalShortcutSettings::default(),
         }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct GlobalShortcutSettings {
+    pub toggle_overlay: String,
+    pub unlock_overlay: String,
+    pub reset_overlay: String,
+}
+
+impl Default for GlobalShortcutSettings {
+    fn default() -> Self {
+        Self {
+            toggle_overlay: "CommandOrControl+Shift+KeyL".into(),
+            unlock_overlay: "CommandOrControl+Shift+KeyU".into(),
+            reset_overlay: "CommandOrControl+Shift+Digit0".into(),
+        }
+    }
+}
+
+impl GlobalShortcutSettings {
+    pub fn parsed(&self) -> Result<[Shortcut; 3], String> {
+        let entries = [
+            ("显示 / 隐藏桌面歌词", self.toggle_overlay.as_str()),
+            ("解锁桌面歌词", self.unlock_overlay.as_str()),
+            ("复位并显示桌面歌词", self.reset_overlay.as_str()),
+        ];
+        let mut parsed = Vec::with_capacity(entries.len());
+        for (label, value) in entries {
+            let shortcut = value
+                .parse::<Shortcut>()
+                .map_err(|error| format!("{label}快捷键无效：{error}"))?;
+            if shortcut.mods.is_empty() {
+                return Err(format!("{label}快捷键必须包含至少一个修饰键"));
+            }
+            if parsed
+                .iter()
+                .any(|existing: &Shortcut| existing.id() == shortcut.id())
+            {
+                return Err("三个全局快捷键不能重复".into());
+            }
+            parsed.push(shortcut);
+        }
+        parsed
+            .try_into()
+            .map_err(|_| "全局快捷键配置不完整".to_string())
     }
 }
 
@@ -147,6 +206,7 @@ pub struct OverlayAppearance {
     pub active_color: String,
     pub inactive_color: String,
     pub opacity: f64,
+    pub background_opacity: f64,
     pub background: OverlayBackground,
     pub solid_color: String,
     pub layout: OverlayLayout,
@@ -156,6 +216,7 @@ pub struct OverlayAppearance {
     pub secondary_display: SecondaryDisplayMode,
     pub auto_center_with_translation_or_romanization: bool,
     pub karaoke_style: KaraokeStyle,
+    pub secondary_font_scale: f64,
     pub translation_font_scale: f64,
     pub romanization_font_scale: f64,
     pub translation_color: String,
@@ -175,6 +236,7 @@ impl From<&OverlayStyleSettings> for OverlayAppearance {
             active_color: style.active_color.clone(),
             inactive_color: style.inactive_color.clone(),
             opacity: style.opacity,
+            background_opacity: style.background_opacity,
             background: style.background,
             solid_color: style.solid_color.clone(),
             layout: style.layout,
@@ -185,6 +247,7 @@ impl From<&OverlayStyleSettings> for OverlayAppearance {
             auto_center_with_translation_or_romanization: style
                 .auto_center_with_translation_or_romanization,
             karaoke_style: style.karaoke_style,
+            secondary_font_scale: style.secondary_font_scale,
             translation_font_scale: style.translation_font_scale,
             romanization_font_scale: style.romanization_font_scale,
             translation_color: style.translation_color.clone(),
@@ -200,6 +263,7 @@ impl OverlayAppearance {
             active_color: self.active_color,
             inactive_color: self.inactive_color,
             opacity: self.opacity,
+            background_opacity: self.background_opacity,
             background: self.background,
             solid_color: self.solid_color,
             layout: self.layout,
@@ -212,6 +276,7 @@ impl OverlayAppearance {
             translation_enabled: false,
             romanization_enabled: false,
             karaoke_style: self.karaoke_style,
+            secondary_font_scale: self.secondary_font_scale,
             translation_font_scale: self.translation_font_scale,
             romanization_font_scale: self.romanization_font_scale,
             translation_color: self.translation_color,
@@ -233,6 +298,7 @@ impl AppConfig {
         }
         self.schema_version = CONFIG_SCHEMA_VERSION;
         self.app.ui_font_scale = normalize_ui_font_scale(self.app.ui_font_scale);
+        self.app.shortcuts.parsed()?;
         let normalized_style = self.overlay.appearance.clone().into_style();
         for (name, color) in color_fields(&normalized_style) {
             if !is_supported_color(color) {
@@ -471,6 +537,8 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
     let config = config.normalized().map_err(|message| {
         let key = if message.contains("歌词源") {
             "providers"
+        } else if message.contains("快捷键") {
+            "shortcuts"
         } else {
             "appearance"
         };
@@ -592,8 +660,16 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                 "playerSelection",
                 "hideDockIcon",
                 "autostart",
+                "shortcuts",
             ],
         )?;
+        if let Some(shortcuts) = app.get("shortcuts") {
+            check_keys(
+                shortcuts,
+                raw,
+                &["toggleOverlay", "unlockOverlay", "resetOverlay"],
+            )?;
+        }
     }
     if let Some(lyrics) = value.get("lyrics") {
         check_keys(lyrics, raw, &["providers"])?;
@@ -617,6 +693,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                     "activeColor",
                     "inactiveColor",
                     "opacity",
+                    "backgroundOpacity",
                     "background",
                     "solidColor",
                     "layout",
@@ -626,6 +703,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                     "secondaryDisplay",
                     "autoCenterWithTranslationOrRomanization",
                     "karaokeStyle",
+                    "secondaryFontScale",
                     "translationFontScale",
                     "romanizationFontScale",
                     "translationColor",
@@ -640,6 +718,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
 fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), ConfigDraftError> {
     for (pointer, key) in [
         ("/app", "app"),
+        ("/app/shortcuts", "shortcuts"),
         ("/lyrics", "lyrics"),
         ("/lyrics/providers", "providers"),
         ("/overlay", "overlay"),
@@ -689,6 +768,18 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         "playerSelection",
         &["auto", "apple_music", "spotify"],
     )?;
+    for (pointer, key) in [
+        ("/app/shortcuts/toggleOverlay", "toggleOverlay"),
+        ("/app/shortcuts/unlockOverlay", "unlockOverlay"),
+        ("/app/shortcuts/resetOverlay", "resetOverlay"),
+    ] {
+        if value
+            .pointer(pointer)
+            .is_some_and(|candidate| !candidate.is_string())
+        {
+            return Err(error_at_key(raw, key, &format!("{key} 必须是字符串")));
+        }
+    }
     validate_string_option(
         value,
         raw,
@@ -860,6 +951,18 @@ fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftEr
             "opacity",
             value.pointer("/overlay/appearance/opacity"),
             0.2,
+            1.0,
+        ),
+        (
+            "backgroundOpacity",
+            value.pointer("/overlay/appearance/backgroundOpacity"),
+            0.0,
+            1.0,
+        ),
+        (
+            "secondaryFontScale",
+            value.pointer("/overlay/appearance/secondaryFontScale"),
+            0.35,
             1.0,
         ),
         (
@@ -1239,6 +1342,33 @@ mod tests {
     }
 
     #[test]
+    fn schema_eight_adds_shortcuts_and_independent_overlay_controls() {
+        let parsed = parse_config_draft(r#"{"schemaVersion":8}"#).unwrap();
+        assert!(parsed.migrated);
+        assert_eq!(parsed.config.schema_version, 9);
+        assert_eq!(
+            parsed.config.app.shortcuts,
+            GlobalShortcutSettings::default()
+        );
+        assert_eq!(parsed.config.overlay.appearance.secondary_font_scale, 0.8);
+        assert_eq!(parsed.config.overlay.appearance.background_opacity, 1.0);
+    }
+
+    #[test]
+    fn shortcuts_require_modifiers_and_unique_combinations() {
+        let missing_modifier =
+            validate_config_draft(r#"{"app":{"shortcuts":{"toggleOverlay":"KeyL"}}}"#);
+        assert!(!missing_modifier.valid);
+        assert!(missing_modifier.error.unwrap().message.contains("修饰键"));
+
+        let duplicate = validate_config_draft(
+            r#"{"app":{"shortcuts":{"toggleOverlay":"Control+KeyL","unlockOverlay":"Control+KeyL"}}}"#,
+        );
+        assert!(!duplicate.valid);
+        assert!(duplicate.error.unwrap().message.contains("不能重复"));
+    }
+
+    #[test]
     fn schema_five_migrates_compound_overlay_layouts() {
         for (legacy, layout, orientation) in [
             (
@@ -1274,7 +1404,7 @@ mod tests {
             assert!(parsed.migrated);
             assert_eq!(parsed.config.overlay.appearance.layout, layout);
             assert_eq!(parsed.config.overlay.appearance.orientation, orientation);
-            assert!(parsed.normalized_json.contains("\"schemaVersion\": 8"));
+            assert!(parsed.normalized_json.contains("\"schemaVersion\": 9"));
         }
     }
 
@@ -1287,10 +1417,10 @@ mod tests {
             "vertical_double",
         ] {
             let raw = format!(
-                r#"{{"schemaVersion":8,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
+                r#"{{"schemaVersion":9,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
             );
             let validation = validate_config_draft(&raw);
-            assert!(!validation.valid, "{layout} should be invalid in schema 8");
+            assert!(!validation.valid, "{layout} should be invalid in schema 9");
             assert!(validation.error.unwrap().message.contains("orientation"));
         }
     }
@@ -1321,7 +1451,7 @@ mod tests {
     fn current_schema_preserves_explicit_legacy_provider_order() {
         let parsed = parse_config_draft(
             r#"{
-              "schemaVersion": 8,
+              "schemaVersion": 9,
               "lyrics": { "providers": {
                 "mode": "smart",
                 "providers": [

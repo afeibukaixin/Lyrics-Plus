@@ -1,6 +1,18 @@
 export type PlayerKind = "apple_music" | "spotify";
 export type PlayerSelection = "auto" | PlayerKind;
 
+export type GlobalShortcutSettings = {
+  toggleOverlay: string;
+  unlockOverlay: string;
+  resetOverlay: string;
+};
+
+export const defaultGlobalShortcuts: GlobalShortcutSettings = {
+  toggleOverlay: "CommandOrControl+Shift+KeyL",
+  unlockOverlay: "CommandOrControl+Shift+KeyU",
+  resetOverlay: "CommandOrControl+Shift+Digit0",
+};
+
 export type OverlaySettings = {
   visible: boolean;
   locked: boolean;
@@ -138,6 +150,7 @@ export type AppConfig = {
     uiFontScale: number;
     playerSelection: PlayerSelection;
     hideDockIcon: boolean;
+    shortcuts: GlobalShortcutSettings;
   };
   lyrics: {
     providers: ProviderSettings;
@@ -236,6 +249,7 @@ export type OverlayStyle = {
   activeColor: string;
   inactiveColor: string;
   opacity: number;
+  backgroundOpacity: number;
   background: "glass" | "transparent" | "solid";
   solidColor: string;
   layout: "single" | "double";
@@ -245,6 +259,7 @@ export type OverlayStyle = {
   secondaryDisplay: "next" | "translation" | "romanization" | "translation_romanization";
   autoCenterWithTranslationOrRomanization: boolean;
   karaokeStyle: "sweep" | "bounce" | "highlight";
+  secondaryFontScale: number;
   translationFontScale: number;
   romanizationFontScale: number;
   translationColor: string;
@@ -272,6 +287,7 @@ export const defaultOverlayStyle: OverlayStyle = {
   activeColor: "#c4b5fd",
   inactiveColor: "#c8d2df",
   opacity: 1,
+  backgroundOpacity: 1,
   background: "glass",
   solidColor: "#171821",
   layout: "single",
@@ -281,6 +297,7 @@ export const defaultOverlayStyle: OverlayStyle = {
   secondaryDisplay: "translation_romanization",
   autoCenterWithTranslationOrRomanization: false,
   karaokeStyle: "sweep",
+  secondaryFontScale: 0.8,
   translationFontScale: 0.8,
   romanizationFontScale: 0.8,
   translationColor: "#cbd5e1",

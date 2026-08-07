@@ -6,6 +6,7 @@ import type {
   ConfigExport,
   ConfigDraftValidation,
   ConfigEditorData,
+  GlobalShortcutSettings,
   LyricsDocument,
   LibraryPage,
   LibraryPreview,
@@ -126,6 +127,8 @@ export const api = {
     invoke<SettingsResetResponse>("reset_settings_section", { section }),
   getAppConfig: () => invoke<AppConfig>("get_app_config"),
   setUiFontScale: (scale: number) => invoke<AppConfig>("set_ui_font_scale", { scale }),
+  setGlobalShortcuts: (shortcuts: GlobalShortcutSettings) =>
+    invoke<AppConfig>("set_global_shortcuts", { shortcuts }),
   setDockIconHidden: (hidden: boolean) =>
     invoke<AppConfig>("set_dock_icon_hidden", { hidden }),
   exportAppConfig: () => invoke<ConfigExport>("export_app_config"),

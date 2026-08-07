@@ -37,6 +37,7 @@ type ProviderDragState = {
 export type SettingsOutletContext = {
   config: ReturnType<typeof useAppConfig>["config"];
   setUiFontScale: ReturnType<typeof useAppConfig>["setUiFontScale"];
+  setGlobalShortcuts: ReturnType<typeof useAppConfig>["setGlobalShortcuts"];
   setDockIconHidden: ReturnType<typeof useAppConfig>["setDockIconHidden"];
   playback: ReturnType<typeof usePlayback>;
   lyrics: ReturnType<typeof useLyrics>;
@@ -70,7 +71,7 @@ export type SettingsOutletContext = {
 };
 
 export default function Settings() {
-  const { config, setUiFontScale, setDockIconHidden, syncConfig } = useAppConfig();
+  const { config, setUiFontScale, setGlobalShortcuts, setDockIconHidden, syncConfig } = useAppConfig();
   const playback = usePlayback();
   const lyrics = useLyrics(playback.snapshot, playback.positionMs, false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -328,6 +329,7 @@ export default function Settings() {
   const context: SettingsOutletContext = {
     config,
     setUiFontScale,
+    setGlobalShortcuts,
     setDockIconHidden,
     playback,
     lyrics,

@@ -107,13 +107,15 @@ export default function OverlaySettingsPage() {
       </SettingsCard>
       <SettingsCard title="背景与排版">
         <SelectRow label="背景" value={style.background} onChange={(background) => void updateStyle({ background: background as OverlayStyle["background"] })} options={[["glass", "毛玻璃"], ["transparent", "纯透明"], ["solid", "纯色"]]} />
+        <RangeRow label="背景透明度" disabled={style.background === "transparent"} value={style.backgroundOpacity} min={0} max={1} step={0.05} suffix="%" displayValue={Math.round(style.backgroundOpacity * 100)} onChange={(backgroundOpacity) => void updateStyle({ backgroundOpacity })} />
         {style.background === "solid" && <ColorRow label="背景颜色" value={style.solidColor} onChange={(solidColor) => void updateStyle({ solidColor })} />}
         <SelectRow label="歌词布局" value={style.layout} onChange={(value) => void updateStyle({ layout: value as OverlayStyle["layout"] })} options={[["single", "单歌词"], ["double", "双歌词"]]} />
         <SelectRow label="文字方向" value={style.orientation} onChange={(value) => void updateStyle({ orientation: value as OverlayStyle["orientation"] })} options={[["horizontal", "横排"], ["vertical", "竖排"]]} />
         <SelectRow label="歌词对齐" description={alignmentDescription} disabled={!alignmentAvailable} value={alignmentAvailable ? style.alignment : "center"} onChange={(alignment) => void updateStyle({ alignment: alignment as OverlayStyle["alignment"] })} options={[["center", "居中"], ["distributed", "主副分居"]]} />
         <SelectRow label="长歌词" value={style.longText} onChange={(longText) => void updateStyle({ longText: longText as OverlayStyle["longText"] })} options={[["shrink", "智能缩放"], ["wrap", "自动换行"], ["marquee", "超出时滚动"]]} />
       </SettingsCard>
-      <SettingsCard title="翻译与音译">
+      <SettingsCard title="副歌词、翻译与音译">
+        <RangeRow label="副歌词字号" value={style.secondaryFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.secondaryFontScale * 100)} onChange={(secondaryFontScale) => void updateStyle({ secondaryFontScale })} />
         <ToggleRow label="显示翻译" description={secondaryLayoutHint} value={secondaryFlags.translation} onChange={(translation) => updateStyle({ secondaryDisplay: secondaryDisplayFromFlags(translation, secondaryFlags.romanization) })} />
         <RangeRow label="翻译字号" value={style.translationFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.translationFontScale * 100)} onChange={(translationFontScale) => void updateStyle({ translationFontScale })} />
         <ColorRow label="翻译颜色" value={style.translationColor} onChange={(translationColor) => void updateStyle({ translationColor })} />

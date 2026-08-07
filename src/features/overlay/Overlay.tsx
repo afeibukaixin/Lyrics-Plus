@@ -362,7 +362,7 @@ export default function Overlay() {
     text: !lyrics.document
       ? playback.snapshot.artist || "播放音乐后自动显示歌词"
       : lyrics.nextLine?.text || "\u00a0",
-    baseSize: style.fontSize * style.translationFontScale,
+    baseSize: style.fontSize * style.secondaryFontScale,
     color: style.inactiveColor,
   };
   const supportingLines: SupportingLine[] = !supportsSecondary
@@ -428,7 +428,7 @@ export default function Overlay() {
     setFitScale(1);
     setMarqueeMetrics([]);
     lastRequestedSize.current = null;
-  }, [fitLimits.height, fitLimits.width, primaryLineKey, supportingKey, style.fontSize, style.horizontalMaxWidth, style.layout, style.longText, style.orientation, style.romanizationFontScale, style.translationFontScale, style.verticalMaxHeight]);
+  }, [fitLimits.height, fitLimits.width, primaryLineKey, supportingKey, style.fontSize, style.horizontalMaxWidth, style.layout, style.longText, style.orientation, style.romanizationFontScale, style.secondaryFontScale, style.translationFontScale, style.verticalMaxHeight]);
 
   useLayoutEffect(() => {
     if (!settings.visible) return;
@@ -566,7 +566,7 @@ export default function Overlay() {
       if (shrinkTimer.current !== null) clearTimeout(shrinkTimer.current);
       shrinkTimer.current = null;
     };
-  }, [constrained, fitLimits.height, fitLimits.width, fitScale, horizontalContentLimit, horizontalWindowLimit, marqueeHorizontalLimit, marqueeMetrics, marqueeTimeLimit, marqueeVerticalLimit, overlayHorizontalPadding, overlayVerticalPadding, primaryText, resizing, settings.visible, style.fontSize, style.layout, style.longText, style.orientation, style.romanizationFontScale, style.translationFontScale, supportingKey, vertical, verticalContentLimit, verticalWindowLimit, wrapped]);
+  }, [constrained, fitLimits.height, fitLimits.width, fitScale, horizontalContentLimit, horizontalWindowLimit, marqueeHorizontalLimit, marqueeMetrics, marqueeTimeLimit, marqueeVerticalLimit, overlayHorizontalPadding, overlayVerticalPadding, primaryText, resizing, settings.visible, style.fontSize, style.layout, style.longText, style.orientation, style.romanizationFontScale, style.secondaryFontScale, style.translationFontScale, supportingKey, vertical, verticalContentLimit, verticalWindowLimit, wrapped]);
 
   const resizeCoordinate = (event: Pick<React.PointerEvent<HTMLDivElement>, "screenX" | "screenY">, axis: "horizontal" | "vertical") =>
     axis === "horizontal" ? event.screenX : event.screenY;
@@ -757,6 +757,7 @@ export default function Overlay() {
         "--active-color": style.activeColor,
         "--inactive-color": style.inactiveColor,
         "--overlay-opacity": style.opacity,
+        "--background-opacity": style.backgroundOpacity,
         "--solid-color": style.solidColor,
         "--translation-color": style.translationColor,
         "--romanization-color": style.romanizationColor,

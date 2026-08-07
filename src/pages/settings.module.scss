@@ -40,6 +40,7 @@
 .switch[data-on="true"] span { transform: translateX(15px); background: #fff; }
 .rangeControl { width: min(330px, 60%); display: grid; grid-template-columns: 1fr 42px; gap: 10px; align-items: center; }
 .rangeControl input { height: 3px; appearance: none; border-radius: 99px; background: #393c49; accent-color: #9277f4; }
+.rangeControl input:disabled { opacity: .4; cursor: not-allowed; }
 .rangeControl input::-webkit-slider-thumb { appearance: none; width: 11px; height: 11px; border-radius: 50%; background: #fff; }
 .rangeControl b { color: #8f95a4; font-size: .5rem; text-align: right; }
 .colorSettingRow { flex-wrap: wrap; }
@@ -103,6 +104,13 @@
 .shortcutRow { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border-bottom: 1px solid #ffffff09; color: #979cab; font-size: .5625rem; }
 .shortcutRow:last-child { border-bottom: 0; }
 .shortcutRow kbd { padding: 4px 7px; border: 1px solid #ffffff13; border-radius: 6px; background: #0c0e13; color: #b9bdc9; font: inherit; }
+.shortcutControls { display: flex; align-items: center; gap: 6px; }
+.shortcutRecorder, .shortcutReset { padding: 5px 8px; border: 1px solid #ffffff13; border-radius: 6px; background: #0c0e13; color: #b9bdc9; font-size: .5rem; }
+.shortcutRecorder { min-width: 112px; }
+.shortcutRecorder[data-recording="true"] { border-color: #9277f477; background: #9277f417; color: #c4b5fd; }
+.shortcutRecorder:focus-visible { outline: 2px solid #a98fff; outline-offset: 2px; }
+.shortcutReset { background: transparent; color: #747a8a; }
+.shortcutRecorder:disabled, .shortcutReset:disabled { opacity: .38; cursor: default; }
 .diagnostics { display: flex; align-items: center; gap: 8px; padding: 14px; color: #9298a7; font-size: .5625rem; }
 .diagnostics i { width: 7px; height: 7px; border-radius: 50%; background: #50dba0; box-shadow: 0 0 9px #50dba055; }
 .diagnostics[data-error="true"] i { background: #e17e90; box-shadow: 0 0 9px #e17e9055; }

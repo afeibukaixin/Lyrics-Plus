@@ -9,12 +9,12 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use commands::{AppState, OverlayOrientation, OverlaySettings, OverlayStyleSettings};
-use config::ConfigStore;
+use config::{ConfigStore, GlobalShortcutSettings};
 use player::{query_selected_player, PlayerSelection};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
 
 struct TrayMenuState {
@@ -27,6 +27,109 @@ pub(crate) fn sync_tray_overlay_checked(app: &tauri::AppHandle, visible: bool) {
             log::warn!("同步菜单栏歌词开关状态失败：{error}");
         }
     }
+}
+
+fn sync_tray_toggle_accelerator(
+    app: &tauri::AppHandle,
+    shortcuts: &GlobalShortcutSettings,
+) -> Result<(), String> {
+    if let Some(tray) = app.try_state::<TrayMenuState>() {
+        let accelerator = shortcuts
+            .toggle_overlay
+            .replace("CommandOrControl", "CmdOrCtrl");
+        tray.toggle_overlay
+            .set_accelerator(Some(accelerator.as_str()))
+            .map_err(|error| format!("更新菜单栏快捷键失败：{error}"))?;
+    }
+    Ok(())
+}
+
+fn unregister_global_shortcuts(
+    app: &tauri::AppHandle,
+    shortcuts: &GlobalShortcutSettings,
+) -> Result<(), String> {
+    let parsed = shortcuts.parsed()?;
+    app.global_shortcut()
+        .unregister_multiple(parsed)
+        .map_err(|error| format!("注销旧快捷键失败：{error}"))
+}
+
+fn register_global_shortcuts(
+    app: &tauri::AppHandle,
+    shortcuts: &GlobalShortcutSettings,
+) -> Result<(), String> {
+    let [toggle, unlock, reset] = shortcuts.parsed()?;
+    let mut registered = Vec::<Shortcut>::new();
+
+    let result = (|| {
+        app.global_shortcut()
+            .on_shortcut(toggle, |app, _, event| {
+                if event.state == ShortcutState::Pressed {
+                    let visible = app
+                        .state::<AppState>()
+                        .overlay_settings
+                        .read()
+                        .unwrap_or_else(|error| error.into_inner())
+                        .visible;
+                    let _ = commands::update_overlay_visible(app, !visible);
+                }
+            })
+            .map_err(|error| format!("注册显示 / 隐藏桌面歌词快捷键失败：{error}"))?;
+        registered.push(toggle);
+
+        app.global_shortcut()
+            .on_shortcut(unlock, |app, _, event| {
+                if event.state == ShortcutState::Pressed {
+                    let _ = commands::update_overlay_locked(app, false);
+                }
+            })
+            .map_err(|error| format!("注册解锁桌面歌词快捷键失败：{error}"))?;
+        registered.push(unlock);
+
+        app.global_shortcut()
+            .on_shortcut(reset, |app, _, event| {
+                if event.state == ShortcutState::Pressed {
+                    let _ = commands::reset_overlay_bounds(app.clone());
+                }
+            })
+            .map_err(|error| format!("注册复位桌面歌词快捷键失败：{error}"))?;
+        registered.push(reset);
+        Ok(())
+    })();
+
+    if result.is_err() && !registered.is_empty() {
+        let _ = app.global_shortcut().unregister_multiple(registered);
+    }
+    result
+}
+
+pub(crate) fn apply_global_shortcuts(
+    app: &tauri::AppHandle,
+    previous: &GlobalShortcutSettings,
+    next: &GlobalShortcutSettings,
+) -> Result<(), String> {
+    next.parsed()?;
+    if previous == next {
+        return Ok(());
+    }
+    unregister_global_shortcuts(app, previous)?;
+    if let Err(error) = register_global_shortcuts(app, next) {
+        let rollback = register_global_shortcuts(app, previous);
+        return Err(match rollback {
+            Ok(()) => error,
+            Err(rollback_error) => format!("{error}；恢复旧快捷键失败：{rollback_error}"),
+        });
+    }
+    if let Err(error) = sync_tray_toggle_accelerator(app, next) {
+        let _ = unregister_global_shortcuts(app, next);
+        let rollback = register_global_shortcuts(app, previous);
+        let _ = sync_tray_toggle_accelerator(app, previous);
+        return Err(match rollback {
+            Ok(()) => error,
+            Err(rollback_error) => format!("{error}；恢复旧快捷键失败：{rollback_error}"),
+        });
+    }
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]
@@ -223,13 +326,21 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .visible;
+    let toggle_accelerator = app
+        .state::<AppState>()
+        .config
+        .snapshot()
+        .app
+        .shortcuts
+        .toggle_overlay
+        .replace("CommandOrControl", "CmdOrCtrl");
     let toggle_overlay = CheckMenuItem::with_id(
         app,
         "toggle-overlay",
         "显示桌面歌词",
         true,
         overlay_visible,
-        Some("CmdOrCtrl+Shift+L"),
+        Some(toggle_accelerator.as_str()),
     )?;
     let switch_lyrics = MenuItem::with_id(app, "switch-lyrics", "切换歌词", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "设置", true, Some("CmdOrCtrl+,"))?;
@@ -1260,35 +1371,8 @@ pub fn run() {
                 apply_dock_icon_hidden(app.handle(), true).map_err(std::io::Error::other)?;
             }
 
-            let shortcut = Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyL);
-            app.global_shortcut()
-                .on_shortcut(shortcut, |app, _, event| {
-                    if event.state == ShortcutState::Pressed {
-                        let visible = app
-                            .state::<AppState>()
-                            .overlay_settings
-                            .read()
-                            .unwrap_or_else(|error| error.into_inner())
-                            .visible;
-                        let _ = commands::update_overlay_visible(app, !visible);
-                    }
-                })?;
-            let unlock_shortcut =
-                Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyU);
-            app.global_shortcut()
-                .on_shortcut(unlock_shortcut, |app, _, event| {
-                    if event.state == ShortcutState::Pressed {
-                        let _ = commands::update_overlay_locked(app, false);
-                    }
-                })?;
-            let reset_shortcut =
-                Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::Digit0);
-            app.global_shortcut()
-                .on_shortcut(reset_shortcut, |app, _, event| {
-                    if event.state == ShortcutState::Pressed {
-                        let _ = commands::reset_overlay_bounds(app.clone());
-                    }
-                })?;
+            register_global_shortcuts(app.handle(), &configured.app.shortcuts)
+                .map_err(std::io::Error::other)?;
 
             start_player_monitor(app.handle().clone());
             Ok(())
@@ -1368,6 +1452,7 @@ pub fn run() {
             commands::show_quick_lyrics_window,
             commands::get_app_config,
             commands::set_ui_font_scale,
+            commands::set_global_shortcuts,
             commands::set_dock_icon_hidden,
             commands::export_app_config,
             commands::import_app_config,

@@ -7,7 +7,7 @@ use tauri_plugin_opener::OpenerExt;
 use crate::artwork::{ArtworkAsset, ArtworkService};
 use crate::config::{
     merge_import, validate_config_draft, AppConfig, ConfigDraftValidation, ConfigEditorData,
-    ConfigStore, OverlayAppearance,
+    ConfigStore, GlobalShortcutSettings, OverlayAppearance,
 };
 use crate::lyrics::provider::{
     can_auto_apply, LyricsSearchInput, LyricsSearchResult, ProviderRegistry, ProviderSettings,
@@ -127,6 +127,7 @@ pub struct OverlayStyleSettings {
     pub active_color: String,
     pub inactive_color: String,
     pub opacity: f64,
+    pub background_opacity: f64,
     pub background: OverlayBackground,
     pub solid_color: String,
     pub layout: OverlayLayout,
@@ -141,6 +142,7 @@ pub struct OverlayStyleSettings {
     #[serde(skip_serializing)]
     pub romanization_enabled: bool,
     pub karaoke_style: KaraokeStyle,
+    pub secondary_font_scale: f64,
     pub translation_font_scale: f64,
     pub romanization_font_scale: f64,
     pub translation_color: String,
@@ -156,6 +158,7 @@ impl Default for OverlayStyleSettings {
             active_color: "#c4b5fd".into(),
             inactive_color: "#c8d2df".into(),
             opacity: 1.0,
+            background_opacity: 1.0,
             background: OverlayBackground::Glass,
             solid_color: "#171821".into(),
             layout: OverlayLayout::Single,
@@ -167,6 +170,7 @@ impl Default for OverlayStyleSettings {
             translation_enabled: true,
             romanization_enabled: true,
             karaoke_style: KaraokeStyle::Sweep,
+            secondary_font_scale: 0.8,
             translation_font_scale: 0.8,
             romanization_font_scale: 0.8,
             translation_color: "#cbd5e1".into(),
@@ -190,6 +194,8 @@ impl OverlayStyleSettings {
         }
         self.font_size = self.font_size.clamp(16, 72);
         self.opacity = self.opacity.clamp(0.2, 1.0);
+        self.background_opacity = self.background_opacity.clamp(0.0, 1.0);
+        self.secondary_font_scale = self.secondary_font_scale.clamp(0.35, 1.0);
         self.translation_font_scale = self.translation_font_scale.clamp(0.35, 1.0);
         self.romanization_font_scale = self.romanization_font_scale.clamp(0.35, 1.0);
         self.horizontal_max_width = self
@@ -1240,6 +1246,37 @@ pub fn set_ui_font_scale(
     Ok(config)
 }
 
+pub fn update_global_shortcuts(
+    app: &tauri::AppHandle,
+    shortcuts: GlobalShortcutSettings,
+) -> Result<AppConfig, String> {
+    let state = app.state::<AppState>();
+    let previous = state.config.snapshot().app.shortcuts;
+    crate::apply_global_shortcuts(app, &previous, &shortcuts)?;
+    let registered = shortcuts.clone();
+    let config = match state
+        .config
+        .update(|config| config.app.shortcuts = shortcuts)
+    {
+        Ok(config) => config,
+        Err(error) => {
+            let _ = crate::apply_global_shortcuts(app, &registered, &previous);
+            return Err(error);
+        }
+    };
+    app.emit("config://changed", &config)
+        .map_err(|error| error.to_string())?;
+    Ok(config)
+}
+
+#[tauri::command]
+pub fn set_global_shortcuts(
+    app: tauri::AppHandle,
+    shortcuts: GlobalShortcutSettings,
+) -> Result<AppConfig, String> {
+    update_global_shortcuts(&app, shortcuts)
+}
+
 pub fn update_dock_icon_hidden(app: &tauri::AppHandle, hidden: bool) -> Result<AppConfig, String> {
     let state = app.state::<AppState>();
     let previous = state.config.snapshot().app.hide_dock_icon;
@@ -1347,11 +1384,24 @@ fn apply_app_config(
     appearance_only: bool,
     expected_revision: Option<u64>,
 ) -> Result<AppConfig, String> {
-    let previous_dock_icon_hidden = state.config.snapshot().app.hide_dock_icon;
+    let previous_config = state.config.snapshot();
+    let previous_dock_icon_hidden = previous_config.app.hide_dock_icon;
+    let previous_shortcuts = previous_config.app.shortcuts;
     let dock_visibility_changed =
         !appearance_only && previous_dock_icon_hidden != next.app.hide_dock_icon;
     if dock_visibility_changed {
         crate::apply_dock_icon_hidden(app, next.app.hide_dock_icon)?;
+    }
+    let shortcuts_changed = !appearance_only && previous_shortcuts != next.app.shortcuts;
+    if shortcuts_changed {
+        if let Err(error) =
+            crate::apply_global_shortcuts(app, &previous_shortcuts, &next.app.shortcuts)
+        {
+            if dock_visibility_changed {
+                let _ = crate::apply_dock_icon_hidden(app, previous_dock_icon_hidden);
+            }
+            return Err(error);
+        }
     }
     let save_result = match expected_revision {
         Some(revision) => state.config.replace_at_revision(next.clone(), revision),
@@ -1362,6 +1412,10 @@ fn apply_app_config(
         Err(error) => {
             if dock_visibility_changed {
                 let _ = crate::apply_dock_icon_hidden(app, previous_dock_icon_hidden);
+            }
+            if shortcuts_changed {
+                let _ =
+                    crate::apply_global_shortcuts(app, &next.app.shortcuts, &previous_shortcuts);
             }
             return Err(error);
         }
@@ -1493,6 +1547,7 @@ pub fn reset_settings_section(
         SettingsSection::App => {
             update_player_selection(&app, PlayerSelection::Auto)?;
             update_dock_icon_hidden(&app, false)?;
+            update_global_shortcuts(&app, GlobalShortcutSettings::default())?;
             state.config.update(|config| {
                 config.app.ui_font_scale = 100;
             })?;
@@ -1716,6 +1771,8 @@ mod tests {
             active_color: String::new(),
             inactive_color: String::new(),
             opacity: -1.0,
+            background_opacity: 2.0,
+            secondary_font_scale: 0.1,
             solid_color: String::new(),
             horizontal_max_width: Some(80.0),
             vertical_max_height: Some(120.0),
@@ -1724,6 +1781,8 @@ mod tests {
         .normalized();
         assert_eq!(style.font_size, 72);
         assert_eq!(style.opacity, 0.2);
+        assert_eq!(style.background_opacity, 1.0);
+        assert_eq!(style.secondary_font_scale, 0.35);
         assert_eq!(style.active_color, "#c4b5fd");
         assert_eq!(style.solid_color, "#171821");
         assert_eq!(style.horizontal_max_width, Some(320.0));

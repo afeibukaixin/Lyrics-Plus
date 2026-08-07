@@ -2,11 +2,11 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, isTauriRuntime } from "../../shared/api";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
-import { defaultOverlayStyle, type AppConfig } from "../../shared/types";
+import { defaultGlobalShortcuts, defaultOverlayStyle, type AppConfig, type GlobalShortcutSettings } from "../../shared/types";
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 8,
-  app: { uiFontScale: 100, playerSelection: "auto", hideDockIcon: false },
+  schemaVersion: 9,
+  app: { uiFontScale: 100, playerSelection: "auto", hideDockIcon: false, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
       mode: "smart",
@@ -27,6 +27,7 @@ const defaultConfig: AppConfig = {
       activeColor: defaultOverlayStyle.activeColor,
       inactiveColor: defaultOverlayStyle.inactiveColor,
       opacity: defaultOverlayStyle.opacity,
+      backgroundOpacity: defaultOverlayStyle.backgroundOpacity,
       background: defaultOverlayStyle.background,
       solidColor: defaultOverlayStyle.solidColor,
       layout: defaultOverlayStyle.layout,
@@ -36,6 +37,7 @@ const defaultConfig: AppConfig = {
       secondaryDisplay: defaultOverlayStyle.secondaryDisplay,
       autoCenterWithTranslationOrRomanization: defaultOverlayStyle.autoCenterWithTranslationOrRomanization,
       karaokeStyle: defaultOverlayStyle.karaokeStyle,
+      secondaryFontScale: defaultOverlayStyle.secondaryFontScale,
       translationFontScale: defaultOverlayStyle.translationFontScale,
       romanizationFontScale: defaultOverlayStyle.romanizationFontScale,
       translationColor: defaultOverlayStyle.translationColor,
@@ -47,6 +49,7 @@ const defaultConfig: AppConfig = {
 type AppConfigContextValue = {
   config: AppConfig;
   setUiFontScale: (scale: number) => Promise<void>;
+  setGlobalShortcuts: (shortcuts: GlobalShortcutSettings) => Promise<void>;
   setDockIconHidden: (hidden: boolean) => Promise<void>;
   syncConfig: (config: AppConfig) => void;
 };
@@ -83,6 +86,13 @@ export function AppConfigProvider({
         return;
       }
       setConfig(await api.setUiFontScale(scale));
+    },
+    setGlobalShortcuts: async (shortcuts) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({ ...current, app: { ...current.app, shortcuts } }));
+        return;
+      }
+      setConfig(await api.setGlobalShortcuts(shortcuts));
     },
     setDockIconHidden: async (hidden) => {
       if (!isTauriRuntime()) {

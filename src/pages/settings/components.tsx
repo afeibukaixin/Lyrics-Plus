@@ -19,8 +19,8 @@ export function ToggleRow({ label, description, value, onChange }: { label: stri
   return <div className={styles.settingRow}><div><strong>{label}</strong>{description && <small>{description}</small>}</div><button className={styles.switch} data-on={value} onClick={() => void onChange(!value)}><span /></button></div>;
 }
 
-export function RangeRow({ label, value, min, max, step = 1, suffix, displayValue, onChange }: { label: string; value: number; min: number; max: number; step?: number; suffix: string; displayValue?: number; onChange: (value: number) => void }) {
-  return <div className={styles.settingRow}><strong>{label}</strong><div className={styles.rangeControl}><input type="range" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} /><b>{displayValue ?? value}{suffix}</b></div></div>;
+export function RangeRow({ label, value, min, max, step = 1, suffix, displayValue, disabled = false, onChange }: { label: string; value: number; min: number; max: number; step?: number; suffix: string; displayValue?: number; disabled?: boolean; onChange: (value: number) => void }) {
+  return <div className={styles.settingRow}><strong>{label}</strong><div className={styles.rangeControl}><input disabled={disabled} type="range" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} /><b>{displayValue ?? value}{suffix}</b></div></div>;
 }
 
 export function ColorRow({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
