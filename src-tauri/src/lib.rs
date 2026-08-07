@@ -6,7 +6,7 @@ mod player;
 mod storage;
 
 use std::sync::{Arc, RwLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use commands::{AppState, OverlayOrientation, OverlaySettings, OverlayStyleSettings};
 use config::ConfigStore;
@@ -325,6 +325,22 @@ pub(crate) fn move_overlay_to_primary(window: &tauri::WebviewWindow) {
 }
 
 const UNLOCK_HANDLE_EDGE_INSET: f64 = 6.0;
+const UNLOCK_HANDLE_MONITOR_INTERVAL: Duration = Duration::from_millis(50);
+const UNLOCK_HANDLE_HIDE_DELAY: Duration = Duration::from_millis(200);
+const UNLOCK_HANDLE_HOVER_EVENT: &str = "unlock-handle://hover";
+
+fn point_in_window_bounds(
+    point: tauri::PhysicalPosition<f64>,
+    position: tauri::PhysicalPosition<i32>,
+    size: tauri::PhysicalSize<u32>,
+) -> bool {
+    let right = position.x as f64 + size.width as f64;
+    let bottom = position.y as f64 + size.height as f64;
+    point.x >= position.x as f64
+        && point.x < right
+        && point.y >= position.y as f64
+        && point.y < bottom
+}
 
 fn unlock_handle_position(
     orientation: OverlayOrientation,
@@ -409,12 +425,99 @@ pub(crate) fn sync_unlock_handle(app: &tauri::AppHandle) {
     let is_visible = handle.is_visible().unwrap_or(false);
     if should_show {
         position_unlock_handle(app);
-        if !is_visible {
-            let _ = handle.show();
-        }
     } else if is_visible {
         let _ = handle.hide();
+        let _ = handle.emit(UNLOCK_HANDLE_HOVER_EVENT, false);
     }
+}
+
+fn start_unlock_handle_monitor(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let mut last_inside_at: Option<Instant> = None;
+        let mut last_hovered: Option<bool> = None;
+
+        loop {
+            tokio::time::sleep(UNLOCK_HANDLE_MONITOR_INTERVAL).await;
+
+            let Some(state) = app.try_state::<AppState>() else {
+                continue;
+            };
+            let settings = state
+                .overlay_settings
+                .read()
+                .unwrap_or_else(|error| error.into_inner())
+                .clone();
+            let (Some(overlay), Some(handle)) = (
+                app.get_webview_window("lyrics-overlay"),
+                app.get_webview_window("lyrics-unlock-handle"),
+            ) else {
+                continue;
+            };
+
+            if !settings.visible || !settings.locked {
+                last_inside_at = None;
+                if handle.is_visible().unwrap_or(false) {
+                    let _ = handle.hide();
+                }
+                if last_hovered != Some(false) {
+                    let _ = handle.emit(UNLOCK_HANDLE_HOVER_EVENT, false);
+                    last_hovered = Some(false);
+                }
+                continue;
+            }
+
+            let sample = (
+                app.cursor_position(),
+                overlay.outer_position(),
+                overlay.outer_size(),
+                handle.outer_position(),
+                handle.outer_size(),
+            );
+            let (should_show, hovered) = match sample {
+                (
+                    Ok(cursor),
+                    Ok(overlay_position),
+                    Ok(overlay_size),
+                    Ok(handle_position),
+                    Ok(handle_size),
+                ) => {
+                    let now = Instant::now();
+                    let inside_overlay =
+                        point_in_window_bounds(cursor, overlay_position, overlay_size);
+                    if inside_overlay {
+                        last_inside_at = Some(now);
+                    }
+                    let within_hide_delay = last_inside_at.is_some_and(|last_inside| {
+                        now.duration_since(last_inside) < UNLOCK_HANDLE_HIDE_DELAY
+                    });
+                    (
+                        inside_overlay || within_hide_delay,
+                        inside_overlay
+                            && point_in_window_bounds(cursor, handle_position, handle_size),
+                    )
+                }
+                _ => {
+                    // 读取系统鼠标或窗口边界失败时优先保留解锁入口，下一轮继续重试。
+                    last_inside_at = None;
+                    (true, false)
+                }
+            };
+
+            if should_show != handle.is_visible().unwrap_or(false) {
+                if should_show {
+                    position_unlock_handle(&app);
+                    let _ = handle.show();
+                } else {
+                    let _ = handle.hide();
+                }
+            }
+            let hovered = should_show && hovered;
+            if last_hovered != Some(hovered) {
+                let _ = handle.emit(UNLOCK_HANDLE_HOVER_EVENT, hovered);
+                last_hovered = Some(hovered);
+            }
+        }
+    });
 }
 
 fn snapped_position(
@@ -646,6 +749,7 @@ pub fn run() {
                 }
             }
             sync_unlock_handle(app.handle());
+            start_unlock_handle_monitor(app.handle().clone());
             setup_tray(app)?;
             if configured.app.hide_dock_icon {
                 apply_dock_icon_hidden(app.handle(), true).map_err(std::io::Error::other)?;
@@ -806,5 +910,26 @@ mod tests {
             ),
             tauri::PhysicalPosition::new(250, 496),
         );
+    }
+
+    #[test]
+    fn point_in_window_bounds_uses_exclusive_right_and_bottom_edges() {
+        let position = tauri::PhysicalPosition::new(100, 200);
+        let size = tauri::PhysicalSize::new(28, 28);
+        assert!(point_in_window_bounds(
+            tauri::PhysicalPosition::new(100.0, 200.0),
+            position,
+            size,
+        ));
+        assert!(point_in_window_bounds(
+            tauri::PhysicalPosition::new(127.9, 227.9),
+            position,
+            size,
+        ));
+        assert!(!point_in_window_bounds(
+            tauri::PhysicalPosition::new(128.0, 228.0),
+            position,
+            size,
+        ));
     }
 }

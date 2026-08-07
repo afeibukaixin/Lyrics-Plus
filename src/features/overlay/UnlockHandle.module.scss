@@ -1,10 +1,10 @@
 .handle {
   width: 28px; height: 28px; display: grid; place-items: center; overflow: hidden;
   border: 1px solid rgba(255,255,255,.14); border-radius: 9px;
-  background: rgba(18,19,25,.38); color: rgba(255,255,255,.36); opacity: .44;
+  background: rgba(18,19,25,.38); color: rgba(255,255,255,.36); opacity: .2;
   backdrop-filter: blur(10px); transition: opacity .16s, background .16s, color .16s;
 }
-.handle:hover, .handle:focus-visible { background: rgba(24,24,32,.9); color: #fff; opacity: 1; }
+.handle[data-hover="true"], .handle:focus-visible { background: rgba(24,24,32,.9); color: #fff; opacity: 1; }
 .handle svg {
   width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8;
   stroke-linecap: round; stroke-linejoin: round;
