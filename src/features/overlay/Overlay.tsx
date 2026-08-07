@@ -820,10 +820,10 @@ export default function Overlay() {
             <button aria-label="增大字号" title="增大字号" onClick={() => void updateStyle({ fontSize: style.fontSize + 2 })}><ToolbarIcon name="plus" /></button>
             <div className={styles.offsetControl} role="group" aria-label={`歌词偏移，当前${offsetAvailable ? formatOffsetMs(offsetMs) : "不可调整"}`}>
               <button
-                aria-label="歌词提前 100 毫秒；按住 Shift 调整 500 毫秒"
+                aria-label="歌词延后 100 毫秒；按住 Shift 调整 500 毫秒"
                 disabled={!offsetAvailable}
-                title="歌词提前 100ms（按住 Shift 调整 500ms）"
-                onClick={(event) => void lyrics.changeOffset(event.shiftKey ? 500 : 100)}
+                title="歌词延后 100ms（按住 Shift 调整 500ms）"
+                onClick={(event) => void lyrics.changeOffset(event.shiftKey ? -500 : -100)}
               ><ToolbarIcon name="offsetEarlier" /></button>
               <button
                 className={styles.offsetValue}
@@ -837,10 +837,10 @@ export default function Overlay() {
                 onClick={() => void lyrics.setOffset(0)}
               >{offsetLabel}</button>
               <button
-                aria-label="歌词延后 100 毫秒；按住 Shift 调整 500 毫秒"
+                aria-label="歌词提前 100 毫秒；按住 Shift 调整 500 毫秒"
                 disabled={!offsetAvailable}
-                title="歌词延后 100ms（按住 Shift 调整 500ms）"
-                onClick={(event) => void lyrics.changeOffset(event.shiftKey ? -500 : -100)}
+                title="歌词提前 100ms（按住 Shift 调整 500ms）"
+                onClick={(event) => void lyrics.changeOffset(event.shiftKey ? 500 : 100)}
               ><ToolbarIcon name="offsetLater" /></button>
             </div>
             <button aria-label={`切换单/双歌词，当前${layoutLabels[style.layout]}`} title={`切换单/双歌词（当前：${layoutLabels[style.layout]}）`} onClick={() => void updateStyle({
