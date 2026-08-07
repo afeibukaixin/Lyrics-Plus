@@ -2248,6 +2248,7 @@ dependencies = [
  "futures",
  "image",
  "log",
+ "objc2-app-kit",
  "reqwest 0.12.24",
  "rusqlite",
  "serde",

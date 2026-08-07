@@ -85,6 +85,26 @@ fn cleanup_legacy_autostart(app: &tauri::AppHandle) {
 #[cfg(not(target_os = "macos"))]
 fn cleanup_legacy_autostart(_app: &tauri::AppHandle) {}
 
+#[cfg(target_os = "macos")]
+fn enable_fullscreen_auxiliary(window: &tauri::WebviewWindow) -> tauri::Result<()> {
+    use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
+
+    let ns_window = window.ns_window()?;
+    let ns_window = unsafe { &*ns_window.cast::<NSWindow>() };
+    let mut behavior = ns_window.collectionBehavior();
+    behavior.insert(
+        NSWindowCollectionBehavior::CanJoinAllSpaces
+            | NSWindowCollectionBehavior::FullScreenAuxiliary,
+    );
+    ns_window.setCollectionBehavior(behavior);
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn enable_fullscreen_auxiliary(_window: &tauri::WebviewWindow) -> tauri::Result<()> {
+    Ok(())
+}
+
 pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
     if app.get_webview_window("lyrics-overlay").is_some() {
         return Ok(());
@@ -102,7 +122,7 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
         .unwrap_or_default();
     let (initial_width, initial_height) = initial_overlay_dimensions(&style);
 
-    WebviewWindowBuilder::new(
+    let window = WebviewWindowBuilder::new(
         app,
         "lyrics-overlay",
         WebviewUrl::App("index.html?view=overlay".into()),
@@ -123,6 +143,8 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
     .visible(false)
     .build()?;
 
+    enable_fullscreen_auxiliary(&window)?;
+
     Ok(())
 }
 
@@ -137,7 +159,7 @@ fn create_unlock_handle(app: &tauri::App) -> tauri::Result<()> {
     if app.get_webview_window("lyrics-unlock-handle").is_some() {
         return Ok(());
     }
-    WebviewWindowBuilder::new(
+    let window = WebviewWindowBuilder::new(
         app,
         "lyrics-unlock-handle",
         WebviewUrl::App("index.html?view=unlock-handle".into()),
@@ -156,6 +178,9 @@ fn create_unlock_handle(app: &tauri::App) -> tauri::Result<()> {
     .skip_taskbar(true)
     .visible(false)
     .build()?;
+
+    enable_fullscreen_auxiliary(&window)?;
+
     Ok(())
 }
 
