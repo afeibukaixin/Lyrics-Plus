@@ -78,13 +78,25 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
         return Ok(());
     }
 
+    let style = app
+        .try_state::<AppState>()
+        .map(|state| {
+            state
+                .overlay_style
+                .read()
+                .unwrap_or_else(|error| error.into_inner())
+                .clone()
+        })
+        .unwrap_or_default();
+    let (initial_width, initial_height) = initial_overlay_dimensions(&style);
+
     WebviewWindowBuilder::new(
         app,
         "lyrics-overlay",
         WebviewUrl::App("index.html?view=overlay".into()),
     )
     .title("Lyrics Plus Overlay")
-    .inner_size(760.0, 156.0)
+    .inner_size(initial_width, initial_height)
     .min_inner_size(190.0, 76.0)
     .transparent(true)
     .accept_first_mouse(true)
@@ -100,6 +112,13 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
     .build()?;
 
     Ok(())
+}
+
+fn initial_overlay_dimensions(style: &OverlayStyleSettings) -> (f64, f64) {
+    match style.orientation {
+        OverlayOrientation::Horizontal => (style.horizontal_max_width.unwrap_or(760.0), 156.0),
+        OverlayOrientation::Vertical => (190.0, style.vertical_max_height.unwrap_or(620.0)),
+    }
 }
 
 fn create_unlock_handle(app: &tauri::App) -> tauri::Result<()> {
@@ -1261,6 +1280,35 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn overlay_initial_size_restores_the_saved_fixed_axis() {
+        let horizontal = OverlayStyleSettings {
+            horizontal_max_width: Some(540.0),
+            ..OverlayStyleSettings::default()
+        };
+        assert_eq!(initial_overlay_dimensions(&horizontal), (540.0, 156.0));
+
+        let vertical = OverlayStyleSettings {
+            orientation: OverlayOrientation::Vertical,
+            vertical_max_height: Some(480.0),
+            ..OverlayStyleSettings::default()
+        };
+        assert_eq!(initial_overlay_dimensions(&vertical), (190.0, 480.0));
+    }
+
+    #[test]
+    fn overlay_initial_size_uses_orientation_defaults_without_saved_geometry() {
+        assert_eq!(
+            initial_overlay_dimensions(&OverlayStyleSettings::default()),
+            (760.0, 156.0)
+        );
+        let vertical = OverlayStyleSettings {
+            orientation: OverlayOrientation::Vertical,
+            ..OverlayStyleSettings::default()
+        };
+        assert_eq!(initial_overlay_dimensions(&vertical), (190.0, 620.0));
+    }
 
     #[test]
     fn edge_snap_only_applies_inside_threshold() {

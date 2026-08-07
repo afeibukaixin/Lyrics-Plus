@@ -111,8 +111,8 @@ export const api = {
     invoke<OverlayStyle>("set_overlay_style", { style }),
   nudgeOverlay: (dx: number, dy: number) => invoke<void>("nudge_overlay", { dx, dy }),
   resetOverlayBounds: () => invoke<OverlayStyle>("reset_overlay_bounds"),
-  resizeOverlayEdge: (edge: OverlayResizeEdge, mainSize: number) =>
-    invoke<OverlayResizeBounds>("resize_overlay_edge", { edge, mainSize }),
+  resizeOverlayEdge: (edge: OverlayResizeEdge, mainSize: number, minimumMainSize: number) =>
+    invoke<OverlayResizeBounds>("resize_overlay_edge", { edge, mainSize, minimumMainSize }),
   fitOverlayContent: (width: number, height: number) =>
     invoke<void>("fit_overlay_content", { width, height }),
   showMainWindow: (page?: "settings") => invoke<void>("show_main_window", { page: page ?? null }),

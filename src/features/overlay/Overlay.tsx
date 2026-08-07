@@ -38,6 +38,8 @@ const VERTICAL_COLUMN_GAP = 14;
 const MIN_LYRIC_FONT_SIZE = 12;
 const MIN_HORIZONTAL_WIDTH = 320;
 const MIN_VERTICAL_HEIGHT = 280;
+const HORIZONTAL_TOOLBAR_WINDOW_INSET = 8;
+const VERTICAL_TOOLBAR_WINDOW_INSET = 14;
 const DEFAULT_HORIZONTAL_MAX_WIDTH = 760;
 const DEFAULT_VERTICAL_MAX_HEIGHT = 620;
 const SHRINK_DELAY_MS = 700;
@@ -60,6 +62,7 @@ type ActiveResizeSession = {
   startCoordinate: number;
   latestCoordinate: number;
   startMainSize: number | null;
+  minimumMainSize: number;
   pendingMainSize: number | null;
   lastBounds: OverlayResizeBounds | null;
   processing: boolean;
@@ -179,6 +182,7 @@ export default function Overlay() {
   const [style, setStyle] = useState<OverlayStyle>(defaultOverlayStyle);
   const [settings, setSettings] = useState<OverlaySettings>({ visible: true, locked: false, passthrough: false });
   const linesRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLDivElement>(null);
   const supportingRefs = useRef<Array<HTMLDivElement | null>>([]);
   const fitFrame = useRef<number | null>(null);
@@ -196,6 +200,10 @@ export default function Overlay() {
   const [wrapped, setWrapped] = useState(false);
   const [marqueeMetrics, setMarqueeMetrics] = useState<MarqueeMetric[]>([]);
   const [activeResizeEdge, setActiveResizeEdge] = useState<OverlayResizeEdge | null>(null);
+  const [toolbarMinimums, setToolbarMinimums] = useState({
+    horizontal: MIN_HORIZONTAL_WIDTH,
+    vertical: MIN_VERTICAL_HEIGHT,
+  });
   const resizing = activeResizeEdge !== null;
 
   const clearResizeState = useCallback(() => {
@@ -324,15 +332,18 @@ export default function Overlay() {
     ? VERTICAL_OVERLAY_VERTICAL_PADDING
     : HORIZONTAL_OVERLAY_VERTICAL_PADDING;
 
+  const minimumHorizontalWidth = Math.min(fitLimits.width, toolbarMinimums.horizontal);
+  const minimumVerticalHeight = Math.min(fitLimits.height, toolbarMinimums.vertical);
+
   useEffect(() => {
     if (!isTauriRuntime()) return;
     const overlayWindow = getCurrentWindow();
     void overlayWindow.setMinSize(new LogicalSize(
-      vertical ? 190 : MIN_HORIZONTAL_WIDTH,
-      vertical ? MIN_VERTICAL_HEIGHT : 76,
+      vertical ? 190 : minimumHorizontalWidth,
+      vertical ? minimumVerticalHeight : 76,
     ));
     void overlayWindow.setMaxSize(new LogicalSize(fitLimits.width, fitLimits.height));
-  }, [fitLimits.height, fitLimits.width, vertical]);
+  }, [fitLimits.height, fitLimits.width, minimumHorizontalWidth, minimumVerticalHeight, vertical]);
 
   const supportsSecondary = style.layout === "double";
   const secondaryFlags = secondaryDisplayFlags(style.secondaryDisplay);
@@ -373,13 +384,36 @@ export default function Overlay() {
       ? "当前歌词偏移：0ms"
       : `当前歌词偏移：${formatOffsetMs(offsetMs)}；点击重置`
     : "当前歌曲没有可调整的同步歌词";
+
+  useLayoutEffect(() => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar || settings.locked) return;
+    const measureToolbar = () => {
+      const measured = vertical
+        ? Math.ceil(toolbar.scrollHeight + VERTICAL_TOOLBAR_WINDOW_INSET)
+        : Math.ceil(toolbar.scrollWidth + HORIZONTAL_TOOLBAR_WINDOW_INSET);
+      const minimum = Math.max(
+        vertical ? MIN_VERTICAL_HEIGHT : MIN_HORIZONTAL_WIDTH,
+        measured,
+      );
+      setToolbarMinimums((current) => {
+        const key = vertical ? "vertical" : "horizontal";
+        return current[key] === minimum ? current : { ...current, [key]: minimum };
+      });
+    };
+    measureToolbar();
+    const observer = new ResizeObserver(measureToolbar);
+    observer.observe(toolbar);
+    return () => observer.disconnect();
+  }, [offsetLabel, settings.locked, vertical]);
+
   const horizontalWindowLimit = Math.min(
     fitLimits.width,
-    Math.max(MIN_HORIZONTAL_WIDTH, style.horizontalMaxWidth ?? DEFAULT_HORIZONTAL_MAX_WIDTH),
+    Math.max(minimumHorizontalWidth, style.horizontalMaxWidth ?? DEFAULT_HORIZONTAL_MAX_WIDTH),
   );
   const verticalWindowLimit = Math.min(
     fitLimits.height,
-    Math.max(MIN_VERTICAL_HEIGHT, style.verticalMaxHeight ?? DEFAULT_VERTICAL_MAX_HEIGHT),
+    Math.max(minimumVerticalHeight, style.verticalMaxHeight ?? DEFAULT_VERTICAL_MAX_HEIGHT),
   );
   const horizontalContentLimit = Math.max(1, horizontalWindowLimit - overlayHorizontalPadding);
   const verticalContentLimit = Math.max(1, verticalWindowLimit - overlayVerticalPadding);
@@ -559,8 +593,8 @@ export default function Overlay() {
     const next = {
       ...styleRef.current,
       ...(session.axis === "horizontal"
-        ? { horizontalMaxWidth: Math.max(MIN_HORIZONTAL_WIDTH, bounds.width) }
-        : { verticalMaxHeight: Math.max(MIN_VERTICAL_HEIGHT, bounds.height) }),
+        ? { horizontalMaxWidth: Math.max(session.minimumMainSize, bounds.width) }
+        : { verticalMaxHeight: Math.max(session.minimumMainSize, bounds.height) }),
     };
     styleRef.current = next;
     setStyle(next);
@@ -581,7 +615,7 @@ export default function Overlay() {
       while (resizeSession.current === session && session.pendingMainSize !== null) {
         const mainSize = session.pendingMainSize;
         session.pendingMainSize = null;
-        const bounds = await api.resizeOverlayEdge(session.edge, mainSize);
+        const bounds = await api.resizeOverlayEdge(session.edge, mainSize, session.minimumMainSize);
         if (resizeSession.current !== session) return;
         session.lastBounds = bounds;
       }
@@ -640,6 +674,7 @@ export default function Overlay() {
       startCoordinate: coordinate,
       latestCoordinate: coordinate,
       startMainSize: null,
+      minimumMainSize: axis === "horizontal" ? minimumHorizontalWidth : minimumVerticalHeight,
       pendingMainSize: null,
       lastBounds: null,
       processing: false,
@@ -779,7 +814,7 @@ export default function Overlay() {
               <div className={styles.resizeHandle} data-active={activeResizeEdge === "right"} data-edge="right" data-tauri-drag-region="false" role="separator" aria-label="拖动设置横排歌词宽度" aria-orientation="vertical" onLostPointerCapture={lostResizeCapture} onPointerCancel={cancelResize} onPointerDown={beginResize("right", "horizontal")} onPointerMove={continueResize} onPointerUp={endResize} />
             </>
           )}
-          <div className={styles.toolbar} data-tauri-drag-region="false" aria-label="桌面歌词工具栏">
+          <div className={styles.toolbar} data-tauri-drag-region="false" aria-label="桌面歌词工具栏" ref={toolbarRef}>
             <button aria-label="锁定并穿透鼠标" title="锁定并穿透鼠标" onClick={() => void api.setOverlayLocked(true)}><ToolbarIcon name="lock" /></button>
             <button aria-label="减小字号" title="减小字号" onClick={() => void updateStyle({ fontSize: style.fontSize - 2 })}><ToolbarIcon name="minus" /></button>
             <button aria-label="增大字号" title="增大字号" onClick={() => void updateStyle({ fontSize: style.fontSize + 2 })}><ToolbarIcon name="plus" /></button>

@@ -871,6 +871,7 @@ fn resize_overlay_edge_bounds(
     current_size: tauri::PhysicalSize<u32>,
     edge: OverlayResizeEdge,
     requested_main_size: f64,
+    minimum_main_size: f64,
     scale: f64,
     monitor_position: tauri::PhysicalPosition<i32>,
     monitor_size: tauri::PhysicalSize<u32>,
@@ -881,12 +882,21 @@ fn resize_overlay_edge_bounds(
         1.0
     };
     let margin = (24.0 * scale).round() as i64;
-    let minimum_width = (320.0 * scale).round() as u32;
-    let minimum_height = (280.0 * scale).round() as u32;
+    let minimum_main_size = if minimum_main_size.is_finite() {
+        minimum_main_size.max(0.0)
+    } else {
+        0.0
+    };
     let work_left = monitor_position.x as i64 + margin;
     let work_top = monitor_position.y as i64 + margin;
     let work_right = monitor_position.x as i64 + monitor_size.width as i64 - margin;
     let work_bottom = monitor_position.y as i64 + monitor_size.height as i64 - margin;
+    let available_width = (work_right - work_left).max(1) as u32;
+    let available_height = (work_bottom - work_top).max(1) as u32;
+    let minimum_width =
+        ((minimum_main_size.max(320.0) * scale).round() as u32).min(available_width);
+    let minimum_height =
+        ((minimum_main_size.max(280.0) * scale).round() as u32).min(available_height);
     let fallback_size = match edge {
         OverlayResizeEdge::Left | OverlayResizeEdge::Right => current_size.width,
         OverlayResizeEdge::Top | OverlayResizeEdge::Bottom => current_size.height,
@@ -946,6 +956,7 @@ pub fn resize_overlay_edge(
     app: tauri::AppHandle,
     edge: OverlayResizeEdge,
     main_size: f64,
+    minimum_main_size: f64,
     state: State<'_, AppState>,
 ) -> Result<OverlayResizeBounds, String> {
     if state
@@ -975,6 +986,7 @@ pub fn resize_overlay_edge(
         current_size,
         edge,
         main_size,
+        minimum_main_size,
         scale,
         work_area.position,
         work_area.size,
@@ -1739,6 +1751,7 @@ mod tests {
             horizontal_size,
             OverlayResizeEdge::Left,
             500.0,
+            0.0,
             2.0,
             monitor_position,
             monitor_size,
@@ -1750,6 +1763,7 @@ mod tests {
             horizontal_size,
             OverlayResizeEdge::Right,
             500.0,
+            0.0,
             2.0,
             monitor_position,
             monitor_size,
@@ -1764,6 +1778,7 @@ mod tests {
             vertical_size,
             OverlayResizeEdge::Top,
             400.0,
+            0.0,
             2.0,
             monitor_position,
             monitor_size,
@@ -1775,6 +1790,7 @@ mod tests {
             vertical_size,
             OverlayResizeEdge::Bottom,
             400.0,
+            0.0,
             2.0,
             monitor_position,
             monitor_size,
@@ -1794,6 +1810,7 @@ mod tests {
             size,
             OverlayResizeEdge::Right,
             10.0,
+            0.0,
             2.0,
             monitor_position,
             monitor_size,
@@ -1804,11 +1821,43 @@ mod tests {
             size,
             OverlayResizeEdge::Right,
             10_000.0,
+            0.0,
             2.0,
             monitor_position,
             monitor_size,
         );
         assert_eq!(position.x as i64 + maximum.width as i64, 2832);
+    }
+
+    #[test]
+    fn manual_edge_resize_respects_toolbar_minimums() {
+        let position = tauri::PhysicalPosition::new(400, 300);
+        let size = tauri::PhysicalSize::new(800, 900);
+        let monitor_position = tauri::PhysicalPosition::new(0, 0);
+        let monitor_size = tauri::PhysicalSize::new(2880, 1800);
+        let (_, horizontal) = resize_overlay_edge_bounds(
+            position,
+            size,
+            OverlayResizeEdge::Right,
+            10.0,
+            380.0,
+            2.0,
+            monitor_position,
+            monitor_size,
+        );
+        assert_eq!(horizontal.width, 760);
+
+        let (_, vertical) = resize_overlay_edge_bounds(
+            position,
+            size,
+            OverlayResizeEdge::Bottom,
+            10.0,
+            360.0,
+            2.0,
+            monitor_position,
+            monitor_size,
+        );
+        assert_eq!(vertical.height, 720);
     }
 
     #[test]
