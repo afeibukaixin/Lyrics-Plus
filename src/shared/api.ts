@@ -7,8 +7,9 @@ import type {
   ConfigDraftValidation,
   ConfigEditorData,
   LyricsDocument,
-  LibraryOverview,
+  LibraryPage,
   LibraryPreview,
+  LibraryScanStatus,
   LyricsSearchInput,
   LyricsSearchResult,
   OverlaySettings,
@@ -52,10 +53,12 @@ export const api = {
     invoke<void>("player_action", { action, positionMs }),
   getCachedLyrics: (trackKey: string) =>
     invoke<LyricsDocument | null>("get_cached_lyrics", { trackKey }),
-  getLibraryOverview: () => invoke<LibraryOverview>("get_library_overview"),
+  getLibraryPage: (query = "", offset = 0, limit = 100) =>
+    invoke<LibraryPage>("get_library_page", { query, offset, limit }),
+  getLibraryScanStatus: () => invoke<LibraryScanStatus>("get_library_scan_status"),
   setLyricsDirectory: (path: string) =>
-    invoke<LibraryOverview>("set_lyrics_directory", { path }),
-  rescanLyricsLibrary: () => invoke<LibraryOverview>("rescan_lyrics_library"),
+    invoke<LibraryScanStatus>("set_lyrics_directory", { path }),
+  rescanLyricsLibrary: () => invoke<LibraryScanStatus>("rescan_lyrics_library"),
   previewLibraryEntry: (path: string) =>
     invoke<LibraryPreview>("preview_library_entry", { path }),
   openLyricsDirectory: () => invoke<void>("open_lyrics_directory"),

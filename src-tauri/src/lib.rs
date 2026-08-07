@@ -1234,6 +1234,7 @@ pub fn run() {
                     .build()
                     .map_err(|error| error.to_string())?,
             });
+            commands::start_library_scan(app.handle());
 
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_size(tauri::LogicalSize::new(980.0, 720.0));
@@ -1345,7 +1346,8 @@ pub fn run() {
             commands::import_lyrics,
             commands::set_lyrics_offset,
             commands::remove_lyrics_association,
-            commands::get_library_overview,
+            commands::get_library_page,
+            commands::get_library_scan_status,
             commands::set_lyrics_directory,
             commands::rescan_lyrics_library,
             commands::preview_library_entry,

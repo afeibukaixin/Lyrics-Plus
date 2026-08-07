@@ -198,9 +198,31 @@ export type LibraryEntry = {
   hasRomanization: boolean;
 };
 
-export type LibraryOverview = {
+export type LibraryPage = {
   libraryDir: string;
   entries: LibraryEntry[];
+  totalCount: number;
+  offset: number;
+  limit: number;
+};
+
+export type LibraryScanPhase =
+  | "idle"
+  | "discovering"
+  | "indexing"
+  | "completed"
+  | "cancelled"
+  | "failed";
+
+export type LibraryScanStatus = {
+  scanId: number;
+  libraryDir: string;
+  phase: LibraryScanPhase;
+  discovered: number;
+  processed: number;
+  total: number | null;
+  skipped: number;
+  error: string | null;
 };
 
 export type LibraryPreview = {

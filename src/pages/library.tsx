@@ -1,9 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { Link } from "react-router";
 import { api, isTauriRuntime, messageOf } from "../shared/api";
-import type { LibraryEntry, LibraryOverview, LibraryPreview } from "../shared/types";
+import { createTauriListenerCleanup } from "../shared/tauriEvent";
+import type {
+  LibraryEntry,
+  LibraryPage,
+  LibraryPreview,
+  LibraryScanStatus,
+} from "../shared/types";
 import styles from "./library.module.scss";
+
+const PAGE_SIZE = 100;
+const WINDOW_SIZE = 200;
+const ROW_HEIGHT = 58;
 
 function formatBytes(value: number) {
   if (value < 1024) return `${value} B`;
@@ -17,45 +28,104 @@ function formatDuration(value: number | null) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
+function scanDescription(status: LibraryScanStatus | null) {
+  if (!status || status.phase === "idle") return null;
+  if (status.phase === "discovering") {
+    return `正在发现歌词文件… 已发现 ${status.discovered} 首${status.skipped ? `，跳过 ${status.skipped}` : ""}`;
+  }
+  if (status.phase === "indexing") {
+    return `正在建立索引 ${status.processed} / ${status.total ?? status.discovered}${status.skipped ? `，跳过 ${status.skipped}` : ""}`;
+  }
+  if (status.phase === "completed") {
+    return `索引完成，共 ${status.total ?? status.processed} 首${status.skipped ? `，跳过 ${status.skipped}` : ""}`;
+  }
+  if (status.phase === "failed") return status.error ?? "歌词目录扫描失败";
+  if (status.phase === "cancelled") return "上一次扫描已取消";
+  return null;
+}
+
 export default function Library() {
-  const [overview, setOverview] = useState<LibraryOverview | null>(null);
+  const [page, setPage] = useState<LibraryPage | null>(null);
+  const [libraryDir, setLibraryDir] = useState<string | null>(null);
+  const [scanStatus, setScanStatus] = useState<LibraryScanStatus | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [preview, setPreview] = useState<LibraryPreview | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const listRef = useRef<HTMLDivElement>(null);
+  const pageOffsetRef = useRef(0);
+  const queryRef = useRef("");
+  const requestIdRef = useRef(0);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollFrameRef = useRef<number | null>(null);
 
-  const filteredEntries = useMemo(() => {
-    const entries = overview?.entries ?? [];
-    const keywords = searchQuery.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
-    if (keywords.length === 0) return entries;
-    return entries.filter((entry) => {
-      const searchable = `${entry.title} ${entry.artist}`.toLocaleLowerCase();
-      return keywords.every((keyword) => searchable.includes(keyword));
-    });
-  }, [overview, searchQuery]);
-
-  const searching = searchQuery.trim().length > 0;
-
-  const applyOverview = (value: LibraryOverview) => {
-    setOverview(value);
-    if (selectedPath && !value.entries.some((entry) => entry.path === selectedPath)) {
-      setSelectedPath(null);
-      setPreview(null);
-    }
-  };
-
-  const load = async () => {
-    const value = await api.getLibraryOverview();
-    applyOverview(value);
+  const loadWindow = useCallback(async (offset: number, query = queryRef.current) => {
+    const requestId = ++requestIdRef.current;
+    const value = await api.getLibraryPage(query, offset, WINDOW_SIZE);
+    if (requestId !== requestIdRef.current) return null;
+    pageOffsetRef.current = value.offset;
+    setPage(value);
+    setLibraryDir(value.libraryDir);
     return value;
-  };
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchQuery(searchInput.trim()), 200);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   useEffect(() => {
     document.documentElement.dataset.window = "main";
     if (!isTauriRuntime()) return;
+    queryRef.current = searchQuery;
+    if (listRef.current) listRef.current.scrollTop = 0;
     setError(null);
-    void load().catch((cause) => setError(messageOf(cause)));
+    void loadWindow(0, searchQuery).catch((cause) => setError(messageOf(cause)));
+  }, [loadWindow, searchQuery]);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    void api.getLibraryScanStatus().then((status) => {
+      setScanStatus(status);
+      setLibraryDir(status.libraryDir);
+    }).catch((cause) => setError(messageOf(cause)));
+
+    const scheduleRefresh = () => {
+      if (refreshTimerRef.current) return;
+      refreshTimerRef.current = setTimeout(() => {
+        refreshTimerRef.current = null;
+        void loadWindow(pageOffsetRef.current).catch((cause) => setError(messageOf(cause)));
+      }, 250);
+    };
+    const cleanup = createTauriListenerCleanup(
+      listen<LibraryScanStatus>("lyrics://library-scan-progress", ({ payload }) => {
+        setScanStatus(payload);
+        setLibraryDir(payload.libraryDir);
+        if (payload.phase === "indexing" || payload.phase === "completed") scheduleRefresh();
+        if (payload.phase === "failed" && payload.error) setError(payload.error);
+      }),
+    );
+    return () => {
+      cleanup();
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
+  }, [loadWindow]);
+
+  const onListScroll = () => {
+    if (scrollFrameRef.current !== null) return;
+    scrollFrameRef.current = requestAnimationFrame(() => {
+      scrollFrameRef.current = null;
+      const scrollTop = listRef.current?.scrollTop ?? 0;
+      const nextOffset = Math.floor(scrollTop / (ROW_HEIGHT * PAGE_SIZE)) * PAGE_SIZE;
+      if (nextOffset === pageOffsetRef.current || nextOffset >= (page?.totalCount ?? 0)) return;
+      void loadWindow(nextOffset).catch((cause) => setError(messageOf(cause)));
+    });
+  };
+
+  useEffect(() => () => {
+    if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current);
   }, []);
 
   const selectEntry = async (entry: LibraryEntry) => {
@@ -72,14 +142,11 @@ export default function Library() {
   };
 
   const rescan = async () => {
-    setBusy("rescan");
     setError(null);
     try {
-      applyOverview(await api.rescanLyricsLibrary());
+      setScanStatus(await api.rescanLyricsLibrary());
     } catch (cause) {
       setError(messageOf(cause));
-    } finally {
-      setBusy(null);
     }
   };
 
@@ -89,12 +156,19 @@ export default function Library() {
       const path = await openDialog({
         directory: true,
         multiple: false,
-        defaultPath: overview?.libraryDir,
+        defaultPath: libraryDir ?? undefined,
         title: "选择歌词目录",
       });
       if (!path) return;
       setBusy("directory");
-      applyOverview(await api.setLyricsDirectory(path));
+      const status = await api.setLyricsDirectory(path);
+      setScanStatus(status);
+      setLibraryDir(status.libraryDir);
+      setPage({ libraryDir: status.libraryDir, entries: [], totalCount: 0, offset: 0, limit: WINDOW_SIZE });
+      setSelectedPath(null);
+      setPreview(null);
+      if (listRef.current) listRef.current.scrollTop = 0;
+      await loadWindow(0);
     } catch (cause) {
       setError(messageOf(cause));
     } finally {
@@ -103,7 +177,7 @@ export default function Library() {
   };
 
   const openLibraryDirectory = async () => {
-    if (!overview?.libraryDir) return;
+    if (!libraryDir) return;
     setError(null);
     try {
       await api.openLyricsDirectory();
@@ -122,18 +196,28 @@ export default function Library() {
     }
   };
 
+  const searching = searchQuery.length > 0;
+  const totalCount = page?.totalCount ?? 0;
+  const entries = page?.entries ?? [];
+  const virtualHeight = totalCount * ROW_HEIGHT;
+  const virtualTop = (page?.offset ?? 0) * ROW_HEIGHT;
+  const statusText = scanDescription(scanStatus);
+  const scanning = scanStatus?.phase === "discovering" || scanStatus?.phase === "indexing";
+  const resultText = useMemo(
+    () => searching ? `找到 ${totalCount} 首` : `${totalCount} 首歌词`,
+    [searching, totalCount],
+  );
+
   return (
     <main className={styles.shell}>
       <header className={styles.header}>
         <div>
           <span>LOCAL LIBRARY</span>
           <h1>本地歌词库</h1>
-          <p>{overview?.libraryDir ?? "正在读取歌词目录…"}</p>
+          <p>{libraryDir ?? "正在读取歌词目录…"}</p>
         </div>
         <div className={styles.headerActions}>
-          <button disabled={busy !== null} onClick={() => void rescan()}>
-            {busy === "rescan" ? "扫描中…" : "重新扫描"}
-          </button>
+          <button onClick={() => void rescan()}>{scanning ? "重新开始扫描" : "重新扫描"}</button>
           <Link to="/">返回播放页</Link>
         </div>
       </header>
@@ -142,13 +226,14 @@ export default function Library() {
         <div className={styles.sectionTitle}>
           <div><span>FOLDER</span><h2>歌词目录</h2></div>
           <div className={styles.directoryActions}>
-            <button disabled={!overview?.libraryDir} onClick={() => void openLibraryDirectory()}>打开歌词目录</button>
-            <button disabled={busy !== null} onClick={() => void changeDirectory()}>
+            <button disabled={!libraryDir} onClick={() => void openLibraryDirectory()}>打开歌词目录</button>
+            <button disabled={busy === "directory"} onClick={() => void changeDirectory()}>
               {busy === "directory" ? "切换中…" : "修改目录"}
             </button>
           </div>
         </div>
-        <p className={styles.folderPath}>{overview?.libraryDir ?? "—"}</p>
+        <p className={styles.folderPath}>{libraryDir ?? "—"}</p>
+        {statusText && <p className={styles.scanStatus} data-error={scanStatus?.phase === "failed"}>{statusText}</p>}
       </section>
 
       <section className={styles.workspace}>
@@ -160,33 +245,39 @@ export default function Library() {
                 aria-label="搜索歌名或歌手"
                 autoComplete="off"
                 placeholder="搜索歌名或歌手"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.currentTarget.value)}
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.currentTarget.value)}
               />
-              {searchQuery && <button type="button" aria-label="清除搜索" onClick={() => setSearchQuery("")}>×</button>}
+              {searchInput && <button type="button" aria-label="清除搜索" onClick={() => setSearchInput("")}>×</button>}
             </label>
-            <span className={styles.resultCount}>{searching ? `找到 ${filteredEntries.length} / 共 ${overview?.entries.length ?? 0} 首` : `${overview?.entries.length ?? 0} 首歌词`}</span>
+            <span className={styles.resultCount}>{resultText}</span>
             <span className={styles.columnHint}>时长 / 大小</span>
           </div>
-          <div className={styles.entryList}>
-            {filteredEntries.map((entry) => (
-              <button key={entry.path} data-selected={entry.path === selectedPath} onClick={() => void selectEntry(entry)}>
-                <span><strong>{entry.title}</strong><small>{entry.artist} · {entry.source} · {entry.format.toUpperCase()}</small></span>
-                <span className={styles.badges}>
-                  {entry.duplicateCount > 1 && <b>重复 ×{entry.duplicateCount}</b>}
-                  {entry.associationCount > 0 && <b>已关联 {entry.associationCount}</b>}
-                  {entry.hasWordTiming && <b>逐字</b>}
-                  {entry.hasTranslation && <b>翻译</b>}
-                  {entry.hasRomanization && <b>音译</b>}
-                </span>
-                <em>{formatDuration(entry.durationMs)}<small>{formatBytes(entry.fileSize)}</small></em>
-              </button>
-            ))}
-            {overview && overview.entries.length === 0 && <div className={styles.empty}>当前歌词目录中没有歌词</div>}
-            {overview && overview.entries.length > 0 && filteredEntries.length === 0 && (
+          <div ref={listRef} className={styles.entryList} onScroll={onListScroll}>
+            {totalCount > 0 && (
+              <div className={styles.virtualSpace} style={{ height: virtualHeight }}>
+                <div className={styles.virtualWindow} style={{ transform: `translateY(${virtualTop}px)` }}>
+                  {entries.map((entry) => (
+                    <button key={entry.path} data-selected={entry.path === selectedPath} onClick={() => void selectEntry(entry)}>
+                      <span><strong>{entry.title}</strong><small>{entry.artist} · {entry.source} · {entry.format.toUpperCase()}</small></span>
+                      <span className={styles.badges}>
+                        {entry.duplicateCount > 1 && <b>重复 ×{entry.duplicateCount}</b>}
+                        {entry.associationCount > 0 && <b>已关联 {entry.associationCount}</b>}
+                        {entry.hasWordTiming && <b>逐字</b>}
+                        {entry.hasTranslation && <b>翻译</b>}
+                        {entry.hasRomanization && <b>音译</b>}
+                      </span>
+                      <em>{formatDuration(entry.durationMs)}<small>{formatBytes(entry.fileSize)}</small></em>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {page && totalCount === 0 && !searching && <div className={styles.empty}>{scanning ? "正在索引歌词…" : "当前歌词目录中没有歌词"}</div>}
+            {page && totalCount === 0 && searching && (
               <div className={styles.searchEmpty}>
                 <span>没有找到匹配的歌词</span>
-                <button type="button" onClick={() => setSearchQuery("")}>清除搜索</button>
+                <button type="button" onClick={() => setSearchInput("")}>清除搜索</button>
               </div>
             )}
           </div>

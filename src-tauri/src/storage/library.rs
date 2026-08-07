@@ -1,15 +1,19 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
 
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use serde::Serialize;
 
 use super::{content_hash, ensure_column, Storage};
 use crate::lyrics::{parse_lrc_with_options, LyricsDocument};
 
 const MAX_LYRIC_FILE_SIZE: u64 = 5 * 1024 * 1024;
+const MAX_LYRIC_FILES: usize = 50_000;
+const INDEX_BATCH_SIZE: usize = 200;
 pub(super) const LIBRARY_DIRECTORY_PREFERENCE: &str = "lyrics.library_directory";
 
 #[derive(Debug, Clone, Serialize)]
@@ -33,9 +37,109 @@ pub struct LibraryEntry {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LibraryOverview {
+pub struct LibraryPage {
     pub library_dir: String,
     pub entries: Vec<LibraryEntry>,
+    pub total_count: u64,
+    pub offset: u32,
+    pub limit: u32,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LibraryScanPhase {
+    Idle,
+    Discovering,
+    Indexing,
+    Completed,
+    #[allow(dead_code)]
+    Cancelled,
+    Failed,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryScanStatus {
+    pub scan_id: u64,
+    pub library_dir: String,
+    pub phase: LibraryScanPhase,
+    pub discovered: u64,
+    pub processed: u64,
+    pub total: Option<u64>,
+    pub skipped: u64,
+    pub error: Option<String>,
+}
+
+pub(super) struct LibraryScanCoordinator {
+    generation: AtomicU64,
+    status: Mutex<LibraryScanStatus>,
+}
+
+impl LibraryScanCoordinator {
+    pub(super) fn new(library_dir: &Path) -> Self {
+        Self {
+            generation: AtomicU64::new(0),
+            status: Mutex::new(LibraryScanStatus {
+                scan_id: 0,
+                library_dir: library_dir.to_string_lossy().into_owned(),
+                phase: LibraryScanPhase::Idle,
+                discovered: 0,
+                processed: 0,
+                total: None,
+                skipped: 0,
+                error: None,
+            }),
+        }
+    }
+
+    fn begin(&self, library_dir: &Path) -> LibraryScanStatus {
+        let scan_id = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
+        let status = LibraryScanStatus {
+            scan_id,
+            library_dir: library_dir.to_string_lossy().into_owned(),
+            phase: LibraryScanPhase::Discovering,
+            discovered: 0,
+            processed: 0,
+            total: None,
+            skipped: 0,
+            error: None,
+        };
+        *self
+            .status
+            .lock()
+            .unwrap_or_else(|error| error.into_inner()) = status.clone();
+        status
+    }
+
+    fn is_current(&self, scan_id: u64) -> bool {
+        self.generation.load(Ordering::SeqCst) == scan_id
+    }
+
+    fn update(
+        &self,
+        scan_id: u64,
+        update: impl FnOnce(&mut LibraryScanStatus),
+    ) -> Option<LibraryScanStatus> {
+        if !self.is_current(scan_id) {
+            return None;
+        }
+        let mut status = self
+            .status
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if !self.is_current(scan_id) || status.scan_id != scan_id {
+            return None;
+        }
+        update(&mut status);
+        Some(status.clone())
+    }
+
+    fn snapshot(&self) -> LibraryScanStatus {
+        self.status
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clone()
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -49,6 +153,11 @@ pub struct LibraryPreview {
 pub(super) fn initialize_schema(connection: &Connection) -> rusqlite::Result<()> {
     connection.execute(
         "CREATE INDEX IF NOT EXISTS lyric_files_content_hash ON lyric_files(content_hash)",
+        [],
+    )?;
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS lyric_associations_content_path
+         ON lyric_associations(content_path)",
         [],
     )?;
     ensure_column(connection, "lyric_files", "folder_id", "INTEGER")?;
@@ -93,34 +202,36 @@ pub(super) fn initialize_schema(connection: &Connection) -> rusqlite::Result<()>
     Ok(())
 }
 
-pub(super) fn scan_managed_library(
-    connection: &Connection,
-    library_dir: &Path,
-) -> Result<(), String> {
-    scan_folder(connection, library_dir)
-}
-
 impl Storage {
-    pub fn library_overview(&self) -> Result<LibraryOverview, String> {
+    pub fn library_page(
+        &self,
+        query: Option<&str>,
+        offset: u32,
+        limit: u32,
+    ) -> Result<LibraryPage, String> {
         let library_dir = self.library_directory();
+        let limit = limit.clamp(1, 200);
         let connection = self
             .connection
             .lock()
             .unwrap_or_else(|error| error.into_inner());
-        let mut entries = list_entries(&connection, &library_dir)?;
-        entries.sort_by(|left, right| {
-            right
-                .modified_at_ms
-                .cmp(&left.modified_at_ms)
-                .then_with(|| left.title.cmp(&right.title))
-        });
-        Ok(LibraryOverview {
+        let (entries, total_count) = list_entries(
+            &connection,
+            &library_dir,
+            query.unwrap_or_default(),
+            offset,
+            limit,
+        )?;
+        Ok(LibraryPage {
             library_dir: library_dir.to_string_lossy().into_owned(),
             entries,
+            total_count,
+            offset,
+            limit,
         })
     }
 
-    pub fn set_library_directory(&self, path: &str) -> Result<LibraryOverview, String> {
+    pub fn set_library_directory(&self, path: &str) -> Result<PathBuf, String> {
         let path = canonical_directory(path)?;
         let metadata =
             fs::metadata(&path).map_err(|error| format!("无法读取歌词文件夹信息：{error}"))?;
@@ -133,7 +244,6 @@ impl Storage {
                 .connection
                 .lock()
                 .unwrap_or_else(|error| error.into_inner());
-            scan_managed_library(&connection, &path)?;
             connection
                 .execute(
                     "INSERT INTO app_preferences (key, value, updated_at)
@@ -148,27 +258,122 @@ impl Storage {
             .library_dir
             .write()
             .unwrap_or_else(|error| error.into_inner()) = path;
-        self.library_overview()
+        Ok(self.library_directory())
     }
 
-    pub fn rescan_library(&self) -> Result<LibraryOverview, String> {
+    pub fn begin_library_scan(&self) -> LibraryScanStatus {
+        self.scanner.begin(&self.library_directory())
+    }
+
+    pub fn library_scan_status(&self) -> LibraryScanStatus {
+        self.scanner.snapshot()
+    }
+
+    pub fn run_library_scan(
+        &self,
+        scan_id: u64,
+        mut publish: impl FnMut(&LibraryScanStatus),
+    ) -> Result<bool, String> {
+        let snapshot = self.library_scan_status();
+        if snapshot.scan_id != scan_id {
+            return Ok(false);
+        }
+        let root = PathBuf::from(snapshot.library_dir);
+        let mut connection = Connection::open(&self.database_path)
+            .map_err(|error| format!("打开歌词索引数据库失败：{error}"))?;
+        connection
+            .execute_batch("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;")
+            .map_err(|error| format!("初始化歌词索引连接失败：{error}"))?;
+
+        let mut files = Vec::new();
+        let mut discovery_skipped = 0_u64;
+        collect_lyric_files(
+            &root,
+            &mut files,
+            &mut discovery_skipped,
+            &self.scanner,
+            scan_id,
+            &mut publish,
+        )?;
+        let Some(status) = self.scanner.update(scan_id, |status| {
+            status.phase = LibraryScanPhase::Indexing;
+            status.discovered = files.len() as u64;
+            status.total = Some(files.len() as u64);
+            status.skipped = discovery_skipped;
+        }) else {
+            return Ok(false);
+        };
+        publish(&status);
+
+        let mut seen = HashSet::with_capacity(files.len());
+        for batch in files.chunks(INDEX_BATCH_SIZE) {
+            if !self.scanner.is_current(scan_id) {
+                return Ok(false);
+            }
+            let transaction = connection
+                .transaction()
+                .map_err(|error| format!("开始歌词索引事务失败：{error}"))?;
+            let mut batch_skipped = 0_u64;
+            for path in batch {
+                let path_string = path.to_string_lossy().into_owned();
+                seen.insert(path_string.clone());
+                if index_file_if_changed(&transaction, path).is_err() {
+                    batch_skipped += 1;
+                    transaction
+                        .execute(
+                            "DELETE FROM lyric_files WHERE content_path=?1",
+                            params![path_string],
+                        )
+                        .map_err(|error| format!("清理不可用歌词索引失败：{error}"))?;
+                }
+            }
+            transaction
+                .commit()
+                .map_err(|error| format!("提交歌词索引失败：{error}"))?;
+            let Some(status) = self.scanner.update(scan_id, |status| {
+                status.processed += batch.len() as u64;
+                status.skipped += batch_skipped;
+            }) else {
+                return Ok(false);
+            };
+            publish(&status);
+        }
+
+        if !self.scanner.is_current(scan_id) {
+            return Ok(false);
+        }
+        if discovery_skipped == 0 {
+            cleanup_missing_files(&mut connection, &root, &seen)?;
+        }
+        let Some(status) = self.scanner.update(scan_id, |status| {
+            status.phase = LibraryScanPhase::Completed;
+            status.processed = status.total.unwrap_or(status.processed);
+        }) else {
+            return Ok(false);
+        };
+        publish(&status);
+        Ok(true)
+    }
+
+    pub fn fail_library_scan(&self, scan_id: u64, error: String) -> Option<LibraryScanStatus> {
+        self.scanner.update(scan_id, |status| {
+            status.phase = LibraryScanPhase::Failed;
+            status.error = Some(error);
+        })
+    }
+
+    pub fn preview_library_entry(&self, path: &str) -> Result<LibraryPreview, String> {
         let library_dir = self.library_directory();
+        if !same_path_or_child(&library_dir, Path::new(path)) {
+            return Err("歌词文件未被当前目录索引".into());
+        }
         let connection = self
             .connection
             .lock()
             .unwrap_or_else(|error| error.into_inner());
-        scan_managed_library(&connection, &library_dir)?;
-        drop(connection);
-        self.library_overview()
-    }
-
-    pub fn preview_library_entry(&self, path: &str) -> Result<LibraryPreview, String> {
-        let entry = self
-            .library_overview()?
-            .entries
-            .into_iter()
-            .find(|entry| same_path(&entry.path, path))
+        let entry = get_entry(&connection, &library_dir, path)?
             .ok_or_else(|| "歌词文件未被当前目录索引".to_string())?;
+        drop(connection);
         let raw = read_lyric(Path::new(&entry.path))?;
         let document = parse_lrc_with_options(&raw, &entry.source, true).ok();
         Ok(LibraryPreview {
@@ -178,7 +383,7 @@ impl Storage {
         })
     }
 
-    fn library_directory(&self) -> PathBuf {
+    pub fn library_directory(&self) -> PathBuf {
         self.library_dir
             .read()
             .unwrap_or_else(|error| error.into_inner())
@@ -186,136 +391,192 @@ impl Storage {
     }
 }
 
-fn list_entries(connection: &Connection, library_dir: &Path) -> Result<Vec<LibraryEntry>, String> {
+fn list_entries(
+    connection: &Connection,
+    library_dir: &Path,
+    query: &str,
+    offset: u32,
+    limit: u32,
+) -> Result<(Vec<LibraryEntry>, u64), String> {
+    let prefix = directory_prefix(library_dir);
+    let query = query.trim().to_lowercase();
+    let search_pattern = format!("%{}%", escape_like(&query));
+    let total_count = connection
+        .query_row(
+            "SELECT COUNT(*) FROM lyric_files
+             WHERE managed=1 AND folder_id IS NULL
+               AND substr(content_path, 1, length(?1))=?1
+               AND (?2='' OR lower(title) LIKE ?3 ESCAPE '\\'
+                          OR lower(artist) LIKE ?3 ESCAPE '\\')",
+            params![prefix, query, search_pattern],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|error| format!("统计歌词库失败：{error}"))?
+        .max(0) as u64;
     let mut statement = connection
         .prepare(
-            "SELECT content_path, title, artist, source, original_format,
-                    file_size, modified_at_ms, duration_ms, content_hash,
+            "WITH library AS (
+               SELECT content_path, title, artist, source, original_format,
+                      file_size, modified_at_ms, duration_ms,
+                      has_translation, has_word_timing, has_romanization,
+                      COUNT(*) OVER (PARTITION BY content_hash) AS duplicate_count,
+                      (SELECT COUNT(*) FROM lyric_associations associations
+                       WHERE associations.content_path=lyric_files.content_path) AS association_count
+               FROM lyric_files
+               WHERE managed=1 AND folder_id IS NULL
+                 AND substr(content_path, 1, length(?1))=?1
+             )
+             SELECT content_path, title, artist, source, original_format,
+                    file_size, modified_at_ms, duration_ms,
                     has_translation, has_word_timing, has_romanization,
-                    (SELECT COUNT(*) FROM lyric_associations associations
-                     WHERE associations.content_path=lyric_files.content_path)
-             FROM lyric_files WHERE managed=1 AND folder_id IS NULL",
+                    duplicate_count, association_count
+             FROM library
+             WHERE (?2='' OR lower(title) LIKE ?3 ESCAPE '\\'
+                        OR lower(artist) LIKE ?3 ESCAPE '\\')
+             ORDER BY modified_at_ms DESC, title ASC
+             LIMIT ?4 OFFSET ?5",
         )
         .map_err(|error| format!("读取歌词库失败：{error}"))?;
-    let indexed = statement
-        .query_map([], |row| {
-            let path: String = row.get(0)?;
-            let entry = LibraryEntry {
-                file_name: Path::new(&path)
-                    .file_name()
-                    .and_then(|value| value.to_str())
-                    .unwrap_or_default()
-                    .to_string(),
-                path,
-                title: row.get(1)?,
-                artist: row.get(2)?,
-                source: row.get(3)?,
-                format: row.get(4)?,
-                file_size: row.get::<_, i64>(5)?.max(0) as u64,
-                modified_at_ms: row
-                    .get::<_, Option<i64>>(6)?
-                    .map(|value| value.max(0) as u64),
-                duration_ms: row
-                    .get::<_, Option<i64>>(7)?
-                    .map(|value| value.max(0) as u64),
-                duplicate_count: 1,
-                association_count: row.get::<_, i64>(12)?.max(0) as u64,
-                has_translation: row.get::<_, i64>(9)? != 0,
-                has_word_timing: row.get::<_, i64>(10)? != 0,
-                has_romanization: row.get::<_, i64>(11)? != 0,
-            };
-            Ok((entry, row.get::<_, String>(8)?))
-        })
+    let entries = statement
+        .query_map(
+            params![prefix, query, search_pattern, limit, offset],
+            library_entry_from_row,
+        )
         .map_err(|error| format!("查询歌词库失败：{error}"))?
         .collect::<rusqlite::Result<Vec<_>>>()
         .map_err(|error| format!("解析歌词库失败：{error}"))?;
-
-    let mut counts = HashMap::<String, u64>::new();
-    for (entry, hash) in &indexed {
-        if Path::new(&entry.path).starts_with(library_dir) {
-            *counts.entry(hash.clone()).or_insert(0) += 1;
-        }
-    }
-    Ok(indexed
-        .into_iter()
-        .filter_map(|(mut entry, hash)| {
-            if !Path::new(&entry.path).starts_with(library_dir) {
-                return None;
-            }
-            entry.duplicate_count = counts.get(hash.as_str()).copied().unwrap_or(1);
-            Some(entry)
-        })
-        .collect())
+    Ok((entries, total_count))
 }
 
-fn scan_folder(connection: &Connection, root: &Path) -> Result<(), String> {
-    if !root.is_dir() {
-        return Err("歌词文件夹不存在或不可访问".into());
-    }
-    let mut files = Vec::new();
-    collect_lyric_files(root, &mut files)?;
-    let mut seen = HashSet::new();
-    for path in files {
-        seen.insert(path.to_string_lossy().into_owned());
-        index_file(connection, &path)?;
-    }
-
-    let mut statement = connection
-        .prepare("SELECT content_path FROM lyric_files WHERE managed=1 AND folder_id IS NULL")
-        .map_err(|error| format!("读取已有索引失败：{error}"))?;
-    let existing = statement
-        .query_map([], |row| row.get::<_, String>(0))
-        .map_err(|error| format!("查询已有索引失败：{error}"))?
-        .collect::<rusqlite::Result<Vec<_>>>()
-        .map_err(|error| format!("解析已有索引失败：{error}"))?;
-    drop(statement);
-
-    for path in existing
-        .into_iter()
-        .filter(|path| Path::new(path).starts_with(root) && !seen.contains(path))
-    {
-        connection
-            .execute(
-                "DELETE FROM lyric_associations WHERE content_path=?1",
-                params![path],
-            )
-            .map_err(|error| format!("清理失效关联失败：{error}"))?;
-        connection
-            .execute(
-                "DELETE FROM lyric_files WHERE content_path=?1",
-                params![path],
-            )
-            .map_err(|error| format!("清理失效索引失败：{error}"))?;
-    }
-    Ok(())
+fn library_entry_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryEntry> {
+    let path: String = row.get(0)?;
+    Ok(LibraryEntry {
+        file_name: Path::new(&path)
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default()
+            .to_string(),
+        path,
+        title: row.get(1)?,
+        artist: row.get(2)?,
+        source: row.get(3)?,
+        format: row.get(4)?,
+        file_size: row.get::<_, i64>(5)?.max(0) as u64,
+        modified_at_ms: row
+            .get::<_, Option<i64>>(6)?
+            .map(|value| value.max(0) as u64),
+        duration_ms: row
+            .get::<_, Option<i64>>(7)?
+            .map(|value| value.max(0) as u64),
+        has_translation: row.get::<_, i64>(8)? != 0,
+        has_word_timing: row.get::<_, i64>(9)? != 0,
+        has_romanization: row.get::<_, i64>(10)? != 0,
+        duplicate_count: row.get::<_, i64>(11)?.max(1) as u64,
+        association_count: row.get::<_, i64>(12)?.max(0) as u64,
+    })
 }
 
-fn collect_lyric_files(root: &Path, output: &mut Vec<PathBuf>) -> Result<(), String> {
+fn get_entry(
+    connection: &Connection,
+    library_dir: &Path,
+    path: &str,
+) -> Result<Option<LibraryEntry>, String> {
+    let prefix = directory_prefix(library_dir);
+    connection
+        .query_row(
+            "SELECT content_path, title, artist, source, original_format,
+                    file_size, modified_at_ms, duration_ms,
+                    has_translation, has_word_timing, has_romanization,
+                    (SELECT COUNT(*) FROM lyric_files duplicates
+                     WHERE duplicates.content_hash=lyric_files.content_hash
+                       AND substr(duplicates.content_path, 1, length(?2))=?2),
+                    (SELECT COUNT(*) FROM lyric_associations associations
+                     WHERE associations.content_path=lyric_files.content_path)
+             FROM lyric_files WHERE content_path=?1 AND managed=1 AND folder_id IS NULL",
+            params![path, prefix],
+            library_entry_from_row,
+        )
+        .optional()
+        .map_err(|error| format!("读取歌词条目失败：{error}"))
+}
+
+fn collect_lyric_files(
+    root: &Path,
+    output: &mut Vec<PathBuf>,
+    skipped: &mut u64,
+    coordinator: &LibraryScanCoordinator,
+    scan_id: u64,
+    publish: &mut impl FnMut(&LibraryScanStatus),
+) -> Result<(), String> {
     let entries = fs::read_dir(root).map_err(|error| format!("无法读取歌词文件夹：{error}"))?;
     for entry in entries {
-        let entry = entry.map_err(|error| format!("读取文件夹项目失败：{error}"))?;
-        let file_type = entry
-            .file_type()
-            .map_err(|error| format!("读取文件类型失败：{error}"))?;
+        if !coordinator.is_current(scan_id) {
+            return Ok(());
+        }
+        let Ok(entry) = entry else {
+            *skipped += 1;
+            continue;
+        };
+        let Ok(file_type) = entry.file_type() else {
+            *skipped += 1;
+            continue;
+        };
         if file_type.is_symlink() {
             continue;
         }
         if file_type.is_dir() {
-            collect_lyric_files(&entry.path(), output)?;
+            if let Err(error) = collect_lyric_files(
+                &entry.path(),
+                output,
+                skipped,
+                coordinator,
+                scan_id,
+                publish,
+            ) {
+                if error.contains("最多索引 50000 个文件") {
+                    return Err(error);
+                }
+                *skipped += 1;
+            }
         } else if file_type.is_file() && has_supported_extension(&entry.path()) {
-            output.push(entry.path());
-            if output.len() >= 50_000 {
-                return Err("单个歌词文件夹最多索引 50000 个文件".into());
+            push_discovered_file(output, entry.path())?;
+            if output.len() % 250 == 0 {
+                if let Some(status) = coordinator.update(scan_id, |status| {
+                    status.discovered = output.len() as u64;
+                    status.skipped = *skipped;
+                }) {
+                    publish(&status);
+                }
             }
         }
     }
     Ok(())
 }
 
-fn index_file(connection: &Connection, path: &Path) -> Result<(), String> {
+fn push_discovered_file(output: &mut Vec<PathBuf>, path: PathBuf) -> Result<(), String> {
+    if output.len() >= MAX_LYRIC_FILES {
+        return Err("单个歌词文件夹最多索引 50000 个文件".into());
+    }
+    output.push(path);
+    Ok(())
+}
+
+fn index_file_if_changed(connection: &Transaction<'_>, path: &Path) -> Result<bool, String> {
     let file_metadata = fs::metadata(path).map_err(|error| format!("读取歌词文件失败：{error}"))?;
     if file_metadata.len() > MAX_LYRIC_FILE_SIZE {
         return Err("歌词文件超过 5 MB，已跳过".into());
+    }
+    let modified_at_ms = modified_ms(&file_metadata).map(|value| value as i64);
+    let existing = connection
+        .query_row(
+            "SELECT file_size, modified_at_ms FROM lyric_files WHERE content_path=?1",
+            params![path.to_string_lossy()],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<i64>>(1)?)),
+        )
+        .optional()
+        .map_err(|error| format!("读取歌词索引状态失败：{error}"))?;
+    if modified_at_ms.is_some() && existing == Some((file_metadata.len() as i64, modified_at_ms)) {
+        return Ok(false);
     }
     let raw = read_lyric(path)?;
     let metadata = lyric_metadata(path, &raw, "本地文件");
@@ -353,7 +614,7 @@ fn index_file(connection: &Connection, path: &Path) -> Result<(), String> {
                 metadata.format,
                 hash,
                 file_metadata.len() as i64,
-                modified_ms(&file_metadata).map(|value| value as i64),
+                modified_at_ms,
                 metadata.duration_ms.map(|value| value as i64),
                 fingerprint,
                 metadata.has_translation,
@@ -362,7 +623,70 @@ fn index_file(connection: &Connection, path: &Path) -> Result<(), String> {
             ],
         )
         .map_err(|error| format!("更新歌词索引失败：{error}"))?;
-    Ok(())
+    Ok(true)
+}
+
+fn cleanup_missing_files(
+    connection: &mut Connection,
+    root: &Path,
+    seen: &HashSet<String>,
+) -> Result<(), String> {
+    let prefix = directory_prefix(root);
+    let mut statement = connection
+        .prepare(
+            "SELECT content_path FROM lyric_files
+             WHERE managed=1 AND folder_id IS NULL
+               AND substr(content_path, 1, length(?1))=?1",
+        )
+        .map_err(|error| format!("读取已有索引失败：{error}"))?;
+    let missing = statement
+        .query_map(params![prefix], |row| row.get::<_, String>(0))
+        .map_err(|error| format!("查询已有索引失败：{error}"))?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(|error| format!("解析已有索引失败：{error}"))?
+        .into_iter()
+        .filter(|path| !seen.contains(path))
+        .collect::<Vec<_>>();
+    drop(statement);
+    let transaction = connection
+        .transaction()
+        .map_err(|error| format!("开始清理索引事务失败：{error}"))?;
+    for path in missing {
+        transaction
+            .execute(
+                "DELETE FROM lyric_associations WHERE content_path=?1",
+                params![path],
+            )
+            .map_err(|error| format!("清理失效关联失败：{error}"))?;
+        transaction
+            .execute(
+                "DELETE FROM lyric_files WHERE content_path=?1",
+                params![path],
+            )
+            .map_err(|error| format!("清理失效索引失败：{error}"))?;
+    }
+    transaction
+        .commit()
+        .map_err(|error| format!("提交索引清理失败：{error}"))
+}
+
+fn directory_prefix(root: &Path) -> String {
+    let mut prefix = root.to_string_lossy().into_owned();
+    if !prefix.ends_with(std::path::MAIN_SEPARATOR) {
+        prefix.push(std::path::MAIN_SEPARATOR);
+    }
+    prefix
+}
+
+fn escape_like(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
+fn same_path_or_child(root: &Path, path: &Path) -> bool {
+    path.canonicalize().is_ok_and(|path| path.starts_with(root))
 }
 
 struct ParsedMetadata {
@@ -481,15 +805,6 @@ fn canonical_directory(path: &str) -> Result<PathBuf, String> {
     Ok(canonical)
 }
 
-fn same_path(left: &str, right: &str) -> bool {
-    if left == right {
-        return true;
-    }
-    let left = Path::new(left).canonicalize();
-    let right = Path::new(right).canonicalize();
-    matches!((left, right), (Ok(left), Ok(right)) if left == right)
-}
-
 fn modified_ms(metadata: &fs::Metadata) -> Option<u64> {
     metadata
         .modified()
@@ -505,6 +820,12 @@ mod tests {
     use crate::storage::tests::test_dirs;
     use crate::storage::{SaveKind, SaveRequest};
 
+    fn scan(storage: &Storage) -> LibraryScanStatus {
+        let status = storage.begin_library_scan();
+        assert!(storage.run_library_scan(status.scan_id, |_| {}).unwrap());
+        storage.library_scan_status()
+    }
+
     #[test]
     fn scan_detects_duplicates_and_parses_readable_names() {
         let (app_dir, library_dir) = test_dirs("duplicates");
@@ -512,14 +833,12 @@ mod tests {
         let raw = "[00:01]Line";
         fs::write(library_dir.join("Artist - Song.lrc"), raw).unwrap();
         fs::write(library_dir.join("Artist - Song copy.lrc"), raw).unwrap();
-        let storage = Storage::open(app_dir.clone(), library_dir).unwrap();
-        let overview = storage.library_overview().unwrap();
-        assert_eq!(overview.entries.len(), 2);
-        assert!(overview
-            .entries
-            .iter()
-            .all(|entry| entry.duplicate_count == 2));
-        assert!(overview.entries.iter().any(|entry| entry.title == "Song"));
+        let storage = Storage::open(app_dir.clone(), library_dir.clone()).unwrap();
+        scan(&storage);
+        let page = storage.library_page(None, 0, 100).unwrap();
+        assert_eq!(page.entries.len(), 2);
+        assert!(page.entries.iter().all(|entry| entry.duplicate_count == 2));
+        assert!(page.entries.iter().any(|entry| entry.title == "Song"));
         let _ = fs::remove_dir_all(app_dir.parent().unwrap());
     }
 
@@ -541,15 +860,21 @@ mod tests {
                 kind: SaveKind::Automatic,
             })
             .unwrap();
-        let old_path = storage.library_overview().unwrap().entries[0].path.clone();
+        let old_path = storage.library_page(None, 0, 100).unwrap().entries[0]
+            .path
+            .clone();
 
-        let overview = storage
+        storage
             .set_library_directory(&new_dir.to_string_lossy())
             .unwrap();
-        assert!(overview.entries.is_empty());
+        assert!(storage
+            .library_page(None, 0, 100)
+            .unwrap()
+            .entries
+            .is_empty());
         assert!(Path::new(&old_path).exists());
         assert!(storage.load("spotify:old").unwrap().is_some());
-        storage.rescan_library().unwrap();
+        scan(&storage);
         assert!(storage.load("spotify:old").unwrap().is_some());
 
         storage
@@ -565,7 +890,7 @@ mod tests {
             })
             .unwrap();
         let canonical_new_dir = new_dir.canonicalize().unwrap();
-        assert!(storage.library_overview().unwrap().entries[0]
+        assert!(storage.library_page(None, 0, 100).unwrap().entries[0]
             .path
             .starts_with(&canonical_new_dir.to_string_lossy().to_string()));
         let _ = fs::remove_dir_all(app_dir.parent().unwrap());
@@ -587,9 +912,179 @@ mod tests {
 
         let reopened = Storage::open(app_dir.clone(), default_dir).unwrap();
         assert_eq!(
-            reopened.library_overview().unwrap().library_dir,
-            new_dir.canonicalize().unwrap().to_string_lossy()
+            reopened.library_directory(),
+            new_dir.canonicalize().unwrap()
         );
         let _ = fs::remove_dir_all(app_dir.parent().unwrap());
+    }
+
+    #[test]
+    fn scan_skips_unchanged_files_and_reindexes_changed_files() {
+        let (app_dir, library_dir) = test_dirs("incremental-scan");
+        fs::create_dir_all(&library_dir).unwrap();
+        let lyric = library_dir.join("Artist - Song.lrc");
+        fs::write(&lyric, "[ti:Original]\n[00:01]Line").unwrap();
+        let storage = Storage::open(app_dir.clone(), library_dir.clone()).unwrap();
+        scan(&storage);
+        let lyric = PathBuf::from(
+            storage.library_page(None, 0, 100).unwrap().entries[0]
+                .path
+                .clone(),
+        );
+
+        storage
+            .connection
+            .lock()
+            .unwrap()
+            .execute(
+                "UPDATE lyric_files SET title='Unchanged sentinel' WHERE content_path=?1",
+                params![lyric.to_string_lossy()],
+            )
+            .unwrap();
+        scan(&storage);
+        assert_eq!(
+            storage.library_page(None, 0, 100).unwrap().entries[0].title,
+            "Unchanged sentinel"
+        );
+
+        fs::write(
+            &lyric,
+            "[ti:Changed title with different size]\n[00:01]Line",
+        )
+        .unwrap();
+        scan(&storage);
+        assert_eq!(
+            storage.library_page(None, 0, 100).unwrap().entries[0].title,
+            "Changed title with different size"
+        );
+        let _ = fs::remove_dir_all(app_dir.parent().unwrap());
+    }
+
+    #[test]
+    fn library_page_filters_paginates_and_counts_associations() {
+        let (app_dir, library_dir) = test_dirs("library-page");
+        fs::create_dir_all(&library_dir).unwrap();
+        fs::write(library_dir.join("Artist - Alpha Song.lrc"), "[00:01]Same").unwrap();
+        fs::write(library_dir.join("Artist - Beta Song.lrc"), "[00:01]Same").unwrap();
+        fs::write(
+            library_dir.join("Artist - 100%_Real.lrc"),
+            "[00:02]Different",
+        )
+        .unwrap();
+        let storage = Storage::open(app_dir.clone(), library_dir.clone()).unwrap();
+        scan(&storage);
+        let alpha = storage.library_page(Some("Alpha"), 0, 100).unwrap().entries[0]
+            .path
+            .clone();
+        storage
+            .connection
+            .lock()
+            .unwrap()
+            .execute(
+                "INSERT INTO lyric_associations
+                   (track_key, title, artist, source, content_path, offset_ms)
+                 VALUES ('track', 'Alpha Song', 'Artist', 'Test', ?1, 0)",
+                params![alpha],
+            )
+            .unwrap();
+
+        let first_page = storage.library_page(Some("Song"), 0, 1).unwrap();
+        let second_page = storage.library_page(Some("Song"), 1, 1).unwrap();
+        assert_eq!(first_page.total_count, 2);
+        assert_eq!(first_page.entries.len(), 1);
+        assert_eq!(second_page.entries.len(), 1);
+        assert_ne!(first_page.entries[0].path, second_page.entries[0].path);
+        assert_eq!(
+            storage.library_page(Some("Alpha"), 0, 100).unwrap().entries[0].association_count,
+            1
+        );
+        assert!(storage
+            .library_page(Some("%_"), 0, 100)
+            .unwrap()
+            .entries
+            .iter()
+            .any(|entry| entry.title == "100%_Real"));
+        assert!(first_page.entries[0].duplicate_count == 2);
+
+        let other_dir = app_dir.parent().unwrap().join("Other %_ Library");
+        fs::create_dir_all(&other_dir).unwrap();
+        fs::write(other_dir.join("Other - Only.lrc"), "[00:01]Other").unwrap();
+        storage
+            .set_library_directory(&other_dir.to_string_lossy())
+            .unwrap();
+        scan(&storage);
+        assert_eq!(storage.library_page(None, 0, 100).unwrap().total_count, 1);
+        storage
+            .set_library_directory(&library_dir.to_string_lossy())
+            .unwrap();
+        assert_eq!(storage.library_page(None, 0, 100).unwrap().total_count, 3);
+        let _ = fs::remove_dir_all(app_dir.parent().unwrap());
+    }
+
+    #[test]
+    fn scan_skips_bad_files_and_cleans_missing_indexes() {
+        let (app_dir, library_dir) = test_dirs("skip-and-clean");
+        fs::create_dir_all(&library_dir).unwrap();
+        let valid = library_dir.join("Artist - Valid.lrc");
+        fs::write(&valid, "[00:01]Valid").unwrap();
+        let oversized = fs::File::create(library_dir.join("Artist - Oversized.lrc")).unwrap();
+        oversized.set_len(MAX_LYRIC_FILE_SIZE + 1).unwrap();
+        let storage = Storage::open(app_dir.clone(), library_dir).unwrap();
+
+        let status = scan(&storage);
+        assert_eq!(status.phase, LibraryScanPhase::Completed);
+        assert_eq!(status.skipped, 1);
+        assert_eq!(storage.library_page(None, 0, 100).unwrap().total_count, 1);
+
+        fs::remove_file(valid).unwrap();
+        scan(&storage);
+        assert_eq!(storage.library_page(None, 0, 100).unwrap().total_count, 0);
+        let _ = fs::remove_dir_all(app_dir.parent().unwrap());
+    }
+
+    #[test]
+    fn newer_scan_cancels_previous_generation() {
+        let (app_dir, library_dir) = test_dirs("scan-cancellation");
+        fs::create_dir_all(&library_dir).unwrap();
+        let storage = Storage::open(app_dir.clone(), library_dir).unwrap();
+        let old = storage.begin_library_scan();
+        let current = storage.begin_library_scan();
+        assert!(!storage.run_library_scan(old.scan_id, |_| {}).unwrap());
+        assert!(storage.run_library_scan(current.scan_id, |_| {}).unwrap());
+        assert_eq!(storage.library_scan_status().scan_id, current.scan_id);
+        let _ = fs::remove_dir_all(app_dir.parent().unwrap());
+    }
+
+    #[test]
+    fn scan_commits_and_reports_in_two_hundred_file_batches() {
+        let (app_dir, library_dir) = test_dirs("scan-batches");
+        fs::create_dir_all(&library_dir).unwrap();
+        for index in 0..201 {
+            fs::write(
+                library_dir.join(format!("Artist - Song {index}.lrc")),
+                format!("[00:01]Line {index}"),
+            )
+            .unwrap();
+        }
+        let storage = Storage::open(app_dir.clone(), library_dir).unwrap();
+        let status = storage.begin_library_scan();
+        let mut processed = Vec::new();
+        assert!(storage
+            .run_library_scan(status.scan_id, |status| {
+                if status.phase == LibraryScanPhase::Indexing && status.processed > 0 {
+                    processed.push(status.processed);
+                }
+            })
+            .unwrap());
+        assert_eq!(processed, vec![200, 201]);
+        assert_eq!(storage.library_page(None, 0, 200).unwrap().total_count, 201);
+        let _ = fs::remove_dir_all(app_dir.parent().unwrap());
+    }
+
+    #[test]
+    fn discovered_file_limit_rejects_the_next_file() {
+        let mut files = vec![PathBuf::new(); MAX_LYRIC_FILES];
+        assert!(push_discovered_file(&mut files, PathBuf::new()).is_err());
+        assert_eq!(files.len(), MAX_LYRIC_FILES);
     }
 }

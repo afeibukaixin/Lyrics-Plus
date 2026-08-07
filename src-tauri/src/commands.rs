@@ -15,7 +15,7 @@ use crate::lyrics::provider::{
 };
 use crate::lyrics::LyricsDocument;
 use crate::player::{perform_action, PlaybackSnapshot, PlayerKind, PlayerSelection};
-use crate::storage::library::{LibraryOverview, LibraryPreview};
+use crate::storage::library::{LibraryPage, LibraryPreview, LibraryScanStatus};
 use crate::storage::{SaveKind, SaveRequest, Storage};
 
 pub struct AppState {
@@ -534,22 +534,62 @@ pub fn remove_lyrics_association(
         .map_err(|error| error.to_string())
 }
 
+pub(crate) fn start_library_scan(app: &tauri::AppHandle) -> LibraryScanStatus {
+    let storage = app.state::<AppState>().storage.clone();
+    let status = storage.begin_library_scan();
+    let scan_id = status.scan_id;
+    let worker_app = app.clone();
+    let _ = app.emit("lyrics://library-scan-progress", &status);
+    tauri::async_runtime::spawn_blocking(move || {
+        let result = storage.run_library_scan(scan_id, |status| {
+            let _ = worker_app.emit("lyrics://library-scan-progress", status);
+        });
+        match result {
+            Ok(true) => {
+                let _ = worker_app.emit("lyrics://library-changed", ());
+            }
+            Ok(false) => {}
+            Err(error) => {
+                log::warn!("歌词目录扫描失败：{error}");
+                if let Some(status) = storage.fail_library_scan(scan_id, error) {
+                    let _ = worker_app.emit("lyrics://library-scan-progress", status);
+                }
+            }
+        }
+    });
+    status
+}
+
 #[tauri::command]
-pub fn get_library_overview(state: State<'_, AppState>) -> Result<LibraryOverview, String> {
-    state.storage.library_overview()
+pub fn get_library_page(
+    query: Option<String>,
+    offset: Option<u32>,
+    limit: Option<u32>,
+    state: State<'_, AppState>,
+) -> Result<LibraryPage, String> {
+    state
+        .storage
+        .library_page(query.as_deref(), offset.unwrap_or(0), limit.unwrap_or(100))
+}
+
+#[tauri::command]
+pub fn get_library_scan_status(state: State<'_, AppState>) -> LibraryScanStatus {
+    state.storage.library_scan_status()
 }
 
 #[tauri::command]
 pub fn set_lyrics_directory(
+    app: tauri::AppHandle,
     path: String,
     state: State<'_, AppState>,
-) -> Result<LibraryOverview, String> {
-    state.storage.set_library_directory(&path)
+) -> Result<LibraryScanStatus, String> {
+    state.storage.set_library_directory(&path)?;
+    Ok(start_library_scan(&app))
 }
 
 #[tauri::command]
-pub fn rescan_lyrics_library(state: State<'_, AppState>) -> Result<LibraryOverview, String> {
-    state.storage.rescan_library()
+pub fn rescan_lyrics_library(app: tauri::AppHandle) -> LibraryScanStatus {
+    start_library_scan(&app)
 }
 
 #[tauri::command]
@@ -565,9 +605,11 @@ pub fn open_lyrics_directory(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let overview = state.storage.library_overview()?;
     app.opener()
-        .open_path(overview.library_dir, None::<&str>)
+        .open_path(
+            state.storage.library_directory().to_string_lossy(),
+            None::<&str>,
+        )
         .map_err(|error| format!("打开歌词目录失败：{error}"))
 }
 

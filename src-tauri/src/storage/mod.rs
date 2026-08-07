@@ -38,7 +38,9 @@ impl SaveKind {
 
 pub struct Storage {
     connection: Mutex<Connection>,
+    database_path: PathBuf,
     library_dir: RwLock<PathBuf>,
+    scanner: library::LibraryScanCoordinator,
 }
 
 impl Storage {
@@ -56,9 +58,11 @@ impl Storage {
         fs::create_dir_all(&library_dir)?;
         let legacy_lyrics_dir = app_dir.join("lyrics");
         fs::create_dir_all(&legacy_lyrics_dir)?;
-        let connection = Connection::open(app_dir.join("lyrics-plus.sqlite3"))?;
+        let database_path = app_dir.join("lyrics-plus.sqlite3");
+        let connection = Connection::open(&database_path)?;
         connection.execute_batch(
             "PRAGMA journal_mode=WAL;
+             PRAGMA busy_timeout=5000;
              CREATE TABLE IF NOT EXISTS lyric_associations (
                track_key TEXT PRIMARY KEY,
                title TEXT NOT NULL,
@@ -118,6 +122,7 @@ impl Storage {
             .filter(|path| path.is_dir())
             .unwrap_or(library_dir);
         fs::create_dir_all(&library_dir)?;
+        let library_dir = library_dir.canonicalize().unwrap_or(library_dir);
         let added_manual_selected = ensure_column(
             &connection,
             "lyric_associations",
@@ -149,10 +154,12 @@ impl Storage {
                 "Lyrics Plus 歌词库\n\n这里的歌词文件归你所有，可直接查看、编辑和备份。\n应用自动下载或手动导入的歌词会使用“歌手 - 歌名.lrc”格式保存。\n外部歌词文件夹默认仅建立只读索引。\n",
             )?;
         }
-        library::scan_managed_library(&connection, &library_dir).map_err(std::io::Error::other)?;
+        let scanner = library::LibraryScanCoordinator::new(&library_dir);
         Ok(Self {
             connection: Mutex::new(connection),
+            database_path,
             library_dir: RwLock::new(library_dir),
+            scanner,
         })
     }
 
@@ -699,7 +706,7 @@ mod tests {
         }
 
         let library_sources = reopened
-            .library_overview()
+            .library_page(None, 0, 200)
             .unwrap()
             .entries
             .into_iter()
