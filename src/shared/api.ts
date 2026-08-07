@@ -58,6 +58,8 @@ export const api = {
   rescanLyricsLibrary: () => invoke<LibraryOverview>("rescan_lyrics_library"),
   previewLibraryEntry: (path: string) =>
     invoke<LibraryPreview>("preview_library_entry", { path }),
+  openLyricsDirectory: () => invoke<void>("open_lyrics_directory"),
+  revealLibraryEntry: (path: string) => invoke<void>("reveal_library_entry", { path }),
   searchLyrics: (input: LyricsSearchInput) => invoke<SearchResponse>("search_lyrics", { input }),
   getProviderSettings: () => invoke<ProviderSettingsView>("get_provider_settings"),
   setProviderSettings: (settings: ProviderSettings) =>
@@ -116,6 +118,7 @@ export const api = {
   fitOverlayContent: (width: number, height: number) =>
     invoke<void>("fit_overlay_content", { width, height }),
   showMainWindow: (page?: "settings") => invoke<void>("show_main_window", { page: page ?? null }),
+  showQuickLyricsWindow: () => invoke<void>("show_quick_lyrics_window"),
   resetSettingsSection: (section: SettingsSection) =>
     invoke<SettingsResetResponse>("reset_settings_section", { section }),
   getAppConfig: () => invoke<AppConfig>("get_app_config"),

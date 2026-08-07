@@ -16,7 +16,6 @@ import { api, isTauriRuntime, messageOf } from "../shared/api";
 import { createTauriListenerCleanup } from "../shared/tauriEvent";
 import {
   defaultOverlayStyle,
-  type LyricsSearchInput,
   type OverlaySettings,
   type OverlayStyle,
   type ProviderSettings,
@@ -51,16 +50,8 @@ export type SettingsOutletContext = {
   confirmingReset: SettingsSection | null;
   providerDrag: ProviderDragState | null;
   savingProviderOrder: boolean;
-  manualTitle: string;
-  manualArtist: string;
-  manualAlbum: string;
-  manualDuration: string;
   setError: Dispatch<SetStateAction<string | null>>;
   setNotice: Dispatch<SetStateAction<string | null>>;
-  setManualTitle: Dispatch<SetStateAction<string>>;
-  setManualArtist: Dispatch<SetStateAction<string>>;
-  setManualAlbum: Dispatch<SetStateAction<string>>;
-  setManualDuration: Dispatch<SetStateAction<string>>;
   updateStyle: (patch: Partial<OverlayStyle>) => Promise<boolean>;
   setVisible: (visible: boolean) => Promise<void>;
   setLocked: (locked: boolean) => Promise<void>;
@@ -73,7 +64,6 @@ export type SettingsOutletContext = {
   toggleProvider: (id: string) => void;
   testProvider: (providerId: string) => Promise<void>;
   handleFile: (file?: File) => Promise<void>;
-  manualSearch: () => void;
   resetSection: (target: SettingsSection) => Promise<void>;
   resetOverlayBounds: () => Promise<void>;
   syncAppliedConfig: (imported: Parameters<ReturnType<typeof useAppConfig>["syncConfig"]>[0], appearanceOnly: boolean) => Promise<void>;
@@ -96,10 +86,6 @@ export default function Settings() {
   const [savingProviderOrder, setSavingProviderOrder] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [manualTitle, setManualTitle] = useState("");
-  const [manualArtist, setManualArtist] = useState("");
-  const [manualAlbum, setManualAlbum] = useState("");
-  const [manualDuration, setManualDuration] = useState("");
 
   useEffect(() => {
     document.documentElement.dataset.window = "main";
@@ -137,14 +123,6 @@ export default function Settings() {
     window.addEventListener("keydown", cancelDrag);
     return () => window.removeEventListener("keydown", cancelDrag);
   }, [providerDrag]);
-
-  useEffect(() => {
-    if (!playback.snapshot.title || !playback.snapshot.artist) return;
-    setManualTitle(playback.snapshot.title);
-    setManualArtist(playback.snapshot.artist);
-    setManualAlbum(playback.snapshot.album ?? "");
-    setManualDuration(playback.snapshot.durationMs ? String(Math.round(playback.snapshot.durationMs / 1000)) : "");
-  }, [playback.snapshot.album, playback.snapshot.artist, playback.snapshot.durationMs, playback.snapshot.title]);
 
   useEffect(() => {
     if (lyrics.providerStatuses.length === 0) return;
@@ -288,14 +266,6 @@ export default function Settings() {
     if (fileInput.current) fileInput.current.value = "";
   };
 
-  const manualSearch = () => {
-    const input: LyricsSearchInput = {
-      title: manualTitle.trim(), artist: manualArtist.trim(), album: manualAlbum.trim() || null,
-      durationMs: manualDuration ? Math.round(Number(manualDuration) * 1000) : null,
-    };
-    void lyrics.searchWith(input);
-  };
-
   const resetSection = async (target: SettingsSection) => {
     const names: Record<SettingsSection, string> = {
       overlay: "桌面歌词",
@@ -371,16 +341,8 @@ export default function Settings() {
     confirmingReset,
     providerDrag,
     savingProviderOrder,
-    manualTitle,
-    manualArtist,
-    manualAlbum,
-    manualDuration,
     setError,
     setNotice,
-    setManualTitle,
-    setManualArtist,
-    setManualAlbum,
-    setManualDuration,
     updateStyle,
     setVisible,
     setLocked,
@@ -393,7 +355,6 @@ export default function Settings() {
     toggleProvider,
     testProvider,
     handleFile,
-    manualSearch,
     resetSection,
     resetOverlayBounds,
     syncAppliedConfig,

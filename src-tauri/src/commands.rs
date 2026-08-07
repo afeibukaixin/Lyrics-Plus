@@ -560,6 +560,29 @@ pub fn preview_library_entry(
     state.storage.preview_library_entry(&path)
 }
 
+#[tauri::command]
+pub fn open_lyrics_directory(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let overview = state.storage.library_overview()?;
+    app.opener()
+        .open_path(overview.library_dir, None::<&str>)
+        .map_err(|error| format!("打开歌词目录失败：{error}"))
+}
+
+#[tauri::command]
+pub fn reveal_library_entry(
+    app: tauri::AppHandle,
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let preview = state.storage.preview_library_entry(&path)?;
+    app.opener()
+        .reveal_item_in_dir(preview.entry.path)
+        .map_err(|error| format!("在文件管理器中显示歌词失败：{error}"))
+}
+
 pub fn update_overlay_visible(app: &tauri::AppHandle, visible: bool) -> Result<(), String> {
     let window = app
         .get_webview_window("lyrics-overlay")
@@ -1149,6 +1172,11 @@ pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Re
 pub fn show_main_window(app: tauri::AppHandle, page: Option<String>) -> Result<(), String> {
     let route = (page.as_deref() == Some("settings")).then_some("#/settings");
     crate::show_main_window_at(&app, route)
+}
+
+#[tauri::command]
+pub fn show_quick_lyrics_window(app: tauri::AppHandle) -> Result<(), String> {
+    crate::show_quick_lyrics_window(&app)
 }
 
 #[tauri::command]

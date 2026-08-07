@@ -53,17 +53,23 @@ type AppConfigContextValue = {
 
 const AppConfigContext = createContext<AppConfigContextValue | null>(null);
 
-export function AppConfigProvider({ children }: { children: React.ReactNode }) {
+export function AppConfigProvider({
+  children,
+  windowType = "main",
+}: {
+  children: React.ReactNode;
+  windowType?: "main" | "quick-lyrics";
+}) {
   const [config, setConfig] = useState(defaultConfig);
 
   useEffect(() => {
-    document.documentElement.dataset.window = "main";
+    document.documentElement.dataset.window = windowType;
     if (!isTauriRuntime()) return;
     void api.getAppConfig().then(setConfig);
     return createTauriListenerCleanup(
       listen<AppConfig>("config://changed", ({ payload }) => setConfig(payload)),
     );
-  }, []);
+  }, [windowType]);
 
   useEffect(() => {
     document.documentElement.style.fontSize = `${19.2 * config.app.uiFontScale / 100}px`;

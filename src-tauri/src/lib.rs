@@ -148,6 +148,38 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+pub(crate) fn show_quick_lyrics_window(app: &tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("quick-lyrics") {
+        if let Err(error) = window.set_size(tauri::LogicalSize::new(900.0, 620.0)) {
+            log::warn!("恢复快速切换歌词窗口尺寸失败：{error}");
+        }
+        if let Err(error) = window.set_resizable(false) {
+            log::warn!("锁定快速切换歌词窗口尺寸失败：{error}");
+        }
+        if let Err(error) = window.unminimize() {
+            log::warn!("恢复快速切换歌词窗口失败，将继续尝试显示：{error}");
+        }
+        window.show().map_err(|error| error.to_string())?;
+        return window.set_focus().map_err(|error| error.to_string());
+    }
+
+    let window = WebviewWindowBuilder::new(
+        app,
+        "quick-lyrics",
+        WebviewUrl::App("index.html?view=quick-lyrics".into()),
+    )
+    .title("快速切换歌词")
+    .inner_size(900.0, 620.0)
+    .resizable(false)
+    .maximizable(false)
+    .minimizable(true)
+    .center()
+    .build()
+    .map_err(|error| error.to_string())?;
+
+    window.set_focus().map_err(|error| error.to_string())
+}
+
 fn initial_overlay_dimensions(style: &OverlayStyleSettings) -> (f64, f64) {
     match style.orientation {
         OverlayOrientation::Horizontal => (style.horizontal_max_width.unwrap_or(760.0), 156.0),
@@ -199,9 +231,10 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
         overlay_visible,
         Some("CmdOrCtrl+Shift+L"),
     )?;
+    let switch_lyrics = MenuItem::with_id(app, "switch-lyrics", "切换歌词", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "设置", true, Some("CmdOrCtrl+,"))?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&toggle_overlay, &settings, &quit])?;
+    let menu = Menu::with_items(app, &[&toggle_overlay, &switch_lyrics, &settings, &quit])?;
 
     app.manage(TrayMenuState {
         toggle_overlay: toggle_overlay.clone(),
@@ -252,6 +285,11 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
                     .unwrap_or_else(|error| error.into_inner())
                     .visible;
                 let _ = commands::update_overlay_visible(app, !visible);
+            }
+            "switch-lyrics" => {
+                if let Err(error) = show_quick_lyrics_window(app) {
+                    log::warn!("从菜单栏打开快速切换歌词失败：{error}");
+                }
             }
             "settings" => {
                 if let Err(error) = show_main_window_at(app, Some("#/settings")) {
@@ -1127,6 +1165,7 @@ pub fn run() {
             tauri_plugin_window_state::Builder::default()
                 .skip_initial_state("main")
                 .skip_initial_state("lyrics-overlay")
+                .skip_initial_state("quick-lyrics")
                 .build(),
         )
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -1310,6 +1349,8 @@ pub fn run() {
             commands::set_lyrics_directory,
             commands::rescan_lyrics_library,
             commands::preview_library_entry,
+            commands::open_lyrics_directory,
+            commands::reveal_library_entry,
             commands::set_overlay_visible,
             commands::get_overlay_visible,
             commands::get_overlay_settings,
@@ -1322,6 +1363,7 @@ pub fn run() {
             commands::resize_overlay_edge,
             commands::fit_overlay_content,
             commands::show_main_window,
+            commands::show_quick_lyrics_window,
             commands::get_app_config,
             commands::set_ui_font_scale,
             commands::set_dock_icon_hidden,

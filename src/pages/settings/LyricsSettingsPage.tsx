@@ -1,12 +1,8 @@
 import type { ProviderSettings, ProviderStatus } from "../../shared/types";
+import { api, messageOf } from "../../shared/api";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
 import { RangeRow, SettingsCard, SettingsHeading } from "./components";
-
-function formatTime(value: number | null | undefined) {
-  const seconds = Math.max(0, Math.round((value ?? 0) / 1000));
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-}
 
 function healthLabel(status?: ProviderStatus) {
   if (!status || status.health === "unknown") return "尚未测试";
@@ -27,14 +23,6 @@ export default function LyricsSettingsPage() {
     confirmingReset,
     providerDrag,
     savingProviderOrder,
-    manualTitle,
-    manualArtist,
-    manualAlbum,
-    manualDuration,
-    setManualTitle,
-    setManualArtist,
-    setManualAlbum,
-    setManualDuration,
     saveProviderSettings,
     beginProviderDrag,
     continueProviderDrag,
@@ -44,8 +32,8 @@ export default function LyricsSettingsPage() {
     toggleProvider,
     testProvider,
     handleFile,
-    manualSearch,
     resetSection,
+    setError,
   } = useSettingsContext();
 
   const lyricCapabilities = lyrics.document
@@ -58,7 +46,7 @@ export default function LyricsSettingsPage() {
 
   return (
     <>
-      <SettingsHeading title="歌词与搜索" description="达到设定相似度的同步歌词会自动采用；其他结果会留在首页等待确认。" onReset={() => void resetSection("lyrics")} resetting={resettingSection === "lyrics"} confirming={confirmingReset === "lyrics"} />
+      <SettingsHeading title="歌词与搜索" description="达到设定相似度的同步歌词会自动采用；其他结果可在快速切换窗口中预览。" onReset={() => void resetSection("lyrics")} resetting={resettingSection === "lyrics"} confirming={confirmingReset === "lyrics"} />
       <SettingsCard title="自动匹配">
         <RangeRow label="自动匹配相似度" value={providerView?.settings.autoApplyThreshold ?? 60} min={0} max={100} suffix="%" onChange={(autoApplyThreshold) => {
           if (providerView) void saveProviderSettings({ ...providerView.settings, autoApplyThreshold });
@@ -69,22 +57,12 @@ export default function LyricsSettingsPage() {
         <div className={styles.currentTrack}><div><strong>{playback.snapshot.title ?? "没有正在播放的歌曲"}</strong><small>{playback.snapshot.artist ?? "—"}</small></div><em>{lyrics.document?.metadata.source ?? "未关联歌词"}</em></div>
         <p className={styles.cardHint}>{lyricCapabilities}</p>
         <div className={styles.buttonRow}>
-          <button disabled={!lyrics.trackKey || lyrics.searching} onClick={() => void lyrics.search()}>{lyrics.searching ? "搜索中…" : "手动搜索当前歌曲"}</button>
+          <button disabled={!lyrics.trackKey} onClick={() => void api.showQuickLyricsWindow().catch((error) => setError(messageOf(error)))}>手动搜索当前歌曲</button>
           <button disabled={!lyrics.trackKey} onClick={() => fileInput.current?.click()}>导入 LRC</button>
           <input ref={fileInput} hidden type="file" accept=".lrc,text/plain" onChange={(event) => void handleFile(event.currentTarget.files?.[0])} />
           {lyrics.document && <button className={styles.danger} onClick={() => void lyrics.remove()}>解除关联</button>}
         </div>
         {lyrics.document && <div className={styles.offsetRow}><span>歌词偏移 {lyrics.document.offsetMs > 0 ? "+" : ""}{lyrics.document.offsetMs}ms</span><div><button onClick={() => void lyrics.changeOffset(-100)}>−100</button><button onClick={() => void lyrics.changeOffset(100)}>+100</button><button onClick={() => void lyrics.setOffset(0)}>重置</button></div></div>}
-      </SettingsCard>
-      <SettingsCard title="修改信息后搜索">
-        <form className={styles.searchForm} onSubmit={(event) => { event.preventDefault(); manualSearch(); }}>
-          <label><span>歌曲名</span><input value={manualTitle} onChange={(event) => setManualTitle(event.target.value)} /></label>
-          <label><span>歌手</span><input value={manualArtist} onChange={(event) => setManualArtist(event.target.value)} /></label>
-          <label><span>专辑</span><input value={manualAlbum} onChange={(event) => setManualAlbum(event.target.value)} /></label>
-          <label><span>时长（秒）</span><input type="number" min="0" value={manualDuration} onChange={(event) => setManualDuration(event.target.value)} /></label>
-          <button type="submit" disabled={!lyrics.trackKey || !manualTitle.trim() || !manualArtist.trim() || lyrics.searching}>搜索全部已启用来源</button>
-        </form>
-        {lyrics.results.length > 0 && <div className={styles.searchResults}>{lyrics.results.map((result) => <button key={`${result.providerId}:${result.id}`} onClick={() => void lyrics.applyResult(result)}><span><strong>{result.title}</strong><small>{result.artist} · {result.source}{result.durationMs ? ` · ${formatTime(result.durationMs)}` : ""}{result.hasTranslation ? " · 翻译" : ""}{result.hasRomanization ? " · 音译" : ""}{result.hasWordTiming ? " · 逐字" : ""}</small></span><b>{Math.round(result.score * 100)}%</b></button>)}</div>}
       </SettingsCard>
       <SettingsCard title="歌词源优先级" trailing={providerView && <select disabled={savingProviderOrder} value={providerView.settings.mode} onChange={(event) => void saveProviderSettings({ ...providerView.settings, mode: event.target.value as ProviderSettings["mode"] })}><option value="strict">严格优先级</option><option value="smart">智能排序</option></select>}>
         <p className={styles.cardHint}>{providerView?.settings.mode === "smart" ? "智能排序会在分数差距较大时覆盖手动顺序。" : "搜索结果按下列优先级排列；拖动左侧把手可调整并立即保存。"}</p>

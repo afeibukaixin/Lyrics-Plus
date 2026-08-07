@@ -69,10 +69,10 @@
 .colorPresetPreview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); height: 17px; overflow: hidden; border: 1px solid #ffffff20; border-radius: 5px; box-shadow: inset 0 1px #ffffff18; }
 .colorPresetPreview i { min-width: 0; }
 .buttonRow { display: flex; flex-wrap: wrap; gap: 7px; padding: 11px 14px; }
-.buttonRow button, .offsetRow button, .searchForm button, .provider > button:last-child {
+.buttonRow button, .offsetRow button, .provider > button:last-child {
   padding: 7px 9px; border: 1px solid #ffffff11; border-radius: 8px; background: #ffffff07; color: #afb4c1; font-size: .5625rem;
 }
-.buttonRow button:disabled, .searchForm button:disabled, .provider button:disabled { opacity: .35; cursor: default; }
+.buttonRow button:disabled, .provider button:disabled { opacity: .35; cursor: default; }
 .buttonRow .danger { color: #e995a3; }
 .currentTrack { display: flex; align-items: center; justify-content: space-between; padding: 13px 14px 4px; }
 .currentTrack > div { display: grid; gap: 3px; }
@@ -81,18 +81,6 @@
 .currentTrack em { padding: 4px 7px; border-radius: 6px; background: #8d72ed18; color: #a78fff; font-size: .5rem; font-style: normal; }
 .offsetRow { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-top: 1px solid #ffffff0a; color: #73798a; font-size: .5625rem; }
 .offsetRow div { display: flex; gap: 5px; }
-.searchForm { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 13px 14px; }
-.searchForm label { display: grid; gap: 5px; color: #727889; font-size: .5rem; }
-.searchForm input { min-width: 0; padding: 8px 9px; border: 1px solid #ffffff10; border-radius: 8px; outline: none; background: #0e1016; color: #d5d7de; }
-.searchForm input:focus { border-color: #9277f488; }
-.searchForm > button { grid-column: 1 / -1; justify-self: start; }
-.searchResults { display: grid; gap: 5px; padding: 0 14px 13px; }
-.searchResults > button { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border: 1px solid #ffffff0d; border-radius: 9px; background: #ffffff04; text-align: left; }
-.searchResults > button:hover { border-color: #9277f455; }
-.searchResults span { display: grid; gap: 2px; }
-.searchResults strong { color: #d9dbe2; font-size: .5625rem; }
-.searchResults small { color: #73798a; font-size: .5rem; }
-.searchResults b { color: #a68eff; font-size: .5625rem; }
 .cardHint { margin: 0; padding: 10px 14px; color: #6f7585; font-size: .5rem; }
 .providers { display: grid; gap: 5px; padding: 0 10px 11px; }
 .providers[data-dragging="true"] { user-select: none; }

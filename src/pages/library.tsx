@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
+import { useEffect, useMemo, useState } from "react";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { Link } from "react-router";
 import { api, isTauriRuntime, messageOf } from "../shared/api";
 import type { LibraryEntry, LibraryOverview, LibraryPreview } from "../shared/types";
@@ -23,6 +23,19 @@ export default function Library() {
   const [preview, setPreview] = useState<LibraryPreview | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredEntries = useMemo(() => {
+    const entries = overview?.entries ?? [];
+    const keywords = searchQuery.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+    if (keywords.length === 0) return entries;
+    return entries.filter((entry) => {
+      const searchable = `${entry.title} ${entry.artist}`.toLocaleLowerCase();
+      return keywords.every((keyword) => searchable.includes(keyword));
+    });
+  }, [overview, searchQuery]);
+
+  const searching = searchQuery.trim().length > 0;
 
   const applyOverview = (value: LibraryOverview) => {
     setOverview(value);
@@ -73,7 +86,7 @@ export default function Library() {
   const changeDirectory = async () => {
     setError(null);
     try {
-      const path = await open({
+      const path = await openDialog({
         directory: true,
         multiple: false,
         defaultPath: overview?.libraryDir,
@@ -86,6 +99,26 @@ export default function Library() {
       setError(messageOf(cause));
     } finally {
       setBusy(null);
+    }
+  };
+
+  const openLibraryDirectory = async () => {
+    if (!overview?.libraryDir) return;
+    setError(null);
+    try {
+      await api.openLyricsDirectory();
+    } catch (cause) {
+      setError(messageOf(cause));
+    }
+  };
+
+  const revealPreview = async () => {
+    if (!preview) return;
+    setError(null);
+    try {
+      await api.revealLibraryEntry(preview.entry.path);
+    } catch (cause) {
+      setError(messageOf(cause));
     }
   };
 
@@ -108,18 +141,35 @@ export default function Library() {
       <section className={styles.folderPanel}>
         <div className={styles.sectionTitle}>
           <div><span>FOLDER</span><h2>歌词目录</h2></div>
-          <button disabled={busy !== null} onClick={() => void changeDirectory()}>
-            {busy === "directory" ? "切换中…" : "修改目录"}
-          </button>
+          <div className={styles.directoryActions}>
+            <button disabled={!overview?.libraryDir} onClick={() => void openLibraryDirectory()}>打开歌词目录</button>
+            <button disabled={busy !== null} onClick={() => void changeDirectory()}>
+              {busy === "directory" ? "切换中…" : "修改目录"}
+            </button>
+          </div>
         </div>
         <p className={styles.folderPath}>{overview?.libraryDir ?? "—"}</p>
       </section>
 
       <section className={styles.workspace}>
         <div className={styles.browser}>
-          <div className={styles.listHeader}><span>{overview?.entries.length ?? 0} 首歌词</span><span>时长 / 大小</span></div>
+          <div className={styles.listToolbar}>
+            <label className={styles.searchBox}>
+              <span aria-hidden="true">⌕</span>
+              <input
+                aria-label="搜索歌名或歌手"
+                autoComplete="off"
+                placeholder="搜索歌名或歌手"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.currentTarget.value)}
+              />
+              {searchQuery && <button type="button" aria-label="清除搜索" onClick={() => setSearchQuery("")}>×</button>}
+            </label>
+            <span className={styles.resultCount}>{searching ? `找到 ${filteredEntries.length} / 共 ${overview?.entries.length ?? 0} 首` : `${overview?.entries.length ?? 0} 首歌词`}</span>
+            <span className={styles.columnHint}>时长 / 大小</span>
+          </div>
           <div className={styles.entryList}>
-            {overview?.entries.map((entry) => (
+            {filteredEntries.map((entry) => (
               <button key={entry.path} data-selected={entry.path === selectedPath} onClick={() => void selectEntry(entry)}>
                 <span><strong>{entry.title}</strong><small>{entry.artist} · {entry.source} · {entry.format.toUpperCase()}</small></span>
                 <span className={styles.badges}>
@@ -133,14 +183,23 @@ export default function Library() {
               </button>
             ))}
             {overview && overview.entries.length === 0 && <div className={styles.empty}>当前歌词目录中没有歌词</div>}
+            {overview && overview.entries.length > 0 && filteredEntries.length === 0 && (
+              <div className={styles.searchEmpty}>
+                <span>没有找到匹配的歌词</span>
+                <button type="button" onClick={() => setSearchQuery("")}>清除搜索</button>
+              </div>
+            )}
           </div>
         </div>
 
         <aside className={styles.preview}>
           {!preview ? <div className={styles.empty}>{busy === "preview" ? "正在读取歌词…" : "选择一首歌词查看原文"}</div> : (
             <>
-              <div className={styles.previewHeading}>
-                <span>PREVIEW</span><h2>{preview.entry.title}</h2><p>{preview.entry.artist}</p>
+              <div className={styles.previewTop}>
+                <div className={styles.previewHeading}>
+                  <span>PREVIEW</span><h2>{preview.entry.title}</h2><p>{preview.entry.artist}</p>
+                </div>
+                <button onClick={() => void revealPreview()}>在访达中显示</button>
               </div>
               <div className={styles.previewMeta}>
                 <span>{preview.entry.source}</span><span>{preview.entry.format.toUpperCase()}</span><span>{preview.document?.tracks.original.lines.length ?? 0} 行</span>
