@@ -6,8 +6,8 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::artwork::{ArtworkAsset, ArtworkService};
 use crate::config::{
-    merge_import, validate_config_draft, AppConfig, ConfigDraftValidation, ConfigEditorData,
-    ConfigStore, GlobalShortcutSettings, OverlayAppearance,
+    validate_config_draft, AppConfig, ConfigDraftValidation, ConfigEditorData, ConfigStore,
+    GlobalShortcutSettings, OverlayAppearance,
 };
 use crate::lyrics::provider::{
     can_auto_apply, LyricsSearchInput, LyricsSearchResult, ProviderRegistry, ProviderSettings,
@@ -1336,7 +1336,7 @@ pub fn set_overlay_hide_when_not_playing(
 #[tauri::command]
 pub fn export_app_config(state: State<'_, AppState>) -> Result<ConfigExport, String> {
     Ok(ConfigExport {
-        file_name: "lyrics-plus-config.json".into(),
+        file_name: "lyrics-plus-config.jsonc".into(),
         raw: state.config.export_json()?,
     })
 }
@@ -1380,51 +1380,23 @@ pub fn save_app_config_draft(
             error.line, error.column, error.message
         ));
     }
-    apply_app_config(
-        &app,
-        &state,
-        validation.effective_config,
-        false,
-        Some(expected_revision),
-    )
-}
-
-#[tauri::command]
-pub fn import_app_config(
-    app: tauri::AppHandle,
-    raw: String,
-    appearance_only: bool,
-    state: State<'_, AppState>,
-) -> Result<AppConfig, String> {
-    let validation = validate_config_draft(&raw);
-    if let Some(error) = validation.error {
-        return Err(format!(
-            "第 {} 行第 {} 列：{}",
-            error.line, error.column, error.message
-        ));
-    }
-    let imported = validation.effective_config;
-    let current = state.config.snapshot();
-    let next = merge_import(&current, imported, appearance_only);
-    apply_app_config(&app, &state, next, appearance_only, None)
+    apply_app_config(&app, &state, validation.effective_config, expected_revision)
 }
 
 fn apply_app_config(
     app: &tauri::AppHandle,
     state: &AppState,
     next: AppConfig,
-    appearance_only: bool,
-    expected_revision: Option<u64>,
+    expected_revision: u64,
 ) -> Result<AppConfig, String> {
     let previous_config = state.config.snapshot();
     let previous_dock_icon_hidden = previous_config.app.hide_dock_icon;
     let previous_shortcuts = previous_config.app.shortcuts;
-    let dock_visibility_changed =
-        !appearance_only && previous_dock_icon_hidden != next.app.hide_dock_icon;
+    let dock_visibility_changed = previous_dock_icon_hidden != next.app.hide_dock_icon;
     if dock_visibility_changed {
         crate::apply_dock_icon_hidden(app, next.app.hide_dock_icon)?;
     }
-    let shortcuts_changed = !appearance_only && previous_shortcuts != next.app.shortcuts;
+    let shortcuts_changed = previous_shortcuts != next.app.shortcuts;
     if shortcuts_changed {
         if let Err(error) =
             crate::apply_global_shortcuts(app, &previous_shortcuts, &next.app.shortcuts)
@@ -1435,10 +1407,9 @@ fn apply_app_config(
             return Err(error);
         }
     }
-    let save_result = match expected_revision {
-        Some(revision) => state.config.replace_at_revision(next.clone(), revision),
-        None => state.config.replace(next.clone()),
-    };
+    let save_result = state
+        .config
+        .replace_at_revision(next.clone(), expected_revision);
     let saved = match save_result {
         Ok(saved) => saved,
         Err(error) => {
@@ -1471,38 +1442,36 @@ fn apply_app_config(
         crate::sync_overlay_vibrancy(&window, &style);
     }
 
-    if !appearance_only {
-        state
-            .providers
-            .set_settings(saved.lyrics.providers.clone())?;
-        *state
-            .selection
-            .write()
-            .unwrap_or_else(|error| error.into_inner()) = saved.app.player_selection;
-        *state
-            .auto_player
-            .write()
-            .unwrap_or_else(|error| error.into_inner()) = None;
-        *state
-            .overlay_settings
-            .write()
-            .unwrap_or_else(|error| error.into_inner()) = OverlaySettings {
-            visible: saved.overlay.visible,
-            locked: saved.overlay.locked,
-            passthrough: saved.overlay.locked,
-        };
-        if let Some(window) = app.get_webview_window("lyrics-overlay") {
-            let _ = window.set_ignore_cursor_events(saved.overlay.locked);
-            let _ = window.set_focusable(!saved.overlay.locked);
-            if !saved.overlay.locked {
-                crate::refresh_overlay_mouse_tracking(&window);
-            }
+    state
+        .providers
+        .set_settings(saved.lyrics.providers.clone())?;
+    *state
+        .selection
+        .write()
+        .unwrap_or_else(|error| error.into_inner()) = saved.app.player_selection;
+    *state
+        .auto_player
+        .write()
+        .unwrap_or_else(|error| error.into_inner()) = None;
+    *state
+        .overlay_settings
+        .write()
+        .unwrap_or_else(|error| error.into_inner()) = OverlaySettings {
+        visible: saved.overlay.visible,
+        locked: saved.overlay.locked,
+        passthrough: saved.overlay.locked,
+    };
+    if let Some(window) = app.get_webview_window("lyrics-overlay") {
+        let _ = window.set_ignore_cursor_events(saved.overlay.locked);
+        let _ = window.set_focusable(!saved.overlay.locked);
+        if !saved.overlay.locked {
+            crate::refresh_overlay_mouse_tracking(&window);
         }
-        crate::reconcile_overlay_visibility(app)?;
-        crate::sync_tray_overlay_checked(app, saved.overlay.visible);
-        let _ = app.emit("player://selection", saved.app.player_selection);
-        let _ = app.emit("overlay://settings", get_overlay_settings_inner(&state));
     }
+    crate::reconcile_overlay_visibility(app)?;
+    crate::sync_tray_overlay_checked(app, saved.overlay.visible);
+    let _ = app.emit("player://selection", saved.app.player_selection);
+    let _ = app.emit("overlay://settings", get_overlay_settings_inner(&state));
     let _ = app.emit("overlay://style", &style);
     app.emit("config://changed", &saved)
         .map_err(|error| error.to_string())?;

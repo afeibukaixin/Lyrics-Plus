@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, messageOf } from "../../shared/api";
 import type { AppConfig, ConfigDraftValidation, ConfigEditorData } from "../../shared/types";
 import { useAppConfig } from "./AppConfigProvider";
@@ -12,8 +12,10 @@ type Props = {
 
 export default function ConfigEditor({ onApplied, setError, setNotice }: Props) {
   const { config, syncConfig } = useAppConfig();
-  const fullImportInput = useRef<HTMLInputElement>(null);
-  const appearanceImportInput = useRef<HTMLInputElement>(null);
+  const defaultEditor = useRef<HTMLPreElement>(null);
+  const userEditor = useRef<HTMLTextAreaElement>(null);
+  const defaultLineNumbers = useRef<HTMLPreElement>(null);
+  const userLineNumbers = useRef<HTMLPreElement>(null);
   const dirtyRef = useRef(false);
   const validationRequest = useRef(0);
   const [data, setData] = useState<ConfigEditorData | null>(null);
@@ -100,7 +102,7 @@ export default function ConfigEditor({ onApplied, setError, setNotice }: Props) 
       syncConfig(saved);
       await onApplied(saved, false);
       applyEditorData(await api.getConfigEditorData());
-      setNotice("配置已保存并立即应用；JSONC 注释已整理为标准 JSON。");
+      setNotice("配置已保存并立即应用。官方注释和字段顺序已保持一致。");
     } catch (value) {
       const message = messageOf(value);
       if (message.includes("重新载入")) setConflict(true);
@@ -124,29 +126,20 @@ export default function ConfigEditor({ onApplied, setError, setNotice }: Props) 
     } catch (value) { setError(messageOf(value)); }
   };
 
-  const loadFullImport = async (file?: File) => {
-    if (!file) return;
-    changeDraft(await file.text());
-    if (fullImportInput.current) fullImportInput.current.value = "";
-    setNotice("配置已载入右侧编辑器，验证通过后点击保存才会生效。");
-  };
+  const defaultText = data?.defaultJsonc ?? "正在读取默认配置…";
+  const lineNumbersOf = (value: string) =>
+    Array.from({ length: value.split("\n").length }, (_, index) => index + 1).join("\n");
+  const defaultLines = useMemo(() => lineNumbersOf(defaultText), [defaultText]);
+  const userLines = useMemo(() => lineNumbersOf(draft), [draft]);
 
-  const importAppearance = async (file?: File) => {
-    if (!file) return;
-    setError(null);
-    try {
-      const imported = await api.importAppConfig(await file.text(), true);
-      dirtyRef.current = false;
-      setDirty(false);
-      syncConfig(imported);
-      await onApplied(imported, true);
-      applyEditorData(await api.getConfigEditorData());
-      setNotice("桌面歌词外观已导入。");
-    } catch (value) {
-      setError(messageOf(value));
-    } finally {
-      if (appearanceImportInput.current) appearanceImportInput.current.value = "";
+  const syncScroll = (source: HTMLElement, target: HTMLElement | null) => {
+    if (target) {
+      if (target.scrollTop !== source.scrollTop) target.scrollTop = source.scrollTop;
+      if (target.scrollLeft !== source.scrollLeft) target.scrollLeft = source.scrollLeft;
     }
+    const offset = `translateY(${-source.scrollTop}px)`;
+    if (defaultLineNumbers.current) defaultLineNumbers.current.style.transform = offset;
+    if (userLineNumbers.current) userLineNumbers.current.style.transform = offset;
   };
 
   const status = conflict
@@ -165,39 +158,43 @@ export default function ConfigEditor({ onApplied, setError, setNotice }: Props) 
   return (
     <section className={styles.editorShell}>
       <header className={styles.header}>
-        <div><h2>配置编辑器</h2><p>右侧可只填写需要覆盖的字段；缺失项使用左侧默认值。</p></div>
+        <div><h2>配置编辑器</h2><p>左右配置采用相同字段顺序和官方注释，保存时会补齐缺失字段。</p></div>
         <div className={styles.actions}>
           <button onClick={() => void reload()}>重新载入</button>
-          <button disabled={!data} onClick={() => data && changeDraft(data.defaultJsonc)}>复制默认到右侧</button>
+          <button disabled={!data} onClick={() => data && changeDraft(data.defaultJsonc)}>恢复默认</button>
           <button data-primary disabled={!dirty || !validation?.valid || conflict || validating || saving} onClick={() => void save()}>{saving ? "保存中…" : "保存并应用"}</button>
         </div>
       </header>
 
       <div className={styles.toolbar}>
-        <button onClick={() => fullImportInput.current?.click()}>完整导入</button>
-        <button onClick={() => appearanceImportInput.current?.click()}>仅导入外观</button>
         <button onClick={() => void exportConfig()}>导出配置</button>
         <button onClick={() => void api.revealConfigDirectory().catch((value) => setError(messageOf(value)))}>打开配置目录</button>
-        <input ref={fullImportInput} hidden type="file" accept=".json,.jsonc,application/json" onChange={(event) => void loadFullImport(event.currentTarget.files?.[0])} />
-        <input ref={appearanceImportInput} hidden type="file" accept=".json,.jsonc,application/json" onChange={(event) => void importAppearance(event.currentTarget.files?.[0])} />
         <span data-kind={status.kind}>{status.text}</span>
       </div>
 
       <div className={styles.columns}>
         <section className={styles.panel}>
           <header><strong>默认配置</strong><span>只读 · 带注释</span></header>
-          <pre aria-label="默认配置，只读"><code>{data?.defaultJsonc ?? "正在读取默认配置…"}</code></pre>
+          <div className={styles.codeFrame}>
+            <pre ref={defaultLineNumbers} aria-hidden className={styles.lineNumbers}>{defaultLines}</pre>
+            <pre ref={defaultEditor} aria-label="默认配置，只读" onScroll={(event) => syncScroll(event.currentTarget, userEditor.current)}><code>{defaultText}</code></pre>
+          </div>
         </section>
         <section className={styles.panel} data-invalid={!validation?.valid || conflict}>
           <header><strong>我的配置</strong><span>{dirty ? "有未保存修改" : "已保存"}</span></header>
-          <textarea
-            aria-invalid={!validation?.valid || conflict}
-            aria-label="我的 JSONC 配置"
-            onChange={(event) => changeDraft(event.currentTarget.value)}
-            placeholder="在这里输入 JSONC 配置"
-            spellCheck={false}
-            value={draft}
-          />
+          <div className={styles.codeFrame}>
+            <pre ref={userLineNumbers} aria-hidden className={styles.lineNumbers}>{userLines}</pre>
+            <textarea
+              ref={userEditor}
+              aria-invalid={!validation?.valid || conflict}
+              aria-label="我的 JSONC 配置"
+              onChange={(event) => changeDraft(event.currentTarget.value)}
+              onScroll={(event) => syncScroll(event.currentTarget, defaultEditor.current)}
+              placeholder="在这里输入 JSONC 配置"
+              spellCheck={false}
+              value={draft}
+            />
+          </div>
         </section>
       </div>
       {!validation?.valid && <p className={styles.fallback}>右侧草稿无效：有效配置预览将整体回退到左侧默认值，运行中的应用仍保持最后一次有效配置。</p>}

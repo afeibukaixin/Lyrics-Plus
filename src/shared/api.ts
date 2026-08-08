@@ -134,8 +134,6 @@ export const api = {
   setOverlayHideWhenNotPlaying: (hidden: boolean) =>
     invoke<AppConfig>("set_overlay_hide_when_not_playing", { hidden }),
   exportAppConfig: () => invoke<ConfigExport>("export_app_config"),
-  importAppConfig: (raw: string, appearanceOnly: boolean) =>
-    invoke<AppConfig>("import_app_config", { raw, appearanceOnly }),
   revealConfigDirectory: () => invoke<void>("reveal_config_directory"),
   getConfigEditorData: () => invoke<ConfigEditorData>("get_config_editor_data"),
   validateAppConfigDraft: (raw: string) =>

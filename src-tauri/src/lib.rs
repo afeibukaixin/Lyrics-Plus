@@ -1585,7 +1585,6 @@ pub fn run() {
             commands::set_dock_icon_hidden,
             commands::set_overlay_hide_when_not_playing,
             commands::export_app_config,
-            commands::import_app_config,
             commands::reveal_config_directory,
             commands::get_config_editor_data,
             commands::validate_app_config_draft,

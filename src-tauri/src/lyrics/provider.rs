@@ -439,6 +439,17 @@ pub(crate) fn validate_settings(settings: &ProviderSettings) -> Result<(), Strin
     Ok(())
 }
 
+pub(crate) fn complete_settings(settings: &mut ProviderSettings) {
+    for (id, _) in provider_definitions() {
+        if !settings.providers.iter().any(|provider| provider.id == id) {
+            settings.providers.push(ProviderPreference {
+                id: id.into(),
+                enabled: false,
+            });
+        }
+    }
+}
+
 fn deduplicate(results: &mut Vec<LyricsSearchResult>) {
     let mut seen = HashSet::new();
     results.retain(|result| {

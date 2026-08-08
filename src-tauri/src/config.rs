@@ -10,89 +10,100 @@ use crate::commands::{
     KaraokeStyle, LongTextMode, OverlayAlignment, OverlayBackground, OverlayBackgroundMode,
     OverlayLayout, OverlayOrientation, OverlayStyleSettings, SecondaryDisplayMode,
 };
-use crate::lyrics::provider::{validate_settings, ProviderOrderMode, ProviderSettings};
+use crate::lyrics::provider::{
+    complete_settings, validate_settings, ProviderOrderMode, ProviderSettings,
+};
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
 pub const CONFIG_SCHEMA_VERSION: u16 = 12;
 
-pub const DEFAULT_CONFIG_JSONC: &str = r###"{
-  // 配置格式版本。通常不需要手动修改。
-  "schemaVersion": 12,
-  "app": {
-    // 主界面字号：80–150，每 10% 一档。
-    "uiFontScale": 100,
-    // 播放器：auto、apple_music、spotify。
-    "playerSelection": "auto",
-    // 隐藏 macOS Dock 图标及其运行指示点，应用仍可从菜单栏打开。
-    "hideDockIcon": false,
-    // 全局快捷键；必须包含修饰键，且三项不能重复。
-    "shortcuts": {
-      "toggleOverlay": "CommandOrControl+Shift+KeyL",
-      "unlockOverlay": "CommandOrControl+Shift+KeyU",
-      "resetOverlay": "CommandOrControl+Shift+Digit0"
-    },
-  },
-  "lyrics": {
-    "providers": {
-      // 自动采用同步歌词所需的最低相似度：0–100。
-      "autoApplyThreshold": 60,
-      // strict 严格按顺序；smart 允许高质量结果优先。
-      "mode": "smart",
-      // 歌词源数组一旦提供会整体替换；至少启用一个来源。
-      "providers": [
-        { "id": "lrclib", "enabled": true },
-        { "id": "kugou", "enabled": true },
-        { "id": "qqmusic", "enabled": true },
-        { "id": "netease", "enabled": true },
-      ],
-    },
-  },
-  "overlay": {
-    // 桌面歌词浮窗是否显示、是否锁定并鼠标穿透。
-    "visible": true,
-    "locked": false,
-    // 暂停、停止或播放器不可用时隐藏，恢复播放后自动显示。
-    "hideWhenNotPlaying": false,
-    "appearance": {
-      // 主歌词字号（16–72px）及颜色。
-      "fontSize": 36,
-      "activeColor": "#c4b5fd",
-      "inactiveColor": "#c8d2df",
-      // 浮窗透明度：0.2–1.0。
-      "opacity": 1.0,
-      // 背景透明度：0–1.0，不影响歌词文字。
-      "backgroundOpacity": 0.6,
-      // 毛玻璃磨砂强度：0–40（设置界面显示为 0–100%）。
-      "backgroundBlur": 18.0,
-      // 背景模式：solid（纯色）或 transparent（透明快捷模式）。
-      "backgroundMode": "solid",
-      // 背景组合状态：glass（毛玻璃开启）、solid；transparent 仅用于兼容旧配置。
-      "background": "glass",
-      "solidColor": "#171821",
-      // 歌词布局：single、double；文字方向：horizontal、vertical。
-      "layout": "single",
-      "orientation": "horizontal",
-      // 对齐：center、distributed。
-      "alignment": "center",
-      // 长歌词：shrink、wrap、marquee。
-      "longText": "marquee",
-      // 副歌词：next、translation、romanization、translation_romanization。
-      "secondaryDisplay": "translation_romanization",
-      // 实际显示翻译或音译时自动居中，不改变已保存的歌词对齐方式。
-      "autoCenterWithTranslationOrRomanization": false,
-      // 卡拉 OK：sweep、bounce、highlight。
-      "karaokeStyle": "sweep",
-      // 下一句副歌词、翻译和音译字号比例：0.35–1.0。
-      "secondaryFontScale": 0.8,
-      "translationFontScale": 0.8,
-      "romanizationFontScale": 0.8,
-      "translationColor": "#cbd5e1",
-      "romanizationColor": "#aab7c8",
-    },
-  },
+fn canonical_config_jsonc(value: &AppConfig) -> Result<String, String> {
+    let json =
+        serde_json::to_string_pretty(value).map_err(|error| format!("序列化配置失败：{error}"))?;
+    let mut output = String::with_capacity(json.len() + 1_200);
+    for line in json.lines() {
+        let comment = match line {
+            line if line.starts_with("  \"schemaVersion\":") => {
+                Some("  // 配置格式版本。通常不需要手动修改。")
+            }
+            line if line.starts_with("    \"uiFontScale\":") => {
+                Some("    // 主界面字号：80–150，每 10% 一档。")
+            }
+            line if line.starts_with("    \"playerSelection\":") => {
+                Some("    // 播放器：auto、apple_music、spotify。")
+            }
+            line if line.starts_with("    \"hideDockIcon\":") => {
+                Some("    // 隐藏 macOS Dock 图标及其运行指示点，应用仍可从菜单栏打开。")
+            }
+            line if line.starts_with("    \"shortcuts\":") => {
+                Some("    // 全局快捷键；必须包含修饰键，且三项不能重复。")
+            }
+            line if line.starts_with("      \"autoApplyThreshold\":") => {
+                Some("      // 自动采用同步歌词所需的最低相似度：0–100。")
+            }
+            line if line.starts_with("      \"mode\":") => {
+                Some("      // strict 严格按顺序；smart 允许高质量结果优先。")
+            }
+            line if line.starts_with("      \"providers\":") => {
+                Some("      // 歌词源顺序决定严格模式的搜索顺序；至少启用一个来源。")
+            }
+            line if line.starts_with("    \"visible\":") => {
+                Some("    // 桌面歌词浮窗是否显示、是否锁定并鼠标穿透。")
+            }
+            line if line.starts_with("    \"hideWhenNotPlaying\":") => {
+                Some("    // 暂停、停止或播放器不可用时隐藏，恢复播放后自动显示。")
+            }
+            line if line.starts_with("      \"fontSize\":") => {
+                Some("      // 主歌词字号（16–72px）及颜色。")
+            }
+            line if line.starts_with("      \"opacity\":") => {
+                Some("      // 浮窗透明度：0.2–1.0。")
+            }
+            line if line.starts_with("      \"backgroundOpacity\":") => {
+                Some("      // 背景透明度：0–1.0，不影响歌词文字。")
+            }
+            line if line.starts_with("      \"backgroundBlur\":") => {
+                Some("      // 毛玻璃磨砂强度：0–40（设置界面显示为 0–100%）。")
+            }
+            line if line.starts_with("      \"backgroundMode\":") => {
+                Some("      // 背景模式：solid（纯色）或 transparent（透明快捷模式）。")
+            }
+            line if line.starts_with("      \"background\":") => Some(
+                "      // 背景组合状态：glass（毛玻璃开启）、solid；transparent 仅用于兼容旧配置。",
+            ),
+            line if line.starts_with("      \"layout\":") => {
+                Some("      // 歌词布局：single、double；文字方向：horizontal、vertical。")
+            }
+            line if line.starts_with("      \"alignment\":") => {
+                Some("      // 对齐：center、distributed。")
+            }
+            line if line.starts_with("      \"longText\":") => {
+                Some("      // 长歌词：shrink、wrap、marquee。")
+            }
+            line if line.starts_with("      \"secondaryDisplay\":") => {
+                Some("      // 副歌词：next、translation、romanization、translation_romanization。")
+            }
+            line if line.starts_with("      \"autoCenterWithTranslationOrRomanization\":") => {
+                Some("      // 实际显示翻译或音译时自动居中，不改变已保存的歌词对齐方式。")
+            }
+            line if line.starts_with("      \"karaokeStyle\":") => {
+                Some("      // 卡拉 OK：sweep、bounce、highlight。")
+            }
+            line if line.starts_with("      \"secondaryFontScale\":") => {
+                Some("      // 下一句副歌词、翻译和音译字号比例：0.35–1.0。")
+            }
+            _ => None,
+        };
+        if let Some(comment) = comment {
+            output.push_str(comment);
+            output.push('\n');
+        }
+        output.push_str(line);
+        output.push('\n');
+    }
+    Ok(output)
 }
-"###;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -320,6 +331,7 @@ impl AppConfig {
             }
         }
         validate_settings(&self.lyrics.providers)?;
+        complete_settings(&mut self.lyrics.providers);
         self.overlay.appearance = OverlayAppearance::from(&normalized_style);
         Ok(self)
     }
@@ -442,16 +454,6 @@ fn migrate_legacy_overlay_layout(
     Ok(true)
 }
 
-pub fn merge_import(current: &AppConfig, imported: AppConfig, appearance_only: bool) -> AppConfig {
-    if appearance_only {
-        let mut next = current.clone();
-        next.overlay.appearance = imported.overlay.appearance;
-        next
-    } else {
-        imported
-    }
-}
-
 pub fn validate_config_draft(raw: &str) -> ConfigDraftValidation {
     match parse_config_draft(raw) {
         Ok(parsed) => ConfigDraftValidation {
@@ -558,7 +560,7 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
         };
         error_at_key(raw, key, &message)
     })?;
-    let normalized_json = serde_json::to_string_pretty(&config).map_err(internal_draft_error)?;
+    let normalized_json = canonical_config_jsonc(&config).map_err(internal_draft_error)?;
     Ok(ParsedDraft {
         config,
         normalized_json,
@@ -1061,7 +1063,7 @@ fn error_at_key(raw: &str, key: &str, message: &str) -> ConfigDraftError {
     }
 }
 
-fn internal_draft_error(error: serde_json::Error) -> ConfigDraftError {
+fn internal_draft_error(error: impl std::fmt::Display) -> ConfigDraftError {
     ConfigDraftError {
         message: format!("处理配置失败：{error}"),
         line: 1,
@@ -1109,12 +1111,10 @@ impl ConfigStore {
                 fs::read_to_string(&path).map_err(|error| format!("读取配置文件失败：{error}"))?;
             return match parse_config_draft(&raw) {
                 Ok(parsed) => {
-                    let source_raw = if parsed.migrated {
-                        atomic_write(&path, &parsed.normalized_json)?;
-                        parsed.normalized_json
-                    } else {
-                        raw
-                    };
+                    let source_raw = parsed.normalized_json;
+                    if raw != source_raw {
+                        atomic_write(&path, &source_raw)?;
+                    }
                     Ok((
                         Self {
                             path,
@@ -1181,8 +1181,7 @@ impl ConfigStore {
             value.overlay.appearance = OverlayAppearance::from(&style);
         }
         let value = value.normalized()?;
-        let source_raw = serde_json::to_string_pretty(&value)
-            .map_err(|error| format!("序列化配置失败：{error}"))?;
+        let source_raw = canonical_config_jsonc(&value)?;
         atomic_write(&path, &source_raw)?;
         Ok((
             Self {
@@ -1231,7 +1230,8 @@ impl ConfigStore {
             validate_config_draft(&state.source_raw)
         };
         ConfigEditorData {
-            default_jsonc: DEFAULT_CONFIG_JSONC.into(),
+            default_jsonc: canonical_config_jsonc(&AppConfig::default())
+                .expect("默认配置必须可以序列化"),
             user_json: state.source_raw.clone(),
             revision: state.revision,
             validation,
@@ -1256,8 +1256,7 @@ impl ConfigStore {
         expected_revision: Option<u64>,
     ) -> Result<AppConfig, String> {
         let value = value.normalized()?;
-        let raw = serde_json::to_string_pretty(&value)
-            .map_err(|error| format!("序列化配置失败：{error}"))?;
+        let raw = canonical_config_jsonc(&value)?;
         let mut state = self
             .state
             .write()
@@ -1280,8 +1279,7 @@ impl ConfigStore {
     }
 
     pub fn export_json(&self) -> Result<String, String> {
-        serde_json::to_string_pretty(&self.snapshot())
-            .map_err(|error| format!("序列化配置失败：{error}"))
+        canonical_config_jsonc(&self.snapshot())
     }
 }
 
@@ -1331,7 +1329,7 @@ mod tests {
     }
 
     #[test]
-    fn provided_arrays_replace_defaults_instead_of_merging() {
+    fn provided_provider_arrays_are_completed_with_disabled_entries() {
         let parsed = parse_config_draft(
             r#"{
               "lyrics": {
@@ -1342,8 +1340,17 @@ mod tests {
             }"#,
         )
         .unwrap();
-        assert_eq!(parsed.config.lyrics.providers.providers.len(), 1);
+        assert_eq!(parsed.config.lyrics.providers.providers.len(), 4);
         assert_eq!(parsed.config.lyrics.providers.providers[0].id, "lrclib");
+        assert!(parsed.config.lyrics.providers.providers[0].enabled);
+        assert!(parsed.config.lyrics.providers.providers[1..]
+            .iter()
+            .all(|provider| !provider.enabled));
+        let default_lines = canonical_config_jsonc(&AppConfig::default())
+            .unwrap()
+            .lines()
+            .count();
+        assert_eq!(parsed.normalized_json.lines().count(), default_lines);
     }
 
     #[test]
@@ -1364,13 +1371,12 @@ mod tests {
 
     #[test]
     fn default_template_matches_runtime_default() {
-        let parsed = parse_config_draft(DEFAULT_CONFIG_JSONC).unwrap();
+        let default_jsonc = canonical_config_jsonc(&AppConfig::default()).unwrap();
+        let parsed = parse_config_draft(&default_jsonc).unwrap();
         assert_eq!(parsed.config.app.ui_font_scale, 100);
         assert_eq!(parsed.config.schema_version, CONFIG_SCHEMA_VERSION);
-        assert_eq!(
-            parsed.normalized_json,
-            serde_json::to_string_pretty(&AppConfig::default()).unwrap()
-        );
+        assert_eq!(parsed.normalized_json, default_jsonc);
+        assert!(parsed.normalized_json.contains("// 配置格式版本"));
     }
 
     #[test]
@@ -1730,21 +1736,6 @@ mod tests {
     }
 
     #[test]
-    fn appearance_import_preserves_other_preferences() {
-        let mut current = AppConfig::default();
-        current.app.ui_font_scale = 140;
-        current.app.player_selection = PlayerSelection::Spotify;
-        current.overlay.visible = true;
-        let mut imported = AppConfig::default();
-        imported.overlay.appearance.active_color = "#ff0000".into();
-        let merged = merge_import(&current, imported, true);
-        assert_eq!(merged.app.ui_font_scale, 140);
-        assert_eq!(merged.app.player_selection, PlayerSelection::Spotify);
-        assert!(merged.overlay.visible);
-        assert_eq!(merged.overlay.appearance.active_color, "#ff0000");
-    }
-
-    #[test]
     fn failed_atomic_replace_keeps_in_memory_value() {
         let root = test_root("config-rollback");
         let _ = fs::remove_dir_all(&root);
@@ -1778,6 +1769,39 @@ mod tests {
             "{ broken }"
         );
         assert!(!store.editor_data().validation.valid);
+        drop(storage);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn valid_disk_config_is_rewritten_as_complete_commented_jsonc() {
+        let root = test_root("canonical-disk-config");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("config.json"), r#"{"app":{"uiFontScale":120}}"#).unwrap();
+        let storage = Storage::open(root.clone(), root.join("library")).unwrap();
+        let (store, migrated) = ConfigStore::load(&root, &storage).unwrap();
+        assert!(!migrated);
+        assert_eq!(store.snapshot().app.ui_font_scale, 120);
+        let persisted = fs::read_to_string(root.join("config.json")).unwrap();
+        assert!(persisted.contains("// 主界面字号"));
+        assert!(persisted.contains("\"uiFontScale\": 120"));
+        assert_eq!(persisted, store.editor_data().user_json);
+        drop(storage);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn updates_keep_canonical_comments() {
+        let root = test_root("commented-update");
+        fs::create_dir_all(&root).unwrap();
+        let storage = Storage::open(root.clone(), root.join("library")).unwrap();
+        let (store, _) = ConfigStore::load(&root, &storage).unwrap();
+        store
+            .update(|config| config.app.ui_font_scale = 130)
+            .unwrap();
+        let persisted = fs::read_to_string(root.join("config.json")).unwrap();
+        assert!(persisted.contains("// 主界面字号"));
+        assert!(persisted.contains("\"uiFontScale\": 130"));
         drop(storage);
         let _ = fs::remove_dir_all(root);
     }
