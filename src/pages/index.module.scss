@@ -8,9 +8,7 @@
   width: 36px; height: 36px; display: block; object-fit: contain; transform: scale(1.2);
   filter: drop-shadow(0 8px 16px rgba(0, 0, 0, .42));
 }
-.brand div { display: grid; gap: 1px; }
 .brand strong { font-size: var(--typography-title-sm-size); line-height: var(--typography-title-sm-line-height); font-weight: var(--typography-title-sm-weight); }
-.brand small { color: #686e80; font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); font-weight: var(--typography-label-weight); letter-spacing: .08em; }
 .nav { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 7px; }
 .nav a, .lyricActions button {
   padding: 8px 11px; border: 1px solid rgba(255,255,255,.08); border-radius: 9px;
@@ -56,18 +54,14 @@
   background: linear-gradient(90deg, #9d83ff var(--progress, 0%), #333643 var(--progress, 0%));
 }
 .progressRow input::-webkit-slider-thumb { appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #fff; }
-.sourceSummary { display: grid; gap: 3px; margin-top: auto; padding: 14px 0 12px; border-top: 1px solid #ffffff0b; }
-.sourceSummary span { color: #666c7c; font-size: var(--typography-caption-size); line-height: var(--typography-caption-line-height); font-weight: var(--typography-caption-weight); letter-spacing: .12em; }
-.sourceSummary strong { overflow-wrap: anywhere; color: #cfd1da; font-size: var(--typography-body-size); line-height: var(--typography-body-line-height); font-weight: var(--typography-label-weight); }
-
 .lyricsPanel {
   position: relative; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden;
   border: 1px solid rgba(255,255,255,.08); border-radius: 20px; background: rgba(18,20,27,.75);
 }
 .panelHeader { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 12px; border-bottom: 1px solid rgba(255,255,255,.06); }
-.panelHeader > div:first-child { min-width: 0; display: grid; gap: 2px; }
-.panelHeader span { color: #686e7e; overflow-wrap: anywhere; font-size: var(--typography-caption-size); line-height: var(--typography-caption-line-height); font-weight: var(--typography-caption-weight); letter-spacing: .14em; text-transform: uppercase; }
-.panelHeader h2 { margin: 0; overflow-wrap: anywhere; font-size: var(--typography-title-sm-size); line-height: var(--typography-title-sm-line-height); font-weight: var(--typography-title-sm-weight); }
+.panelHeader > div:first-child { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.panelHeader span { min-width: 0; color: #686e7e; overflow-wrap: anywhere; font-size: var(--typography-body-sm-size); line-height: var(--typography-body-sm-line-height); font-weight: var(--typography-body-sm-weight); }
+.panelHeader h2 { flex: none; margin: 0; overflow-wrap: anywhere; font-size: var(--typography-title-sm-size); line-height: var(--typography-title-sm-line-height); font-weight: var(--typography-title-sm-weight); }
 .lyricActions { flex: none; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .lyricActions button { padding: 6px 9px; font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); font-weight: var(--typography-label-weight); }
 .lyricActions button:disabled { opacity: .35; cursor: default; }

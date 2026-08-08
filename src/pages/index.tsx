@@ -43,6 +43,18 @@ export default function App() {
   const progress = duration > 0 ? Math.min(100, (playback.positionMs / duration) * 100) : 0;
   const lines = lyrics.document?.tracks.original.lines ?? [];
   const translations = lyrics.document?.tracks.translation?.lines ?? [];
+  const lyricFeatures = lyrics.document
+    ? [
+        lyrics.document.tracks.translation ? t("common.feature.translation") : null,
+        lyrics.document.tracks.romanization ? t("common.feature.romanization") : null,
+        lyrics.document.tracks.original.lines.some((line) => line.words?.length) ? t("common.feature.wordTiming") : null,
+      ].filter((feature): feature is string => Boolean(feature))
+    : [];
+  const lyricHeaderMeta = lyrics.document
+    ? [t("home.source", { source: localizedSource(lyrics.document.metadata.source, t) }), ...lyricFeatures].join(" · ")
+    : lyrics.searching
+      ? t("home.searchingLyrics")
+      : t("home.waitingLyrics");
 
   const openQuickLyrics = async () => {
     setWindowError(null);
@@ -69,7 +81,7 @@ export default function App() {
       <header className={styles.header}>
         <div className={styles.brand}>
           <img className={styles.brandMark} src={appIcon} alt="" aria-hidden="true" />
-          <div><strong>Lyrics Plus</strong><small>{t("home.brandSubtitle")}</small></div>
+          <strong>Lyrics Plus</strong>
         </div>
         <nav className={styles.nav} aria-label={t("home.mainNavigation")}>
           <Link to="/library">{t("home.library")}</Link>
@@ -120,17 +132,13 @@ export default function App() {
             />
             <span>{formatTime(duration)}</span>
           </div>
-          <div className={styles.sourceSummary}>
-            <span>{t("home.lyricsSource")}</span>
-            <strong>{lyrics.document ? localizedSource(lyrics.document.metadata.source, t) : lyrics.searching ? t("home.autoSearching") : t("home.notAssociated")}</strong>
-          </div>
         </section>
 
         <section className={styles.lyricsPanel}>
         <div className={styles.panelHeader}>
           <div>
-            <span>{t("home.syncedLyrics")}{lyrics.document?.tracks.translation ? ` · ${t("common.feature.translation")}` : ""}{lyrics.document?.tracks.romanization ? ` · ${t("common.feature.romanization")}` : ""}{lyrics.document?.tracks.original.lines.some((line) => line.words?.length) ? ` · ${t("common.feature.wordTiming")}` : ""}</span>
-            <h2>{lyrics.document ? localizedSource(lyrics.document.metadata.source, t) : lyrics.searching ? t("home.searchingLyrics") : t("home.waitingLyrics")}</h2>
+            <h2>{t("home.lyrics")}</h2>
+            <span>{lyricHeaderMeta}</span>
           </div>
           <div className={styles.lyricActions}>
             <button disabled={!lyrics.trackKey} onClick={() => void openQuickLyrics()}>
