@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { localizedSource } from "../i18n/userText";
 import { useLyrics } from "./useLyrics";
 import { usePlayback } from "../player/usePlayback";
 import type { LyricsSearchResult } from "../../shared/types";
@@ -15,6 +17,7 @@ function resultKey(result: LyricsSearchResult) {
 }
 
 export default function QuickLyricsWindow() {
+  const { t } = useTranslation();
   const playback = usePlayback();
   const lyrics = useLyrics(playback.snapshot, playback.positionMs, false);
   const searchedTrack = useRef<string | null>(null);
@@ -87,22 +90,22 @@ export default function QuickLyricsWindow() {
     setApplyingKey(key);
     try {
       const saved = await lyrics.applyResult(result);
-      if (saved) setNotice(`已切换为 ${result.source} 的歌词`);
+      if (saved) setNotice(t("quickLyrics.switched", { source: localizedSource(result.source, t) }));
     } finally {
       applying.current = false;
       setApplyingKey(null);
     }
   };
 
-  const currentTitle = playback.snapshot.title ?? "没有正在播放的歌曲";
-  const currentArtist = playback.snapshot.artist ?? "播放歌曲后可快速搜索并切换歌词";
+  const currentTitle = playback.snapshot.title ?? t("quickLyrics.noTrack");
+  const currentArtist = playback.snapshot.artist ?? t("quickLyrics.noTrackHint");
 
   return (
     <main className={styles.shell}>
       <header className={styles.header}>
         <div className={styles.heading}>
-          <span>QUICK SWITCH</span>
-          <h1>快速切换歌词</h1>
+          <span>{t("quickLyrics.eyebrow").toUpperCase()}</span>
+          <h1>{t("quickLyrics.title")}</h1>
           <p><strong>{currentTitle}</strong><i>·</i>{currentArtist}</p>
         </div>
         <button
@@ -110,27 +113,27 @@ export default function QuickLyricsWindow() {
           disabled={!lyrics.trackKey || lyrics.searching}
           onClick={() => void refreshCurrentTrack()}
         >
-          {lyrics.searching ? "搜索中…" : "重新搜索当前歌曲"}
+          {lyrics.searching ? t("common.actions.searching") : t("quickLyrics.refresh")}
         </button>
       </header>
 
       <form className={styles.search} onSubmit={(event) => { event.preventDefault(); void searchByTitle(); }}>
         <span aria-hidden="true">⌕</span>
         <input
-          aria-label="按歌名搜索歌词"
+          aria-label={t("quickLyrics.searchLabel")}
           autoComplete="off"
           disabled={!lyrics.trackKey || lyrics.searching}
-          placeholder="输入歌名，歌手、专辑和时长沿用当前歌曲"
+          placeholder={t("quickLyrics.searchPlaceholder")}
           value={searchTitle}
           onChange={(event) => setSearchTitle(event.currentTarget.value)}
         />
-        <button disabled={!lyrics.trackKey || lyrics.searching || !searchTitle.trim()} type="submit">搜索</button>
+        <button disabled={!lyrics.trackKey || lyrics.searching || !searchTitle.trim()} type="submit">{t("common.actions.search")}</button>
       </form>
 
       <section className={styles.workspace}>
         <div className={styles.resultsPanel}>
           <div className={styles.panelTitle}>
-            <div><span>CANDIDATES</span><h2>候选歌词</h2></div>
+            <div><span>{t("quickLyrics.candidates").toUpperCase()}</span><h2>{t("quickLyrics.candidates")}</h2></div>
             <b>{lyrics.results.length}</b>
           </div>
           <div className={styles.resultList}>
@@ -146,11 +149,11 @@ export default function QuickLyricsWindow() {
                   disabled={Boolean(applyingKey)}
                   onClick={() => void selectAndApply(result)}
                 >
-                  <span className={styles.rank}>{current ? "当前" : index === 0 ? "推荐" : index + 1}</span>
+                  <span className={styles.rank}>{current ? t("quickLyrics.current") : index === 0 ? t("quickLyrics.recommended") : index + 1}</span>
                   <span className={styles.resultMeta}>
                     <strong>{result.title}</strong>
                     <small>{result.artist}{result.album ? ` · ${result.album}` : ""}{formatTime(result.durationMs) ? ` · ${formatTime(result.durationMs)}` : ""}</small>
-                    <i>{result.source} · {result.synced ? "同步" : "纯文本"}{result.hasTranslation ? " · 翻译" : ""}{result.hasWordTiming ? " · 逐字" : ""}{result.hasRomanization ? " · 音译" : ""}</i>
+                    <i>{localizedSource(result.source, t)} · {result.synced ? t("common.feature.synced") : t("common.feature.plainText")}{result.hasTranslation ? ` · ${t("common.feature.translation")}` : ""}{result.hasWordTiming ? ` · ${t("common.feature.wordTiming")}` : ""}{result.hasRomanization ? ` · ${t("common.feature.romanization")}` : ""}</i>
                   </span>
                   <b>{Math.round(result.score * 100)}%</b>
                 </button>
@@ -159,8 +162,8 @@ export default function QuickLyricsWindow() {
             {lyrics.results.length === 0 && (
               <div className={styles.empty}>
                 <span>{lyrics.searching ? "◌" : "♪"}</span>
-                <strong>{lyrics.searching ? "正在搜索候选歌词" : "暂无候选歌词"}</strong>
-                <p>{lyrics.error ?? "播放歌曲后会自动搜索所有已启用来源。"}</p>
+                <strong>{lyrics.searching ? t("quickLyrics.searchingCandidates") : t("quickLyrics.noCandidates")}</strong>
+                <p>{lyrics.error ?? t("quickLyrics.autoSearchHint")}</p>
               </div>
             )}
           </div>
@@ -168,18 +171,18 @@ export default function QuickLyricsWindow() {
 
         <aside className={styles.previewPanel}>
           <div className={styles.panelTitle}>
-            <div><span>RAW LRC</span><h2>{selected?.title ?? "歌词预览"}</h2></div>
-            {selected && <em>{selected.source}</em>}
+            <div><span>{t("library.rawLrc").toUpperCase()}</span><h2>{selected?.title ?? t("quickLyrics.preview")}</h2></div>
+            {selected && <em>{localizedSource(selected.source, t)}</em>}
           </div>
           {selected ? (
             <>
               <pre>{selected.lyrics}</pre>
               <footer className={styles.previewFooter}>
-                <span>{applyingKey === selectedKey ? "正在应用这份歌词…" : notice ?? (isCurrent(selected) ? "当前歌曲正在使用这份歌词" : "单击左侧候选即可预览并切换")}</span>
+                <span>{applyingKey === selectedKey ? t("quickLyrics.applying") : notice ?? (isCurrent(selected) ? t("quickLyrics.inUse") : t("quickLyrics.clickToApply"))}</span>
               </footer>
             </>
           ) : (
-            <div className={styles.empty}><span>≋</span><strong>选择左侧候选歌词</strong><p>这里会显示未经处理的原始 LRC 内容。</p></div>
+            <div className={styles.empty}><span>≋</span><strong>{t("quickLyrics.selectCandidate")}</strong><p>{t("quickLyrics.rawHint")}</p></div>
           )}
         </aside>
       </section>

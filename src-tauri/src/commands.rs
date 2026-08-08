@@ -7,7 +7,7 @@ use tauri_plugin_opener::OpenerExt;
 use crate::artwork::{ArtworkAsset, ArtworkService};
 use crate::config::{
     validate_config_draft, AppConfig, ConfigDraftValidation, ConfigEditorData, ConfigStore,
-    GlobalShortcutSettings, OverlayAppearance,
+    GlobalShortcutSettings, LanguagePreference, OverlayAppearance,
 };
 use crate::lyrics::provider::{
     can_auto_apply, LyricsSearchInput, LyricsSearchResult, ProviderRegistry, ProviderSettings,
@@ -31,6 +31,14 @@ pub struct AppState {
     pub providers: Arc<ProviderRegistry>,
     pub artwork: Arc<ArtworkService>,
     pub http: reqwest::Client,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub enum UiLanguage {
+    #[serde(rename = "zh-CN")]
+    ZhCn,
+    #[serde(rename = "en-US")]
+    EnUs,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -335,7 +343,7 @@ pub async fn get_track_artwork(
     match state.artwork.resolve(&snapshot, &state.http).await {
         Ok(asset) => Ok(asset),
         Err(error) => {
-            log::warn!("获取歌曲封面失败：{error}");
+            log::warn!("Failed to resolve track artwork: {error}");
             Ok(None)
         }
     }
@@ -573,7 +581,7 @@ pub(crate) fn start_library_scan(app: &tauri::AppHandle) -> LibraryScanStatus {
             }
             Ok(false) => {}
             Err(error) => {
-                log::warn!("歌词目录扫描失败：{error}");
+                log::warn!("Failed to scan the lyrics library: {error}");
                 if let Some(status) = storage.fail_library_scan(scan_id, error) {
                     let _ = worker_app.emit("lyrics://library-scan-progress", status);
                 }
@@ -1261,6 +1269,25 @@ pub fn set_ui_font_scale(
     app.emit("config://changed", &config)
         .map_err(|error| error.to_string())?;
     Ok(config)
+}
+
+#[tauri::command]
+pub fn set_language(
+    app: tauri::AppHandle,
+    language: LanguagePreference,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let config = state
+        .config
+        .update(|config| config.app.language = language)?;
+    app.emit("config://changed", &config)
+        .map_err(|error| error.to_string())?;
+    Ok(config)
+}
+
+#[tauri::command]
+pub fn set_native_language(app: tauri::AppHandle, language: UiLanguage) -> Result<(), String> {
+    crate::apply_native_language(&app, language)
 }
 
 pub fn update_global_shortcuts(

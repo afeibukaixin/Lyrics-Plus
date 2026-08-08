@@ -9,6 +9,7 @@ import {
 } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Link, NavLink, Outlet, useOutletContext } from "react-router";
+import { useTranslation } from "react-i18next";
 import { useLyrics } from "../features/lyrics/useLyrics";
 import { usePlayback } from "../features/player/usePlayback";
 import { useAppConfig } from "../features/config/AppConfigProvider";
@@ -37,6 +38,7 @@ type ProviderDragState = {
 export type SettingsOutletContext = {
   config: ReturnType<typeof useAppConfig>["config"];
   setUiFontScale: ReturnType<typeof useAppConfig>["setUiFontScale"];
+  setLanguage: ReturnType<typeof useAppConfig>["setLanguage"];
   setGlobalShortcuts: ReturnType<typeof useAppConfig>["setGlobalShortcuts"];
   setDockIconHidden: ReturnType<typeof useAppConfig>["setDockIconHidden"];
   setOverlayHideWhenNotPlaying: ReturnType<typeof useAppConfig>["setOverlayHideWhenNotPlaying"];
@@ -72,9 +74,11 @@ export type SettingsOutletContext = {
 };
 
 export default function Settings() {
+  const { t } = useTranslation();
   const {
     config,
     setUiFontScale,
+    setLanguage,
     setGlobalShortcuts,
     setDockIconHidden,
     setOverlayHideWhenNotPlaying,
@@ -277,14 +281,14 @@ export default function Settings() {
 
   const resetSection = async (target: SettingsSection) => {
     const names: Record<SettingsSection, string> = {
-      overlay: "桌面歌词",
-      lyrics: "歌词与搜索",
-      app: "应用",
+      overlay: t("settings.shell.nav.overlay"),
+      lyrics: t("settings.shell.nav.lyrics"),
+      app: t("settings.shell.nav.app"),
     };
     if (confirmingReset !== target) {
       if (resetConfirmTimer.current !== null) clearTimeout(resetConfirmTimer.current);
       setConfirmingReset(target);
-      setNotice(`再次点击“恢复默认”以确认恢复${names[target]}；歌词库和歌曲关联不会删除。`);
+      setNotice(t("settings.shell.resetConfirm", { section: names[target] }));
       resetConfirmTimer.current = setTimeout(() => {
         resetConfirmTimer.current = null;
         setConfirmingReset(null);
@@ -303,7 +307,7 @@ export default function Settings() {
       setStyle(result.overlayStyle);
       setProviderView(result.providerView);
       playback.syncSelection(result.playerSelection);
-      setNotice(`${names[target]}已恢复默认。`);
+      setNotice(t("settings.shell.resetDone", { section: names[target] }));
     } catch (value) {
       setError(messageOf(value));
     } finally {
@@ -318,7 +322,7 @@ export default function Settings() {
       const resetStyle = await api.resetOverlayBounds();
       setStyle(resetStyle);
       setOverlaySettings((current) => ({ ...current, visible: true }));
-      setNotice("桌面歌词位置已复位。");
+      setNotice(t("settings.shell.positionReset"));
     } catch (value) {
       setError(messageOf(value));
     }
@@ -335,8 +339,9 @@ export default function Settings() {
   };
 
   const context: SettingsOutletContext = {
-    config,
-    setUiFontScale,
+      config,
+      setUiFontScale,
+      setLanguage,
     setGlobalShortcuts,
     setDockIconHidden,
     setOverlayHideWhenNotPlaying,
@@ -374,22 +379,22 @@ export default function Settings() {
   return (
     <main className={styles.shell}>
       <header className={styles.header}>
-        <div><Link to="/">← 返回首页</Link><h1>设置</h1></div>
-        <Link className={styles.libraryLink} to="/library">歌词库</Link>
+        <div><Link to="/">{t("settings.shell.backHome")}</Link><h1>{t("settings.shell.title")}</h1></div>
+        <Link className={styles.libraryLink} to="/library">{t("settings.shell.library")}</Link>
       </header>
 
       <div className={styles.settingsLayout}>
-        <nav className={styles.sidebar} aria-label="设置分类">
-          <NavLink to="/settings/overlay"><span>◫</span><div><strong>桌面歌词</strong><small>外观、布局与浮窗</small></div></NavLink>
-          <NavLink to="/settings/lyrics"><span>≋</span><div><strong>歌词与搜索</strong><small>来源、关联与偏移</small></div></NavLink>
-          <NavLink to="/settings/app"><span>⚙</span><div><strong>应用</strong><small>播放器与快捷键</small></div></NavLink>
-          <NavLink to="/settings/debug"><span>⌁</span><div><strong>调试日志</strong><small>实时日志与筛选</small></div></NavLink>
-          <NavLink to="/settings/config"><span>{"{}"}</span><div><strong>配置</strong><small>JSONC 编辑与分享</small></div></NavLink>
+        <nav className={styles.sidebar} aria-label={t("settings.shell.navigation")}>
+          <NavLink to="/settings/overlay"><span>◫</span><div><strong>{t("settings.shell.nav.overlay")}</strong><small>{t("settings.shell.nav.overlayHint")}</small></div></NavLink>
+          <NavLink to="/settings/lyrics"><span>≋</span><div><strong>{t("settings.shell.nav.lyrics")}</strong><small>{t("settings.shell.nav.lyricsHint")}</small></div></NavLink>
+          <NavLink to="/settings/app"><span>⚙</span><div><strong>{t("settings.shell.nav.app")}</strong><small>{t("settings.shell.nav.appHint")}</small></div></NavLink>
+          <NavLink to="/settings/debug"><span>⌁</span><div><strong>{t("settings.shell.nav.debug")}</strong><small>{t("settings.shell.nav.debugHint")}</small></div></NavLink>
+          <NavLink to="/settings/config"><span>{"{}"}</span><div><strong>{t("settings.shell.nav.config")}</strong><small>{t("settings.shell.nav.configHint")}</small></div></NavLink>
         </nav>
 
         <div className={styles.content}><Outlet context={context} /></div>
       </div>
-      {(error || notice) && <div className={styles.toast} data-error={Boolean(error)}>{error ?? notice}<button aria-label="关闭" onClick={() => { setError(null); setNotice(null); }}>×</button></div>}
+      {(error || notice) && <div className={styles.toast} data-error={Boolean(error)}>{error ?? notice}<button aria-label={t("settings.shell.closeToast")} onClick={() => { setError(null); setNotice(null); }}>×</button></div>}
     </main>
   );
 }

@@ -9,8 +9,8 @@ mod storage;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
-use commands::{AppState, OverlayOrientation, OverlaySettings, OverlayStyleSettings};
-use config::{ConfigStore, GlobalShortcutSettings};
+use commands::{AppState, OverlayOrientation, OverlaySettings, OverlayStyleSettings, UiLanguage};
+use config::{ConfigStore, GlobalShortcutSettings, LanguagePreference};
 pub(crate) use overlay_effect::sync_overlay_vibrancy;
 use overlay_effect::{HORIZONTAL_OVERLAY_SURFACE_INSET, VERTICAL_OVERLAY_SURFACE_INSET};
 use player::{query_selected_player, PlayerSelection};
@@ -22,12 +22,80 @@ use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
 
 struct TrayMenuState {
     toggle_overlay: CheckMenuItem<tauri::Wry>,
+    switch_lyrics: MenuItem<tauri::Wry>,
+    settings: MenuItem<tauri::Wry>,
+    quit: MenuItem<tauri::Wry>,
+}
+
+#[derive(Clone, Copy)]
+struct NativeLabels {
+    toggle_overlay: &'static str,
+    switch_lyrics: &'static str,
+    settings: &'static str,
+    quit: &'static str,
+    quick_title: &'static str,
+    unlock_title: &'static str,
+    overlay_title: &'static str,
+}
+
+fn native_labels(language: UiLanguage) -> NativeLabels {
+    match language {
+        UiLanguage::ZhCn => NativeLabels {
+            toggle_overlay: "显示桌面歌词",
+            switch_lyrics: "切换歌词",
+            settings: "设置",
+            quit: "退出",
+            quick_title: "快速切换歌词",
+            unlock_title: "解锁桌面歌词",
+            overlay_title: "Lyrics Plus 桌面歌词",
+        },
+        UiLanguage::EnUs => NativeLabels {
+            toggle_overlay: "Show Desktop Lyrics",
+            switch_lyrics: "Switch Lyrics",
+            settings: "Settings",
+            quit: "Quit",
+            quick_title: "Quick Lyrics Switcher",
+            unlock_title: "Unlock Desktop Lyrics",
+            overlay_title: "Lyrics Plus Desktop Lyrics",
+        },
+    }
+}
+
+pub(crate) fn apply_native_language(
+    app: &tauri::AppHandle,
+    language: UiLanguage,
+) -> Result<(), String> {
+    let labels = native_labels(language);
+    if let Some(tray) = app.try_state::<TrayMenuState>() {
+        tray.toggle_overlay
+            .set_text(labels.toggle_overlay)
+            .map_err(|error| error.to_string())?;
+        tray.switch_lyrics
+            .set_text(labels.switch_lyrics)
+            .map_err(|error| error.to_string())?;
+        tray.settings
+            .set_text(labels.settings)
+            .map_err(|error| error.to_string())?;
+        tray.quit
+            .set_text(labels.quit)
+            .map_err(|error| error.to_string())?;
+    }
+    for (label, title) in [
+        ("quick-lyrics", labels.quick_title),
+        ("lyrics-unlock-handle", labels.unlock_title),
+        ("lyrics-overlay", labels.overlay_title),
+    ] {
+        if let Some(window) = app.get_webview_window(label) {
+            window.set_title(title).map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn sync_tray_overlay_checked(app: &tauri::AppHandle, visible: bool) {
     if let Some(tray) = app.try_state::<TrayMenuState>() {
         if let Err(error) = tray.toggle_overlay.set_checked(visible) {
-            log::warn!("同步菜单栏歌词开关状态失败：{error}");
+            log::warn!("Failed to sync the tray overlay toggle state: {error}");
         }
     }
 }
@@ -153,12 +221,16 @@ pub(crate) fn apply_dock_icon_hidden(app: &tauri::AppHandle, hidden: bool) -> Re
     if let Some(window) = main_window {
         if main_was_visible {
             if let Err(error) = window.show() {
-                log::warn!("恢复主窗口显示状态失败：{error}");
+                log::warn!(
+                    "Failed to restore main window visibility after updating Dock icon visibility: {error}"
+                );
             }
         }
         if main_was_focused {
             if let Err(error) = window.set_focus() {
-                log::warn!("恢复主窗口焦点失败：{error}");
+                log::warn!(
+                    "Failed to restore main window focus after updating Dock icon visibility: {error}"
+                );
             }
         }
     }
@@ -173,9 +245,14 @@ pub(crate) fn apply_dock_icon_hidden(_app: &tauri::AppHandle, _hidden: bool) -> 
 
 #[cfg(target_os = "macos")]
 fn cleanup_legacy_autostart(app: &tauri::AppHandle) {
-    let Ok(home_dir) = app.path().home_dir() else {
-        log::warn!("无法定位用户目录，未能清理旧开机启动项");
-        return;
+    let home_dir = match app.path().home_dir() {
+        Ok(home_dir) => home_dir,
+        Err(error) => {
+            log::warn!(
+                "Failed to locate the user home directory; skipped legacy autostart cleanup: {error}"
+            );
+            return;
+        }
     };
     let launch_agent = home_dir
         .join("Library")
@@ -183,7 +260,10 @@ fn cleanup_legacy_autostart(app: &tauri::AppHandle) {
         .join(format!("{}.plist", app.package_info().name));
     if launch_agent.exists() {
         if let Err(error) = std::fs::remove_file(&launch_agent) {
-            log::warn!("无法清理旧开机启动项 {}：{error}", launch_agent.display());
+            log::warn!(
+                "Failed to remove legacy autostart entry {}: {error}",
+                launch_agent.display()
+            );
         }
     }
 }
@@ -239,10 +319,10 @@ pub(crate) fn refresh_overlay_mouse_tracking(window: &tauri::WebviewWindow) {
         let target = window.clone();
         if let Err(error) = window.run_on_main_thread(move || {
             if let Err(error) = refresh_macos_mouse_tracking(&target) {
-                log::warn!("刷新桌面歌词鼠标跟踪失败：{error}");
+                log::warn!("Failed to refresh overlay mouse tracking: {error}");
             }
         }) {
-            log::warn!("调度桌面歌词鼠标跟踪刷新失败：{error}");
+            log::warn!("Failed to schedule the overlay mouse tracking refresh: {error}");
         }
     }
 
@@ -272,7 +352,7 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
         "lyrics-overlay",
         WebviewUrl::App("index.html?view=overlay".into()),
     )
-    .title("Lyrics Plus Overlay")
+    .title(native_labels(UiLanguage::ZhCn).overlay_title)
     .inner_size(initial_width, initial_height)
     .min_inner_size(190.0, 76.0)
     .transparent(true)
@@ -298,13 +378,13 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
 pub(crate) fn show_quick_lyrics_window(app: &tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("quick-lyrics") {
         if let Err(error) = window.set_size(tauri::LogicalSize::new(900.0, 620.0)) {
-            log::warn!("恢复快速切换歌词窗口尺寸失败：{error}");
+            log::warn!("Failed to restore the quick lyrics window size: {error}");
         }
         if let Err(error) = window.set_resizable(false) {
-            log::warn!("锁定快速切换歌词窗口尺寸失败：{error}");
+            log::warn!("Failed to disable resizing for the quick lyrics window: {error}");
         }
         if let Err(error) = window.unminimize() {
-            log::warn!("恢复快速切换歌词窗口失败，将继续尝试显示：{error}");
+            log::warn!("Failed to unminimize the quick lyrics window: {error}");
         }
         window.show().map_err(|error| error.to_string())?;
         return window.set_focus().map_err(|error| error.to_string());
@@ -315,7 +395,7 @@ pub(crate) fn show_quick_lyrics_window(app: &tauri::AppHandle) -> Result<(), Str
         "quick-lyrics",
         WebviewUrl::App("index.html?view=quick-lyrics".into()),
     )
-    .title("快速切换歌词")
+    .title(native_labels(UiLanguage::ZhCn).quick_title)
     .inner_size(900.0, 620.0)
     .resizable(false)
     .maximizable(false)
@@ -343,7 +423,7 @@ fn create_unlock_handle(app: &tauri::App) -> tauri::Result<()> {
         "lyrics-unlock-handle",
         WebviewUrl::App("index.html?view=unlock-handle".into()),
     )
-    .title("解锁桌面歌词")
+    .title(native_labels(UiLanguage::ZhCn).unlock_title)
     .inner_size(28.0, 28.0)
     .transparent(true)
     .decorations(false)
@@ -364,6 +444,7 @@ fn create_unlock_handle(app: &tauri::App) -> tauri::Result<()> {
 }
 
 fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
+    let labels = native_labels(UiLanguage::ZhCn);
     let overlay_visible = app
         .state::<AppState>()
         .overlay_settings
@@ -381,18 +462,27 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     let toggle_overlay = CheckMenuItem::with_id(
         app,
         "toggle-overlay",
-        "显示桌面歌词",
+        labels.toggle_overlay,
         true,
         overlay_visible,
         Some(toggle_accelerator.as_str()),
     )?;
-    let switch_lyrics = MenuItem::with_id(app, "switch-lyrics", "切换歌词", true, None::<&str>)?;
-    let settings = MenuItem::with_id(app, "settings", "设置", true, Some("CmdOrCtrl+,"))?;
-    let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+    let switch_lyrics = MenuItem::with_id(
+        app,
+        "switch-lyrics",
+        labels.switch_lyrics,
+        true,
+        None::<&str>,
+    )?;
+    let settings = MenuItem::with_id(app, "settings", labels.settings, true, Some("CmdOrCtrl+,"))?;
+    let quit = MenuItem::with_id(app, "quit", labels.quit, true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&toggle_overlay, &switch_lyrics, &settings, &quit])?;
 
     app.manage(TrayMenuState {
         toggle_overlay: toggle_overlay.clone(),
+        switch_lyrics: switch_lyrics.clone(),
+        settings: settings.clone(),
+        quit: quit.clone(),
     });
 
     #[cfg(target_os = "macos")]
@@ -427,7 +517,7 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
                 }
             ) {
                 if let Err(error) = show_main_window_centered(tray.app_handle()) {
-                    log::warn!("从菜单栏恢复主窗口失败：{error}");
+                    log::warn!("Failed to show the main window from the tray: {error}");
                 }
             }
         })
@@ -443,12 +533,12 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
             }
             "switch-lyrics" => {
                 if let Err(error) = show_quick_lyrics_window(app) {
-                    log::warn!("从菜单栏打开快速切换歌词失败：{error}");
+                    log::warn!("Failed to open quick lyrics from the tray: {error}");
                 }
             }
             "settings" => {
                 if let Err(error) = show_main_window_at(app, Some("#/settings")) {
-                    log::warn!("从菜单栏打开设置失败：{error}");
+                    log::warn!("Failed to open settings from the tray: {error}");
                 }
             }
             "quit" => app.exit(0),
@@ -533,7 +623,7 @@ fn start_player_monitor(app: tauri::AppHandle) {
             }
             let _ = app.emit("playback://snapshot", &snapshot);
             if let Err(error) = reconcile_overlay_visibility(&app) {
-                log::warn!("同步桌面歌词播放状态失败：{error}");
+                log::warn!("Failed to reconcile overlay visibility with playback state: {error}");
             }
             if let Some(window) = app.get_webview_window("lyrics-overlay") {
                 if window.is_visible().unwrap_or(false) {
@@ -778,11 +868,11 @@ pub(crate) fn show_main_window_at(
     }
     if !window.is_visible().unwrap_or(false) {
         if let Err(error) = center_main_window_on_cursor(app, &window) {
-            log::warn!("主窗口居中失败，将在原位置显示：{error}");
+            log::warn!("Failed to center the main window; using its current position: {error}");
         }
     }
     if let Err(error) = window.unminimize() {
-        log::warn!("恢复主窗口最小化状态失败，将继续尝试显示：{error}");
+        log::warn!("Failed to unminimize the main window: {error}");
     }
     window.show().map_err(|error| error.to_string())?;
     window.set_focus().map_err(|error| error.to_string())
@@ -1488,6 +1578,10 @@ pub fn run() {
             reconcile_overlay_visibility(app.handle()).map_err(std::io::Error::other)?;
             start_overlay_pointer_monitor(app.handle().clone());
             setup_tray(app)?;
+            if configured.app.language == LanguagePreference::EnUs {
+                apply_native_language(app.handle(), UiLanguage::EnUs)
+                    .map_err(std::io::Error::other)?;
+            }
             if configured.app.hide_dock_icon {
                 apply_dock_icon_hidden(app.handle(), true).map_err(std::io::Error::other)?;
             }
@@ -1504,7 +1598,9 @@ pub fn run() {
                     api.prevent_close();
                     if let Some(main_window) = window.app_handle().get_webview_window("main") {
                         if let Err(error) = main_window.eval("window.location.hash = '#/'") {
-                            log::warn!("关闭主窗口时重置首页失败：{error}");
+                            log::warn!(
+                                "Failed to reset the main window route before hiding it: {error}"
+                            );
                         }
                     }
                     let _ = window.hide();
@@ -1581,6 +1677,8 @@ pub fn run() {
             commands::show_quick_lyrics_window,
             commands::get_app_config,
             commands::set_ui_font_scale,
+            commands::set_language,
+            commands::set_native_language,
             commands::set_global_shortcuts,
             commands::set_dock_icon_hidden,
             commands::set_overlay_hide_when_not_playing,

@@ -20,7 +20,7 @@ const child = spawn(process.execPath, [tauriCli, ...args], {
 });
 
 child.on("error", (error) => {
-  console.error(error);
+  console.error("Failed to start the Tauri CLI process:", error);
   process.exit(1);
 });
 

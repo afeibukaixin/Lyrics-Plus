@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { attachLogger, LogLevel } from "@tauri-apps/plugin-log";
-import { reportFrontendError } from "../../shared/debugLog";
+import { frontendErrorDetail, reportFrontendError } from "../../shared/debugLog";
 import { disposeTauriListener } from "../../shared/tauriEvent";
 
 export type DebugLogLevel = "debug" | "info" | "warn" | "error";
@@ -85,16 +85,17 @@ export function DebugLogProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       detach = unlisten;
-      append("info", "调试日志已开启，仅显示本次开启后的记录。");
+      append("info", "Frontend debug log stream attached; showing entries from this session only.");
     }).catch((error) => {
-      if (!disposed) append("error", `连接日志流失败：${String(error)}`);
+      reportFrontendError("Failed to attach the frontend debug log stream", error);
+      if (!disposed) append("error", `Failed to attach the frontend debug log stream: ${frontendErrorDetail(error)}`);
     });
 
     const handleWindowError = (event: ErrorEvent) => {
-      reportFrontendError("主窗口未处理异常", event.error ?? event.message);
+      reportFrontendError("Unhandled error in the main window", event.error ?? event.message);
     };
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      reportFrontendError("主窗口未处理 Promise 拒绝", event.reason);
+      reportFrontendError("Unhandled promise rejection in the main window", event.reason);
     };
     window.addEventListener("error", handleWindowError);
     window.addEventListener("unhandledrejection", handleUnhandledRejection);
@@ -121,6 +122,6 @@ export function DebugLogProvider({ children }: { children: React.ReactNode }) {
 
 export function useDebugLogs() {
   const value = useContext(DebugLogContext);
-  if (!value) throw new Error("useDebugLogs 必须在 DebugLogProvider 内使用");
+  if (!value) throw new Error("useDebugLogs must be used within DebugLogProvider");
   return value;
 }

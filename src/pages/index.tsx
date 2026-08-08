@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
+import { useTranslation } from "react-i18next";
 import { findAlignedAuxiliaryLine, useLyrics } from "../features/lyrics/useLyrics";
 import { useArtwork } from "../features/player/useArtwork";
 import { usePlayback } from "../features/player/usePlayback";
 import { api, messageOf } from "../shared/api";
+import { localizedSource } from "../features/i18n/userText";
 import styles from "./index.module.scss";
 import appIcon from "../../src-tauri/icons/128x128.png";
 
@@ -13,6 +15,7 @@ function formatTime(value: number | null | undefined) {
 }
 
 export default function App() {
+  const { t } = useTranslation();
   const playback = usePlayback();
   const artwork = useArtwork(playback.snapshot);
   const lyrics = useLyrics(playback.snapshot, playback.positionMs, true);
@@ -33,8 +36,8 @@ export default function App() {
     setFollowing(true);
   }, [lyrics.trackKey]);
 
-  const currentTitle = playback.snapshot.title ?? "等待音乐开始";
-  const currentArtist = playback.snapshot.artist ?? "打开 Apple Music 或 Spotify 播放一首歌";
+  const currentTitle = playback.snapshot.title ?? t("home.waitingMusic");
+  const currentArtist = playback.snapshot.artist ?? t("home.startPlayback");
   const duration = playback.snapshot.durationMs ?? 0;
   const progress = duration > 0 ? Math.min(100, (playback.positionMs / duration) * 100) : 0;
   const lines = lyrics.document?.tracks.original.lines ?? [];
@@ -65,13 +68,13 @@ export default function App() {
       <header className={styles.header}>
         <div className={styles.brand}>
           <img className={styles.brandMark} src={appIcon} alt="" aria-hidden="true" />
-          <div><strong>Lyrics Plus</strong><small>桌面同步歌词</small></div>
+          <div><strong>Lyrics Plus</strong><small>{t("home.brandSubtitle")}</small></div>
         </div>
-        <nav className={styles.nav} aria-label="主导航">
-          <Link to="/library">歌词库</Link>
-          <Link to="/settings">设置</Link>
+        <nav className={styles.nav} aria-label={t("home.mainNavigation")}>
+          <Link to="/library">{t("home.library")}</Link>
+          <Link to="/settings">{t("home.settings")}</Link>
           <span className={styles.status} data-active={playback.snapshot.isPlaying}>
-            <i />{playback.snapshot.isPlaying ? "同步中" : "等待播放"}
+            <i />{playback.snapshot.isPlaying ? t("home.syncing") : t("home.waitingPlayback")}
           </span>
         </nav>
       </header>
@@ -91,21 +94,21 @@ export default function App() {
             )}
           </div>
           <div className={styles.trackMeta}>
-            <span>{playback.snapshot.player === "apple_music" ? "APPLE MUSIC" : playback.snapshot.player === "spotify" ? "SPOTIFY" : "NOW PLAYING"}</span>
+            <span>{playback.snapshot.player === "apple_music" ? "APPLE MUSIC" : playback.snapshot.player === "spotify" ? "SPOTIFY" : t("home.nowPlaying").toUpperCase()}</span>
             <h1>{currentTitle}</h1>
             <p>{currentArtist}{playback.snapshot.album ? ` · ${playback.snapshot.album}` : ""}</p>
           </div>
           <div className={styles.transport}>
-            <button aria-label="上一首" onClick={() => void playback.action("previous")}>↶</button>
-            <button className={styles.playButton} aria-label="播放或暂停" onClick={() => void playback.action("play_pause")}>
+            <button aria-label={t("home.previous")} onClick={() => void playback.action("previous")}>↶</button>
+            <button className={styles.playButton} aria-label={t("home.playPause")} onClick={() => void playback.action("play_pause")}>
               {playback.snapshot.isPlaying ? "Ⅱ" : "▶"}
             </button>
-            <button aria-label="下一首" onClick={() => void playback.action("next")}>↷</button>
+            <button aria-label={t("home.next")} onClick={() => void playback.action("next")}>↷</button>
           </div>
           <div className={styles.progressRow}>
             <span>{formatTime(playback.positionMs)}</span>
             <input
-              aria-label="播放进度"
+              aria-label={t("home.progress")}
               type="range"
               min={0}
               max={duration || 1}
@@ -117,20 +120,20 @@ export default function App() {
             <span>{formatTime(duration)}</span>
           </div>
           <div className={styles.sourceSummary}>
-            <span>歌词来源</span>
-            <strong>{lyrics.document?.metadata.source ?? (lyrics.searching ? "正在自动搜索…" : "尚未关联")}</strong>
+            <span>{t("home.lyricsSource")}</span>
+            <strong>{lyrics.document ? localizedSource(lyrics.document.metadata.source, t) : lyrics.searching ? t("home.autoSearching") : t("home.notAssociated")}</strong>
           </div>
         </section>
 
         <section className={styles.lyricsPanel}>
         <div className={styles.panelHeader}>
           <div>
-            <span>同步歌词{lyrics.document?.tracks.translation ? " · 翻译" : ""}{lyrics.document?.tracks.romanization ? " · 音译" : ""}{lyrics.document?.tracks.original.lines.some((line) => line.words?.length) ? " · 逐字" : ""}</span>
-            <h2>{lyrics.document ? lyrics.document.metadata.source : lyrics.searching ? "正在自动搜索歌词…" : "等待歌词"}</h2>
+            <span>{t("home.syncedLyrics")}{lyrics.document?.tracks.translation ? ` · ${t("common.feature.translation")}` : ""}{lyrics.document?.tracks.romanization ? ` · ${t("common.feature.romanization")}` : ""}{lyrics.document?.tracks.original.lines.some((line) => line.words?.length) ? ` · ${t("common.feature.wordTiming")}` : ""}</span>
+            <h2>{lyrics.document ? localizedSource(lyrics.document.metadata.source, t) : lyrics.searching ? t("home.searchingLyrics") : t("home.waitingLyrics")}</h2>
           </div>
           <div className={styles.lyricActions}>
             <button disabled={!lyrics.trackKey} onClick={() => void openQuickLyrics()}>
-              切换歌词 ↗
+              {t("home.switchLyrics")}
             </button>
           </div>
         </div>
@@ -148,8 +151,8 @@ export default function App() {
           {lines.length === 0 ? (
             <div className={styles.emptyState}>
               <span>{lyrics.searching ? "◌" : "♪"}</span>
-              <strong>{lyrics.searching ? "正在从多个歌词源匹配" : "还没有可显示的同步歌词"}</strong>
-              <p>{lyrics.error ?? "播放歌曲后会自动搜索，达到设置相似度的同步歌词将直接采用。"}</p>
+              <strong>{lyrics.searching ? t("home.matching") : t("home.noSyncedLyrics")}</strong>
+              <p>{lyrics.error ?? t("home.autoSearchHint")}</p>
             </div>
           ) : lines.map((line, index) => {
             const translation = findAlignedAuxiliaryLine(translations, line)?.text;
@@ -163,7 +166,7 @@ export default function App() {
                 key={`${line.startMs}-${index}`}
                 onClick={(event) => seekToLine(line, event.currentTarget)}
                 ref={index === lyrics.activeIndex ? activeLineRef : undefined}
-                title={playback.snapshot.canSeek ? `跳转到 ${formatTime(Math.max(0, line.startMs - (lyrics.document?.offsetMs ?? 0)))}` : "当前播放器不支持跳转"}
+                title={playback.snapshot.canSeek ? t("home.seekTo", { time: formatTime(Math.max(0, line.startMs - (lyrics.document?.offsetMs ?? 0))) }) : t("home.seekUnsupported")}
               >
                 <time>{formatTime(line.startMs)}</time>
                 <div><p>{line.text || "…"}</p>{translation && <small>{translation}</small>}</div>
@@ -173,7 +176,7 @@ export default function App() {
         </div>
 
         {!following && lyrics.activeIndex >= 0 && (
-          <button className={styles.returnToCurrent} onClick={() => setFollowing(true)}>回到当前歌词</button>
+          <button className={styles.returnToCurrent} onClick={() => setFollowing(true)}>{t("home.returnCurrent")}</button>
         )}
         </section>
       </div>

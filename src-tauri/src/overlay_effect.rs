@@ -50,10 +50,10 @@ pub(crate) fn sync_overlay_vibrancy(window: &tauri::WebviewWindow, style: &Overl
         let strength = vibrancy_strength(style.background_blur);
         if let Err(error) = window.run_on_main_thread(move || {
             if let Err(error) = sync_macos_vibrancy(&target, orientation, enabled, strength) {
-                log::warn!("同步桌面歌词原生磨砂效果失败：{error}");
+                log::warn!("Failed to sync the native overlay vibrancy effect: {error}");
             }
         }) {
-            log::warn!("调度桌面歌词原生磨砂效果失败：{error}");
+            log::warn!("Failed to schedule the native overlay vibrancy update: {error}");
         }
     }
 

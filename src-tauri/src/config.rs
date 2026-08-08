@@ -16,7 +16,7 @@ use crate::lyrics::provider::{
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 12;
+pub const CONFIG_SCHEMA_VERSION: u16 = 13;
 
 fn canonical_config_jsonc(value: &AppConfig) -> Result<String, String> {
     let json =
@@ -25,73 +25,76 @@ fn canonical_config_jsonc(value: &AppConfig) -> Result<String, String> {
     for line in json.lines() {
         let comment = match line {
             line if line.starts_with("  \"schemaVersion\":") => {
-                Some("  // 配置格式版本。通常不需要手动修改。")
+                Some("  // Configuration schema version. Usually managed by Lyrics Plus.")
             }
             line if line.starts_with("    \"uiFontScale\":") => {
-                Some("    // 主界面字号：80–150，每 10% 一档。")
+                Some("    // Interface text scale: 80–150 in 10% increments.")
+            }
+            line if line.starts_with("    \"language\":") => {
+                Some("    // Interface language: system, zh-CN, or en-US.")
             }
             line if line.starts_with("    \"playerSelection\":") => {
-                Some("    // 播放器：auto、apple_music、spotify。")
+                Some("    // Player selection: auto, apple_music, or spotify.")
             }
             line if line.starts_with("    \"hideDockIcon\":") => {
-                Some("    // 隐藏 macOS Dock 图标及其运行指示点，应用仍可从菜单栏打开。")
+                Some("    // Hide the macOS Dock icon; Lyrics Plus remains available from the menu bar.")
             }
             line if line.starts_with("    \"shortcuts\":") => {
-                Some("    // 全局快捷键；必须包含修饰键，且三项不能重复。")
+                Some("    // Global shortcuts must include a modifier and must be unique.")
             }
             line if line.starts_with("      \"autoApplyThreshold\":") => {
-                Some("      // 自动采用同步歌词所需的最低相似度：0–100。")
+                Some("      // Minimum similarity for automatically applying synchronized lyrics: 0–100.")
             }
             line if line.starts_with("      \"mode\":") => {
-                Some("      // strict 严格按顺序；smart 允许高质量结果优先。")
+                Some("      // strict follows provider order; smart can prioritize higher-quality matches.")
             }
             line if line.starts_with("      \"providers\":") => {
-                Some("      // 歌词源顺序决定严格模式的搜索顺序；至少启用一个来源。")
+                Some("      // Provider order controls strict search order; at least one must be enabled.")
             }
             line if line.starts_with("    \"visible\":") => {
-                Some("    // 桌面歌词浮窗是否显示、是否锁定并鼠标穿透。")
+                Some("    // Desktop lyrics visibility and lock state.")
             }
             line if line.starts_with("    \"hideWhenNotPlaying\":") => {
-                Some("    // 暂停、停止或播放器不可用时隐藏，恢复播放后自动显示。")
+                Some("    // Hide while playback is paused, stopped, or unavailable.")
             }
             line if line.starts_with("      \"fontSize\":") => {
-                Some("      // 主歌词字号（16–72px）及颜色。")
+                Some("      // Primary lyric font size (16–72px) and colors.")
             }
             line if line.starts_with("      \"opacity\":") => {
-                Some("      // 浮窗透明度：0.2–1.0。")
+                Some("      // Window opacity: 0.2–1.0.")
             }
             line if line.starts_with("      \"backgroundOpacity\":") => {
-                Some("      // 背景透明度：0–1.0，不影响歌词文字。")
+                Some("      // Background opacity: 0–1.0; does not affect lyric text.")
             }
             line if line.starts_with("      \"backgroundBlur\":") => {
-                Some("      // 毛玻璃磨砂强度：0–40（设置界面显示为 0–100%）。")
+                Some("      // Background blur: 0–40 (shown as 0–100% in Settings).")
             }
             line if line.starts_with("      \"backgroundMode\":") => {
-                Some("      // 背景模式：solid（纯色）或 transparent（透明快捷模式）。")
+                Some("      // Background mode: solid or transparent.")
             }
             line if line.starts_with("      \"background\":") => Some(
-                "      // 背景组合状态：glass（毛玻璃开启）、solid；transparent 仅用于兼容旧配置。",
+                "      // Background effect: glass or solid; transparent is retained for legacy compatibility.",
             ),
             line if line.starts_with("      \"layout\":") => {
-                Some("      // 歌词布局：single、double；文字方向：horizontal、vertical。")
+                Some("      // Lyrics layout: single or double; orientation: horizontal or vertical.")
             }
             line if line.starts_with("      \"alignment\":") => {
-                Some("      // 对齐：center、distributed。")
+                Some("      // Alignment: center or distributed.")
             }
             line if line.starts_with("      \"longText\":") => {
-                Some("      // 长歌词：shrink、wrap、marquee。")
+                Some("      // Long-text behavior: shrink, wrap, or marquee.")
             }
             line if line.starts_with("      \"secondaryDisplay\":") => {
-                Some("      // 副歌词：next、translation、romanization、translation_romanization。")
+                Some("      // Secondary content: next, translation, romanization, or both.")
             }
             line if line.starts_with("      \"autoCenterWithTranslationOrRomanization\":") => {
-                Some("      // 实际显示翻译或音译时自动居中，不改变已保存的歌词对齐方式。")
+                Some("      // Center only while translation or romanization is actually displayed.")
             }
             line if line.starts_with("      \"karaokeStyle\":") => {
-                Some("      // 卡拉 OK：sweep、bounce、highlight。")
+                Some("      // Karaoke effect: sweep, bounce, or highlight.")
             }
             line if line.starts_with("      \"secondaryFontScale\":") => {
-                Some("      // 下一句副歌词、翻译和音译字号比例：0.35–1.0。")
+                Some("      // Font scale for next-line, translation, and romanization text: 0.35–1.0.")
             }
             _ => None,
         };
@@ -129,6 +132,7 @@ impl Default for AppConfig {
 #[serde(default, rename_all = "camelCase")]
 pub struct AppPreferences {
     pub ui_font_scale: u16,
+    pub language: LanguagePreference,
     pub player_selection: PlayerSelection,
     pub hide_dock_icon: bool,
     pub shortcuts: GlobalShortcutSettings,
@@ -138,11 +142,23 @@ impl Default for AppPreferences {
     fn default() -> Self {
         Self {
             ui_font_scale: 100,
+            language: LanguagePreference::System,
             player_selection: PlayerSelection::Auto,
             hide_dock_icon: false,
             shortcuts: GlobalShortcutSettings::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum LanguagePreference {
+    #[default]
+    #[serde(rename = "system")]
+    System,
+    #[serde(rename = "zh-CN")]
+    ZhCn,
+    #[serde(rename = "en-US")]
+    EnUs,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -673,6 +689,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
             raw,
             &[
                 "uiFontScale",
+                "language",
                 "playerSelection",
                 "hideDockIcon",
                 "autostart",
@@ -784,6 +801,13 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             return Err(error_at_key(raw, key, &format!("{key} 必须是整数")));
         }
     }
+    validate_string_option(
+        value,
+        raw,
+        "/app/language",
+        "language",
+        &["system", "zh-CN", "en-US"],
+    )?;
     validate_string_option(
         value,
         raw,
@@ -1262,7 +1286,10 @@ impl ConfigStore {
             .write()
             .unwrap_or_else(|error| error.into_inner());
         if expected_revision.is_some_and(|expected| expected != state.revision) {
-            return Err("配置已在其他位置发生变化，请重新载入后再保存".into());
+            return Err(
+                "config.conflict: configuration changed at another location; reload before saving"
+                    .into(),
+            );
         }
         atomic_write(&self.path, &raw)?;
         state.value = value.clone();
@@ -1376,7 +1403,9 @@ mod tests {
         assert_eq!(parsed.config.app.ui_font_scale, 100);
         assert_eq!(parsed.config.schema_version, CONFIG_SCHEMA_VERSION);
         assert_eq!(parsed.normalized_json, default_jsonc);
-        assert!(parsed.normalized_json.contains("// 配置格式版本"));
+        assert!(parsed
+            .normalized_json
+            .contains("// Configuration schema version"));
     }
 
     #[test]
@@ -1439,7 +1468,7 @@ mod tests {
     #[test]
     fn current_background_opacity_is_preserved() {
         let parsed = parse_config_draft(
-            r#"{"schemaVersion":12,"overlay":{"appearance":{"backgroundOpacity":0.85}}}"#,
+            r#"{"schemaVersion":13,"overlay":{"appearance":{"backgroundOpacity":0.85}}}"#,
         )
         .unwrap();
         assert_eq!(parsed.config.overlay.appearance.background_opacity, 0.85);
@@ -1451,6 +1480,29 @@ mod tests {
         assert!(parsed.migrated);
         assert_eq!(parsed.config.schema_version, CONFIG_SCHEMA_VERSION);
         assert!(!parsed.config.overlay.hide_when_not_playing);
+    }
+
+    #[test]
+    fn schema_twelve_adds_system_language_preference() {
+        let parsed = parse_config_draft(r#"{"schemaVersion":12}"#).unwrap();
+        assert!(parsed.migrated);
+        assert_eq!(parsed.config.app.language, LanguagePreference::System);
+        assert!(parsed.normalized_json.contains("\"language\": \"system\""));
+    }
+
+    #[test]
+    fn language_preference_round_trips_and_rejects_unknown_values() {
+        for (raw, expected) in [
+            (r#"{"app":{"language":"zh-CN"}}"#, LanguagePreference::ZhCn),
+            (r#"{"app":{"language":"en-US"}}"#, LanguagePreference::EnUs),
+        ] {
+            let parsed = parse_config_draft(raw).unwrap();
+            assert_eq!(parsed.config.app.language, expected);
+        }
+
+        let validation = validate_config_draft(r#"{"app":{"language":"fr-FR"}}"#);
+        assert!(!validation.valid);
+        assert!(validation.error.unwrap().message.contains("language"));
     }
 
     #[test]
@@ -1514,7 +1566,7 @@ mod tests {
             assert!(parsed.migrated);
             assert_eq!(parsed.config.overlay.appearance.layout, layout);
             assert_eq!(parsed.config.overlay.appearance.orientation, orientation);
-            assert!(parsed.normalized_json.contains("\"schemaVersion\": 12"));
+            assert!(parsed.normalized_json.contains("\"schemaVersion\": 13"));
         }
     }
 
@@ -1527,7 +1579,7 @@ mod tests {
             "vertical_double",
         ] {
             let raw = format!(
-                r#"{{"schemaVersion":12,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
+                r#"{{"schemaVersion":13,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
             );
             let validation = validate_config_draft(&raw);
             assert!(!validation.valid, "{layout} should be invalid in schema 12");
@@ -1561,7 +1613,7 @@ mod tests {
     fn current_schema_preserves_explicit_legacy_provider_order() {
         let parsed = parse_config_draft(
             r#"{
-              "schemaVersion": 12,
+              "schemaVersion": 13,
               "lyrics": { "providers": {
                 "mode": "smart",
                 "providers": [
@@ -1783,7 +1835,7 @@ mod tests {
         assert!(!migrated);
         assert_eq!(store.snapshot().app.ui_font_scale, 120);
         let persisted = fs::read_to_string(root.join("config.json")).unwrap();
-        assert!(persisted.contains("// 主界面字号"));
+        assert!(persisted.contains("// Interface text scale"));
         assert!(persisted.contains("\"uiFontScale\": 120"));
         assert_eq!(persisted, store.editor_data().user_json);
         drop(storage);
@@ -1800,7 +1852,7 @@ mod tests {
             .update(|config| config.app.ui_font_scale = 130)
             .unwrap();
         let persisted = fs::read_to_string(root.join("config.json")).unwrap();
-        assert!(persisted.contains("// 主界面字号"));
+        assert!(persisted.contains("// Interface text scale"));
         assert!(persisted.contains("\"uiFontScale\": 130"));
         drop(storage);
         let _ = fs::remove_dir_all(root);
@@ -1818,7 +1870,8 @@ mod tests {
             .unwrap();
         let mut stale = store.snapshot();
         stale.app.ui_font_scale = 140;
-        assert!(store.replace_at_revision(stale, revision).is_err());
+        let error = store.replace_at_revision(stale, revision).unwrap_err();
+        assert!(error.starts_with("config.conflict:"));
         assert_eq!(store.snapshot().app.ui_font_scale, 120);
         drop(storage);
         let _ = fs::remove_dir_all(root);

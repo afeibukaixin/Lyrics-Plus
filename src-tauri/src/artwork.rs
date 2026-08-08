@@ -272,7 +272,7 @@ fn export_apple_music_artwork(
     album: &str,
     output_path: &Path,
 ) -> Result<bool, String> {
-    log::debug!("开始从 Apple Music 导出歌曲封面");
+    log::debug!("Starting Apple Music artwork export");
     let mut command = Command::new("/usr/bin/osascript");
     command
         .args(["-e", APPLE_MUSIC_ARTWORK_SCRIPT])
@@ -284,15 +284,17 @@ fn export_apple_music_artwork(
         .arg(output_path);
     let output = run_with_timeout(command, Duration::from_secs(4))?;
     if !output.status.success() {
-        log::debug!("Apple Music 封面脚本执行失败");
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log::debug!("Failed to run the Apple Music artwork export script: {detail}");
+        return Err(detail);
     }
     let status = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if let Some(error) = status.strip_prefix("error:") {
-        log::debug!("Apple Music 封面脚本返回错误状态");
-        return Err(error.trim().to_string());
+        let detail = error.trim().to_string();
+        log::debug!("Failed to export Apple Music artwork; the script returned an error: {detail}");
+        return Err(detail);
     }
-    log::debug!("Apple Music 封面脚本执行完成：{status}");
+    log::debug!("Apple Music artwork export completed with status: {status}");
     Ok(status == "ok" && is_nonempty_file(output_path))
 }
 
@@ -378,7 +380,10 @@ fn prune_cache(cache_dir: &Path, keep: usize) {
     files.sort_by(|left, right| right.1.cmp(&left.1).then_with(|| right.0.cmp(&left.0)));
     for (path, _) in files.into_iter().skip(keep) {
         if let Err(error) = fs::remove_file(&path) {
-            log::warn!("清理封面缓存失败 {}：{error}", path.display());
+            log::warn!(
+                "Failed to remove cached artwork {}: {error}",
+                path.display()
+            );
         }
     }
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { useTranslation } from "react-i18next";
 import { api, isTauriRuntime, messageOf, trackKeyOf } from "../../shared/api";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
 import type {
@@ -35,6 +36,7 @@ export function findAlignedAuxiliaryLine(lines: LyricsLine[], currentLine: Lyric
 }
 
 export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, autoSearch: boolean) {
+  const { t } = useTranslation();
   const trackKey = useMemo(() => trackKeyOf(snapshot), [snapshot]);
   const [document, setDocument] = useState<LyricsDocument | null>(null);
   const [results, setResults] = useState<LyricsSearchResult[]>([]);
@@ -112,14 +114,14 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, autoSe
       if (allowAutoApply && response.autoApply && response.results[0]) {
         await applyResult(response.results[0], false);
       } else if (response.results.length === 0) {
-        setError("已启用的歌词源暂时没有找到同步歌词");
+        setError(t("settings.lyrics.noResults"));
       }
     } catch (searchError) {
       setError(messageOf(searchError));
     } finally {
       setSearching(false);
     }
-  }, [applyResult, snapshot.album, snapshot.artist, snapshot.durationMs, snapshot.title]);
+  }, [applyResult, snapshot.album, snapshot.artist, snapshot.durationMs, snapshot.title, t]);
 
   useEffect(() => {
     setError(null);

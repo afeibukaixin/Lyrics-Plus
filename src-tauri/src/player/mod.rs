@@ -19,6 +19,19 @@ pub enum PlayerSelection {
     Spotify,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PlaybackErrorCode {
+    Waiting,
+    NotInstalled,
+    AutomationDenied,
+    ResponseTimeout,
+    InvalidResponse,
+    MultiplePlaying,
+    NoUniquePlayer,
+    Unavailable,
+}
+
 impl PlayerSelection {
     pub fn preferred_kind(self) -> Option<PlayerKind> {
         match self {
@@ -51,6 +64,7 @@ pub struct PlaybackSnapshot {
     pub position_ms: Option<u64>,
     pub can_seek: bool,
     pub observed_at_ms: u64,
+    pub error_code: Option<PlaybackErrorCode>,
     pub error: Option<String>,
 }
 
@@ -68,6 +82,7 @@ impl Default for PlaybackSnapshot {
             position_ms: None,
             can_seek: false,
             observed_at_ms: 0,
+            error_code: None,
             error: None,
         }
     }
@@ -75,10 +90,18 @@ impl Default for PlaybackSnapshot {
 
 impl PlaybackSnapshot {
     pub fn empty() -> Self {
-        Self::unavailable(None, "等待播放器".into())
+        Self::unavailable_with_code(None, PlaybackErrorCode::Waiting, "等待播放器".into())
     }
 
     pub fn unavailable(player: Option<PlayerKind>, error: String) -> Self {
+        Self::unavailable_with_code(player, PlaybackErrorCode::Unavailable, error)
+    }
+
+    pub fn unavailable_with_code(
+        player: Option<PlayerKind>,
+        error_code: PlaybackErrorCode,
+        error: String,
+    ) -> Self {
         Self {
             player,
             is_running: false,
@@ -91,6 +114,7 @@ impl PlaybackSnapshot {
             position_ms: None,
             can_seek: false,
             observed_at_ms: now_ms(),
+            error_code: Some(error_code),
             error: Some(error),
         }
     }
@@ -214,7 +238,11 @@ fn query_player(kind: PlayerKind) -> PlaybackSnapshot {
         } else {
             "Spotify"
         };
-        return PlaybackSnapshot::unavailable(Some(kind), format!("未安装 {name}"));
+        return PlaybackSnapshot::unavailable_with_code(
+            Some(kind),
+            PlaybackErrorCode::NotInstalled,
+            format!("未安装 {name}"),
+        );
     }
     let mut command = Command::new("/usr/bin/osascript");
     command
@@ -227,8 +255,9 @@ fn query_player(kind: PlayerKind) -> PlaybackSnapshot {
         Ok(output) if output.status.success() => {
             let mut snapshot = serde_json::from_slice::<PlaybackSnapshot>(&output.stdout)
                 .unwrap_or_else(|error| {
-                    PlaybackSnapshot::unavailable(
+                    PlaybackSnapshot::unavailable_with_code(
                         Some(kind),
+                        PlaybackErrorCode::InvalidResponse,
                         format!("无法解析播放器响应：{error}"),
                     )
                 });
@@ -245,8 +274,14 @@ fn query_player(kind: PlayerKind) -> PlaybackSnapshot {
             } else {
                 detail
             };
-            PlaybackSnapshot::unavailable(
+            let error_code = if detail.contains("自动化权限") {
+                PlaybackErrorCode::AutomationDenied
+            } else {
+                PlaybackErrorCode::Unavailable
+            };
+            PlaybackSnapshot::unavailable_with_code(
                 Some(kind),
+                error_code,
                 if detail.is_empty() {
                     "播放器未授权或暂不可用".into()
                 } else {
@@ -254,7 +289,15 @@ fn query_player(kind: PlayerKind) -> PlaybackSnapshot {
                 },
             )
         }
-        Err(error) => PlaybackSnapshot::unavailable(Some(kind), error),
+        Err(error) => PlaybackSnapshot::unavailable_with_code(
+            Some(kind),
+            if error == "播放器响应超时" {
+                PlaybackErrorCode::ResponseTimeout
+            } else {
+                PlaybackErrorCode::Unavailable
+            },
+            error,
+        ),
     }
 }
 
@@ -300,6 +343,13 @@ mod tests {
         assert!(!snapshot.matches_track(PlayerKind::Spotify, "other-track"));
         assert!(!snapshot.matches_track(PlayerKind::AppleMusic, "current-track"));
     }
+
+    #[test]
+    fn empty_snapshot_exposes_a_stable_waiting_error_code() {
+        let snapshot = PlaybackSnapshot::empty();
+        assert_eq!(snapshot.error_code, Some(PlaybackErrorCode::Waiting));
+        assert!(snapshot.error.is_some());
+    }
 }
 
 pub fn query_selected_player(
@@ -314,8 +364,9 @@ pub fn query_selected_player(
             let spotify = query_player(PlayerKind::Spotify);
             if music.is_playing && spotify.is_playing {
                 (
-                    PlaybackSnapshot::unavailable(
+                    PlaybackSnapshot::unavailable_with_code(
                         None,
+                        PlaybackErrorCode::MultiplePlaying,
                         "Apple Music 与 Spotify 同时在播放，请手动选择播放器".into(),
                     ),
                     None,
@@ -336,8 +387,9 @@ pub fn query_selected_player(
                 (spotify, previous_auto_player)
             } else {
                 (
-                    PlaybackSnapshot::unavailable(
+                    PlaybackSnapshot::unavailable_with_code(
                         None,
+                        PlaybackErrorCode::NoUniquePlayer,
                         "未检测到唯一正在播放的 Apple Music 或 Spotify".into(),
                     ),
                     None,

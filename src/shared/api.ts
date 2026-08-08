@@ -1,4 +1,5 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { appI18n } from "../features/i18n/i18n";
 import { reportFrontendError } from "./debugLog";
 import type {
   AppConfig,
@@ -7,6 +8,7 @@ import type {
   ConfigDraftValidation,
   ConfigEditorData,
   GlobalShortcutSettings,
+  LanguagePreference,
   LyricsDocument,
   LibraryPage,
   LibraryPreview,
@@ -26,6 +28,7 @@ import type {
   SearchResponse,
   SettingsResetResponse,
   SettingsSection,
+  SupportedLanguage,
 } from "./types";
 
 export function isTauriRuntime() {
@@ -36,10 +39,29 @@ export function isTauriRuntime() {
   return typeof internals?.invoke === "function" && typeof internals.transformCallback === "function";
 }
 
+export type AppErrorCode = `command.${string}` | "config.conflict" | "unknown";
+
+export class AppOperationError extends Error {
+  readonly code: AppErrorCode;
+  readonly command: string;
+  readonly cause: unknown;
+
+  constructor(command: string, cause: unknown) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    super(detail);
+    this.name = "AppOperationError";
+    this.command = command;
+    this.cause = cause;
+    this.code = command === "save_app_config_draft" && detail.startsWith("config.conflict:")
+      ? "config.conflict"
+      : `command.${command}`;
+  }
+}
+
 function invoke<T>(command: string, args?: Record<string, unknown>) {
   return tauriInvoke<T>(command, args).catch((error) => {
-    reportFrontendError(`Tauri 命令 ${command} 调用失败`, error);
-    throw error;
+    reportFrontendError(`Tauri command '${command}' failed`, error);
+    throw new AppOperationError(command, error);
   });
 }
 
@@ -127,6 +149,10 @@ export const api = {
     invoke<SettingsResetResponse>("reset_settings_section", { section }),
   getAppConfig: () => invoke<AppConfig>("get_app_config"),
   setUiFontScale: (scale: number) => invoke<AppConfig>("set_ui_font_scale", { scale }),
+  setLanguage: (language: LanguagePreference) =>
+    invoke<AppConfig>("set_language", { language }),
+  setNativeLanguage: (language: SupportedLanguage) =>
+    invoke<void>("set_native_language", { language }),
   setGlobalShortcuts: (shortcuts: GlobalShortcutSettings) =>
     invoke<AppConfig>("set_global_shortcuts", { shortcuts }),
   setDockIconHidden: (hidden: boolean) =>
@@ -143,7 +169,16 @@ export const api = {
 };
 
 export function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  if (error instanceof AppOperationError) {
+    return error.code === "config.conflict"
+      ? appI18n.t("errors.configConflict")
+      : appI18n.t("errors.command");
+  }
+  return appI18n.t("errors.unknown");
+}
+
+export function errorCodeOf(error: unknown): AppErrorCode {
+  return error instanceof AppOperationError ? error.code : "unknown";
 }
 
 export function trackKeyOf(snapshot: PlaybackSnapshot): string | null {

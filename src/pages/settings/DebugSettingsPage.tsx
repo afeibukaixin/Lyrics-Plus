@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { debugLogLevels, useDebugLogs, type DebugLogLevel } from "../../features/debug/DebugLogProvider";
+import { useAppLanguage } from "../../features/i18n/I18nProvider";
 import styles from "../settings.module.scss";
 import { SettingsCard, SettingsHeading, ToggleRow } from "./components";
 
@@ -10,8 +12,8 @@ const debugLevelLabels: Record<DebugLogLevel, string> = {
   error: "ERROR",
 };
 
-function formatDebugTime(value: number) {
-  return new Intl.DateTimeFormat("zh-CN", {
+function formatDebugTime(value: number, language: string) {
+  return new Intl.DateTimeFormat(language, {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
@@ -20,6 +22,8 @@ function formatDebugTime(value: number) {
 }
 
 export default function DebugSettingsPage() {
+  const { t } = useTranslation();
+  const { language } = useAppLanguage();
   const debugLogs = useDebugLogs();
   const viewport = useRef<HTMLDivElement>(null);
   const visibleEntries = useMemo(
@@ -35,25 +39,25 @@ export default function DebugSettingsPage() {
 
   return (
     <>
-      <SettingsHeading title="调试日志" description="查看后端、AppleScript 和前端操作产生的实时错误与调试信息。" />
-      <SettingsCard title="实时日志" trailing={debugLogs.enabled && <span className={styles.debugLogCount}>{debugLogs.entries.length} / 300</span>}>
-        <ToggleRow label="实时调试日志" description="仅收集本次开启后的日志；关闭、再次开启或重启应用都会清空" value={debugLogs.enabled} onChange={debugLogs.setEnabled} />
+      <SettingsHeading title={t("settings.debug.title")} description={t("settings.debug.description")} />
+      <SettingsCard title={t("settings.debug.live")} trailing={debugLogs.enabled && <span className={styles.debugLogCount}>{debugLogs.entries.length} / 300</span>}>
+        <ToggleRow label={t("settings.debug.toggle")} description={t("settings.debug.toggleHint")} value={debugLogs.enabled} onChange={debugLogs.setEnabled} />
         {debugLogs.enabled ? (
           <>
             <div className={styles.debugLogToolbar}>
-              <div role="group" aria-label="日志级别筛选">
+              <div role="group" aria-label={t("settings.debug.filter")}>
                 {debugLogLevels.map((level) => (
                   <button type="button" key={level} data-level={level} aria-pressed={debugLogs.visibleLevels.has(level)} onClick={() => debugLogs.toggleLevel(level)}>{debugLevelLabels[level]}</button>
                 ))}
               </div>
-              <button type="button" onClick={debugLogs.clear} disabled={debugLogs.entries.length === 0}>清空</button>
+              <button type="button" onClick={debugLogs.clear} disabled={debugLogs.entries.length === 0}>{t("settings.debug.clear")}</button>
             </div>
             <div className={styles.debugLogViewport} ref={viewport} role="log" aria-live="polite">
               {visibleEntries.length === 0 ? (
-                <p>{debugLogs.entries.length === 0 ? "等待新的日志…" : "当前筛选条件下没有日志。"}</p>
+                <p>{debugLogs.entries.length === 0 ? t("settings.debug.waiting") : t("settings.debug.filteredEmpty")}</p>
               ) : visibleEntries.map((entry) => (
                 <div className={styles.debugLogEntry} data-level={entry.level} key={entry.id}>
-                  <time dateTime={new Date(entry.receivedAt).toISOString()}>{formatDebugTime(entry.receivedAt)}</time>
+                  <time dateTime={new Date(entry.receivedAt).toISOString()}>{formatDebugTime(entry.receivedAt, language)}</time>
                   <strong>{debugLevelLabels[entry.level]}</strong>
                   <code>{entry.message}</code>
                 </div>
@@ -61,7 +65,7 @@ export default function DebugSettingsPage() {
             </div>
           </>
         ) : (
-          <p className={styles.cardHint}>开启后开始收集日志；该页面没有“恢复默认”，也不会受到应用设置重置影响。</p>
+          <p className={styles.cardHint}>{t("settings.debug.disabledHint")}</p>
         )}
       </SettingsCard>
     </>

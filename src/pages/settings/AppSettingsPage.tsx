@@ -1,23 +1,17 @@
 import { useState } from "react";
-import { defaultGlobalShortcuts, type GlobalShortcutSettings, type PlayerSelection } from "../../shared/types";
+import { useTranslation } from "react-i18next";
+import { defaultGlobalShortcuts, type GlobalShortcutSettings, type LanguagePreference, type PlayerSelection } from "../../shared/types";
 import { messageOf } from "../../shared/api";
+import { localizedSource, playbackStatusText } from "../../features/i18n/userText";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
-import { RangeRow, SettingsCard, SettingsHeading, ToggleRow } from "./components";
+import { RangeRow, SelectRow, SettingsCard, SettingsHeading, ToggleRow } from "./components";
 
-const playerOptions: Array<{ value: PlayerSelection; label: string }> = [
-  { value: "auto", label: "自动选择" },
-  { value: "apple_music", label: "Apple Music" },
-  { value: "spotify", label: "Spotify" },
-];
+const playerOptions: PlayerSelection[] = ["auto", "apple_music", "spotify"];
 
 type ShortcutAction = keyof GlobalShortcutSettings;
 
-const shortcutLabels: Array<[ShortcutAction, string]> = [
-  ["toggleOverlay", "显示 / 隐藏桌面歌词"],
-  ["unlockOverlay", "解锁桌面歌词"],
-  ["resetOverlay", "复位并显示桌面歌词"],
-];
+const shortcutActions: ShortcutAction[] = ["toggleOverlay", "unlockOverlay", "resetOverlay"];
 
 function shortcutDisplay(value: string) {
   const mac = navigator.userAgent.includes("Mac");
@@ -54,6 +48,7 @@ export default function AppSettingsPage() {
   const {
     config,
     setUiFontScale,
+    setLanguage,
     setGlobalShortcuts,
     setDockIconHidden,
     playback,
@@ -65,6 +60,7 @@ export default function AppSettingsPage() {
   } = useSettingsContext();
   const [recording, setRecording] = useState<ShortcutAction | null>(null);
   const [savingShortcut, setSavingShortcut] = useState(false);
+  const { t } = useTranslation();
 
   const saveShortcut = async (action: ShortcutAction, value: string) => {
     setSavingShortcut(true);
@@ -80,33 +76,48 @@ export default function AppSettingsPage() {
   };
 
   const diagnostics = playback.commandError
-    ?? playback.snapshot.error
+    ?? playbackStatusText(playback.snapshot, t)
     ?? lyrics.error
     ?? (lyrics.document
-      ? `歌词来源：${lyrics.document.metadata.source} · ${lyrics.document.tracks.original.lines.length} 行`
-      : "当前没有已关联歌词");
+      ? t("settings.app.diagnosticsLyrics", {
+          source: localizedSource(lyrics.document.metadata.source, t),
+          count: lyrics.document.tracks.original.lines.length,
+        })
+      : t("settings.app.diagnosticsEmpty"));
+  const shortcutLabel = (action: ShortcutAction) => t(`settings.app.${action}`);
 
   return (
     <>
-      <SettingsHeading title="应用" description="选择播放器并管理主界面、菜单栏与快捷键。" onReset={() => void resetSection("app")} resetting={resettingSection === "app"} confirming={confirmingReset === "app"} />
-      <SettingsCard title="播放器">
-        <div className={styles.playerOptions}>{playerOptions.map((option) => <button key={option.value} data-active={playback.selection === option.value} onClick={() => playback.setSelection(option.value)}>{option.label}</button>)}</div>
+      <SettingsHeading title={t("settings.app.title")} description={t("settings.app.description")} onReset={() => void resetSection("app")} resetting={resettingSection === "app"} confirming={confirmingReset === "app"} />
+      <SettingsCard title={t("settings.app.player")}>
+        <div className={styles.playerOptions}>{playerOptions.map((option) => <button key={option} data-active={playback.selection === option} onClick={() => playback.setSelection(option)}>{option === "auto" ? t("settings.app.playerAuto") : option === "apple_music" ? "Apple Music" : "Spotify"}</button>)}</div>
       </SettingsCard>
-      <SettingsCard title="主界面显示">
-        <RangeRow label="主界面字号" value={config.app.uiFontScale} min={80} max={150} step={10} suffix="%" onChange={(scale) => void setUiFontScale(scale).catch((value) => setError(messageOf(value)))} />
-        <p className={styles.cardHint}>只放大首页、设置和歌词库的文字；窗口尺寸、控件和桌面歌词不受影响。</p>
+      <SettingsCard title={t("settings.app.display")}>
+        <SelectRow
+          label={t("settings.app.language.label")}
+          description={t("settings.app.language.description")}
+          value={config.app.language}
+          options={[
+            ["system", t("common.language.system")],
+            ["zh-CN", t("common.language.zhCN")],
+            ["en-US", t("common.language.enUS")],
+          ]}
+          onChange={(language) => void setLanguage(language as LanguagePreference).catch((value) => setError(messageOf(value)))}
+        />
+        <RangeRow label={t("settings.app.fontScale")} value={config.app.uiFontScale} min={80} max={150} step={10} suffix="%" onChange={(scale) => void setUiFontScale(scale).catch((value) => setError(messageOf(value)))} />
+        <p className={styles.cardHint}>{t("settings.app.fontScaleHint")}</p>
       </SettingsCard>
-      <SettingsCard title="Dock 与菜单栏">
-        <ToggleRow label="隐藏 Dock 图标和运行指示点" description="隐藏后仍可通过菜单栏图标打开 Lyrics Plus" value={config.app.hideDockIcon} onChange={(hidden) => setDockIconHidden(hidden).catch((value) => setError(messageOf(value)))} />
+      <SettingsCard title={t("settings.app.dockMenu")}>
+        <ToggleRow label={t("settings.app.hideDock")} description={t("settings.app.hideDockHint")} value={config.app.hideDockIcon} onChange={(hidden) => setDockIconHidden(hidden).catch((value) => setError(messageOf(value)))} />
       </SettingsCard>
-      <SettingsCard title="快捷键">
-        <div className={styles.shortcutRow}><span>打开设置</span><kbd>⌘ ,</kbd></div>
-        {shortcutLabels.map(([action, label]) => {
+      <SettingsCard title={t("settings.app.shortcuts")}>
+        <div className={styles.shortcutRow}><span>{t("settings.app.openSettings")}</span><kbd>⌘ ,</kbd></div>
+        {shortcutActions.map((action) => {
           const isRecording = recording === action;
           const isDefault = config.app.shortcuts[action] === defaultGlobalShortcuts[action];
           return (
             <div className={styles.shortcutRow} key={action}>
-              <span>{label}</span>
+              <span>{shortcutLabel(action)}</span>
               <div className={styles.shortcutControls}>
                 <button
                   autoFocus={isRecording}
@@ -126,14 +137,14 @@ export default function AppSettingsPage() {
                     const shortcut = shortcutFromEvent(event);
                     if (shortcut) void saveShortcut(action, shortcut);
                   }}
-                >{isRecording ? "请按组合键 · Esc 取消" : shortcutDisplay(config.app.shortcuts[action])}</button>
-                <button className={styles.shortcutReset} disabled={savingShortcut || isDefault} onClick={() => void saveShortcut(action, defaultGlobalShortcuts[action])}>恢复默认</button>
+                >{isRecording ? t("settings.app.record") : shortcutDisplay(config.app.shortcuts[action])}</button>
+                <button className={styles.shortcutReset} disabled={savingShortcut || isDefault} onClick={() => void saveShortcut(action, defaultGlobalShortcuts[action])}>{t("common.actions.resetDefault")}</button>
               </div>
             </div>
           );
         })}
       </SettingsCard>
-      <SettingsCard title="诊断"><div className={styles.diagnostics} data-error={Boolean(playback.commandError || playback.snapshot.error || lyrics.error)}><i /><span>{diagnostics}</span></div></SettingsCard>
+      <SettingsCard title={t("settings.app.diagnostics")}><div className={styles.diagnostics} data-error={Boolean(playback.commandError || playback.snapshot.errorCode || lyrics.error)}><i /><span>{diagnostics}</span></div></SettingsCard>
     </>
   );
 }

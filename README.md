@@ -84,6 +84,13 @@ src-tauri/target/release/bundle/
 
 ## 贡献
 
+新增或修改界面、错误处理和日志时，请遵循以下约定：
+
+- 普通 UI 文案必须加入 `zh-CN` 与 `en-US` 资源并通过 i18n 输出；歌曲、歌手、歌词和第三方原始内容保持原样。详见 [`docs/i18n.md`](docs/i18n.md)。
+- 普通 UI 字号、行高和字重使用既有语义化 Token；图标、桌面歌词动态字号等例外需要记录原因。详见 [`docs/typography.md`](docs/typography.md)。
+- 正式内部日志使用稳定英文上下文，并保留原始错误详情；用户提示不得直接复用日志文本。详见 [`docs/logging.md`](docs/logging.md)。
+- Tauri 命令错误应经过统一 API 边界转换，用户界面显示本地化错误码映射，底层 `cause` 只用于内部诊断。
+
 提交 Pull Request 前，建议至少检查：
 
 ```bash

@@ -1,5 +1,14 @@
 export type PlayerKind = "apple_music" | "spotify";
 export type PlayerSelection = "auto" | PlayerKind;
+export type PlaybackErrorCode =
+  | "waiting"
+  | "not_installed"
+  | "automation_denied"
+  | "response_timeout"
+  | "invalid_response"
+  | "multiple_playing"
+  | "no_unique_player"
+  | "unavailable";
 
 export type GlobalShortcutSettings = {
   toggleOverlay: string;
@@ -38,6 +47,7 @@ export type PlaybackSnapshot = {
   positionMs: number | null;
   canSeek: boolean;
   observedAtMs: number;
+  errorCode: PlaybackErrorCode | null;
   error: string | null;
 };
 
@@ -133,6 +143,8 @@ export type ProviderSettingsView = {
 };
 
 export type SettingsSection = "overlay" | "lyrics" | "app";
+export type SupportedLanguage = "zh-CN" | "en-US";
+export type LanguagePreference = "system" | SupportedLanguage;
 
 export type SettingsResetResponse = {
   overlaySettings: OverlaySettings;
@@ -148,6 +160,7 @@ export type AppConfig = {
   schemaVersion: number;
   app: {
     uiFontScale: number;
+    language: LanguagePreference;
     playerSelection: PlayerSelection;
     hideDockIcon: boolean;
     shortcuts: GlobalShortcutSettings;

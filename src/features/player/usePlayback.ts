@@ -16,7 +16,8 @@ const initialSnapshot: PlaybackSnapshot = {
   positionMs: null,
   canSeek: false,
   observedAtMs: Date.now(),
-  error: "正在连接播放器…",
+  errorCode: "waiting",
+  error: null,
 };
 
 export function usePlayback() {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { LogicalSize } from "@tauri-apps/api/dpi";
 import { listen } from "@tauri-apps/api/event";
 import { currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
+import { useTranslation } from "react-i18next";
 import { api, isTauriRuntime } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
@@ -18,16 +19,6 @@ import {
 import { useLyrics } from "../lyrics/useLyrics";
 import { usePlayback } from "../player/usePlayback";
 import styles from "./Overlay.module.scss";
-
-const layoutLabels: Record<OverlayStyle["layout"], string> = {
-  single: "单歌词",
-  double: "双歌词",
-};
-
-const orientationLabels: Record<OverlayStyle["orientation"], string> = {
-  horizontal: "横排",
-  vertical: "竖排",
-};
 
 const HORIZONTAL_OVERLAY_HORIZONTAL_PADDING = 52;
 const HORIZONTAL_OVERLAY_VERTICAL_PADDING = 90;
@@ -177,6 +168,7 @@ function KaraokeLine({ line, fallback, positionMs, style }: {
 }
 
 export default function Overlay() {
+  const { t } = useTranslation();
   const playback = usePlayback();
   const lyrics = useLyrics(playback.snapshot, playback.positionMs, true);
   const [style, setStyle] = useState<OverlayStyle>(defaultOverlayStyle);
@@ -218,7 +210,7 @@ export default function Overlay() {
     const session = resizeSession.current;
     resizeSession.current = null;
     if (session?.handle.hasPointerCapture(session.pointerId)) {
-      try { session.handle.releasePointerCapture(session.pointerId); } catch { /* 已由系统释放 */ }
+      try { session.handle.releasePointerCapture(session.pointerId); } catch { /* Already released by the system. */ }
     }
     setActiveResizeEdge(null);
   }, []);
@@ -373,7 +365,7 @@ export default function Overlay() {
   const fallbackSupportingLine: SupportingLine = {
     kind: "next",
     text: !lyrics.document
-      ? playback.snapshot.artist || "播放音乐后自动显示歌词"
+      ? playback.snapshot.artist || t("overlay.fallback")
       : lyrics.nextLine?.text || "\u00a0",
     baseSize: style.fontSize * style.secondaryFontScale,
     color: style.inactiveColor,
@@ -394,9 +386,9 @@ export default function Overlay() {
   const offsetLabel = offsetAvailable ? formatOffset(offsetMs) : "—";
   const offsetValueTitle = offsetAvailable
     ? offsetMs === 0
-      ? "当前歌词偏移：0ms"
-      : `当前歌词偏移：${formatOffsetMs(offsetMs)}；点击重置`
-    : "当前歌曲没有可调整的同步歌词";
+      ? t("overlay.toolbar.offsetZeroTitle")
+      : t("overlay.toolbar.offsetTitle", { value: formatOffsetMs(offsetMs) })
+    : t("overlay.toolbar.noOffset");
 
   useLayoutEffect(() => {
     const toolbar = toolbarRef.current;
@@ -616,7 +608,7 @@ export default function Overlay() {
       setStyle(saved);
       if (resizeSession.current === session) clearResizeState();
     }).catch((error) => {
-      reportFrontendError("保存桌面歌词尺寸失败", error);
+      reportFrontendError("Failed to persist the overlay bounds", error);
       if (resizeSession.current === session) clearResizeState();
     });
   };
@@ -634,7 +626,7 @@ export default function Overlay() {
       }
     } catch (error) {
       if (resizeSession.current === session) {
-        reportFrontendError("调整桌面歌词尺寸失败", error);
+        reportFrontendError("Failed to resize the overlay window", error);
         clearResizeState();
       }
     } finally {
@@ -659,7 +651,7 @@ export default function Overlay() {
     session.ending = true;
     queueResize(session);
     if (session.handle.hasPointerCapture(session.pointerId)) {
-      try { session.handle.releasePointerCapture(session.pointerId); } catch { /* 已由系统释放 */ }
+      try { session.handle.releasePointerCapture(session.pointerId); } catch { /* Already released by the system. */ }
     }
     commitResizeSession(session);
   };
@@ -704,7 +696,7 @@ export default function Overlay() {
       queueResize(session);
       commitResizeSession(session);
     }).catch((error) => {
-      reportFrontendError("读取桌面歌词尺寸失败", error);
+      reportFrontendError("Failed to read the overlay bounds", error);
       if (resizeSession.current === session) clearResizeState();
     });
   };
@@ -746,11 +738,11 @@ export default function Overlay() {
     void updateStyle({ secondaryDisplay: secondaryDisplayFromFlags(translation, romanization) });
   };
 
-  const supportingToggleTitle = (label: string, enabled: boolean, available: boolean) => {
-    const action = enabled ? "关闭" : "显示";
-    if (!supportsSecondary) return `${action}${label}（当前布局不显示副歌词）`;
-    if (!available) return `${action}${label}（当前歌词无${label}，开启后暂显示下一句）`;
-    return `${action}${label}`;
+  const supportingToggleTitle = (track: string, enabled: boolean, available: boolean) => {
+    const action = enabled ? t("overlay.toolbar.hideTrack", { track }) : t("overlay.toolbar.showTrack", { track });
+    if (!supportsSecondary) return t("overlay.toolbar.unsupportedLayout", { action });
+    if (!available) return t("overlay.toolbar.unavailableTrack", { action, track });
+    return action;
   };
 
   return (
@@ -829,70 +821,70 @@ export default function Overlay() {
         <>
           {vertical ? (
             <>
-              <div className={styles.resizeHandle} data-active={activeResizeEdge === "top"} data-edge="top" data-tauri-drag-region="false" role="separator" aria-label="拖动设置竖排歌词高度" aria-orientation="horizontal" onLostPointerCapture={lostResizeCapture} onPointerCancel={cancelResize} onPointerDown={beginResize("top", "vertical")} onPointerMove={continueResize} onPointerUp={endResize} />
-              <div className={styles.resizeHandle} data-active={activeResizeEdge === "bottom"} data-edge="bottom" data-tauri-drag-region="false" role="separator" aria-label="拖动设置竖排歌词高度" aria-orientation="horizontal" onLostPointerCapture={lostResizeCapture} onPointerCancel={cancelResize} onPointerDown={beginResize("bottom", "vertical")} onPointerMove={continueResize} onPointerUp={endResize} />
+              <div className={styles.resizeHandle} data-active={activeResizeEdge === "top"} data-edge="top" data-tauri-drag-region="false" role="separator" aria-label={t("overlay.toolbar.resizeVertical")} aria-orientation="horizontal" onLostPointerCapture={lostResizeCapture} onPointerCancel={cancelResize} onPointerDown={beginResize("top", "vertical")} onPointerMove={continueResize} onPointerUp={endResize} />
+              <div className={styles.resizeHandle} data-active={activeResizeEdge === "bottom"} data-edge="bottom" data-tauri-drag-region="false" role="separator" aria-label={t("overlay.toolbar.resizeVertical")} aria-orientation="horizontal" onLostPointerCapture={lostResizeCapture} onPointerCancel={cancelResize} onPointerDown={beginResize("bottom", "vertical")} onPointerMove={continueResize} onPointerUp={endResize} />
             </>
           ) : (
             <>
-              <div className={styles.resizeHandle} data-active={activeResizeEdge === "left"} data-edge="left" data-tauri-drag-region="false" role="separator" aria-label="拖动设置横排歌词宽度" aria-orientation="vertical" onLostPointerCapture={lostResizeCapture} onPointerCancel={cancelResize} onPointerDown={beginResize("left", "horizontal")} onPointerMove={continueResize} onPointerUp={endResize} />
-              <div className={styles.resizeHandle} data-active={activeResizeEdge === "right"} data-edge="right" data-tauri-drag-region="false" role="separator" aria-label="拖动设置横排歌词宽度" aria-orientation="vertical" onLostPointerCapture={lostResizeCapture} onPointerCancel={cancelResize} onPointerDown={beginResize("right", "horizontal")} onPointerMove={continueResize} onPointerUp={endResize} />
+              <div className={styles.resizeHandle} data-active={activeResizeEdge === "left"} data-edge="left" data-tauri-drag-region="false" role="separator" aria-label={t("overlay.toolbar.resizeHorizontal")} aria-orientation="vertical" onLostPointerCapture={lostResizeCapture} onPointerCancel={cancelResize} onPointerDown={beginResize("left", "horizontal")} onPointerMove={continueResize} onPointerUp={endResize} />
+              <div className={styles.resizeHandle} data-active={activeResizeEdge === "right"} data-edge="right" data-tauri-drag-region="false" role="separator" aria-label={t("overlay.toolbar.resizeHorizontal")} aria-orientation="vertical" onLostPointerCapture={lostResizeCapture} onPointerCancel={cancelResize} onPointerDown={beginResize("right", "horizontal")} onPointerMove={continueResize} onPointerUp={endResize} />
             </>
           )}
-          <div className={styles.toolbar} data-tauri-drag-region="false" aria-label="桌面歌词工具栏" ref={toolbarRef}>
-            <button aria-label="锁定并穿透鼠标" title="锁定并穿透鼠标" onClick={() => void api.setOverlayLocked(true)}><ToolbarIcon name="lock" /></button>
-            <button aria-label="减小字号" title="减小字号" onClick={() => void updateStyle({ fontSize: style.fontSize - 2 })}><ToolbarIcon name="minus" /></button>
-            <button aria-label="增大字号" title="增大字号" onClick={() => void updateStyle({ fontSize: style.fontSize + 2 })}><ToolbarIcon name="plus" /></button>
-            <div className={styles.offsetControl} role="group" aria-label={`歌词偏移，当前${offsetAvailable ? formatOffsetMs(offsetMs) : "不可调整"}`}>
+          <div className={styles.toolbar} data-tauri-drag-region="false" aria-label={t("overlay.toolbar.label")} ref={toolbarRef}>
+            <button aria-label={t("overlay.toolbar.lock")} title={t("overlay.toolbar.lock")} onClick={() => void api.setOverlayLocked(true)}><ToolbarIcon name="lock" /></button>
+            <button aria-label={t("overlay.toolbar.decreaseFont")} title={t("overlay.toolbar.decreaseFont")} onClick={() => void updateStyle({ fontSize: style.fontSize - 2 })}><ToolbarIcon name="minus" /></button>
+            <button aria-label={t("overlay.toolbar.increaseFont")} title={t("overlay.toolbar.increaseFont")} onClick={() => void updateStyle({ fontSize: style.fontSize + 2 })}><ToolbarIcon name="plus" /></button>
+            <div className={styles.offsetControl} role="group" aria-label={t("overlay.toolbar.offsetGroup", { value: offsetAvailable ? formatOffsetMs(offsetMs) : t("overlay.toolbar.unavailable") })}>
               <button
-                aria-label="歌词延后 100 毫秒；按住 Shift 调整 500 毫秒"
+                aria-label={t("overlay.toolbar.delay")}
                 disabled={!offsetAvailable}
-                title="歌词延后 100ms（按住 Shift 调整 500ms）"
+                title={t("overlay.toolbar.delayTitle")}
                 onClick={(event) => void lyrics.changeOffset(event.shiftKey ? -500 : -100)}
               ><ToolbarIcon name="offsetEarlier" /></button>
               <button
                 className={styles.offsetValue}
                 aria-label={!offsetAvailable
-                  ? "当前歌曲没有可调整的同步歌词"
+                  ? t("overlay.toolbar.noOffset")
                   : offsetMs === 0
-                    ? "当前歌词偏移为 0 毫秒"
-                    : `当前歌词偏移${formatOffsetMs(offsetMs)}，点击重置`}
+                    ? t("overlay.toolbar.zeroOffset")
+                    : t("overlay.toolbar.offsetReset", { value: formatOffsetMs(offsetMs) })}
                 disabled={!offsetAvailable || offsetMs === 0}
                 title={offsetValueTitle}
                 onClick={() => void lyrics.setOffset(0)}
               >{offsetLabel}</button>
               <button
-                aria-label="歌词提前 100 毫秒；按住 Shift 调整 500 毫秒"
+                aria-label={t("overlay.toolbar.advance")}
                 disabled={!offsetAvailable}
-                title="歌词提前 100ms（按住 Shift 调整 500ms）"
+                title={t("overlay.toolbar.advanceTitle")}
                 onClick={(event) => void lyrics.changeOffset(event.shiftKey ? 500 : 100)}
               ><ToolbarIcon name="offsetLater" /></button>
             </div>
-            <button aria-label={`切换单/双歌词，当前${layoutLabels[style.layout]}`} title={`切换单/双歌词（当前：${layoutLabels[style.layout]}）`} onClick={() => void updateStyle({
+            <button aria-label={t("overlay.toolbar.toggleLayout", { value: t(`overlay.layout.${style.layout}`) })} title={t("overlay.toolbar.toggleLayoutTitle", { value: t(`overlay.layout.${style.layout}`) })} onClick={() => void updateStyle({
               layout: nextValue(style.layout, ["single", "double"] as const),
             })}><ToolbarIcon name="layout" /></button>
-            <button aria-label={`切换横/竖排，当前${orientationLabels[style.orientation]}`} title={`切换横/竖排（当前：${orientationLabels[style.orientation]}）`} onClick={() => void updateStyle({
+            <button aria-label={t("overlay.toolbar.toggleOrientation", { value: t(`overlay.orientation.${style.orientation}`) })} title={t("overlay.toolbar.toggleOrientationTitle", { value: t(`overlay.orientation.${style.orientation}`) })} onClick={() => void updateStyle({
               orientation: nextValue(style.orientation, ["horizontal", "vertical"] as const),
             })}><ToolbarIcon name="orientation" /></button>
             <button
               className={styles.trackToggle}
               data-available={translationAvailable}
               data-on={secondaryFlags.translation}
-              aria-label={supportingToggleTitle("翻译", secondaryFlags.translation, translationAvailable)}
+              aria-label={supportingToggleTitle(t("common.feature.translation"), secondaryFlags.translation, translationAvailable)}
               aria-pressed={secondaryFlags.translation}
-              title={supportingToggleTitle("翻译", secondaryFlags.translation, translationAvailable)}
+              title={supportingToggleTitle(t("common.feature.translation"), secondaryFlags.translation, translationAvailable)}
               onClick={() => toggleSupportingTrack("translation")}
-            >文</button>
+            >{t("overlay.toolbar.translationGlyph")}</button>
             <button
               className={styles.trackToggle}
               data-available={romanizationAvailable}
               data-on={secondaryFlags.romanization}
-              aria-label={supportingToggleTitle("音译", secondaryFlags.romanization, romanizationAvailable)}
+              aria-label={supportingToggleTitle(t("common.feature.romanization"), secondaryFlags.romanization, romanizationAvailable)}
               aria-pressed={secondaryFlags.romanization}
-              title={supportingToggleTitle("音译", secondaryFlags.romanization, romanizationAvailable)}
+              title={supportingToggleTitle(t("common.feature.romanization"), secondaryFlags.romanization, romanizationAvailable)}
               onClick={() => toggleSupportingTrack("romanization")}
-            >音</button>
-            <button aria-label="隐藏桌面歌词" title="隐藏桌面歌词" onClick={() => void api.setOverlayVisible(false)}><ToolbarIcon name="hide" /></button>
-            <button aria-label="打开桌面歌词设置" title="打开桌面歌词设置" onClick={() => void api.showMainWindow("settings")}><ToolbarIcon name="settings" /></button>
+            >{t("overlay.toolbar.romanizationGlyph")}</button>
+            <button aria-label={t("overlay.toolbar.hide")} title={t("overlay.toolbar.hide")} onClick={() => void api.setOverlayVisible(false)}><ToolbarIcon name="hide" /></button>
+            <button aria-label={t("overlay.toolbar.openSettings")} title={t("overlay.toolbar.openSettings")} onClick={() => void api.showMainWindow("settings")}><ToolbarIcon name="settings" /></button>
           </div>
         </>
       )}

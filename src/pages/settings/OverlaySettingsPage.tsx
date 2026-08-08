@@ -1,4 +1,5 @@
 import { secondaryDisplayFlags, secondaryDisplayFromFlags, type OverlayStyle } from "../../shared/types";
+import { useTranslation } from "react-i18next";
 import { messageOf } from "../../shared/api";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
@@ -10,18 +11,17 @@ type OverlayColorValues = Pick<
 >;
 
 type OverlayColorPreset = {
-  id: string;
-  name: string;
+  id: "violet" | "ocean" | "mint" | "sunset" | "sakura" | "contrast";
   colors: OverlayColorValues;
 };
 
 const overlayColorPresets: OverlayColorPreset[] = [
-  { id: "violet", name: "紫罗兰", colors: { activeColor: "#c4b5fd", inactiveColor: "#c8d2df", translationColor: "#cbd5e1", romanizationColor: "#aab7c8" } },
-  { id: "ocean", name: "海洋蓝", colors: { activeColor: "#38bdf8", inactiveColor: "#dbeafe", translationColor: "#bae6fd", romanizationColor: "#93c5fd" } },
-  { id: "mint", name: "薄荷青", colors: { activeColor: "#5eead4", inactiveColor: "#d1fae5", translationColor: "#99f6e4", romanizationColor: "#a7f3d0" } },
-  { id: "sunset", name: "日落橙", colors: { activeColor: "#fbbf24", inactiveColor: "#ffedd5", translationColor: "#fde68a", romanizationColor: "#fdba74" } },
-  { id: "sakura", name: "樱花粉", colors: { activeColor: "#fda4af", inactiveColor: "#fce7f3", translationColor: "#fbcfe8", romanizationColor: "#fecdd3" } },
-  { id: "contrast", name: "黑白高对比", colors: { activeColor: "#ffffff", inactiveColor: "#cbd5e1", translationColor: "#e2e8f0", romanizationColor: "#94a3b8" } },
+  { id: "violet", colors: { activeColor: "#c4b5fd", inactiveColor: "#c8d2df", translationColor: "#cbd5e1", romanizationColor: "#aab7c8" } },
+  { id: "ocean", colors: { activeColor: "#38bdf8", inactiveColor: "#dbeafe", translationColor: "#bae6fd", romanizationColor: "#93c5fd" } },
+  { id: "mint", colors: { activeColor: "#5eead4", inactiveColor: "#d1fae5", translationColor: "#99f6e4", romanizationColor: "#a7f3d0" } },
+  { id: "sunset", colors: { activeColor: "#fbbf24", inactiveColor: "#ffedd5", translationColor: "#fde68a", romanizationColor: "#fdba74" } },
+  { id: "sakura", colors: { activeColor: "#fda4af", inactiveColor: "#fce7f3", translationColor: "#fbcfe8", romanizationColor: "#fecdd3" } },
+  { id: "contrast", colors: { activeColor: "#ffffff", inactiveColor: "#cbd5e1", translationColor: "#e2e8f0", romanizationColor: "#94a3b8" } },
 ];
 
 const overlayColorKeys: Array<keyof OverlayColorValues> = [
@@ -36,6 +36,7 @@ function matchesColorPreset(style: OverlayStyle, preset: OverlayColorPreset) {
 }
 
 export default function OverlaySettingsPage() {
+  const { t } = useTranslation();
   const {
     config,
     overlaySettings,
@@ -56,88 +57,89 @@ export default function OverlaySettingsPage() {
   const secondaryFlags = secondaryDisplayFlags(style.secondaryDisplay);
   const lyricCapabilities = lyrics.document
     ? [
-        lyrics.document.tracks.translation ? "有翻译" : "无翻译",
-        lyrics.document.tracks.romanization ? "有音译" : "无音译",
-        lyrics.document.tracks.original.lines.some((line) => line.words?.length) ? "有逐字时间轴" : "无逐字时间轴",
+        lyrics.document.tracks.translation ? t("common.feature.hasTranslation") : t("common.feature.noTranslation"),
+        lyrics.document.tracks.romanization ? t("common.feature.hasRomanization") : t("common.feature.noRomanization"),
+        lyrics.document.tracks.original.lines.some((line) => line.words?.length) ? t("common.feature.hasWordTiming") : t("common.feature.noWordTiming"),
       ].join(" · ")
-    : "关联歌词后会显示翻译、音译和逐字时间轴的可用状态";
+    : t("settings.common.capabilitiesHint");
   const secondaryLayoutHint = style.layout === "double"
     ? secondaryFlags.translation && secondaryFlags.romanization
-      ? `同时开启时优先显示翻译，无翻译时显示音译 · ${lyricCapabilities}`
+      ? t("settings.overlay.doubleHint", { capabilities: lyricCapabilities })
       : lyricCapabilities
-    : `当前布局不显示副歌词 · ${lyricCapabilities}`;
+    : t("settings.overlay.singleHint", { capabilities: lyricCapabilities });
   const alignmentAvailable = style.layout === "double";
   const alignmentDescription = style.layout === "double" && style.orientation === "vertical"
-    ? "主副分居会将右侧主歌词靠上、左侧副歌词靠下"
+    ? t("settings.overlay.alignmentVertical")
     : style.layout === "double"
-      ? "主副分居会将主歌词靠左、副歌词靠右"
-      : "当前布局固定居中";
+      ? t("settings.overlay.alignmentHorizontal")
+      : t("settings.overlay.alignmentFixed");
   const activeColorPreset = overlayColorPresets.find((preset) => matchesColorPreset(style, preset));
 
   const applyColorPreset = async (preset: OverlayColorPreset) => {
     setError(null);
     setNotice(null);
-    if (await updateStyle(preset.colors)) setNotice(`已应用「${preset.name}」配色。`);
+    const name = t(`settings.overlay.presets.${preset.id}`);
+    if (await updateStyle(preset.colors)) setNotice(t("settings.overlay.colorApplied", { name }));
   };
 
   return (
     <>
-      <SettingsHeading title="桌面歌词" description="横排宽度、竖排高度由边缘拖动设定；解锁后拖动空白区域可移动浮窗。" onReset={() => void resetSection("overlay")} resetting={resettingSection === "overlay"} confirming={confirmingReset === "overlay"} />
-      <SettingsCard title="浮窗状态">
-        <ToggleRow label="显示桌面歌词" description="在所有桌面空间置顶显示" value={overlaySettings.visible} onChange={setVisible} />
+      <SettingsHeading title={t("settings.overlay.title")} description={t("settings.overlay.description")} onReset={() => void resetSection("overlay")} resetting={resettingSection === "overlay"} confirming={confirmingReset === "overlay"} />
+      <SettingsCard title={t("settings.overlay.state")}>
+        <ToggleRow label={t("settings.overlay.show")} description={t("settings.overlay.showHint")} value={overlaySettings.visible} onChange={setVisible} />
         <ToggleRow
-          label="未播放时自动隐藏"
-          description="暂停、停止或播放器不可用时隐藏；恢复播放后自动显示（需开启显示桌面歌词）"
+          label={t("settings.overlay.autoHide")}
+          description={t("settings.overlay.autoHideHint")}
           value={config.overlay.hideWhenNotPlaying}
           onChange={(hidden) => setOverlayHideWhenNotPlaying(hidden).catch((value) => setError(messageOf(value)))}
         />
-        <ToggleRow label="锁定并鼠标穿透" description="锁定后点击会穿透到下方窗口" value={overlaySettings.locked} onChange={setLocked} />
-        <div className={styles.buttonRow}><button onClick={() => void resetOverlayBounds()}>复位桌面歌词位置</button></div>
+        <ToggleRow label={t("settings.overlay.lock")} description={t("settings.overlay.lockHint")} value={overlaySettings.locked} onChange={setLocked} />
+        <div className={styles.buttonRow}><button onClick={() => void resetOverlayBounds()}>{t("settings.overlay.resetPosition")}</button></div>
       </SettingsCard>
-      <SettingsCard title="快捷配色" trailing={<span className={styles.colorPresetStatus}>当前：{activeColorPreset?.name ?? "自定义"}</span>}>
+      <SettingsCard title={t("settings.overlay.colors")} trailing={<span className={styles.colorPresetStatus}>{t("settings.overlay.currentColor", { name: activeColorPreset ? t(`settings.overlay.presets.${activeColorPreset.id}`) : t("settings.overlay.custom") })}</span>}>
         <div className={styles.colorPresetGrid}>
           {overlayColorPresets.map((preset) => {
             const active = preset.id === activeColorPreset?.id;
             return (
-              <button type="button" className={styles.colorPresetButton} data-active={active} aria-label={`应用${preset.name}配色`} aria-pressed={active} key={preset.id} onClick={() => void applyColorPreset(preset)}>
+              <button type="button" className={styles.colorPresetButton} data-active={active} aria-label={t("settings.overlay.applyColor", { name: t(`settings.overlay.presets.${preset.id}`) })} aria-pressed={active} key={preset.id} onClick={() => void applyColorPreset(preset)}>
                 <span className={styles.colorPresetPreview} aria-hidden="true">{overlayColorKeys.map((key) => <i key={key} style={{ background: preset.colors[key] }} />)}</span>
-                <strong>{preset.name}</strong>
+                <strong>{t(`settings.overlay.presets.${preset.id}`)}</strong>
               </button>
             );
           })}
         </div>
       </SettingsCard>
-      <SettingsCard title="文字与效果">
-        <RangeRow label="字号" value={style.fontSize} min={16} max={72} suffix="px" onChange={(fontSize) => void updateStyle({ fontSize })} />
-        <RangeRow label="透明度" value={style.opacity} min={0.2} max={1} step={0.05} suffix="%" displayValue={Math.round(style.opacity * 100)} onChange={(opacity) => void updateStyle({ opacity })} />
-        <ColorRow label="高亮颜色" value={style.activeColor} onChange={(activeColor) => void updateStyle({ activeColor })} />
-        <ColorRow label="未唱颜色" value={style.inactiveColor} onChange={(inactiveColor) => void updateStyle({ inactiveColor })} />
-        <SelectRow label="卡拉 OK 效果" value={style.karaokeStyle} onChange={(karaokeStyle) => void updateStyle({ karaokeStyle: karaokeStyle as OverlayStyle["karaokeStyle"] })} options={[["sweep", "逐词扫光"], ["bounce", "逐词弹跳"], ["highlight", "纯高亮"]]} />
+      <SettingsCard title={t("settings.overlay.textEffects")}>
+        <RangeRow label={t("settings.overlay.fontSize")} value={style.fontSize} min={16} max={72} suffix="px" onChange={(fontSize) => void updateStyle({ fontSize })} />
+        <RangeRow label={t("settings.overlay.opacity")} value={style.opacity} min={0.2} max={1} step={0.05} suffix="%" displayValue={Math.round(style.opacity * 100)} onChange={(opacity) => void updateStyle({ opacity })} />
+        <ColorRow label={t("settings.overlay.activeColor")} value={style.activeColor} onChange={(activeColor) => void updateStyle({ activeColor })} />
+        <ColorRow label={t("settings.overlay.inactiveColor")} value={style.inactiveColor} onChange={(inactiveColor) => void updateStyle({ inactiveColor })} />
+        <SelectRow label={t("settings.overlay.karaoke")} value={style.karaokeStyle} onChange={(karaokeStyle) => void updateStyle({ karaokeStyle: karaokeStyle as OverlayStyle["karaokeStyle"] })} options={[["sweep", t("settings.overlay.karaokeSweep")], ["bounce", t("settings.overlay.karaokeBounce")], ["highlight", t("settings.overlay.karaokeHighlight")]]} />
       </SettingsCard>
-      <SettingsCard title="背景与排版">
-        <SelectRow label="背景模式" value={style.backgroundMode} onChange={(backgroundMode) => void updateStyle({ backgroundMode: backgroundMode as OverlayStyle["backgroundMode"] })} options={[["solid", "纯色"], ["transparent", "透明"]]} />
+      <SettingsCard title={t("settings.overlay.backgroundLayout")}>
+        <SelectRow label={t("settings.overlay.backgroundMode")} value={style.backgroundMode} onChange={(backgroundMode) => void updateStyle({ backgroundMode: backgroundMode as OverlayStyle["backgroundMode"] })} options={[["solid", t("settings.overlay.solid")], ["transparent", t("settings.overlay.transparent")]]} />
         {style.backgroundMode === "solid" && (
           <>
-            <RangeRow label="背景透明度" value={style.backgroundOpacity} min={0} max={1} step={0.05} suffix="%" displayValue={Math.round(style.backgroundOpacity * 100)} onChange={(backgroundOpacity) => void updateStyle({ backgroundOpacity })} />
-            <ColorRow label="背景颜色" value={style.solidColor} onChange={(solidColor) => void updateStyle({ solidColor })} />
-            <ToggleRow label="毛玻璃" description="独立模糊背景；透明度为 0% 时仍然生效" value={style.background === "glass"} onChange={(enabled) => updateStyle({ background: enabled ? "glass" : "solid" })} />
-            {style.background === "glass" && <RangeRow label="磨砂强度" value={style.backgroundBlur} min={0} max={40} suffix="%" displayValue={Math.round(style.backgroundBlur / 40 * 100)} onChange={(backgroundBlur) => void updateStyle({ backgroundBlur })} />}
+            <RangeRow label={t("settings.overlay.backgroundOpacity")} value={style.backgroundOpacity} min={0} max={1} step={0.05} suffix="%" displayValue={Math.round(style.backgroundOpacity * 100)} onChange={(backgroundOpacity) => void updateStyle({ backgroundOpacity })} />
+            <ColorRow label={t("settings.overlay.backgroundColor")} value={style.solidColor} onChange={(solidColor) => void updateStyle({ solidColor })} />
+            <ToggleRow label={t("settings.overlay.glass")} description={t("settings.overlay.glassHint")} value={style.background === "glass"} onChange={(enabled) => updateStyle({ background: enabled ? "glass" : "solid" })} />
+            {style.background === "glass" && <RangeRow label={t("settings.overlay.blur")} value={style.backgroundBlur} min={0} max={40} suffix="%" displayValue={Math.round(style.backgroundBlur / 40 * 100)} onChange={(backgroundBlur) => void updateStyle({ backgroundBlur })} />}
           </>
         )}
-        <SelectRow label="歌词布局" value={style.layout} onChange={(value) => void updateStyle({ layout: value as OverlayStyle["layout"] })} options={[["single", "单歌词"], ["double", "双歌词"]]} />
-        <SelectRow label="文字方向" value={style.orientation} onChange={(value) => void updateStyle({ orientation: value as OverlayStyle["orientation"] })} options={[["horizontal", "横排"], ["vertical", "竖排"]]} />
-        <SelectRow label="歌词对齐" description={alignmentDescription} disabled={!alignmentAvailable} value={alignmentAvailable ? style.alignment : "center"} onChange={(alignment) => void updateStyle({ alignment: alignment as OverlayStyle["alignment"] })} options={[["center", "居中"], ["distributed", "主副分居"]]} />
-        <SelectRow label="长歌词" value={style.longText} onChange={(longText) => void updateStyle({ longText: longText as OverlayStyle["longText"] })} options={[["shrink", "智能缩放"], ["wrap", "自动换行"], ["marquee", "超出时滚动"]]} />
+        <SelectRow label={t("settings.overlay.lyricLayout")} value={style.layout} onChange={(value) => void updateStyle({ layout: value as OverlayStyle["layout"] })} options={[["single", t("overlay.layout.single")], ["double", t("overlay.layout.double")]]} />
+        <SelectRow label={t("settings.overlay.textDirection")} value={style.orientation} onChange={(value) => void updateStyle({ orientation: value as OverlayStyle["orientation"] })} options={[["horizontal", t("overlay.orientation.horizontal")], ["vertical", t("overlay.orientation.vertical")]]} />
+        <SelectRow label={t("settings.overlay.alignment")} description={alignmentDescription} disabled={!alignmentAvailable} value={alignmentAvailable ? style.alignment : "center"} onChange={(alignment) => void updateStyle({ alignment: alignment as OverlayStyle["alignment"] })} options={[["center", t("settings.overlay.centered")], ["distributed", t("settings.overlay.distributed")]]} />
+        <SelectRow label={t("settings.overlay.longLyrics")} value={style.longText} onChange={(longText) => void updateStyle({ longText: longText as OverlayStyle["longText"] })} options={[["shrink", t("settings.overlay.shrink")], ["wrap", t("settings.overlay.wrap")], ["marquee", t("settings.overlay.marquee")]]} />
       </SettingsCard>
-      <SettingsCard title="副歌词、翻译与音译">
-        <RangeRow label="副歌词字号" value={style.secondaryFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.secondaryFontScale * 100)} onChange={(secondaryFontScale) => void updateStyle({ secondaryFontScale })} />
-        <ToggleRow label="显示翻译" description={secondaryLayoutHint} value={secondaryFlags.translation} onChange={(translation) => updateStyle({ secondaryDisplay: secondaryDisplayFromFlags(translation, secondaryFlags.romanization) })} />
-        <RangeRow label="翻译字号" value={style.translationFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.translationFontScale * 100)} onChange={(translationFontScale) => void updateStyle({ translationFontScale })} />
-        <ColorRow label="翻译颜色" value={style.translationColor} onChange={(translationColor) => void updateStyle({ translationColor })} />
-        <ToggleRow label="显示音译" description={secondaryLayoutHint} value={secondaryFlags.romanization} onChange={(romanization) => updateStyle({ secondaryDisplay: secondaryDisplayFromFlags(secondaryFlags.translation, romanization) })} />
-        <RangeRow label="音译字号" value={style.romanizationFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.romanizationFontScale * 100)} onChange={(romanizationFontScale) => void updateStyle({ romanizationFontScale })} />
-        <ColorRow label="音译颜色" value={style.romanizationColor} onChange={(romanizationColor) => void updateStyle({ romanizationColor })} />
-        <ToggleRow label="显示翻译或音译时自动居中" description="仅在当前行实际显示翻译或音译时居中；回退显示下一句时仍使用歌词对齐设置" value={style.autoCenterWithTranslationOrRomanization} onChange={(autoCenterWithTranslationOrRomanization) => updateStyle({ autoCenterWithTranslationOrRomanization })} />
+      <SettingsCard title={t("settings.overlay.secondary")}>
+        <RangeRow label={t("settings.overlay.secondarySize")} value={style.secondaryFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.secondaryFontScale * 100)} onChange={(secondaryFontScale) => void updateStyle({ secondaryFontScale })} />
+        <ToggleRow label={t("settings.overlay.showTranslation")} description={secondaryLayoutHint} value={secondaryFlags.translation} onChange={(translation) => updateStyle({ secondaryDisplay: secondaryDisplayFromFlags(translation, secondaryFlags.romanization) })} />
+        <RangeRow label={t("settings.overlay.translationSize")} value={style.translationFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.translationFontScale * 100)} onChange={(translationFontScale) => void updateStyle({ translationFontScale })} />
+        <ColorRow label={t("settings.overlay.translationColor")} value={style.translationColor} onChange={(translationColor) => void updateStyle({ translationColor })} />
+        <ToggleRow label={t("settings.overlay.showRomanization")} description={secondaryLayoutHint} value={secondaryFlags.romanization} onChange={(romanization) => updateStyle({ secondaryDisplay: secondaryDisplayFromFlags(secondaryFlags.translation, romanization) })} />
+        <RangeRow label={t("settings.overlay.romanizationSize")} value={style.romanizationFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.romanizationFontScale * 100)} onChange={(romanizationFontScale) => void updateStyle({ romanizationFontScale })} />
+        <ColorRow label={t("settings.overlay.romanizationColor")} value={style.romanizationColor} onChange={(romanizationColor) => void updateStyle({ romanizationColor })} />
+        <ToggleRow label={t("settings.overlay.autoCenter")} description={t("settings.overlay.autoCenterHint")} value={style.autoCenterWithTranslationOrRomanization} onChange={(autoCenterWithTranslationOrRomanization) => updateStyle({ autoCenterWithTranslationOrRomanization })} />
       </SettingsCard>
     </>
   );

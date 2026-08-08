@@ -2,11 +2,11 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, isTauriRuntime } from "../../shared/api";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
-import { defaultGlobalShortcuts, defaultOverlayStyle, type AppConfig, type GlobalShortcutSettings } from "../../shared/types";
+import { defaultGlobalShortcuts, defaultOverlayStyle, type AppConfig, type GlobalShortcutSettings, type LanguagePreference } from "../../shared/types";
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 12,
-  app: { uiFontScale: 100, playerSelection: "auto", hideDockIcon: false, shortcuts: defaultGlobalShortcuts },
+  schemaVersion: 13,
+  app: { uiFontScale: 100, language: "system", playerSelection: "auto", hideDockIcon: false, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
       mode: "smart",
@@ -52,6 +52,7 @@ const defaultConfig: AppConfig = {
 type AppConfigContextValue = {
   config: AppConfig;
   setUiFontScale: (scale: number) => Promise<void>;
+  setLanguage: (language: LanguagePreference) => Promise<void>;
   setGlobalShortcuts: (shortcuts: GlobalShortcutSettings) => Promise<void>;
   setDockIconHidden: (hidden: boolean) => Promise<void>;
   setOverlayHideWhenNotPlaying: (hidden: boolean) => Promise<void>;
@@ -65,7 +66,7 @@ export function AppConfigProvider({
   windowType = "main",
 }: {
   children: React.ReactNode;
-  windowType?: "main" | "quick-lyrics";
+  windowType?: "main" | "quick-lyrics" | "overlay" | "unlock-handle";
 }) {
   const [config, setConfig] = useState(defaultConfig);
 
@@ -90,6 +91,13 @@ export function AppConfigProvider({
         return;
       }
       setConfig(await api.setUiFontScale(scale));
+    },
+    setLanguage: async (language) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({ ...current, app: { ...current.app, language } }));
+        return;
+      }
+      setConfig(await api.setLanguage(language));
     },
     setGlobalShortcuts: async (shortcuts) => {
       if (!isTauriRuntime()) {
@@ -126,6 +134,6 @@ export function AppConfigProvider({
 
 export function useAppConfig() {
   const value = useContext(AppConfigContext);
-  if (!value) throw new Error("useAppConfig 必须在 AppConfigProvider 内使用");
+  if (!value) throw new Error("useAppConfig must be used within AppConfigProvider");
   return value;
 }

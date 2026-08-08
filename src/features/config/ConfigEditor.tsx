@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, messageOf } from "../../shared/api";
+import { useTranslation } from "react-i18next";
+import { api, errorCodeOf, messageOf } from "../../shared/api";
 import type { AppConfig, ConfigDraftValidation, ConfigEditorData } from "../../shared/types";
 import { useAppConfig } from "./AppConfigProvider";
 import styles from "./ConfigEditor.module.scss";
@@ -11,6 +12,7 @@ type Props = {
 };
 
 export default function ConfigEditor({ onApplied, setError, setNotice }: Props) {
+  const { t } = useTranslation();
   const { config, syncConfig } = useAppConfig();
   const defaultEditor = useRef<HTMLPreElement>(null);
   const userEditor = useRef<HTMLTextAreaElement>(null);
@@ -102,10 +104,10 @@ export default function ConfigEditor({ onApplied, setError, setNotice }: Props) 
       syncConfig(saved);
       await onApplied(saved, false);
       applyEditorData(await api.getConfigEditorData());
-      setNotice("配置已保存并立即应用。官方注释和字段顺序已保持一致。");
+      setNotice(t("settings.config.savedNotice"));
     } catch (value) {
       const message = messageOf(value);
-      if (message.includes("重新载入")) setConflict(true);
+      if (errorCodeOf(value) === "config.conflict") setConflict(true);
       setError(message);
     } finally {
       setSaving(false);
@@ -122,11 +124,11 @@ export default function ConfigEditor({ onApplied, setError, setNotice }: Props) 
       anchor.download = value.fileName;
       anchor.click();
       URL.revokeObjectURL(url);
-      setNotice("配置已导出。");
+      setNotice(t("settings.config.exportedNotice"));
     } catch (value) { setError(messageOf(value)); }
   };
 
-  const defaultText = data?.defaultJsonc ?? "正在读取默认配置…";
+  const defaultText = data?.defaultJsonc ?? t("settings.config.loadingDefault");
   const lineNumbersOf = (value: string) =>
     Array.from({ length: value.split("\n").length }, (_, index) => index + 1).join("\n");
   const defaultLines = useMemo(() => lineNumbersOf(defaultText), [defaultText]);
@@ -143,61 +145,61 @@ export default function ConfigEditor({ onApplied, setError, setNotice }: Props) 
   };
 
   const status = conflict
-    ? { kind: "error", text: "底层配置已变化，请重新载入后继续编辑。" }
+    ? { kind: "error", text: t("settings.config.changed") }
     : validating
-      ? { kind: "checking", text: "正在验证 JSONC…" }
+      ? { kind: "checking", text: t("settings.config.validating") }
       : validation?.valid
-        ? { kind: "valid", text: dirty ? "配置有效，可以保存。" : "当前配置有效。" }
+        ? { kind: "valid", text: dirty ? t("settings.config.validSave") : t("settings.config.validCurrent") }
         : {
             kind: "error",
             text: validation?.error
-              ? `第 ${validation.error.line} 行，第 ${validation.error.column} 列：${validation.error.message}`
-              : "配置无效，预览使用左侧默认配置。",
+              ? t("settings.config.location", { line: validation.error.line, column: validation.error.column, message: t("errors.validation") })
+              : t("settings.config.invalid"),
           };
 
   return (
     <section className={styles.editorShell}>
       <header className={styles.header}>
-        <div><h2>配置编辑器</h2><p>左右配置采用相同字段顺序和官方注释，保存时会补齐缺失字段。</p></div>
+        <div><h2>{t("settings.config.title")}</h2><p>{t("settings.config.description")}</p></div>
         <div className={styles.actions}>
-          <button onClick={() => void reload()}>重新载入</button>
-          <button disabled={!data} onClick={() => data && changeDraft(data.defaultJsonc)}>恢复默认</button>
-          <button data-primary disabled={!dirty || !validation?.valid || conflict || validating || saving} onClick={() => void save()}>{saving ? "保存中…" : "保存并应用"}</button>
+          <button onClick={() => void reload()}>{t("common.actions.reload")}</button>
+          <button disabled={!data} onClick={() => data && changeDraft(data.defaultJsonc)}>{t("common.actions.resetDefault")}</button>
+          <button data-primary disabled={!dirty || !validation?.valid || conflict || validating || saving} onClick={() => void save()}>{saving ? t("settings.config.saving") : t("settings.config.saveApply")}</button>
         </div>
       </header>
 
       <div className={styles.toolbar}>
-        <button onClick={() => void exportConfig()}>导出配置</button>
-        <button onClick={() => void api.revealConfigDirectory().catch((value) => setError(messageOf(value)))}>打开配置目录</button>
+        <button onClick={() => void exportConfig()}>{t("settings.config.export")}</button>
+        <button onClick={() => void api.revealConfigDirectory().catch((value) => setError(messageOf(value)))}>{t("settings.config.openDirectory")}</button>
         <span data-kind={status.kind}>{status.text}</span>
       </div>
 
       <div className={styles.columns}>
         <section className={styles.panel}>
-          <header><strong>默认配置</strong><span>只读 · 带注释</span></header>
+          <header><strong>{t("settings.config.defaultConfig")}</strong><span>{t("settings.config.readOnly")}</span></header>
           <div className={styles.codeFrame}>
             <pre ref={defaultLineNumbers} aria-hidden className={styles.lineNumbers}>{defaultLines}</pre>
-            <pre ref={defaultEditor} aria-label="默认配置，只读" onScroll={(event) => syncScroll(event.currentTarget, userEditor.current)}><code>{defaultText}</code></pre>
+            <pre ref={defaultEditor} aria-label={t("settings.config.defaultAria")} onScroll={(event) => syncScroll(event.currentTarget, userEditor.current)}><code>{defaultText}</code></pre>
           </div>
         </section>
         <section className={styles.panel} data-invalid={!validation?.valid || conflict}>
-          <header><strong>我的配置</strong><span>{dirty ? "有未保存修改" : "已保存"}</span></header>
+          <header><strong>{t("settings.config.myConfig")}</strong><span>{dirty ? t("settings.config.unsaved") : t("settings.config.saved")}</span></header>
           <div className={styles.codeFrame}>
             <pre ref={userLineNumbers} aria-hidden className={styles.lineNumbers}>{userLines}</pre>
             <textarea
               ref={userEditor}
               aria-invalid={!validation?.valid || conflict}
-              aria-label="我的 JSONC 配置"
+              aria-label={t("settings.config.myConfigAria")}
               onChange={(event) => changeDraft(event.currentTarget.value)}
               onScroll={(event) => syncScroll(event.currentTarget, defaultEditor.current)}
-              placeholder="在这里输入 JSONC 配置"
+              placeholder={t("settings.config.placeholder")}
               spellCheck={false}
               value={draft}
             />
           </div>
         </section>
       </div>
-      {!validation?.valid && <p className={styles.fallback}>右侧草稿无效：有效配置预览将整体回退到左侧默认值，运行中的应用仍保持最后一次有效配置。</p>}
+      {!validation?.valid && <p className={styles.fallback}>{t("settings.config.fallback")}</p>}
     </section>
   );
 }

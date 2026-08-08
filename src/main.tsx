@@ -7,24 +7,30 @@ import UnlockHandle from "./features/overlay/UnlockHandle";
 import QuickLyricsWindow from "./features/lyrics/QuickLyricsWindow";
 import { AppConfigProvider } from "./features/config/AppConfigProvider";
 import { DebugLogProvider } from "./features/debug/DebugLogProvider";
+import { AppI18nProvider } from "./features/i18n/I18nProvider";
 
 import "virtual:uno.css";
 import "./styles.scss";
 
+const view = new URLSearchParams(window.location.search).get("view");
+const windowType = view === "overlay" || view === "unlock-handle" || view === "quick-lyrics"
+  ? view
+  : "main";
+
+const content = view === "overlay" ? (
+  <Overlay />
+) : view === "unlock-handle" ? (
+  <UnlockHandle />
+) : view === "quick-lyrics" ? (
+  <DebugLogProvider><QuickLyricsWindow /></DebugLogProvider>
+) : (
+  <DebugLogProvider><RouterProvider router={router} /></DebugLogProvider>
+);
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    {new URLSearchParams(window.location.search).get("view") === "overlay" ? (
-      <Overlay />
-    ) : new URLSearchParams(window.location.search).get("view") === "unlock-handle" ? (
-      <UnlockHandle />
-    ) : new URLSearchParams(window.location.search).get("view") === "quick-lyrics" ? (
-      <AppConfigProvider windowType="quick-lyrics">
-        <DebugLogProvider><QuickLyricsWindow /></DebugLogProvider>
-      </AppConfigProvider>
-    ) : (
-      <AppConfigProvider>
-        <DebugLogProvider><RouterProvider router={router} /></DebugLogProvider>
-      </AppConfigProvider>
-    )}
+    <AppConfigProvider windowType={windowType}>
+      <AppI18nProvider>{content}</AppI18nProvider>
+    </AppConfigProvider>
   </React.StrictMode>
 );

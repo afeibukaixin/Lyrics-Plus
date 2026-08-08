@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { Link } from "react-router";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
+import { localizedSource } from "../features/i18n/userText";
 import { api, isTauriRuntime, messageOf } from "../shared/api";
 import { createTauriListenerCleanup } from "../shared/tauriEvent";
 import type {
@@ -28,23 +31,25 @@ function formatDuration(value: number | null) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function scanDescription(status: LibraryScanStatus | null) {
+function scanDescription(status: LibraryScanStatus | null, t: TFunction) {
   if (!status || status.phase === "idle") return null;
+  const skipped = status.skipped ? t("library.scan.skipped", { count: status.skipped }) : "";
   if (status.phase === "discovering") {
-    return `正在发现歌词文件… 已发现 ${status.discovered} 首${status.skipped ? `，跳过 ${status.skipped}` : ""}`;
+    return t("library.scan.discovering", { discovered: status.discovered, skipped });
   }
   if (status.phase === "indexing") {
-    return `正在建立索引 ${status.processed} / ${status.total ?? status.discovered}${status.skipped ? `，跳过 ${status.skipped}` : ""}`;
+    return t("library.scan.indexing", { processed: status.processed, total: status.total ?? status.discovered, skipped });
   }
   if (status.phase === "completed") {
-    return `索引完成，共 ${status.total ?? status.processed} 首${status.skipped ? `，跳过 ${status.skipped}` : ""}`;
+    return t("library.scan.completed", { total: status.total ?? status.processed, skipped });
   }
-  if (status.phase === "failed") return status.error ?? "歌词目录扫描失败";
-  if (status.phase === "cancelled") return "上一次扫描已取消";
+  if (status.phase === "failed") return t("library.scan.failed");
+  if (status.phase === "cancelled") return t("library.scan.cancelled");
   return null;
 }
 
 export default function Library() {
+  const { t } = useTranslation();
   const [page, setPage] = useState<LibraryPage | null>(null);
   const [libraryDir, setLibraryDir] = useState<string | null>(null);
   const [scanStatus, setScanStatus] = useState<LibraryScanStatus | null>(null);
@@ -104,14 +109,14 @@ export default function Library() {
         setScanStatus(payload);
         setLibraryDir(payload.libraryDir);
         if (payload.phase === "indexing" || payload.phase === "completed") scheduleRefresh();
-        if (payload.phase === "failed" && payload.error) setError(payload.error);
+        if (payload.phase === "failed") setError(t("library.scan.failed"));
       }),
     );
     return () => {
       cleanup();
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     };
-  }, [loadWindow]);
+  }, [loadWindow, t]);
 
   const onListScroll = () => {
     if (scrollFrameRef.current !== null) return;
@@ -157,7 +162,7 @@ export default function Library() {
         directory: true,
         multiple: false,
         defaultPath: libraryDir ?? undefined,
-        title: "选择歌词目录",
+        title: t("library.chooseFolder"),
       });
       if (!path) return;
       setBusy("directory");
@@ -201,34 +206,34 @@ export default function Library() {
   const entries = page?.entries ?? [];
   const virtualHeight = totalCount * ROW_HEIGHT;
   const virtualTop = (page?.offset ?? 0) * ROW_HEIGHT;
-  const statusText = scanDescription(scanStatus);
+  const statusText = scanDescription(scanStatus, t);
   const scanning = scanStatus?.phase === "discovering" || scanStatus?.phase === "indexing";
   const resultText = useMemo(
-    () => searching ? `找到 ${totalCount} 首` : `${totalCount} 首歌词`,
-    [searching, totalCount],
+    () => searching ? t("library.found", { count: totalCount }) : t("common.units.song", { count: totalCount }),
+    [searching, t, totalCount],
   );
 
   return (
     <main className={styles.shell}>
       <header className={styles.header}>
         <div>
-          <span>LOCAL LIBRARY</span>
-          <h1>本地歌词库</h1>
-          <p>{libraryDir ?? "正在读取歌词目录…"}</p>
+          <span>{t("library.eyebrow").toUpperCase()}</span>
+          <h1>{t("library.title")}</h1>
+          <p>{libraryDir ?? t("library.loadingDirectory")}</p>
         </div>
         <div className={styles.headerActions}>
-          <button onClick={() => void rescan()}>{scanning ? "重新开始扫描" : "重新扫描"}</button>
-          <Link to="/">返回播放页</Link>
+          <button onClick={() => void rescan()}>{scanning ? t("library.restartScan") : t("library.rescan")}</button>
+          <Link to="/">{t("library.backPlayback")}</Link>
         </div>
       </header>
 
       <section className={styles.folderPanel}>
         <div className={styles.sectionTitle}>
-          <div><span>FOLDER</span><h2>歌词目录</h2></div>
+          <div><span>{t("library.folder").toUpperCase()}</span><h2>{t("library.folder")}</h2></div>
           <div className={styles.directoryActions}>
-            <button disabled={!libraryDir} onClick={() => void openLibraryDirectory()}>打开歌词目录</button>
+            <button disabled={!libraryDir} onClick={() => void openLibraryDirectory()}>{t("library.openFolder")}</button>
             <button disabled={busy === "directory"} onClick={() => void changeDirectory()}>
-              {busy === "directory" ? "切换中…" : "修改目录"}
+              {busy === "directory" ? t("library.changing") : t("library.changeFolder")}
             </button>
           </div>
         </div>
@@ -242,16 +247,16 @@ export default function Library() {
             <label className={styles.searchBox}>
               <span aria-hidden="true">⌕</span>
               <input
-                aria-label="搜索歌名或歌手"
+                aria-label={t("library.searchLabel")}
                 autoComplete="off"
-                placeholder="搜索歌名或歌手"
+                placeholder={t("library.searchPlaceholder")}
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.currentTarget.value)}
               />
-              {searchInput && <button type="button" aria-label="清除搜索" onClick={() => setSearchInput("")}>×</button>}
+              {searchInput && <button type="button" aria-label={t("library.clearSearch")} onClick={() => setSearchInput("")}>×</button>}
             </label>
             <span className={styles.resultCount}>{resultText}</span>
-            <span className={styles.columnHint}>时长 / 大小</span>
+            <span className={styles.columnHint}>{t("library.durationSize")}</span>
           </div>
           <div ref={listRef} className={styles.entryList} onScroll={onListScroll}>
             {totalCount > 0 && (
@@ -259,13 +264,13 @@ export default function Library() {
                 <div className={styles.virtualWindow} style={{ transform: `translateY(${virtualTop}px)` }}>
                   {entries.map((entry) => (
                     <button key={entry.path} data-selected={entry.path === selectedPath} onClick={() => void selectEntry(entry)}>
-                      <span><strong>{entry.title}</strong><small>{entry.artist} · {entry.source} · {entry.format.toUpperCase()}</small></span>
+                      <span><strong>{entry.title}</strong><small>{entry.artist} · {localizedSource(entry.source, t)} · {entry.format.toUpperCase()}</small></span>
                       <span className={styles.badges}>
-                        {entry.duplicateCount > 1 && <b>重复 ×{entry.duplicateCount}</b>}
-                        {entry.associationCount > 0 && <b>已关联 {entry.associationCount}</b>}
-                        {entry.hasWordTiming && <b>逐字</b>}
-                        {entry.hasTranslation && <b>翻译</b>}
-                        {entry.hasRomanization && <b>音译</b>}
+                        {entry.duplicateCount > 1 && <b>{t("library.duplicate", { count: entry.duplicateCount })}</b>}
+                        {entry.associationCount > 0 && <b>{t("library.associated", { count: entry.associationCount })}</b>}
+                        {entry.hasWordTiming && <b>{t("common.feature.wordTiming")}</b>}
+                        {entry.hasTranslation && <b>{t("common.feature.translation")}</b>}
+                        {entry.hasRomanization && <b>{t("common.feature.romanization")}</b>}
                       </span>
                       <em>{formatDuration(entry.durationMs)}<small>{formatBytes(entry.fileSize)}</small></em>
                     </button>
@@ -273,30 +278,30 @@ export default function Library() {
                 </div>
               </div>
             )}
-            {page && totalCount === 0 && !searching && <div className={styles.empty}>{scanning ? "正在索引歌词…" : "当前歌词目录中没有歌词"}</div>}
+            {page && totalCount === 0 && !searching && <div className={styles.empty}>{scanning ? t("library.indexingEmpty") : t("library.directoryEmpty")}</div>}
             {page && totalCount === 0 && searching && (
               <div className={styles.searchEmpty}>
-                <span>没有找到匹配的歌词</span>
-                <button type="button" onClick={() => setSearchInput("")}>清除搜索</button>
+                <span>{t("library.noMatches")}</span>
+                <button type="button" onClick={() => setSearchInput("")}>{t("library.clearSearch")}</button>
               </div>
             )}
           </div>
         </div>
 
         <aside className={styles.preview}>
-          {!preview ? <div className={styles.empty}>{busy === "preview" ? "正在读取歌词…" : "选择一首歌词查看原文"}</div> : (
+          {!preview ? <div className={styles.empty}>{busy === "preview" ? t("library.readingPreview") : t("library.selectPreview")}</div> : (
             <>
               <div className={styles.previewTop}>
                 <div className={styles.previewHeading}>
-                  <span>PREVIEW</span><h2>{preview.entry.title}</h2><p>{preview.entry.artist}</p>
+                  <span>{t("library.preview").toUpperCase()}</span><h2>{preview.entry.title}</h2><p>{preview.entry.artist}</p>
                 </div>
-                <button onClick={() => void revealPreview()}>在访达中显示</button>
+                <button onClick={() => void revealPreview()}>{t("library.revealFile")}</button>
               </div>
               <div className={styles.previewMeta}>
-                <span>{preview.entry.source}</span><span>{preview.entry.format.toUpperCase()}</span><span>{preview.document?.tracks.original.lines.length ?? 0} 行</span>
-                {preview.entry.hasWordTiming && <span>逐字</span>}
-                {preview.entry.hasTranslation && <span>翻译</span>}
-                {preview.entry.hasRomanization && <span>音译</span>}
+                <span>{localizedSource(preview.entry.source, t)}</span><span>{preview.entry.format.toUpperCase()}</span><span>{t("common.units.line", { count: preview.document?.tracks.original.lines.length ?? 0 })}</span>
+                {preview.entry.hasWordTiming && <span>{t("common.feature.wordTiming")}</span>}
+                {preview.entry.hasTranslation && <span>{t("common.feature.translation")}</span>}
+                {preview.entry.hasRomanization && <span>{t("common.feature.romanization")}</span>}
               </div>
               <pre>{preview.raw}</pre>
             </>
