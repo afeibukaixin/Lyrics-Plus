@@ -14,6 +14,7 @@ import type {
   LibraryScanStatus,
 } from "../shared/types";
 import styles from "./library.module.scss";
+import { UiIcon } from "../components/UiIcon";
 
 const PAGE_SIZE = 100;
 const WINDOW_SIZE = 200;
@@ -245,7 +246,7 @@ export default function Library() {
         <div className={styles.browser}>
           <div className={styles.listToolbar}>
             <label className={styles.searchBox}>
-              <span aria-hidden="true">⌕</span>
+              <UiIcon name="search" />
               <input
                 aria-label={t("library.searchLabel")}
                 autoComplete="off"
@@ -253,7 +254,7 @@ export default function Library() {
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.currentTarget.value)}
               />
-              {searchInput && <button type="button" aria-label={t("library.clearSearch")} onClick={() => setSearchInput("")}>×</button>}
+              {searchInput && <button type="button" aria-label={t("library.clearSearch")} onClick={() => setSearchInput("")}><UiIcon name="close" /></button>}
             </label>
             <span className={styles.resultCount}>{resultText}</span>
             <span className={styles.columnHint}>{t("library.durationSize")}</span>

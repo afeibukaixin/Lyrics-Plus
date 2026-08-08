@@ -89,7 +89,9 @@ export const enUS = {
       offsetReset: "The current lyrics offset is {{value}}; click to reset", offsetZeroTitle: "Current lyrics offset: 0ms",
       offsetTitle: "Current lyrics offset: {{value}}; click to reset", toggleLayout: "Switch single/double lyrics; current: {{value}}",
       toggleLayoutTitle: "Switch single/double lyrics (current: {{value}})", toggleOrientation: "Switch horizontal/vertical; current: {{value}}",
-      toggleOrientationTitle: "Switch horizontal/vertical (current: {{value}})", showTrack: "Show {{track}}", hideTrack: "Hide {{track}}",
+      toggleOrientationTitle: "Switch horizontal/vertical (current: {{value}})", toggleBackground: "Toggle lyrics background; current: {{value}}",
+      toggleBackgroundTitle: "Toggle lyrics background (current: {{value}})", backgroundVisible: "background visible", backgroundTransparent: "transparent background",
+      showTrack: "Show {{track}}", hideTrack: "Hide {{track}}",
       unsupportedLayout: "{{action}} (secondary lyrics are hidden in this layout)", unavailableTrack: "{{action}} (the current lyrics have no {{track}}; the next line will appear instead)",
       translationGlyph: "T", romanizationGlyph: "R", hide: "Hide desktop lyrics", openSettings: "Open desktop lyrics settings",
     },
@@ -167,4 +169,3 @@ export const enUS = {
     },
   },
 } satisfies AppTranslationResource;
-

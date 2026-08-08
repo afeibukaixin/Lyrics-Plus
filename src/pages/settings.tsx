@@ -10,6 +10,7 @@ import {
 import { listen } from "@tauri-apps/api/event";
 import { Link, NavLink, Outlet, useOutletContext } from "react-router";
 import { useTranslation } from "react-i18next";
+import { UiIcon } from "../components/UiIcon";
 import { useLyrics } from "../features/lyrics/useLyrics";
 import { usePlayback } from "../features/player/usePlayback";
 import { useAppConfig } from "../features/config/AppConfigProvider";
@@ -385,16 +386,16 @@ export default function Settings() {
 
       <div className={styles.settingsLayout}>
         <nav className={styles.sidebar} aria-label={t("settings.shell.navigation")}>
-          <NavLink to="/settings/overlay"><span>◫</span><div><strong>{t("settings.shell.nav.overlay")}</strong><small>{t("settings.shell.nav.overlayHint")}</small></div></NavLink>
-          <NavLink to="/settings/lyrics"><span>≋</span><div><strong>{t("settings.shell.nav.lyrics")}</strong><small>{t("settings.shell.nav.lyricsHint")}</small></div></NavLink>
-          <NavLink to="/settings/app"><span>⚙</span><div><strong>{t("settings.shell.nav.app")}</strong><small>{t("settings.shell.nav.appHint")}</small></div></NavLink>
-          <NavLink to="/settings/debug"><span>⌁</span><div><strong>{t("settings.shell.nav.debug")}</strong><small>{t("settings.shell.nav.debugHint")}</small></div></NavLink>
-          <NavLink to="/settings/config"><span>{"{}"}</span><div><strong>{t("settings.shell.nav.config")}</strong><small>{t("settings.shell.nav.configHint")}</small></div></NavLink>
+          <NavLink to="/settings/overlay"><UiIcon name="monitor" /><div><strong>{t("settings.shell.nav.overlay")}</strong><small>{t("settings.shell.nav.overlayHint")}</small></div></NavLink>
+          <NavLink to="/settings/lyrics"><UiIcon name="musicNotes" /><div><strong>{t("settings.shell.nav.lyrics")}</strong><small>{t("settings.shell.nav.lyricsHint")}</small></div></NavLink>
+          <NavLink to="/settings/app"><UiIcon name="gear" /><div><strong>{t("settings.shell.nav.app")}</strong><small>{t("settings.shell.nav.appHint")}</small></div></NavLink>
+          <NavLink to="/settings/debug"><UiIcon name="bug" /><div><strong>{t("settings.shell.nav.debug")}</strong><small>{t("settings.shell.nav.debugHint")}</small></div></NavLink>
+          <NavLink to="/settings/config"><UiIcon name="bracketsCurly" /><div><strong>{t("settings.shell.nav.config")}</strong><small>{t("settings.shell.nav.configHint")}</small></div></NavLink>
         </nav>
 
         <div className={styles.content}><Outlet context={context} /></div>
       </div>
-      {(error || notice) && <div className={styles.toast} data-error={Boolean(error)}>{error ?? notice}<button aria-label={t("settings.shell.closeToast")} onClick={() => { setError(null); setNotice(null); }}>×</button></div>}
+      {(error || notice) && <div className={styles.toast} data-error={Boolean(error)}>{error ?? notice}<button aria-label={t("settings.shell.closeToast")} onClick={() => { setError(null); setNotice(null); }}><UiIcon name="close" /></button></div>}
     </main>
   );
 }

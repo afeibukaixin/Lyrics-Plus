@@ -5,7 +5,4 @@
   backdrop-filter: blur(10px); transition: opacity .16s, background .16s, color .16s;
 }
 .handle[data-hover="true"], .handle:focus-visible { background: rgba(24,24,32,.9); color: #fff; opacity: 1; }
-.handle svg {
-  width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8;
-  stroke-linecap: round; stroke-linejoin: round;
-}
+.handle > span { width: 14px; height: 14px; }

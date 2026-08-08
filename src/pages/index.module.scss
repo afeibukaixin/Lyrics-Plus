@@ -35,7 +35,7 @@
   display: grid; place-items: center; border: 1px solid rgba(255,255,255,.07); border-radius: 16px;
   background: #1a1c24; color: #747988; font-size: 52px; box-shadow: 0 18px 38px #0006;
 }
-.artwork > span { transform: translateY(-1px); }
+.artwork > span { width: 52px; height: 52px; transform: translateY(-1px); }
 .artwork img {
   position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: cover;
   opacity: 0; transition: opacity .18s ease;
@@ -46,8 +46,10 @@
 .trackMeta h1 { margin: 6px 0 5px; overflow: hidden; color: #f4f2fa; font-size: clamp(1.25rem, 2.6vw, 1.65rem); line-height: var(--typography-display-line-height); font-weight: var(--typography-display-weight); letter-spacing: -.04em; text-overflow: ellipsis; white-space: nowrap; }
 .trackMeta p { margin: 0; overflow: hidden; color: #858a9a; font-size: var(--typography-body-size); line-height: var(--typography-body-line-height); font-weight: var(--typography-body-weight); text-overflow: ellipsis; white-space: nowrap; }
 .transport { display: flex; align-items: center; justify-content: center; gap: 13px; margin-top: 17px; }
-.transport button { width: 36px; height: 36px; border-radius: 50%; color: #959aa8; font-size: 18px; }
-.transport .playButton { width: 48px; height: 48px; background: #eeeaf8; color: #17151c; font-size: 13px; box-shadow: 0 8px 24px #0005; }
+.transport button { width: 36px; height: 36px; border-radius: 50%; color: #959aa8; }
+.transport button > span { width: 20px; height: 20px; margin: auto; }
+.transport .playButton { width: 48px; height: 48px; background: #eeeaf8; color: #17151c; box-shadow: 0 8px 24px #0005; }
+.transport .playButton > span { width: 22px; height: 22px; }
 .progressRow { display: flex; align-items: center; gap: 9px; margin-top: 13px; color: #6b7181; font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); font-weight: var(--typography-label-weight); font-variant-numeric: tabular-nums; }
 .progressRow input {
   flex: 1; height: 3px; appearance: none; border-radius: 99px;
@@ -98,7 +100,7 @@
 }
 .returnToCurrent:hover { border-color: #a990ff99; background: #2a2245ee; color: #fff; }
 .emptyState { display: grid; justify-items: center; gap: 8px; color: #777d8d; text-align: center; }
-.emptyState > span { color: #8f75fa; font-size: 32px; }
+.emptyState > span { width: 32px; height: 32px; color: #8f75fa; }
 .emptyState strong { color: #cfd2db; font-size: var(--typography-title-sm-size); line-height: var(--typography-title-sm-line-height); font-weight: var(--typography-title-sm-weight); }
 .emptyState p { max-width: 440px; margin: 0; overflow-wrap: anywhere; font-size: var(--typography-body-sm-size); line-height: var(--typography-body-sm-line-height); font-weight: var(--typography-body-sm-weight); }
 .toast { position: fixed; right: 28px; bottom: 28px; max-width: min(420px, calc(100vw - 56px)); padding: 12px 15px; border: 1px solid rgba(255,135,150,.25); border-radius: 12px; background: #322129; color: #ffc2cb; overflow-wrap: anywhere; font-size: var(--typography-body-size); line-height: var(--typography-body-line-height); font-weight: var(--typography-body-weight); box-shadow: 0 14px 50px #0008; }

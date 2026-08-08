@@ -5,6 +5,7 @@ import { useLyrics } from "./useLyrics";
 import { usePlayback } from "../player/usePlayback";
 import type { LyricsSearchResult } from "../../shared/types";
 import styles from "./QuickLyricsWindow.module.scss";
+import { UiIcon } from "../../components/UiIcon";
 
 function formatTime(value: number | null | undefined) {
   if (value == null) return null;
@@ -118,7 +119,7 @@ export default function QuickLyricsWindow() {
       </header>
 
       <form className={styles.search} onSubmit={(event) => { event.preventDefault(); void searchByTitle(); }}>
-        <span aria-hidden="true">⌕</span>
+        <UiIcon name="search" />
         <input
           aria-label={t("quickLyrics.searchLabel")}
           autoComplete="off"
@@ -161,7 +162,7 @@ export default function QuickLyricsWindow() {
             })}
             {lyrics.results.length === 0 && (
               <div className={styles.empty}>
-                <span>{lyrics.searching ? "◌" : "♪"}</span>
+                {lyrics.searching ? <UiIcon name="spinner" spin /> : <UiIcon name="musicNotes" />}
                 <strong>{lyrics.searching ? t("quickLyrics.searchingCandidates") : t("quickLyrics.noCandidates")}</strong>
                 <p>{lyrics.error ?? t("quickLyrics.autoSearchHint")}</p>
               </div>
@@ -182,7 +183,7 @@ export default function QuickLyricsWindow() {
               </footer>
             </>
           ) : (
-            <div className={styles.empty}><span>≋</span><strong>{t("quickLyrics.selectCandidate")}</strong><p>{t("quickLyrics.rawHint")}</p></div>
+            <div className={styles.empty}><UiIcon name="fileText" /><strong>{t("quickLyrics.selectCandidate")}</strong><p>{t("quickLyrics.rawHint")}</p></div>
           )}
         </aside>
       </section>

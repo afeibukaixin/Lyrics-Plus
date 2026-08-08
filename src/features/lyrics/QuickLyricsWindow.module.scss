@@ -20,7 +20,7 @@
   border: 1px solid #ffffff10; border-radius: 11px; background: rgba(15,17,24,.78);
 }
 .search:focus-within { border-color: #9277f477; box-shadow: 0 0 0 2px #9277f412; }
-.search > span { color: #8d77e1; font-size: 1rem; }
+.search > span { width: 17px; height: 17px; color: #8d77e1; }
 .search input { min-width: 0; padding: 0; border: 0; outline: 0; background: transparent; color: #d9dbe2; font-size: var(--typography-body-size); line-height: var(--typography-body-line-height); font-weight: var(--typography-body-weight); }
 .search input::placeholder { color: #626877; }
 .search button { padding: 6px 11px; }
@@ -59,7 +59,7 @@ button[data-current="true"] .rank { background: #438b70; }
 .previewFooter { padding: 12px 13px; border-top: 1px solid #ffffff0b; }
 .previewFooter span { display: block; min-width: 0; overflow: hidden; color: #777d8d; font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); font-weight: var(--typography-label-weight); text-overflow: ellipsis; white-space: nowrap; }
 .empty { min-height: 100%; display: grid; align-content: center; justify-items: center; gap: 7px; padding: 24px; color: #6d7281; text-align: center; }
-.empty > span { color: #8c76dd; font-size: 28px; }
+.empty > span { width: 28px; height: 28px; color: #8c76dd; }
 .empty strong { color: #c5c8d1; font-size: var(--typography-body-size); line-height: var(--typography-body-line-height); font-weight: var(--typography-label-weight); }
 .empty p { max-width: 280px; margin: 0; overflow-wrap: anywhere; font-size: var(--typography-body-sm-size); line-height: var(--typography-body-sm-line-height); font-weight: var(--typography-body-sm-weight); }
 .toast { position: fixed; right: 22px; bottom: 22px; max-width: min(420px, calc(100vw - 44px)); padding: 10px 13px; border: 1px solid #ff879644; border-radius: 10px; background: #322129; color: #ffc2cb; overflow-wrap: anywhere; font-size: var(--typography-body-size); line-height: var(--typography-body-line-height); font-weight: var(--typography-body-weight); box-shadow: 0 14px 40px #0009; }

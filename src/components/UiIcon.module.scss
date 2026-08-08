@@ -1,0 +1,16 @@
+.icon {
+  width: 1em;
+  height: 1em;
+  display: block;
+  flex: none;
+}
+
+.spin { animation: icon-spin .8s linear infinite; }
+
+@keyframes icon-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin { animation: none; }
+}

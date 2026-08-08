@@ -29,10 +29,11 @@
 .listToolbar { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(0, auto) minmax(72px, auto); gap: 12px; align-items: center; padding: 10px 15px; border-bottom: 1px solid #ffffff09; color: #5f6473; font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); font-weight: var(--typography-label-weight); }
 .searchBox { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 7px; align-items: center; padding: 7px 9px; border: 1px solid #ffffff10; border-radius: 9px; background: #0e1016; }
 .searchBox:focus-within { border-color: #9277f477; box-shadow: 0 0 0 2px #9277f412; }
-.searchBox > span { color: #8174bb; font-size: .875rem; line-height: 1; }
+.searchBox > span { width: 15px; height: 15px; color: #8174bb; }
 .searchBox input { min-width: 0; padding: 0; border: 0; outline: none; background: transparent; color: #d5d7de; font-size: var(--typography-body-sm-size); line-height: var(--typography-body-sm-line-height); font-weight: var(--typography-body-sm-weight); }
 .searchBox input::placeholder { color: #626878; }
 .searchBox button { width: 18px; height: 18px; border-radius: 50%; color: #777d8d; line-height: 1; }
+.searchBox button > span { width: 12px; height: 12px; margin: auto; }
 .searchBox button:hover { background: #ffffff0a; color: #d7d9e0; }
 .resultCount { white-space: nowrap; }
 .columnHint { text-align: right; white-space: nowrap; }

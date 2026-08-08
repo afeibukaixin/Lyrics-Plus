@@ -3,6 +3,7 @@ import { LogicalSize } from "@tauri-apps/api/dpi";
 import { listen } from "@tauri-apps/api/event";
 import { currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
 import { useTranslation } from "react-i18next";
+import { UiIcon } from "../../components/UiIcon";
 import { api, isTauriRuntime } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
@@ -103,19 +104,12 @@ type SupportingLine = {
   color: string;
 };
 
-type ToolbarIconName = "lock" | "minus" | "plus" | "offsetEarlier" | "offsetLater" | "layout" | "orientation" | "hide" | "settings";
+type OffsetIconName = "offsetEarlier" | "offsetLater";
 
-function ToolbarIcon({ name }: { name: ToolbarIconName }) {
-  const paths: Record<ToolbarIconName, React.ReactNode> = {
-    lock: <><rect x="5" y="10" width="14" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>,
-    minus: <path d="M6 12h12" />,
-    plus: <><path d="M6 12h12" /><path d="M12 6v12" /></>,
+function OffsetIcon({ name }: { name: OffsetIconName }) {
+  const paths: Record<OffsetIconName, React.ReactNode> = {
     offsetEarlier: <><path d="M9 8l-4 4 4 4M5 12h7" /><circle cx="16" cy="12" r="5" /><path d="M16 9.5V12l1.8 1.2" /></>,
     offsetLater: <><circle cx="8" cy="12" r="5" /><path d="M8 9.5V12l1.8 1.2M15 8l4 4-4 4M12 12h7" /></>,
-    layout: <><rect x="4" y="5" width="16" height="5" rx="1" /><rect x="4" y="14" width="7" height="5" rx="1" /><rect x="13" y="14" width="7" height="5" rx="1" /></>,
-    orientation: <><path d="M5 7h14M5 17h14" /><path d="m8 4-3 3 3 3M16 14l3 3-3 3" /></>,
-    hide: <><path d="M3 3l18 18" /><path d="M10.6 10.7a2 2 0 0 0 2.7 2.7" /><path d="M9.9 4.2A10.8 10.8 0 0 1 12 4c5 0 9 4.5 9 8a8.7 8.7 0 0 1-2 4.5M6.6 6.6C4.4 8 3 10.1 3 12c0 3.5 4 8 9 8 1.3 0 2.6-.3 3.7-.8" /></>,
-    settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" /></>,
   };
   return <svg aria-hidden="true" viewBox="0 0 24 24">{paths[name]}</svg>;
 }
@@ -389,6 +383,9 @@ export default function Overlay() {
       ? t("overlay.toolbar.offsetZeroTitle")
       : t("overlay.toolbar.offsetTitle", { value: formatOffsetMs(offsetMs) })
     : t("overlay.toolbar.noOffset");
+  const backgroundLabel = transparentMode
+    ? t("overlay.toolbar.backgroundTransparent")
+    : t("overlay.toolbar.backgroundVisible");
 
   useLayoutEffect(() => {
     const toolbar = toolbarRef.current;
@@ -831,16 +828,16 @@ export default function Overlay() {
             </>
           )}
           <div className={styles.toolbar} data-tauri-drag-region="false" aria-label={t("overlay.toolbar.label")} ref={toolbarRef}>
-            <button aria-label={t("overlay.toolbar.lock")} title={t("overlay.toolbar.lock")} onClick={() => void api.setOverlayLocked(true)}><ToolbarIcon name="lock" /></button>
-            <button aria-label={t("overlay.toolbar.decreaseFont")} title={t("overlay.toolbar.decreaseFont")} onClick={() => void updateStyle({ fontSize: style.fontSize - 2 })}><ToolbarIcon name="minus" /></button>
-            <button aria-label={t("overlay.toolbar.increaseFont")} title={t("overlay.toolbar.increaseFont")} onClick={() => void updateStyle({ fontSize: style.fontSize + 2 })}><ToolbarIcon name="plus" /></button>
+            <button aria-label={t("overlay.toolbar.lock")} title={t("overlay.toolbar.lock")} onClick={() => void api.setOverlayLocked(true)}><UiIcon name="lock" /></button>
+            <button aria-label={t("overlay.toolbar.decreaseFont")} title={t("overlay.toolbar.decreaseFont")} onClick={() => void updateStyle({ fontSize: style.fontSize - 2 })}><UiIcon name="minus" /></button>
+            <button aria-label={t("overlay.toolbar.increaseFont")} title={t("overlay.toolbar.increaseFont")} onClick={() => void updateStyle({ fontSize: style.fontSize + 2 })}><UiIcon name="plus" /></button>
             <div className={styles.offsetControl} role="group" aria-label={t("overlay.toolbar.offsetGroup", { value: offsetAvailable ? formatOffsetMs(offsetMs) : t("overlay.toolbar.unavailable") })}>
               <button
                 aria-label={t("overlay.toolbar.delay")}
                 disabled={!offsetAvailable}
                 title={t("overlay.toolbar.delayTitle")}
                 onClick={(event) => void lyrics.changeOffset(event.shiftKey ? -500 : -100)}
-              ><ToolbarIcon name="offsetEarlier" /></button>
+              ><OffsetIcon name="offsetEarlier" /></button>
               <button
                 className={styles.offsetValue}
                 aria-label={!offsetAvailable
@@ -857,14 +854,26 @@ export default function Overlay() {
                 disabled={!offsetAvailable}
                 title={t("overlay.toolbar.advanceTitle")}
                 onClick={(event) => void lyrics.changeOffset(event.shiftKey ? 500 : 100)}
-              ><ToolbarIcon name="offsetLater" /></button>
+              ><OffsetIcon name="offsetLater" /></button>
             </div>
             <button aria-label={t("overlay.toolbar.toggleLayout", { value: t(`overlay.layout.${style.layout}`) })} title={t("overlay.toolbar.toggleLayoutTitle", { value: t(`overlay.layout.${style.layout}`) })} onClick={() => void updateStyle({
               layout: nextValue(style.layout, ["single", "double"] as const),
-            })}><ToolbarIcon name="layout" /></button>
+            })}><UiIcon name={style.layout === "double" ? "textColumns" : "textAlignLeft"} /></button>
             <button aria-label={t("overlay.toolbar.toggleOrientation", { value: t(`overlay.orientation.${style.orientation}`) })} title={t("overlay.toolbar.toggleOrientationTitle", { value: t(`overlay.orientation.${style.orientation}`) })} onClick={() => void updateStyle({
               orientation: nextValue(style.orientation, ["horizontal", "vertical"] as const),
-            })}><ToolbarIcon name="orientation" /></button>
+            })}><UiIcon name={vertical ? "columns" : "rows"} /></button>
+            <button
+              aria-label={t("overlay.toolbar.toggleBackground", { value: backgroundLabel })}
+              aria-pressed={!transparentMode}
+              data-on={!transparentMode}
+              title={t("overlay.toolbar.toggleBackgroundTitle", { value: backgroundLabel })}
+              onClick={() => void updateStyle(transparentMode
+                ? {
+                    backgroundMode: "solid",
+                    ...(style.background === "transparent" ? { background: "solid" as const } : {}),
+                  }
+                : { backgroundMode: "transparent" })}
+            ><UiIcon name={transparentMode ? "checkerboard" : "selectionBackground"} /></button>
             <button
               className={styles.trackToggle}
               data-available={translationAvailable}
@@ -883,8 +892,8 @@ export default function Overlay() {
               title={supportingToggleTitle(t("common.feature.romanization"), secondaryFlags.romanization, romanizationAvailable)}
               onClick={() => toggleSupportingTrack("romanization")}
             >{t("overlay.toolbar.romanizationGlyph")}</button>
-            <button aria-label={t("overlay.toolbar.hide")} title={t("overlay.toolbar.hide")} onClick={() => void api.setOverlayVisible(false)}><ToolbarIcon name="hide" /></button>
-            <button aria-label={t("overlay.toolbar.openSettings")} title={t("overlay.toolbar.openSettings")} onClick={() => void api.showMainWindow("settings")}><ToolbarIcon name="settings" /></button>
+            <button aria-label={t("overlay.toolbar.hide")} title={t("overlay.toolbar.hide")} onClick={() => void api.setOverlayVisible(false)}><UiIcon name="eyeSlash" /></button>
+            <button aria-label={t("overlay.toolbar.openSettings")} title={t("overlay.toolbar.openSettings")} onClick={() => void api.showMainWindow("settings")}><UiIcon name="gear" /></button>
           </div>
         </>
       )}

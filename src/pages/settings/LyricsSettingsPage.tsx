@@ -6,6 +6,7 @@ import { api, messageOf } from "../../shared/api";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
 import { RangeRow, SettingsCard, SettingsHeading } from "./components";
+import { UiIcon } from "../../components/UiIcon";
 
 function healthLabel(status: ProviderStatus | undefined, t: TFunction) {
   return t(`settings.lyrics.health.${status?.health ?? "unknown"}`);
@@ -70,7 +71,7 @@ export default function LyricsSettingsPage() {
         <div className={styles.providers} data-dragging={Boolean(providerDrag)} aria-busy={savingProviderOrder}>{providerView?.settings.providers.map((provider, index) => {
           const status = providerView.statuses.find((item) => item.providerId === provider.id);
           return <div className={styles.provider} data-dragging={providerDrag?.providerId === provider.id} key={provider.id} ref={(element) => { if (element) providerRows.current.set(provider.id, element); else providerRows.current.delete(provider.id); }} style={{ transform: providerDragTransform(index) }}>
-            <button type="button" className={styles.dragHandle} disabled={savingProviderOrder} aria-label={t("settings.lyrics.dragProvider", { provider: status?.name ?? provider.id })} onPointerDown={(event) => beginProviderDrag(provider.id, index, event)} onPointerMove={continueProviderDrag} onPointerUp={finishProviderDrag} onPointerCancel={() => setProviderDrag(null)} onLostPointerCapture={() => setProviderDrag(null)}>⠿</button>
+            <button type="button" className={styles.dragHandle} disabled={savingProviderOrder} aria-label={t("settings.lyrics.dragProvider", { provider: status?.name ?? provider.id })} onPointerDown={(event) => beginProviderDrag(provider.id, index, event)} onPointerMove={continueProviderDrag} onPointerUp={finishProviderDrag} onPointerCancel={() => setProviderDrag(null)} onLostPointerCapture={() => setProviderDrag(null)}><UiIcon name="drag" /></button>
             <b>#{index + 1}</b><div><strong>{status?.name ?? provider.id}</strong><small data-health={status?.health ?? "unknown"}>{healthLabel(status, t)} · {t(`settings.lyrics.healthHint.${status?.health ?? "unknown"}`)}</small></div>
             <button aria-label={status?.name ?? provider.id} aria-pressed={provider.enabled} className={styles.switch} disabled={savingProviderOrder} data-on={provider.enabled} onClick={() => toggleProvider(provider.id)}><span /></button>
             <button disabled={testingProvider === provider.id} onClick={() => void testProvider(provider.id)}>{testingProvider === provider.id ? t("common.actions.testing") : t("common.actions.test")}</button>

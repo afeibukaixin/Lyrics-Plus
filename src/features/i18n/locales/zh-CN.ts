@@ -87,7 +87,9 @@ export const zhCN = {
       offsetReset: "当前歌词偏移{{value}}，点击重置", offsetZeroTitle: "当前歌词偏移：0ms",
       offsetTitle: "当前歌词偏移：{{value}}；点击重置", toggleLayout: "切换单/双歌词，当前{{value}}",
       toggleLayoutTitle: "切换单/双歌词（当前：{{value}}）", toggleOrientation: "切换横/竖排，当前{{value}}",
-      toggleOrientationTitle: "切换横/竖排（当前：{{value}}）", showTrack: "显示{{track}}", hideTrack: "关闭{{track}}",
+      toggleOrientationTitle: "切换横/竖排（当前：{{value}}）", toggleBackground: "切换歌词背景，当前{{value}}",
+      toggleBackgroundTitle: "切换歌词背景（当前：{{value}}）", backgroundVisible: "显示背景", backgroundTransparent: "透明背景",
+      showTrack: "显示{{track}}", hideTrack: "关闭{{track}}",
       unsupportedLayout: "{{action}}（当前布局不显示副歌词）", unavailableTrack: "{{action}}（当前歌词无{{track}}，开启后暂显示下一句）",
       translationGlyph: "文", romanizationGlyph: "音", hide: "隐藏桌面歌词", openSettings: "打开桌面歌词设置",
     },
@@ -165,4 +167,3 @@ export const zhCN = {
     },
   },
 } as const;
-

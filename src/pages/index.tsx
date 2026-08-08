@@ -6,6 +6,7 @@ import { useArtwork } from "../features/player/useArtwork";
 import { usePlayback } from "../features/player/usePlayback";
 import { api, messageOf } from "../shared/api";
 import { localizedSource } from "../features/i18n/userText";
+import { UiIcon } from "../components/UiIcon";
 import styles from "./index.module.scss";
 import appIcon from "../../src-tauri/icons/128x128.png";
 
@@ -82,7 +83,7 @@ export default function App() {
       <div className={styles.workspace}>
         <section className={styles.nowPlaying}>
           <div className={styles.artwork} aria-hidden="true">
-            <span>♪</span>
+            <UiIcon name="musicNote" />
             {artwork.url && (
               <img
                 alt=""
@@ -99,11 +100,11 @@ export default function App() {
             <p>{currentArtist}{playback.snapshot.album ? ` · ${playback.snapshot.album}` : ""}</p>
           </div>
           <div className={styles.transport}>
-            <button aria-label={t("home.previous")} onClick={() => void playback.action("previous")}>↶</button>
+            <button aria-label={t("home.previous")} onClick={() => void playback.action("previous")}><UiIcon name="skipBackFill" /></button>
             <button className={styles.playButton} aria-label={t("home.playPause")} onClick={() => void playback.action("play_pause")}>
-              {playback.snapshot.isPlaying ? "Ⅱ" : "▶"}
+              {playback.snapshot.isPlaying ? <UiIcon name="pauseFill" /> : <UiIcon name="playFill" />}
             </button>
-            <button aria-label={t("home.next")} onClick={() => void playback.action("next")}>↷</button>
+            <button aria-label={t("home.next")} onClick={() => void playback.action("next")}><UiIcon name="skipForwardFill" /></button>
           </div>
           <div className={styles.progressRow}>
             <span>{formatTime(playback.positionMs)}</span>
@@ -150,7 +151,7 @@ export default function App() {
         >
           {lines.length === 0 ? (
             <div className={styles.emptyState}>
-              <span>{lyrics.searching ? "◌" : "♪"}</span>
+              {lyrics.searching ? <UiIcon name="spinner" spin /> : <UiIcon name="musicNotes" />}
               <strong>{lyrics.searching ? t("home.matching") : t("home.noSyncedLyrics")}</strong>
               <p>{lyrics.error ?? t("home.autoSearchHint")}</p>
             </div>

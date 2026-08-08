@@ -206,8 +206,9 @@
 .toolbar .trackToggle { border: 1px solid transparent; font-size: 9px; font-weight: 750; }
 .toolbar .trackToggle[data-available="false"] { border-color: rgba(238,198,107,.3); color: rgba(238,198,107,.6); }
 .toolbar .trackToggle[data-available="false"][data-on="true"] { background: rgba(238,198,107,.12); color: #f0c66b; }
+.toolbar button > span, .toolbar button svg { width: 14px; height: 14px; }
 .toolbar button svg {
-  width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8;
+  fill: none; stroke: currentColor; stroke-width: 1.8;
   stroke-linecap: round; stroke-linejoin: round;
 }
 .toolbar label { flex: none; display: flex; align-items: center; gap: 4px; color: rgba(255,255,255,.52); font-size: 8px; }
