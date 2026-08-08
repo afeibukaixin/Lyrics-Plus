@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { defaultGlobalShortcuts, type GlobalShortcutSettings, type LanguagePreference, type PlayerSelection } from "../../shared/types";
 import { messageOf } from "../../shared/api";
 import { localizedSource, playbackStatusText } from "../../features/i18n/userText";
+import { languageOptions } from "../../features/i18n/languages";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
 import { RangeRow, SelectRow, SettingsCard, SettingsHeading, ToggleRow } from "./components";
@@ -99,8 +100,7 @@ export default function AppSettingsPage() {
           value={config.app.language}
           options={[
             ["system", t("common.language.system")],
-            ["zh-CN", t("common.language.zhCN")],
-            ["en-US", t("common.language.enUS")],
+            ...languageOptions.map(({ code, labelKey }) => [code, t(labelKey)] as [string, string]),
           ]}
           onChange={(language) => void setLanguage(language as LanguagePreference).catch((value) => setError(messageOf(value)))}
         />

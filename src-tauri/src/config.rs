@@ -10,6 +10,7 @@ use crate::commands::{
     KaraokeStyle, LongTextMode, OverlayAlignment, OverlayBackground, OverlayBackgroundMode,
     OverlayLayout, OverlayOrientation, OverlayStyleSettings, SecondaryDisplayMode,
 };
+use crate::language::{detect_config_comment_language, ConfigComment, UiLanguage};
 use crate::lyrics::provider::{
     complete_settings, validate_settings, ProviderOrderMode, ProviderSettings,
 };
@@ -18,88 +19,90 @@ use crate::storage::Storage;
 
 pub const CONFIG_SCHEMA_VERSION: u16 = 13;
 
-fn canonical_config_jsonc(value: &AppConfig) -> Result<String, String> {
+fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<String, String> {
     let json =
         serde_json::to_string_pretty(value).map_err(|error| format!("序列化配置失败：{error}"))?;
     let mut output = String::with_capacity(json.len() + 1_200);
     for line in json.lines() {
         let comment = match line {
             line if line.starts_with("  \"schemaVersion\":") => {
-                Some("  // Configuration schema version. Usually managed by Lyrics Plus.")
+                Some(("  ", ConfigComment::SchemaVersion))
             }
             line if line.starts_with("    \"uiFontScale\":") => {
-                Some("    // Interface text scale: 80–150 in 10% increments.")
+                Some(("    ", ConfigComment::UiFontScale))
             }
             line if line.starts_with("    \"language\":") => {
-                Some("    // Interface language: system, zh-CN, or en-US.")
+                Some(("    ", ConfigComment::Language))
             }
             line if line.starts_with("    \"playerSelection\":") => {
-                Some("    // Player selection: auto, apple_music, or spotify.")
+                Some(("    ", ConfigComment::PlayerSelection))
             }
             line if line.starts_with("    \"hideDockIcon\":") => {
-                Some("    // Hide the macOS Dock icon; Lyrics Plus remains available from the menu bar.")
+                Some(("    ", ConfigComment::HideDockIcon))
             }
             line if line.starts_with("    \"shortcuts\":") => {
-                Some("    // Global shortcuts must include a modifier and must be unique.")
+                Some(("    ", ConfigComment::Shortcuts))
             }
             line if line.starts_with("      \"autoApplyThreshold\":") => {
-                Some("      // Minimum similarity for automatically applying synchronized lyrics: 0–100.")
+                Some(("      ", ConfigComment::AutoApplyThreshold))
             }
             line if line.starts_with("      \"mode\":") => {
-                Some("      // strict follows provider order; smart can prioritize higher-quality matches.")
+                Some(("      ", ConfigComment::ProviderMode))
             }
             line if line.starts_with("      \"providers\":") => {
-                Some("      // Provider order controls strict search order; at least one must be enabled.")
+                Some(("      ", ConfigComment::Providers))
             }
             line if line.starts_with("    \"visible\":") => {
-                Some("    // Desktop lyrics visibility and lock state.")
+                Some(("    ", ConfigComment::OverlayState))
             }
             line if line.starts_with("    \"hideWhenNotPlaying\":") => {
-                Some("    // Hide while playback is paused, stopped, or unavailable.")
+                Some(("    ", ConfigComment::HideWhenNotPlaying))
             }
             line if line.starts_with("      \"fontSize\":") => {
-                Some("      // Primary lyric font size (16–72px) and colors.")
+                Some(("      ", ConfigComment::FontSize))
             }
             line if line.starts_with("      \"opacity\":") => {
-                Some("      // Window opacity: 0.2–1.0.")
+                Some(("      ", ConfigComment::Opacity))
             }
             line if line.starts_with("      \"backgroundOpacity\":") => {
-                Some("      // Background opacity: 0–1.0; does not affect lyric text.")
+                Some(("      ", ConfigComment::BackgroundOpacity))
             }
             line if line.starts_with("      \"backgroundBlur\":") => {
-                Some("      // Background blur: 0–40 (shown as 0–100% in Settings).")
+                Some(("      ", ConfigComment::BackgroundBlur))
             }
             line if line.starts_with("      \"backgroundMode\":") => {
-                Some("      // Background mode: solid or transparent.")
+                Some(("      ", ConfigComment::BackgroundMode))
             }
-            line if line.starts_with("      \"background\":") => Some(
-                "      // Background effect: glass or solid; transparent is retained for legacy compatibility.",
-            ),
+            line if line.starts_with("      \"background\":") => {
+                Some(("      ", ConfigComment::Background))
+            }
             line if line.starts_with("      \"layout\":") => {
-                Some("      // Lyrics layout: single or double; orientation: horizontal or vertical.")
+                Some(("      ", ConfigComment::Layout))
             }
             line if line.starts_with("      \"alignment\":") => {
-                Some("      // Alignment: center or distributed.")
+                Some(("      ", ConfigComment::Alignment))
             }
             line if line.starts_with("      \"longText\":") => {
-                Some("      // Long-text behavior: shrink, wrap, or marquee.")
+                Some(("      ", ConfigComment::LongText))
             }
             line if line.starts_with("      \"secondaryDisplay\":") => {
-                Some("      // Secondary content: next, translation, romanization, or both.")
+                Some(("      ", ConfigComment::SecondaryDisplay))
             }
             line if line.starts_with("      \"autoCenterWithTranslationOrRomanization\":") => {
-                Some("      // Center only while translation or romanization is actually displayed.")
+                Some(("      ", ConfigComment::AutoCenter))
             }
             line if line.starts_with("      \"karaokeStyle\":") => {
-                Some("      // Karaoke effect: sweep, bounce, or highlight.")
+                Some(("      ", ConfigComment::KaraokeStyle))
             }
             line if line.starts_with("      \"secondaryFontScale\":") => {
-                Some("      // Font scale for next-line, translation, and romanization text: 0.35–1.0.")
+                Some(("      ", ConfigComment::SecondaryFontScale))
             }
             _ => None,
         };
-        if let Some(comment) = comment {
-            output.push_str(comment);
+        if let Some((indent, comment)) = comment {
+            output.push_str(indent);
+            output.push_str("// ");
+            output.push_str(language.config_comment(comment));
             output.push('\n');
         }
         output.push_str(line);
@@ -390,11 +393,19 @@ struct ConfigStoreState {
     revision: u64,
     source_raw: String,
     source_error: Option<ConfigDraftError>,
+    comment_language: UiLanguage,
 }
 
 pub struct ConfigStore {
     path: PathBuf,
     state: RwLock<ConfigStoreState>,
+}
+
+fn configured_comment_language(preference: LanguagePreference) -> UiLanguage {
+    match preference {
+        LanguagePreference::EnUs => UiLanguage::EnUs,
+        LanguagePreference::System | LanguagePreference::ZhCn => UiLanguage::ZhCn,
+    }
 }
 
 pub fn normalize_ui_font_scale(value: u16) -> u16 {
@@ -576,7 +587,8 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
         };
         error_at_key(raw, key, &message)
     })?;
-    let normalized_json = canonical_config_jsonc(&config).map_err(internal_draft_error)?;
+    let normalized_json =
+        canonical_config_jsonc(&config, UiLanguage::ZhCn).map_err(internal_draft_error)?;
     Ok(ParsedDraft {
         config,
         normalized_json,
@@ -1135,7 +1147,9 @@ impl ConfigStore {
                 fs::read_to_string(&path).map_err(|error| format!("读取配置文件失败：{error}"))?;
             return match parse_config_draft(&raw) {
                 Ok(parsed) => {
-                    let source_raw = parsed.normalized_json;
+                    let comment_language = detect_config_comment_language(&raw)
+                        .unwrap_or_else(|| configured_comment_language(parsed.config.app.language));
+                    let source_raw = canonical_config_jsonc(&parsed.config, comment_language)?;
                     if raw != source_raw {
                         atomic_write(&path, &source_raw)?;
                     }
@@ -1147,6 +1161,7 @@ impl ConfigStore {
                                 revision: 1,
                                 source_raw,
                                 source_error: None,
+                                comment_language,
                             }),
                         },
                         false,
@@ -1160,6 +1175,7 @@ impl ConfigStore {
                             revision: 1,
                             source_raw: raw,
                             source_error: Some(error),
+                            comment_language: UiLanguage::ZhCn,
                         }),
                     },
                     false,
@@ -1205,7 +1221,8 @@ impl ConfigStore {
             value.overlay.appearance = OverlayAppearance::from(&style);
         }
         let value = value.normalized()?;
-        let source_raw = canonical_config_jsonc(&value)?;
+        let comment_language = configured_comment_language(value.app.language);
+        let source_raw = canonical_config_jsonc(&value, comment_language)?;
         atomic_write(&path, &source_raw)?;
         Ok((
             Self {
@@ -1215,6 +1232,7 @@ impl ConfigStore {
                     revision: 1,
                     source_raw,
                     source_error: None,
+                    comment_language,
                 }),
             },
             true,
@@ -1254,7 +1272,7 @@ impl ConfigStore {
             validate_config_draft(&state.source_raw)
         };
         ConfigEditorData {
-            default_jsonc: canonical_config_jsonc(&AppConfig::default())
+            default_jsonc: canonical_config_jsonc(&AppConfig::default(), state.comment_language)
                 .expect("默认配置必须可以序列化"),
             user_json: state.source_raw.clone(),
             revision: state.revision,
@@ -1280,7 +1298,6 @@ impl ConfigStore {
         expected_revision: Option<u64>,
     ) -> Result<AppConfig, String> {
         let value = value.normalized()?;
-        let raw = canonical_config_jsonc(&value)?;
         let mut state = self
             .state
             .write()
@@ -1291,6 +1308,7 @@ impl ConfigStore {
                     .into(),
             );
         }
+        let raw = canonical_config_jsonc(&value, state.comment_language)?;
         atomic_write(&self.path, &raw)?;
         state.value = value.clone();
         state.source_raw = raw;
@@ -1305,8 +1323,33 @@ impl ConfigStore {
         self.replace(next)
     }
 
+    pub fn set_comment_language(&self, language: UiLanguage) -> Result<bool, String> {
+        let mut state = self
+            .state
+            .write()
+            .unwrap_or_else(|error| error.into_inner());
+        if state.comment_language == language {
+            return Ok(false);
+        }
+        let localized = if state.source_error.is_none() {
+            Some(canonical_config_jsonc(&state.value, language)?)
+        } else {
+            None
+        };
+        if let Some(raw) = localized.as_ref() {
+            atomic_write(&self.path, raw)?;
+        }
+        state.comment_language = language;
+        if let Some(raw) = localized {
+            state.source_raw = raw;
+        }
+        state.revision = state.revision.saturating_add(1);
+        Ok(true)
+    }
+
     pub fn export_json(&self) -> Result<String, String> {
-        canonical_config_jsonc(&self.snapshot())
+        let state = self.state.read().unwrap_or_else(|error| error.into_inner());
+        canonical_config_jsonc(&state.value, state.comment_language)
     }
 }
 
@@ -1373,7 +1416,7 @@ mod tests {
         assert!(parsed.config.lyrics.providers.providers[1..]
             .iter()
             .all(|provider| !provider.enabled));
-        let default_lines = canonical_config_jsonc(&AppConfig::default())
+        let default_lines = canonical_config_jsonc(&AppConfig::default(), UiLanguage::ZhCn)
             .unwrap()
             .lines()
             .count();
@@ -1398,14 +1441,25 @@ mod tests {
 
     #[test]
     fn default_template_matches_runtime_default() {
-        let default_jsonc = canonical_config_jsonc(&AppConfig::default()).unwrap();
+        let default_jsonc =
+            canonical_config_jsonc(&AppConfig::default(), UiLanguage::ZhCn).unwrap();
         let parsed = parse_config_draft(&default_jsonc).unwrap();
         assert_eq!(parsed.config.app.ui_font_scale, 100);
         assert_eq!(parsed.config.schema_version, CONFIG_SCHEMA_VERSION);
         assert_eq!(parsed.normalized_json, default_jsonc);
-        assert!(parsed
-            .normalized_json
-            .contains("// Configuration schema version"));
+        assert!(parsed.normalized_json.contains("// 配置结构版本"));
+    }
+
+    #[test]
+    fn localized_templates_have_the_same_effective_config() {
+        let zh = canonical_config_jsonc(&AppConfig::default(), UiLanguage::ZhCn).unwrap();
+        let en = canonical_config_jsonc(&AppConfig::default(), UiLanguage::EnUs).unwrap();
+        assert!(zh.contains("// 配置结构版本"));
+        assert!(en.contains("// Configuration schema version"));
+        assert_eq!(
+            serde_json::to_value(parse_config_draft(&zh).unwrap().config).unwrap(),
+            serde_json::to_value(parse_config_draft(&en).unwrap().config).unwrap(),
+        );
     }
 
     #[test]
@@ -1799,6 +1853,7 @@ mod tests {
                 revision: 1,
                 source_raw: "{}".into(),
                 source_error: None,
+                comment_language: UiLanguage::ZhCn,
             }),
         };
         let result = store.update(|config| config.app.ui_font_scale = 140);
@@ -1821,6 +1876,17 @@ mod tests {
             "{ broken }"
         );
         assert!(!store.editor_data().validation.valid);
+        let revision = store.revision();
+        assert!(store.set_comment_language(UiLanguage::EnUs).unwrap());
+        assert_eq!(store.revision(), revision + 1);
+        assert_eq!(
+            fs::read_to_string(root.join("config.json")).unwrap(),
+            "{ broken }"
+        );
+        assert!(store
+            .editor_data()
+            .default_jsonc
+            .contains("// Configuration schema version"));
         drop(storage);
         let _ = fs::remove_dir_all(root);
     }
@@ -1835,7 +1901,7 @@ mod tests {
         assert!(!migrated);
         assert_eq!(store.snapshot().app.ui_font_scale, 120);
         let persisted = fs::read_to_string(root.join("config.json")).unwrap();
-        assert!(persisted.contains("// Interface text scale"));
+        assert!(persisted.contains("// 界面文字缩放"));
         assert!(persisted.contains("\"uiFontScale\": 120"));
         assert_eq!(persisted, store.editor_data().user_json);
         drop(storage);
@@ -1848,12 +1914,26 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         let storage = Storage::open(root.clone(), root.join("library")).unwrap();
         let (store, _) = ConfigStore::load(&root, &storage).unwrap();
+        let revision = store.revision();
+        let before_language_change = serde_json::to_value(store.snapshot()).unwrap();
+        assert!(store.set_comment_language(UiLanguage::EnUs).unwrap());
+        assert_eq!(store.revision(), revision + 1);
+        assert_eq!(
+            serde_json::to_value(store.snapshot()).unwrap(),
+            before_language_change
+        );
+        assert!(!store.set_comment_language(UiLanguage::EnUs).unwrap());
+        assert_eq!(store.revision(), revision + 1);
         store
             .update(|config| config.app.ui_font_scale = 130)
             .unwrap();
         let persisted = fs::read_to_string(root.join("config.json")).unwrap();
         assert!(persisted.contains("// Interface text scale"));
         assert!(persisted.contains("\"uiFontScale\": 130"));
+        assert!(store
+            .export_json()
+            .unwrap()
+            .contains("// Interface text scale"));
         drop(storage);
         let _ = fs::remove_dir_all(root);
     }

@@ -1,6 +1,7 @@
 mod artwork;
 mod commands;
 mod config;
+mod language;
 mod lyrics;
 mod overlay_effect;
 mod player;
@@ -9,8 +10,9 @@ mod storage;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
-use commands::{AppState, OverlayOrientation, OverlaySettings, OverlayStyleSettings, UiLanguage};
+use commands::{AppState, OverlayOrientation, OverlaySettings, OverlayStyleSettings};
 use config::{ConfigStore, GlobalShortcutSettings, LanguagePreference};
+use language::UiLanguage;
 pub(crate) use overlay_effect::sync_overlay_vibrancy;
 use overlay_effect::{HORIZONTAL_OVERLAY_SURFACE_INSET, VERTICAL_OVERLAY_SURFACE_INSET};
 use player::{query_selected_player, PlayerSelection};
@@ -27,45 +29,11 @@ struct TrayMenuState {
     quit: MenuItem<tauri::Wry>,
 }
 
-#[derive(Clone, Copy)]
-struct NativeLabels {
-    toggle_overlay: &'static str,
-    switch_lyrics: &'static str,
-    settings: &'static str,
-    quit: &'static str,
-    quick_title: &'static str,
-    unlock_title: &'static str,
-    overlay_title: &'static str,
-}
-
-fn native_labels(language: UiLanguage) -> NativeLabels {
-    match language {
-        UiLanguage::ZhCn => NativeLabels {
-            toggle_overlay: "显示桌面歌词",
-            switch_lyrics: "切换歌词",
-            settings: "设置",
-            quit: "退出",
-            quick_title: "快速切换歌词",
-            unlock_title: "解锁桌面歌词",
-            overlay_title: "Lyrics Plus 桌面歌词",
-        },
-        UiLanguage::EnUs => NativeLabels {
-            toggle_overlay: "Show Desktop Lyrics",
-            switch_lyrics: "Switch Lyrics",
-            settings: "Settings",
-            quit: "Quit",
-            quick_title: "Quick Lyrics Switcher",
-            unlock_title: "Unlock Desktop Lyrics",
-            overlay_title: "Lyrics Plus Desktop Lyrics",
-        },
-    }
-}
-
 pub(crate) fn apply_native_language(
     app: &tauri::AppHandle,
     language: UiLanguage,
 ) -> Result<(), String> {
-    let labels = native_labels(language);
+    let labels = language.native_labels();
     if let Some(tray) = app.try_state::<TrayMenuState>() {
         tray.toggle_overlay
             .set_text(labels.toggle_overlay)
@@ -352,7 +320,7 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
         "lyrics-overlay",
         WebviewUrl::App("index.html?view=overlay".into()),
     )
-    .title(native_labels(UiLanguage::ZhCn).overlay_title)
+    .title(UiLanguage::ZhCn.native_labels().overlay_title)
     .inner_size(initial_width, initial_height)
     .min_inner_size(190.0, 76.0)
     .transparent(true)
@@ -395,7 +363,7 @@ pub(crate) fn show_quick_lyrics_window(app: &tauri::AppHandle) -> Result<(), Str
         "quick-lyrics",
         WebviewUrl::App("index.html?view=quick-lyrics".into()),
     )
-    .title(native_labels(UiLanguage::ZhCn).quick_title)
+    .title(UiLanguage::ZhCn.native_labels().quick_title)
     .inner_size(900.0, 620.0)
     .resizable(false)
     .maximizable(false)
@@ -423,7 +391,7 @@ fn create_unlock_handle(app: &tauri::App) -> tauri::Result<()> {
         "lyrics-unlock-handle",
         WebviewUrl::App("index.html?view=unlock-handle".into()),
     )
-    .title(native_labels(UiLanguage::ZhCn).unlock_title)
+    .title(UiLanguage::ZhCn.native_labels().unlock_title)
     .inner_size(28.0, 28.0)
     .transparent(true)
     .decorations(false)
@@ -444,7 +412,7 @@ fn create_unlock_handle(app: &tauri::App) -> tauri::Result<()> {
 }
 
 fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
-    let labels = native_labels(UiLanguage::ZhCn);
+    let labels = UiLanguage::ZhCn.native_labels();
     let overlay_visible = app
         .state::<AppState>()
         .overlay_settings

@@ -9,6 +9,7 @@ use crate::config::{
     validate_config_draft, AppConfig, ConfigDraftValidation, ConfigEditorData, ConfigStore,
     GlobalShortcutSettings, LanguagePreference, OverlayAppearance,
 };
+use crate::language::UiLanguage;
 use crate::lyrics::provider::{
     can_auto_apply, LyricsSearchInput, LyricsSearchResult, ProviderRegistry, ProviderSettings,
     ProviderSettingsView, ProviderStatus,
@@ -31,14 +32,6 @@ pub struct AppState {
     pub providers: Arc<ProviderRegistry>,
     pub artwork: Arc<ArtworkService>,
     pub http: reqwest::Client,
-}
-
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub enum UiLanguage {
-    #[serde(rename = "zh-CN")]
-    ZhCn,
-    #[serde(rename = "en-US")]
-    EnUs,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1286,8 +1279,17 @@ pub fn set_language(
 }
 
 #[tauri::command]
-pub fn set_native_language(app: tauri::AppHandle, language: UiLanguage) -> Result<(), String> {
-    crate::apply_native_language(&app, language)
+pub fn set_native_language(
+    app: tauri::AppHandle,
+    language: UiLanguage,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    crate::apply_native_language(&app, language)?;
+    if state.config.set_comment_language(language)? {
+        app.emit("config://changed", state.config.snapshot())
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(())
 }
 
 pub fn update_global_shortcuts(

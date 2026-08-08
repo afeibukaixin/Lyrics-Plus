@@ -1,3 +1,7 @@
+import type { SupportedLanguage } from "./languages";
+
+export type { SupportedLanguage } from "./languages";
+
 export type PlayerKind = "apple_music" | "spotify";
 export type PlayerSelection = "auto" | PlayerKind;
 export type PlaybackErrorCode =
@@ -143,7 +147,6 @@ export type ProviderSettingsView = {
 };
 
 export type SettingsSection = "overlay" | "lyrics" | "app";
-export type SupportedLanguage = "zh-CN" | "en-US";
 export type LanguagePreference = "system" | SupportedLanguage;
 
 export type SettingsResetResponse = {
