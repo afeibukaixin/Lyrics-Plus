@@ -176,6 +176,11 @@ impl ArtworkService {
             return Ok(None);
         }
 
+        log::debug!(
+            "Starting track artwork resolution: player={}",
+            player_name(player)
+        );
+
         let _guard = self.operation_lock.lock().await;
         let artwork_key = cache_key(player, track_id);
         let final_path = self.cache_path(player, track_id);
@@ -183,6 +188,7 @@ impl ArtworkService {
             if player == PlayerKind::AppleMusic {
                 self.missing_artwork.lock().await.remove(&artwork_key);
             }
+            log::debug!("Track artwork cache hit: player={}", player_name(player));
             return Ok(Some(asset(player, track_id, &final_path)));
         }
         if player == PlayerKind::AppleMusic
@@ -206,7 +212,9 @@ impl ArtworkService {
                     spotify_artwork_url(&expected_id, &title, &artist, &album)
                 })
                 .await
-                .map_err(|error| format!("Spotify 封面读取任务失败：{error}"))??;
+                .map_err(|error| {
+                    format!("Failed to join Spotify artwork lookup task: {error}")
+                })??;
                 let Some(url) = url else { return Ok(None) };
                 download_artwork(http, &url).await?
             }
@@ -218,7 +226,9 @@ impl ArtworkService {
                     export_apple_music_artwork(&expected_id, &title, &artist, &album, &export_path)
                 })
                 .await
-                .map_err(|error| format!("Apple Music 封面读取任务失败：{error}"))??;
+                .map_err(|error| {
+                    format!("Failed to join Apple Music artwork export task: {error}")
+                })??;
                 self.missing_artwork.lock().await.record(
                     &artwork_key,
                     export_result,
@@ -228,8 +238,9 @@ impl ArtworkService {
                     let _ = fs::remove_file(&raw_path);
                     return Ok(None);
                 }
-                let bytes = fs::read(&raw_path)
-                    .map_err(|error| format!("读取 Apple Music 封面失败：{error}"));
+                let bytes = fs::read(&raw_path).map_err(|error| {
+                    format!("Failed to read exported Apple Music artwork: {error}")
+                });
                 let _ = fs::remove_file(&raw_path);
                 bytes?
             }
@@ -245,8 +256,12 @@ impl ArtworkService {
             Ok::<(), String>(())
         })
         .await
-        .map_err(|error| format!("封面处理任务失败：{error}"))??;
+        .map_err(|error| format!("Failed to join artwork processing task: {error}"))??;
 
+        log::debug!(
+            "Track artwork resolution completed: player={}",
+            player_name(player)
+        );
         Ok(Some(asset(player, track_id, &final_path)))
     }
 
@@ -265,7 +280,7 @@ impl ArtworkService {
     }
 }
 
-fn player_name(player: PlayerKind) -> &'static str {
+pub(crate) fn player_name(player: PlayerKind) -> &'static str {
     match player {
         PlayerKind::AppleMusic => "apple_music",
         PlayerKind::Spotify => "spotify",
@@ -302,6 +317,7 @@ fn spotify_artwork_url(
 ) -> Result<Option<String>, String> {
     let app_path = spotify_app_path();
     if !app_path.exists() {
+        log::debug!("Track artwork source lookup completed: player=spotify status=unavailable");
         return Ok(None);
     }
     let mut command = Command::new("/usr/bin/osascript");
@@ -317,11 +333,20 @@ fn spotify_artwork_url(
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
     }
     let response: SpotifyArtworkResponse = serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("无法解析 Spotify 封面响应：{error}"))?;
+        .map_err(|error| format!("Failed to parse Spotify artwork response: {error}"))?;
     if response.status != "ok" {
+        log::debug!(
+            "Track artwork source lookup completed: player=spotify status={}",
+            response.status
+        );
         return Ok(None);
     }
-    Ok(response.url.filter(|url| !url.trim().is_empty()))
+    let url = response.url.filter(|url| !url.trim().is_empty());
+    log::debug!(
+        "Track artwork source lookup completed: player=spotify status={}",
+        if url.is_some() { "ok" } else { "missing" }
+    );
+    Ok(url)
 }
 
 fn spotify_app_path() -> PathBuf {
@@ -342,7 +367,6 @@ fn export_apple_music_artwork(
     album: &str,
     output_path: &Path,
 ) -> Result<AppleMusicArtworkExport, String> {
-    log::debug!("Starting Apple Music artwork export");
     let mut command = Command::new("/usr/bin/osascript");
     command
         .args(["-e", APPLE_MUSIC_ARTWORK_SCRIPT])
@@ -354,33 +378,20 @@ fn export_apple_music_artwork(
         .arg(output_path);
     let output = run_with_timeout(command, Duration::from_secs(4))?;
     if !output.status.success() {
-        let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        log::debug!("Failed to run the Apple Music artwork export script: {detail}");
-        return Err(detail);
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
     }
     let status = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if let Some(error) = status.strip_prefix("error:") {
-        let detail = error.trim().to_string();
-        log::debug!("Failed to export Apple Music artwork; the script returned an error: {detail}");
-        return Err(detail);
+        return Err(error.trim().to_string());
     }
     let result = parse_apple_music_artwork_status(&status, output_path)?;
-    match result {
-        AppleMusicArtworkExport::Exported => {
-            log::debug!("Apple Music artwork export completed");
-        }
-        AppleMusicArtworkExport::Missing => {
-            log::debug!(
-                "Apple Music exposes no artwork for the current track; using the placeholder"
-            );
-        }
-        AppleMusicArtworkExport::Stale => {
-            log::debug!("Skipped Apple Music artwork export because the current track changed");
-        }
-        AppleMusicArtworkExport::Unavailable => {
-            log::debug!("Skipped Apple Music artwork export because Music is unavailable");
-        }
-    }
+    let status = match result {
+        AppleMusicArtworkExport::Exported => "ok",
+        AppleMusicArtworkExport::Missing => "missing",
+        AppleMusicArtworkExport::Stale => "stale",
+        AppleMusicArtworkExport::Unavailable => "unavailable",
+    };
+    log::debug!("Track artwork source lookup completed: player=apple_music status={status}");
     Ok(result)
 }
 
@@ -390,68 +401,72 @@ fn parse_apple_music_artwork_status(
 ) -> Result<AppleMusicArtworkExport, String> {
     match status {
         "ok" if is_nonempty_file(output_path) => Ok(AppleMusicArtworkExport::Exported),
-        "ok" => Err("Apple Music 封面导出成功，但输出文件为空".into()),
+        "ok" => Err("Apple Music artwork export produced an empty file".into()),
         "missing" => Ok(AppleMusicArtworkExport::Missing),
         "stale" => Ok(AppleMusicArtworkExport::Stale),
         "unavailable" => Ok(AppleMusicArtworkExport::Unavailable),
-        value => Err(format!("Apple Music 封面脚本返回未知状态：{value}")),
+        value => Err(format!(
+            "Apple Music artwork script returned an unknown status: {value}"
+        )),
     }
 }
 
 async fn download_artwork(http: &reqwest::Client, url: &str) -> Result<Vec<u8>, String> {
-    let parsed = reqwest::Url::parse(url).map_err(|error| format!("封面地址无效：{error}"))?;
+    let parsed =
+        reqwest::Url::parse(url).map_err(|error| format!("Invalid artwork URL: {error}"))?;
     if parsed.scheme() != "https" {
-        return Err("封面地址不是 HTTPS".into());
+        return Err("Artwork URL is not HTTPS".into());
     }
     let response = http
         .get(parsed)
         .send()
         .await
-        .map_err(|error| format!("下载封面失败：{error}"))?
+        .map_err(|error| format!("Failed to download artwork: {error}"))?
         .error_for_status()
-        .map_err(|error| format!("下载封面失败：{error}"))?;
+        .map_err(|error| format!("Failed to download artwork: {error}"))?;
     if response
         .content_length()
         .is_some_and(|length| length > MAX_SOURCE_BYTES as u64)
     {
-        return Err("封面文件超过 10MB".into());
+        return Err("Artwork exceeds 10 MB".into());
     }
     let bytes = response
         .bytes()
         .await
-        .map_err(|error| format!("读取封面响应失败：{error}"))?;
+        .map_err(|error| format!("Failed to read artwork response: {error}"))?;
     if bytes.len() > MAX_SOURCE_BYTES {
-        return Err("封面文件超过 10MB".into());
+        return Err("Artwork exceeds 10 MB".into());
     }
     Ok(bytes.to_vec())
 }
 
 fn normalize_image(source: &[u8]) -> Result<Vec<u8>, String> {
     if source.is_empty() {
-        return Err("封面内容为空".into());
+        return Err("Artwork content is empty".into());
     }
     if source.len() > MAX_SOURCE_BYTES {
-        return Err("封面文件超过 10MB".into());
+        return Err("Artwork exceeds 10 MB".into());
     }
     let image = ImageReader::new(Cursor::new(source))
         .with_guessed_format()
-        .map_err(|error| format!("无法识别封面格式：{error}"))?
+        .map_err(|error| format!("Failed to detect artwork format: {error}"))?
         .decode()
-        .map_err(|error| format!("无法解码封面：{error}"))?
+        .map_err(|error| format!("Failed to decode artwork: {error}"))?
         .thumbnail(MAX_ARTWORK_DIMENSION, MAX_ARTWORK_DIMENSION)
         .to_rgb8();
     let mut output = Vec::new();
     JpegEncoder::new_with_quality(&mut output, JPEG_QUALITY)
         .encode_image(&image)
-        .map_err(|error| format!("无法编码封面：{error}"))?;
+        .map_err(|error| format!("Failed to encode artwork: {error}"))?;
     Ok(output)
 }
 
 fn write_atomically(final_path: &Path, temp_path: &Path, bytes: &[u8]) -> Result<(), String> {
-    fs::write(temp_path, bytes).map_err(|error| format!("写入封面缓存失败：{error}"))?;
+    fs::write(temp_path, bytes)
+        .map_err(|error| format!("Failed to write artwork cache: {error}"))?;
     if let Err(error) = fs::rename(temp_path, final_path) {
         let _ = fs::remove_file(temp_path);
-        return Err(format!("提交封面缓存失败：{error}"));
+        return Err(format!("Failed to commit artwork cache: {error}"));
     }
     Ok(())
 }

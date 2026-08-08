@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::artwork::{ArtworkAsset, ArtworkService};
+use crate::artwork::{player_name, ArtworkAsset, ArtworkService};
 use crate::config::{
     validate_config_draft, AppConfig, ConfigDraftValidation, ConfigEditorData, ConfigStore,
     GlobalShortcutSettings, LanguagePreference, OverlayAppearance,
@@ -342,7 +342,10 @@ pub async fn get_track_artwork(
     match state.artwork.resolve(&snapshot, &state.http).await {
         Ok(asset) => Ok(asset),
         Err(error) => {
-            log::warn!("Failed to resolve track artwork: {error}");
+            log::warn!(
+                "Failed to resolve track artwork: player={}: {error}",
+                player_name(player)
+            );
             Ok(None)
         }
     }

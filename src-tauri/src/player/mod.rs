@@ -4,6 +4,8 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use wait_timeout::ChildExt;
 
+const PROCESS_TIMEOUT_ERROR: &str = "Process timed out";
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum PlayerKind {
@@ -172,7 +174,7 @@ pub(crate) fn run_with_timeout(mut command: Command, timeout: Duration) -> Resul
         None => {
             let _ = child.kill();
             let _ = child.wait();
-            Err("播放器响应超时".into())
+            Err(PROCESS_TIMEOUT_ERROR.into())
         }
     }
 }
@@ -291,7 +293,7 @@ fn query_player(kind: PlayerKind) -> PlaybackSnapshot {
         }
         Err(error) => PlaybackSnapshot::unavailable_with_code(
             Some(kind),
-            if error == "播放器响应超时" {
+            if error == PROCESS_TIMEOUT_ERROR {
                 PlaybackErrorCode::ResponseTimeout
             } else {
                 PlaybackErrorCode::Unavailable
