@@ -158,10 +158,6 @@ impl Default for AppPreferences {
 pub struct LanguagePreference(String);
 
 impl LanguagePreference {
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
     pub fn uses_native_chinese(&self) -> bool {
         self.0 == "zh-CN"
     }
@@ -404,6 +400,7 @@ pub struct ConfigEditorData {
 struct ParsedDraft {
     config: AppConfig,
     normalized_json: String,
+    #[cfg(test)]
     migrated: bool,
 }
 
@@ -560,11 +557,15 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
         ));
     }
     let migrated_layout = migrate_legacy_overlay_layout(&mut user, version, raw)?;
-    let had_legacy_autostart = user
-        .get("app")
-        .and_then(Value::as_object)
-        .is_some_and(|app| app.contains_key("autostart"));
-    let migrated = version < CONFIG_SCHEMA_VERSION || had_legacy_autostart || migrated_layout;
+    #[cfg(test)]
+    let migrated = version < CONFIG_SCHEMA_VERSION
+        || user
+            .get("app")
+            .and_then(Value::as_object)
+            .is_some_and(|app| app.contains_key("autostart"))
+        || migrated_layout;
+    #[cfg(not(test))]
+    let _ = migrated_layout;
     if version < 2 {
         if let Some(scale) = user
             .get_mut("app")
@@ -612,6 +613,7 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
     Ok(ParsedDraft {
         config,
         normalized_json,
+        #[cfg(test)]
         migrated,
     })
 }
