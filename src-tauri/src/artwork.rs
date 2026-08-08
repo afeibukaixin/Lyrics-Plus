@@ -18,6 +18,7 @@ const MAX_ARTWORK_DIMENSION: u32 = 384;
 const JPEG_QUALITY: u8 = 85;
 const MAX_CACHE_FILES: usize = 200;
 const MISSING_ARTWORK_TTL: Duration = Duration::from_secs(5 * 60);
+const APPLE_MUSIC_CACHE_VERSION: &str = "v2";
 
 const SPOTIFY_ARTWORK_SCRIPT: &str = r#"
 ObjC.import('Foundation');
@@ -272,7 +273,16 @@ fn player_name(player: PlayerKind) -> &'static str {
 }
 
 fn cache_key(player: PlayerKind, track_id: &str) -> String {
-    let digest = Sha256::digest(format!("{}:{track_id}", player_name(player)).as_bytes());
+    let identity = match player {
+        PlayerKind::AppleMusic => {
+            format!(
+                "{}:{APPLE_MUSIC_CACHE_VERSION}:{track_id}",
+                player_name(player)
+            )
+        }
+        PlayerKind::Spotify => format!("{}:{track_id}", player_name(player)),
+    };
+    let digest = Sha256::digest(identity.as_bytes());
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
@@ -504,6 +514,14 @@ mod tests {
         assert_ne!(
             cache_key(PlayerKind::Spotify, "track"),
             cache_key(PlayerKind::AppleMusic, "track")
+        );
+        let legacy_apple_music_key = Sha256::digest(b"apple_music:track")
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        assert_ne!(
+            cache_key(PlayerKind::AppleMusic, "track"),
+            legacy_apple_music_key
         );
     }
 
