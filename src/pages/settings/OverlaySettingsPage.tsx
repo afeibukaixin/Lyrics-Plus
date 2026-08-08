@@ -1,4 +1,5 @@
 import { secondaryDisplayFlags, secondaryDisplayFromFlags, type OverlayStyle } from "../../shared/types";
+import { messageOf } from "../../shared/api";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
 import { ColorRow, RangeRow, SelectRow, SettingsCard, SettingsHeading, ToggleRow } from "./components";
@@ -36,6 +37,7 @@ function matchesColorPreset(style: OverlayStyle, preset: OverlayColorPreset) {
 
 export default function OverlaySettingsPage() {
   const {
+    config,
     overlaySettings,
     style,
     lyrics,
@@ -46,6 +48,7 @@ export default function OverlaySettingsPage() {
     updateStyle,
     setVisible,
     setLocked,
+    setOverlayHideWhenNotPlaying,
     resetSection,
     resetOverlayBounds,
   } = useSettingsContext();
@@ -82,8 +85,14 @@ export default function OverlaySettingsPage() {
       <SettingsHeading title="桌面歌词" description="横排宽度、竖排高度由边缘拖动设定；解锁后拖动空白区域可移动浮窗。" onReset={() => void resetSection("overlay")} resetting={resettingSection === "overlay"} confirming={confirmingReset === "overlay"} />
       <SettingsCard title="浮窗状态">
         <ToggleRow label="显示桌面歌词" description="在所有桌面空间置顶显示" value={overlaySettings.visible} onChange={setVisible} />
+        <ToggleRow
+          label="未播放时自动隐藏"
+          description="暂停、停止或播放器不可用时隐藏；恢复播放后自动显示（需开启显示桌面歌词）"
+          value={config.overlay.hideWhenNotPlaying}
+          onChange={(hidden) => setOverlayHideWhenNotPlaying(hidden).catch((value) => setError(messageOf(value)))}
+        />
         <ToggleRow label="锁定并鼠标穿透" description="锁定后点击会穿透到下方窗口" value={overlaySettings.locked} onChange={setLocked} />
-        <div className={styles.buttonRow}><button onClick={() => void resetOverlayBounds()}>复位并显示桌面歌词</button></div>
+        <div className={styles.buttonRow}><button onClick={() => void resetOverlayBounds()}>复位桌面歌词位置</button></div>
       </SettingsCard>
       <SettingsCard title="快捷配色" trailing={<span className={styles.colorPresetStatus}>当前：{activeColorPreset?.name ?? "自定义"}</span>}>
         <div className={styles.colorPresetGrid}>

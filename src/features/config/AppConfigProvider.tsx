@@ -5,7 +5,7 @@ import { createTauriListenerCleanup } from "../../shared/tauriEvent";
 import { defaultGlobalShortcuts, defaultOverlayStyle, type AppConfig, type GlobalShortcutSettings } from "../../shared/types";
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 11,
+  schemaVersion: 12,
   app: { uiFontScale: 100, playerSelection: "auto", hideDockIcon: false, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
@@ -22,6 +22,7 @@ const defaultConfig: AppConfig = {
   overlay: {
     visible: true,
     locked: false,
+    hideWhenNotPlaying: false,
     appearance: {
       fontSize: defaultOverlayStyle.fontSize,
       activeColor: defaultOverlayStyle.activeColor,
@@ -53,6 +54,7 @@ type AppConfigContextValue = {
   setUiFontScale: (scale: number) => Promise<void>;
   setGlobalShortcuts: (shortcuts: GlobalShortcutSettings) => Promise<void>;
   setDockIconHidden: (hidden: boolean) => Promise<void>;
+  setOverlayHideWhenNotPlaying: (hidden: boolean) => Promise<void>;
   syncConfig: (config: AppConfig) => void;
 };
 
@@ -105,6 +107,16 @@ export function AppConfigProvider({
         return;
       }
       setConfig(await api.setDockIconHidden(hidden));
+    },
+    setOverlayHideWhenNotPlaying: async (hidden) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({
+          ...current,
+          overlay: { ...current.overlay, hideWhenNotPlaying: hidden },
+        }));
+        return;
+      }
+      setConfig(await api.setOverlayHideWhenNotPlaying(hidden));
     },
     syncConfig: setConfig,
   }), [config]);

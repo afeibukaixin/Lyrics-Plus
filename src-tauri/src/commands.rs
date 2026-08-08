@@ -649,28 +649,20 @@ pub fn reveal_library_entry(
 }
 
 pub fn update_overlay_visible(app: &tauri::AppHandle, visible: bool) -> Result<(), String> {
-    let window = app
-        .get_webview_window("lyrics-overlay")
-        .ok_or_else(|| "歌词浮窗不存在".to_string())?;
-    if visible {
-        crate::restore_overlay_position(app, &window);
-        window.show()
-    } else {
-        window.hide()
-    }
-    .map_err(|error| error.to_string())?;
     let state = app.state::<AppState>();
+    let config = state
+        .config
+        .update(|config| config.overlay.visible = visible)?;
     state
         .overlay_settings
         .write()
         .unwrap_or_else(|error| error.into_inner())
         .visible = visible;
-    crate::sync_unlock_handle(app);
-    state
-        .config
-        .update(|config| config.overlay.visible = visible)?;
+    crate::reconcile_overlay_visibility(app)?;
     crate::sync_tray_overlay_checked(app, visible);
     app.emit("overlay://settings", get_overlay_settings_inner(&state))
+        .map_err(|error| error.to_string())?;
+    app.emit("config://changed", &config)
         .map_err(|error| error.to_string())
 }
 
@@ -933,7 +925,6 @@ pub fn reset_overlay_bounds(app: tauri::AppHandle) -> Result<OverlayStyleSetting
     let _ = window.set_resizable(false);
     crate::move_overlay_to_primary(&app, &window);
     persist_overlay_style_for_current_monitor(&app, &state, &style)?;
-    window.show().map_err(|error| error.to_string())?;
     state
         .overlay_settings
         .write()
@@ -943,7 +934,7 @@ pub fn reset_overlay_bounds(app: tauri::AppHandle) -> Result<OverlayStyleSetting
         .config
         .update(|config| config.overlay.visible = true)?;
     crate::sync_tray_overlay_checked(&app, true);
-    crate::sync_unlock_handle(&app);
+    crate::reconcile_overlay_visibility(&app)?;
     app.emit("overlay://settings", get_overlay_settings_inner(&state))
         .map_err(|error| error.to_string())?;
     Ok(style)
@@ -1328,6 +1319,21 @@ pub fn set_dock_icon_hidden(app: tauri::AppHandle, hidden: bool) -> Result<AppCo
 }
 
 #[tauri::command]
+pub fn set_overlay_hide_when_not_playing(
+    app: tauri::AppHandle,
+    hidden: bool,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let config = state
+        .config
+        .update(|config| config.overlay.hide_when_not_playing = hidden)?;
+    crate::reconcile_overlay_visibility(&app)?;
+    app.emit("config://changed", &config)
+        .map_err(|error| error.to_string())?;
+    Ok(config)
+}
+
+#[tauri::command]
 pub fn export_app_config(state: State<'_, AppState>) -> Result<ConfigExport, String> {
     Ok(ConfigExport {
         file_name: "lyrics-plus-config.json".into(),
@@ -1486,19 +1492,13 @@ fn apply_app_config(
             passthrough: saved.overlay.locked,
         };
         if let Some(window) = app.get_webview_window("lyrics-overlay") {
-            if saved.overlay.visible {
-                crate::restore_overlay_position(app, &window);
-                let _ = window.show();
-            } else {
-                let _ = window.hide();
-            }
             let _ = window.set_ignore_cursor_events(saved.overlay.locked);
             let _ = window.set_focusable(!saved.overlay.locked);
             if !saved.overlay.locked {
                 crate::refresh_overlay_mouse_tracking(&window);
             }
         }
-        crate::sync_unlock_handle(app);
+        crate::reconcile_overlay_visibility(app)?;
         crate::sync_tray_overlay_checked(app, saved.overlay.visible);
         let _ = app.emit("player://selection", saved.app.player_selection);
         let _ = app.emit("overlay://settings", get_overlay_settings_inner(&state));
@@ -1564,9 +1564,8 @@ pub fn reset_settings_section(
             crate::refresh_overlay_mouse_tracking(&window);
             let _ = window.set_resizable(false);
             crate::restore_overlay_position(&app, &window);
-            window.show().map_err(|error| error.to_string())?;
+            crate::reconcile_overlay_visibility(&app)?;
             crate::sync_tray_overlay_checked(&app, true);
-            crate::sync_unlock_handle(&app);
             app.emit("overlay://settings", get_overlay_settings_inner(&state))
                 .map_err(|error| error.to_string())?;
             app.emit("overlay://style", &style)

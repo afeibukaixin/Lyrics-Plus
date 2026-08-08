@@ -158,6 +158,7 @@ export type AppConfig = {
   overlay: {
     visible: boolean;
     locked: boolean;
+    hideWhenNotPlaying: boolean;
     appearance: OverlayAppearance;
   };
 };

@@ -131,6 +131,8 @@ export const api = {
     invoke<AppConfig>("set_global_shortcuts", { shortcuts }),
   setDockIconHidden: (hidden: boolean) =>
     invoke<AppConfig>("set_dock_icon_hidden", { hidden }),
+  setOverlayHideWhenNotPlaying: (hidden: boolean) =>
+    invoke<AppConfig>("set_overlay_hide_when_not_playing", { hidden }),
   exportAppConfig: () => invoke<ConfigExport>("export_app_config"),
   importAppConfig: (raw: string, appearanceOnly: boolean) =>
     invoke<AppConfig>("import_app_config", { raw, appearanceOnly }),

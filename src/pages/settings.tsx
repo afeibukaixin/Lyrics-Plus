@@ -39,6 +39,7 @@ export type SettingsOutletContext = {
   setUiFontScale: ReturnType<typeof useAppConfig>["setUiFontScale"];
   setGlobalShortcuts: ReturnType<typeof useAppConfig>["setGlobalShortcuts"];
   setDockIconHidden: ReturnType<typeof useAppConfig>["setDockIconHidden"];
+  setOverlayHideWhenNotPlaying: ReturnType<typeof useAppConfig>["setOverlayHideWhenNotPlaying"];
   playback: ReturnType<typeof usePlayback>;
   lyrics: ReturnType<typeof useLyrics>;
   fileInput: RefObject<HTMLInputElement | null>;
@@ -71,7 +72,14 @@ export type SettingsOutletContext = {
 };
 
 export default function Settings() {
-  const { config, setUiFontScale, setGlobalShortcuts, setDockIconHidden, syncConfig } = useAppConfig();
+  const {
+    config,
+    setUiFontScale,
+    setGlobalShortcuts,
+    setDockIconHidden,
+    setOverlayHideWhenNotPlaying,
+    syncConfig,
+  } = useAppConfig();
   const playback = usePlayback();
   const lyrics = useLyrics(playback.snapshot, playback.positionMs, false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -310,7 +318,7 @@ export default function Settings() {
       const resetStyle = await api.resetOverlayBounds();
       setStyle(resetStyle);
       setOverlaySettings((current) => ({ ...current, visible: true }));
-      setNotice("桌面歌词已复位并重新显示。");
+      setNotice("桌面歌词位置已复位。");
     } catch (value) {
       setError(messageOf(value));
     }
@@ -331,6 +339,7 @@ export default function Settings() {
     setUiFontScale,
     setGlobalShortcuts,
     setDockIconHidden,
+    setOverlayHideWhenNotPlaying,
     playback,
     lyrics,
     fileInput,

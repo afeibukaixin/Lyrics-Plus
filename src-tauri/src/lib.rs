@@ -459,6 +459,40 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
+fn should_show_overlay(visible: bool, hide_when_not_playing: bool, is_playing: bool) -> bool {
+    visible && (!hide_when_not_playing || is_playing)
+}
+
+pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<bool, String> {
+    let state = app.state::<AppState>();
+    let configured = state.config.snapshot();
+    let is_playing = state
+        .last_snapshot
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .is_playing;
+    let should_show = should_show_overlay(
+        configured.overlay.visible,
+        configured.overlay.hide_when_not_playing,
+        is_playing,
+    );
+    let window = app
+        .get_webview_window("lyrics-overlay")
+        .ok_or_else(|| "歌词浮窗不存在".to_string())?;
+    let is_visible = window.is_visible().unwrap_or(false);
+    if should_show != is_visible {
+        if should_show {
+            restore_overlay_position(app, &window);
+            window.show()
+        } else {
+            window.hide()
+        }
+        .map_err(|error| error.to_string())?;
+    }
+    sync_unlock_handle(app);
+    Ok(should_show)
+}
+
 fn start_player_monitor(app: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         loop {
@@ -498,6 +532,9 @@ fn start_player_monitor(app: tauri::AppHandle) {
                 *state.auto_player.write().unwrap_or_else(|e| e.into_inner()) = next_auto_player;
             }
             let _ = app.emit("playback://snapshot", &snapshot);
+            if let Err(error) = reconcile_overlay_visibility(&app) {
+                log::warn!("同步桌面歌词播放状态失败：{error}");
+            }
             if let Some(window) = app.get_webview_window("lyrics-overlay") {
                 if window.is_visible().unwrap_or(false) {
                     reconcile_overlay_placement(&app, &window);
@@ -896,10 +933,13 @@ pub(crate) fn sync_unlock_handle(app: &tauri::AppHandle) {
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .clone();
-    let Some(handle) = app.get_webview_window("lyrics-unlock-handle") else {
+    let (Some(overlay), Some(handle)) = (
+        app.get_webview_window("lyrics-overlay"),
+        app.get_webview_window("lyrics-unlock-handle"),
+    ) else {
         return;
     };
-    let should_show = settings.visible && settings.locked;
+    let should_show = settings.visible && settings.locked && overlay.is_visible().unwrap_or(false);
     let is_visible = handle.is_visible().unwrap_or(false);
     if should_show {
         position_unlock_handle(app);
@@ -932,6 +972,7 @@ fn start_overlay_pointer_monitor(app: tauri::AppHandle) {
             ) else {
                 continue;
             };
+            let overlay_visible = overlay.is_visible().unwrap_or(false);
 
             let overlay_sample = match (
                 app.cursor_position(),
@@ -941,8 +982,8 @@ fn start_overlay_pointer_monitor(app: tauri::AppHandle) {
                 (Ok(cursor), Ok(position), Ok(size)) => Some((cursor, position, size)),
                 _ => None,
             };
-            let overlay_hovered =
-                overlay_sample
+            let overlay_hovered = overlay_visible
+                && overlay_sample
                     .as_ref()
                     .is_some_and(|(cursor, position, size)| {
                         should_hover_overlay(&settings, *cursor, *position, *size)
@@ -952,7 +993,7 @@ fn start_overlay_pointer_monitor(app: tauri::AppHandle) {
                 last_overlay_hovered = Some(overlay_hovered);
             }
 
-            if !settings.visible || !settings.locked {
+            if !settings.visible || !settings.locked || !overlay_visible {
                 last_inside_at = None;
                 if handle.is_visible().unwrap_or(false) {
                     let _ = handle.hide();
@@ -1443,11 +1484,8 @@ pub fn run() {
                     refresh_overlay_mouse_tracking(&window);
                 }
                 restore_overlay_position(app.handle(), &window);
-                if overlay_settings.visible {
-                    let _ = window.show();
-                }
             }
-            sync_unlock_handle(app.handle());
+            reconcile_overlay_visibility(app.handle()).map_err(std::io::Error::other)?;
             start_overlay_pointer_monitor(app.handle().clone());
             setup_tray(app)?;
             if configured.app.hide_dock_icon {
@@ -1545,6 +1583,7 @@ pub fn run() {
             commands::set_ui_font_scale,
             commands::set_global_shortcuts,
             commands::set_dock_icon_hidden,
+            commands::set_overlay_hide_when_not_playing,
             commands::export_app_config,
             commands::import_app_config,
             commands::reveal_config_directory,
@@ -1792,6 +1831,18 @@ mod tests {
         settings.visible = true;
         settings.locked = true;
         assert!(!should_hover_overlay(&settings, cursor, position, size));
+    }
+
+    #[test]
+    fn overlay_visibility_respects_preference_and_playback_state() {
+        assert!(!should_show_overlay(false, false, false));
+        assert!(!should_show_overlay(false, false, true));
+        assert!(!should_show_overlay(false, true, false));
+        assert!(!should_show_overlay(false, true, true));
+        assert!(should_show_overlay(true, false, false));
+        assert!(should_show_overlay(true, false, true));
+        assert!(!should_show_overlay(true, true, false));
+        assert!(should_show_overlay(true, true, true));
     }
 
     #[test]

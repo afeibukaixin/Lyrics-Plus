@@ -14,11 +14,11 @@ use crate::lyrics::provider::{validate_settings, ProviderOrderMode, ProviderSett
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 11;
+pub const CONFIG_SCHEMA_VERSION: u16 = 12;
 
 pub const DEFAULT_CONFIG_JSONC: &str = r###"{
   // 配置格式版本。通常不需要手动修改。
-  "schemaVersion": 11,
+  "schemaVersion": 12,
   "app": {
     // 主界面字号：80–150，每 10% 一档。
     "uiFontScale": 100,
@@ -52,6 +52,8 @@ pub const DEFAULT_CONFIG_JSONC: &str = r###"{
     // 桌面歌词浮窗是否显示、是否锁定并鼠标穿透。
     "visible": true,
     "locked": false,
+    // 暂停、停止或播放器不可用时隐藏，恢复播放后自动显示。
+    "hideWhenNotPlaying": false,
     "appearance": {
       // 主歌词字号（16–72px）及颜色。
       "fontSize": 36,
@@ -190,6 +192,7 @@ pub struct LyricsPreferences {
 pub struct OverlayPreferences {
     pub visible: bool,
     pub locked: bool,
+    pub hide_when_not_playing: bool,
     pub appearance: OverlayAppearance,
 }
 
@@ -198,6 +201,7 @@ impl Default for OverlayPreferences {
         Self {
             visible: true,
             locked: false,
+            hide_when_not_playing: false,
             appearance: OverlayAppearance::default(),
         }
     }
@@ -693,7 +697,11 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
         }
     }
     if let Some(overlay) = value.get("overlay") {
-        check_keys(overlay, raw, &["visible", "locked", "appearance"])?;
+        check_keys(
+            overlay,
+            raw,
+            &["visible", "locked", "hideWhenNotPlaying", "appearance"],
+        )?;
         if let Some(appearance) = overlay.get("appearance") {
             check_keys(
                 appearance,
@@ -748,6 +756,7 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         ("/app/hideDockIcon", "hideDockIcon"),
         ("/overlay/visible", "visible"),
         ("/overlay/locked", "locked"),
+        ("/overlay/hideWhenNotPlaying", "hideWhenNotPlaying"),
         (
             "/overlay/appearance/autoCenterWithTranslationOrRomanization",
             "autoCenterWithTranslationOrRomanization",
@@ -1424,10 +1433,29 @@ mod tests {
     #[test]
     fn current_background_opacity_is_preserved() {
         let parsed = parse_config_draft(
-            r#"{"schemaVersion":11,"overlay":{"appearance":{"backgroundOpacity":0.85}}}"#,
+            r#"{"schemaVersion":12,"overlay":{"appearance":{"backgroundOpacity":0.85}}}"#,
         )
         .unwrap();
         assert_eq!(parsed.config.overlay.appearance.background_opacity, 0.85);
+    }
+
+    #[test]
+    fn schema_eleven_adds_disabled_hide_when_not_playing() {
+        let parsed = parse_config_draft(r#"{"schemaVersion":11}"#).unwrap();
+        assert!(parsed.migrated);
+        assert_eq!(parsed.config.schema_version, CONFIG_SCHEMA_VERSION);
+        assert!(!parsed.config.overlay.hide_when_not_playing);
+    }
+
+    #[test]
+    fn hide_when_not_playing_requires_boolean_value() {
+        let validation = validate_config_draft(r#"{"overlay":{"hideWhenNotPlaying":"yes"}}"#);
+        assert!(!validation.valid);
+        assert!(validation
+            .error
+            .unwrap()
+            .message
+            .contains("hideWhenNotPlaying 必须是布尔值"));
     }
 
     #[test]
@@ -1480,7 +1508,7 @@ mod tests {
             assert!(parsed.migrated);
             assert_eq!(parsed.config.overlay.appearance.layout, layout);
             assert_eq!(parsed.config.overlay.appearance.orientation, orientation);
-            assert!(parsed.normalized_json.contains("\"schemaVersion\": 11"));
+            assert!(parsed.normalized_json.contains("\"schemaVersion\": 12"));
         }
     }
 
@@ -1493,10 +1521,10 @@ mod tests {
             "vertical_double",
         ] {
             let raw = format!(
-                r#"{{"schemaVersion":11,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
+                r#"{{"schemaVersion":12,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
             );
             let validation = validate_config_draft(&raw);
-            assert!(!validation.valid, "{layout} should be invalid in schema 11");
+            assert!(!validation.valid, "{layout} should be invalid in schema 12");
             assert!(validation.error.unwrap().message.contains("orientation"));
         }
     }
@@ -1527,7 +1555,7 @@ mod tests {
     fn current_schema_preserves_explicit_legacy_provider_order() {
         let parsed = parse_config_draft(
             r#"{
-              "schemaVersion": 11,
+              "schemaVersion": 12,
               "lyrics": { "providers": {
                 "mode": "smart",
                 "providers": [
