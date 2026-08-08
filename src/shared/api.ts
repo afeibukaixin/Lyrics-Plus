@@ -10,6 +10,7 @@ import type {
   ConfigEditorData,
   GlobalShortcutSettings,
   LanguagePreference,
+  LegalNoticeStatus,
   NativeLanguage,
   LyricsDocument,
   LibraryPage,
@@ -59,6 +60,9 @@ function invoke<T>(command: string, args?: Record<string, unknown>) {
 }
 
 export const api = {
+  getLegalNoticeStatus: () => invoke<LegalNoticeStatus>("get_legal_notice_status"),
+  acceptLegalNotice: () => invoke<void>("accept_legal_notice"),
+  quitApplication: () => invoke<void>("quit_application"),
   getPlayback: () => invoke<PlaybackSnapshot>("get_playback_snapshot"),
   getTrackArtwork: (player: PlayerKind, trackId: string) =>
     invoke<ArtworkAsset | null>("get_track_artwork", { player, trackId }),

@@ -11,7 +11,7 @@ const defaultOverlayAppearance = (({
 }: typeof defaultOverlayStyle) => appearance)(defaultOverlayStyle);
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 13,
+  schemaVersion: 14,
   app: { uiFontScale: 100, language: "system", playerSelection: "auto", hideDockIcon: false, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
@@ -19,9 +19,9 @@ const defaultConfig: AppConfig = {
       autoApplyThreshold: 60,
       providers: [
         { id: "lrclib", enabled: true },
-        { id: "kugou", enabled: true },
-        { id: "qqmusic", enabled: true },
-        { id: "netease", enabled: true },
+        { id: "kugou", enabled: false },
+        { id: "qqmusic", enabled: false },
+        { id: "netease", enabled: false },
       ],
     },
   },

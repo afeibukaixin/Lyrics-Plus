@@ -29,6 +29,17 @@ struct TrayMenuState {
     quit: MenuItem<tauri::Wry>,
 }
 
+pub(crate) const LEGAL_NOTICE_VERSION: u16 = 1;
+pub(crate) const LEGAL_NOTICE_PREFERENCE: &str = "legal.notice.acceptedVersion";
+
+pub(crate) fn legal_notice_accepted(storage: &storage::Storage) -> Result<bool, String> {
+    Ok(storage
+        .get_preference(LEGAL_NOTICE_PREFERENCE)?
+        .as_deref()
+        .and_then(|value| value.parse::<u16>().ok())
+        == Some(LEGAL_NOTICE_VERSION))
+}
+
 pub(crate) fn apply_native_language(
     app: &tauri::AppHandle,
     language: UiLanguage,
@@ -382,7 +393,7 @@ fn initial_overlay_dimensions(style: &OverlayStyleSettings) -> (f64, f64) {
     }
 }
 
-fn create_unlock_handle(app: &tauri::App) -> tauri::Result<()> {
+fn create_unlock_handle(app: &tauri::AppHandle) -> tauri::Result<()> {
     if app.get_webview_window("lyrics-unlock-handle").is_some() {
         return Ok(());
     }
@@ -411,7 +422,10 @@ fn create_unlock_handle(app: &tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
-fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
+fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
+    if app.try_state::<TrayMenuState>().is_some() {
+        return Ok(());
+    }
     let labels = UiLanguage::ZhCn.native_labels();
     let overlay_visible = app
         .state::<AppState>()
@@ -1109,6 +1123,53 @@ fn start_overlay_pointer_monitor(app: tauri::AppHandle) {
     });
 }
 
+pub(crate) fn activate_runtime(app: &tauri::AppHandle) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let mut started = state
+        .runtime_started
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    if *started {
+        return Ok(());
+    }
+
+    let configured = state.config.snapshot();
+    let overlay_settings = state
+        .overlay_settings
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .clone();
+
+    create_overlay(app).map_err(|error| error.to_string())?;
+    create_unlock_handle(app).map_err(|error| error.to_string())?;
+    if let Some(window) = app.get_webview_window("lyrics-overlay") {
+        let _ = window.set_resizable(false);
+        let _ = window.set_ignore_cursor_events(overlay_settings.locked);
+        let _ = window.set_focusable(!overlay_settings.locked);
+        if !overlay_settings.locked {
+            refresh_overlay_mouse_tracking(&window);
+        }
+        restore_overlay_position(app, &window);
+    }
+    setup_tray(app).map_err(|error| error.to_string())?;
+    if !configured.app.language.uses_native_chinese() {
+        apply_native_language(app, UiLanguage::EnUs)?;
+    }
+    if configured.app.hide_dock_icon {
+        apply_dock_icon_hidden(app, true)?;
+    }
+    register_global_shortcuts(app, &configured.app.shortcuts)?;
+
+    *started = true;
+    commands::start_library_scan(app);
+    if let Err(error) = reconcile_overlay_visibility(app) {
+        log::warn!("Failed to reconcile overlay visibility at activation: {error}");
+    }
+    start_overlay_pointer_monitor(app.clone());
+    start_player_monitor(app.clone());
+    Ok(())
+}
+
 fn snapped_position(
     window: &tauri::WebviewWindow,
     position: tauri::PhysicalPosition<i32>,
@@ -1463,6 +1524,7 @@ pub fn run() {
         .setup(|app| {
             cleanup_legacy_autostart(app.handle());
             let storage = storage::Storage::new(app.handle())?;
+            let notice_accepted = legal_notice_accepted(&storage).unwrap_or(false);
             let app_dir = app.path().app_data_dir()?;
             let artwork =
                 artwork::ArtworkService::new(app.path().app_cache_dir()?.join("artworks"))?;
@@ -1503,6 +1565,7 @@ pub fn run() {
             overlay_style.horizontal_max_width = geometry.horizontal_max_width;
             overlay_style.vertical_max_height = geometry.vertical_max_height;
             app.manage(AppState {
+                runtime_started: Mutex::new(false),
                 selection: Arc::new(RwLock::new(selection)),
                 auto_player: Arc::new(RwLock::new(None)),
                 overlay_settings: Arc::new(RwLock::new(overlay_settings.clone())),
@@ -1518,12 +1581,15 @@ pub fn run() {
                 providers: Arc::new(lyrics::provider::ProviderRegistry::new(provider_settings)),
                 artwork: Arc::new(artwork),
                 http: reqwest::Client::builder()
-                    .user_agent("Lyrics Plus/0.1 (macOS)")
+                    .user_agent(concat!(
+                        "Lyrics Plus/",
+                        env!("CARGO_PKG_VERSION"),
+                        " (https://github.com/afeibukaixin/Lyrics-Plus)"
+                    ))
                     .timeout(Duration::from_secs(8))
                     .build()
                     .map_err(|error| error.to_string())?,
             });
-            commands::start_library_scan(app.handle());
 
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_size(tauri::LogicalSize::new(980.0, 720.0));
@@ -1531,37 +1597,28 @@ pub fn run() {
                 let _ = center_main_window_on_cursor(app.handle(), &window);
             }
 
-            create_overlay(app.handle())?;
-            create_unlock_handle(app)?;
-            if let Some(window) = app.get_webview_window("lyrics-overlay") {
-                let _ = window.set_resizable(false);
-                let _ = window.set_ignore_cursor_events(overlay_settings.locked);
-                let _ = window.set_focusable(!overlay_settings.locked);
-                if !overlay_settings.locked {
-                    refresh_overlay_mouse_tracking(&window);
-                }
-                restore_overlay_position(app.handle(), &window);
+            if notice_accepted {
+                activate_runtime(app.handle()).map_err(std::io::Error::other)?;
             }
-            reconcile_overlay_visibility(app.handle()).map_err(std::io::Error::other)?;
-            start_overlay_pointer_monitor(app.handle().clone());
-            setup_tray(app)?;
-            if !configured.app.language.uses_native_chinese() {
-                apply_native_language(app.handle(), UiLanguage::EnUs)
-                    .map_err(std::io::Error::other)?;
-            }
-            if configured.app.hide_dock_icon {
-                apply_dock_icon_hidden(app.handle(), true).map_err(std::io::Error::other)?;
-            }
-
-            register_global_shortcuts(app.handle(), &configured.app.shortcuts)
-                .map_err(std::io::Error::other)?;
-
-            start_player_monitor(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
             if window.label() == "main" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    let runtime_started = window
+                        .app_handle()
+                        .try_state::<AppState>()
+                        .map(|state| {
+                            *state
+                                .runtime_started
+                                .lock()
+                                .unwrap_or_else(|error| error.into_inner())
+                        })
+                        .unwrap_or(false);
+                    if !runtime_started {
+                        window.app_handle().exit(0);
+                        return;
+                    }
                     api.prevent_close();
                     if let Some(main_window) = window.app_handle().get_webview_window("main") {
                         if let Err(error) = main_window.eval("window.location.hash = '#/'") {
@@ -1608,6 +1665,9 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::get_legal_notice_status,
+            commands::accept_legal_notice,
+            commands::quit_application,
             commands::get_playback_snapshot,
             commands::get_track_artwork,
             commands::get_player_selection,

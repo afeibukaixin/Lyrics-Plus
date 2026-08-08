@@ -625,6 +625,12 @@ mod tests {
                 .set_preference("player.selection", "spotify")
                 .expect("save preference");
             storage
+                .set_preference(
+                    crate::LEGAL_NOTICE_PREFERENCE,
+                    &crate::LEGAL_NOTICE_VERSION.to_string(),
+                )
+                .expect("save legal notice version");
+            storage
                 .save(SaveRequest {
                     track_key: "spotify:test",
                     title: "测试歌曲",
@@ -649,6 +655,11 @@ mod tests {
                 .as_deref(),
             Some("spotify")
         );
+        assert!(crate::legal_notice_accepted(&reopened).expect("load legal notice version"));
+        reopened
+            .set_preference(crate::LEGAL_NOTICE_PREFERENCE, "0")
+            .expect("save stale legal notice version");
+        assert!(!crate::legal_notice_accepted(&reopened).expect("reject stale notice version"));
         let lyrics = reopened
             .load("spotify:test")
             .expect("load lyrics")

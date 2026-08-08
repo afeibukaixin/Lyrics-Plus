@@ -68,6 +68,7 @@ export default function LyricsSettingsPage() {
       </SettingsCard>
       <SettingsCard title={t("settings.lyrics.providerPriority")} trailing={providerView && <select aria-label={t("settings.lyrics.providerPriority")} disabled={savingProviderOrder} value={providerView.settings.mode} onChange={(event) => void saveProviderSettings({ ...providerView.settings, mode: event.target.value as ProviderSettings["mode"] })}><option value="strict">{t("settings.lyrics.strict")}</option><option value="smart">{t("settings.lyrics.smart")}</option></select>}>
         <p className={styles.cardHint}>{providerView?.settings.mode === "smart" ? t("settings.lyrics.smartHint") : t("settings.lyrics.strictHint")}</p>
+        <p className={styles.cardHint}>{t("settings.lyrics.onlineProviderNotice")}</p>
         <div className={styles.providers} data-dragging={Boolean(providerDrag)} aria-busy={savingProviderOrder}>{providerView?.settings.providers.map((provider, index) => {
           const status = providerView.statuses.find((item) => item.providerId === provider.id);
           return <div className={styles.provider} data-dragging={providerDrag?.providerId === provider.id} key={provider.id} ref={(element) => { if (element) providerRows.current.set(provider.id, element); else providerRows.current.delete(provider.id); }} style={{ transform: providerDragTransform(index) }}>

@@ -17,7 +17,7 @@ use crate::lyrics::provider::{
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 13;
+pub const CONFIG_SCHEMA_VERSION: u16 = 14;
 
 fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<String, String> {
     let json =
@@ -448,6 +448,21 @@ fn migrate_legacy_provider_order(settings: &mut ProviderSettings) {
     }
 }
 
+fn migrate_v13_provider_defaults(settings: &mut ProviderSettings) {
+    let is_old_default = settings.mode == ProviderOrderMode::Smart
+        && settings.auto_apply_threshold == 60
+        && settings.providers.len() == 4
+        && settings.providers.iter().all(|provider| provider.enabled)
+        && settings
+            .providers
+            .iter()
+            .map(|provider| provider.id.as_str())
+            .eq(["lrclib", "kugou", "qqmusic", "netease"]);
+    if is_old_default {
+        *settings = ProviderSettings::default();
+    }
+}
+
 fn migrate_legacy_overlay_layout(
     user: &mut Value,
     version: u16,
@@ -597,6 +612,9 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
         })?;
     if version < 5 {
         migrate_legacy_provider_order(&mut config.lyrics.providers);
+    }
+    if version < 14 {
+        migrate_v13_provider_defaults(&mut config.lyrics.providers);
     }
     let config = config.normalized().map_err(|message| {
         let key = if message.contains("歌词源") {
@@ -1576,7 +1594,7 @@ mod tests {
     #[test]
     fn current_background_opacity_is_preserved() {
         let parsed = parse_config_draft(
-            r#"{"schemaVersion":13,"overlay":{"appearance":{"backgroundOpacity":0.85}}}"#,
+            r#"{"schemaVersion":14,"overlay":{"appearance":{"backgroundOpacity":0.85}}}"#,
         )
         .unwrap();
         assert_eq!(parsed.config.overlay.appearance.background_opacity, 0.85);
@@ -1599,6 +1617,54 @@ mod tests {
     }
 
     #[test]
+    fn schema_thirteen_migrates_only_the_old_provider_default() {
+        let old_default = parse_config_draft(
+            r#"{
+              "schemaVersion": 13,
+              "lyrics": { "providers": {
+                "mode": "smart",
+                "autoApplyThreshold": 60,
+                "providers": [
+                  { "id": "lrclib", "enabled": true },
+                  { "id": "kugou", "enabled": true },
+                  { "id": "qqmusic", "enabled": true },
+                  { "id": "netease", "enabled": true }
+                ]
+              } }
+            }"#,
+        )
+        .unwrap();
+        assert!(old_default.config.lyrics.providers.providers[0].enabled);
+        assert!(old_default.config.lyrics.providers.providers[1..]
+            .iter()
+            .all(|provider| !provider.enabled));
+
+        let customized = parse_config_draft(
+            r#"{
+              "schemaVersion": 13,
+              "lyrics": { "providers": {
+                "mode": "smart",
+                "autoApplyThreshold": 61,
+                "providers": [
+                  { "id": "lrclib", "enabled": true },
+                  { "id": "kugou", "enabled": true },
+                  { "id": "qqmusic", "enabled": true },
+                  { "id": "netease", "enabled": true }
+                ]
+              } }
+            }"#,
+        )
+        .unwrap();
+        assert!(customized
+            .config
+            .lyrics
+            .providers
+            .providers
+            .iter()
+            .all(|provider| provider.enabled));
+    }
+
+    #[test]
     fn language_preference_accepts_supported_and_future_bcp_47_values() {
         for (raw, expected) in [
             (r#"{"app":{"language":"system"}}"#, "system"),
@@ -1608,7 +1674,7 @@ mod tests {
             (r#"{"app":{"language":"fr-FR"}}"#, "fr-FR"),
         ] {
             let parsed = parse_config_draft(raw).unwrap();
-            assert_eq!(parsed.config.app.language.as_str(), expected);
+            assert_eq!(parsed.config.app.language.0, expected);
         }
     }
 
@@ -1697,7 +1763,7 @@ mod tests {
             assert!(parsed.migrated);
             assert_eq!(parsed.config.overlay.appearance.layout, layout);
             assert_eq!(parsed.config.overlay.appearance.orientation, orientation);
-            assert!(parsed.normalized_json.contains("\"schemaVersion\": 13"));
+            assert!(parsed.normalized_json.contains("\"schemaVersion\": 14"));
         }
     }
 
@@ -1710,10 +1776,13 @@ mod tests {
             "vertical_double",
         ] {
             let raw = format!(
-                r#"{{"schemaVersion":13,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
+                r#"{{"schemaVersion":14,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
             );
             let validation = validate_config_draft(&raw);
-            assert!(!validation.valid, "{layout} should be invalid in schema 12");
+            assert!(
+                !validation.valid,
+                "{layout} should be invalid in the current schema"
+            );
             assert!(validation.error.unwrap().message.contains("orientation"));
         }
     }
@@ -1744,7 +1813,7 @@ mod tests {
     fn current_schema_preserves_explicit_legacy_provider_order() {
         let parsed = parse_config_draft(
             r#"{
-              "schemaVersion": 13,
+              "schemaVersion": 14,
               "lyrics": { "providers": {
                 "mode": "smart",
                 "providers": [

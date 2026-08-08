@@ -20,6 +20,11 @@ export type GlobalShortcutSettings = {
   resetOverlay: string;
 };
 
+export type LegalNoticeStatus = {
+  currentVersion: number;
+  accepted: boolean;
+};
+
 export const defaultGlobalShortcuts: GlobalShortcutSettings = {
   toggleOverlay: "CommandOrControl+Shift+KeyL",
   unlockOverlay: "CommandOrControl+Shift+KeyU",

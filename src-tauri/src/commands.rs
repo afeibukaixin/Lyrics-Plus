@@ -20,6 +20,7 @@ use crate::storage::library::{LibraryPage, LibraryPreview, LibraryScanStatus};
 use crate::storage::{SaveKind, SaveRequest, Storage};
 
 pub struct AppState {
+    pub runtime_started: Mutex<bool>,
     pub selection: Arc<RwLock<PlayerSelection>>,
     pub auto_player: Arc<RwLock<Option<PlayerKind>>>,
     pub overlay_settings: Arc<RwLock<OverlaySettings>>,
@@ -32,6 +33,13 @@ pub struct AppState {
     pub providers: Arc<ProviderRegistry>,
     pub artwork: Arc<ArtworkService>,
     pub http: reqwest::Client,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LegalNoticeStatus {
+    pub current_version: u16,
+    pub accepted: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1227,6 +1235,31 @@ pub fn show_quick_lyrics_window(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn get_app_config(state: State<'_, AppState>) -> AppConfig {
     state.config.snapshot()
+}
+
+#[tauri::command]
+pub fn get_legal_notice_status(state: State<'_, AppState>) -> Result<LegalNoticeStatus, String> {
+    Ok(LegalNoticeStatus {
+        current_version: crate::LEGAL_NOTICE_VERSION,
+        accepted: crate::legal_notice_accepted(&state.storage)?,
+    })
+}
+
+#[tauri::command]
+pub fn accept_legal_notice(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    state.storage.set_preference(
+        crate::LEGAL_NOTICE_PREFERENCE,
+        &crate::LEGAL_NOTICE_VERSION.to_string(),
+    )?;
+    crate::activate_runtime(&app)
+}
+
+#[tauri::command]
+pub fn quit_application(app: tauri::AppHandle) {
+    app.exit(0);
 }
 
 #[tauri::command]

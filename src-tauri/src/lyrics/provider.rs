@@ -125,7 +125,7 @@ impl Default for ProviderSettings {
                 .into_iter()
                 .map(|(id, _)| ProviderPreference {
                     id: id.into(),
-                    enabled: true,
+                    enabled: id == "lrclib",
                 })
                 .collect(),
             auto_apply_threshold: default_auto_apply_threshold(),
@@ -490,6 +490,20 @@ pub fn can_auto_apply(results: &[LyricsSearchResult], threshold_percent: u8) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn defaults_to_the_public_provider_only() {
+        let settings = ProviderSettings::default();
+        assert_eq!(
+            settings
+                .providers
+                .iter()
+                .filter(|provider| provider.enabled)
+                .map(|provider| provider.id.as_str())
+                .collect::<Vec<_>>(),
+            ["lrclib"]
+        );
+    }
 
     struct MockProvider {
         id: &'static str,
