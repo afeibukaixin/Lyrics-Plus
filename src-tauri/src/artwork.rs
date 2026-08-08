@@ -1,8 +1,9 @@
+use std::collections::HashMap;
 use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use image::codecs::jpeg::JpegEncoder;
 use image::ImageReader;
@@ -16,6 +17,7 @@ const MAX_SOURCE_BYTES: usize = 10 * 1024 * 1024;
 const MAX_ARTWORK_DIMENSION: u32 = 384;
 const JPEG_QUALITY: u8 = 85;
 const MAX_CACHE_FILES: usize = 200;
+const MISSING_ARTWORK_TTL: Duration = Duration::from_secs(5 * 60);
 
 const SPOTIFY_ARTWORK_SCRIPT: &str = r#"
 ObjC.import('Foundation');
@@ -104,9 +106,48 @@ struct SpotifyArtworkResponse {
     url: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AppleMusicArtworkExport {
+    Exported,
+    Missing,
+    Stale,
+    Unavailable,
+}
+
+#[derive(Default)]
+struct MissingArtworkCache {
+    entries: HashMap<String, Instant>,
+}
+
+impl MissingArtworkCache {
+    fn contains_recent(&mut self, key: &str, now: Instant) -> bool {
+        self.entries.retain(|_, recorded_at| {
+            now.saturating_duration_since(*recorded_at) < MISSING_ARTWORK_TTL
+        });
+        self.entries.contains_key(key)
+    }
+
+    fn record(&mut self, key: &str, result: AppleMusicArtworkExport, now: Instant) {
+        match result {
+            AppleMusicArtworkExport::Missing => {
+                self.entries.insert(key.to_string(), now);
+            }
+            AppleMusicArtworkExport::Exported => {
+                self.entries.remove(key);
+            }
+            AppleMusicArtworkExport::Stale | AppleMusicArtworkExport::Unavailable => {}
+        }
+    }
+
+    fn remove(&mut self, key: &str) {
+        self.entries.remove(key);
+    }
+}
+
 pub struct ArtworkService {
     cache_dir: PathBuf,
     operation_lock: Mutex<()>,
+    missing_artwork: Mutex<MissingArtworkCache>,
 }
 
 impl ArtworkService {
@@ -115,6 +156,7 @@ impl ArtworkService {
         Ok(Self {
             cache_dir,
             operation_lock: Mutex::new(()),
+            missing_artwork: Mutex::new(MissingArtworkCache::default()),
         })
     }
 
@@ -134,9 +176,22 @@ impl ArtworkService {
         }
 
         let _guard = self.operation_lock.lock().await;
+        let artwork_key = cache_key(player, track_id);
         let final_path = self.cache_path(player, track_id);
         if is_nonempty_file(&final_path) {
+            if player == PlayerKind::AppleMusic {
+                self.missing_artwork.lock().await.remove(&artwork_key);
+            }
             return Ok(Some(asset(player, track_id, &final_path)));
+        }
+        if player == PlayerKind::AppleMusic
+            && self
+                .missing_artwork
+                .lock()
+                .await
+                .contains_recent(&artwork_key, Instant::now())
+        {
+            return Ok(None);
         }
 
         let title = snapshot.title.clone().unwrap_or_default();
@@ -158,12 +213,17 @@ impl ArtworkService {
                 let raw_path = self.temp_path("apple-music");
                 let expected_id = track_id.to_string();
                 let export_path = raw_path.clone();
-                let exported = tauri::async_runtime::spawn_blocking(move || {
+                let export_result = tauri::async_runtime::spawn_blocking(move || {
                     export_apple_music_artwork(&expected_id, &title, &artist, &album, &export_path)
                 })
                 .await
                 .map_err(|error| format!("Apple Music 封面读取任务失败：{error}"))??;
-                if !exported {
+                self.missing_artwork.lock().await.record(
+                    &artwork_key,
+                    export_result,
+                    Instant::now(),
+                );
+                if export_result != AppleMusicArtworkExport::Exported {
                     let _ = fs::remove_file(&raw_path);
                     return Ok(None);
                 }
@@ -271,7 +331,7 @@ fn export_apple_music_artwork(
     artist: &str,
     album: &str,
     output_path: &Path,
-) -> Result<bool, String> {
+) -> Result<AppleMusicArtworkExport, String> {
     log::debug!("Starting Apple Music artwork export");
     let mut command = Command::new("/usr/bin/osascript");
     command
@@ -294,8 +354,38 @@ fn export_apple_music_artwork(
         log::debug!("Failed to export Apple Music artwork; the script returned an error: {detail}");
         return Err(detail);
     }
-    log::debug!("Apple Music artwork export completed with status: {status}");
-    Ok(status == "ok" && is_nonempty_file(output_path))
+    let result = parse_apple_music_artwork_status(&status, output_path)?;
+    match result {
+        AppleMusicArtworkExport::Exported => {
+            log::debug!("Apple Music artwork export completed");
+        }
+        AppleMusicArtworkExport::Missing => {
+            log::debug!(
+                "Apple Music exposes no artwork for the current track; using the placeholder"
+            );
+        }
+        AppleMusicArtworkExport::Stale => {
+            log::debug!("Skipped Apple Music artwork export because the current track changed");
+        }
+        AppleMusicArtworkExport::Unavailable => {
+            log::debug!("Skipped Apple Music artwork export because Music is unavailable");
+        }
+    }
+    Ok(result)
+}
+
+fn parse_apple_music_artwork_status(
+    status: &str,
+    output_path: &Path,
+) -> Result<AppleMusicArtworkExport, String> {
+    match status {
+        "ok" if is_nonempty_file(output_path) => Ok(AppleMusicArtworkExport::Exported),
+        "ok" => Err("Apple Music 封面导出成功，但输出文件为空".into()),
+        "missing" => Ok(AppleMusicArtworkExport::Missing),
+        "stale" => Ok(AppleMusicArtworkExport::Stale),
+        "unavailable" => Ok(AppleMusicArtworkExport::Unavailable),
+        value => Err(format!("Apple Music 封面脚本返回未知状态：{value}")),
+    }
 }
 
 async fn download_artwork(http: &reqwest::Client, url: &str) -> Result<Vec<u8>, String> {
@@ -456,6 +546,61 @@ mod tests {
             String::from_utf8_lossy(&output.stderr).trim()
         );
         assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "催眠|王菲");
+    }
+
+    #[test]
+    fn parses_apple_music_artwork_export_statuses() {
+        let root = tempdir().unwrap();
+        let output_path = root.path().join("artwork.tmp");
+
+        assert_eq!(
+            parse_apple_music_artwork_status("missing", &output_path).unwrap(),
+            AppleMusicArtworkExport::Missing
+        );
+        assert_eq!(
+            parse_apple_music_artwork_status("stale", &output_path).unwrap(),
+            AppleMusicArtworkExport::Stale
+        );
+        assert_eq!(
+            parse_apple_music_artwork_status("unavailable", &output_path).unwrap(),
+            AppleMusicArtworkExport::Unavailable
+        );
+        assert!(parse_apple_music_artwork_status("ok", &output_path).is_err());
+        assert!(parse_apple_music_artwork_status("unexpected", &output_path).is_err());
+
+        fs::write(&output_path, b"artwork").unwrap();
+        assert_eq!(
+            parse_apple_music_artwork_status("ok", &output_path).unwrap(),
+            AppleMusicArtworkExport::Exported
+        );
+    }
+
+    #[test]
+    fn caches_only_missing_apple_music_artwork_for_five_minutes() {
+        let now = Instant::now();
+        let mut cache = MissingArtworkCache::default();
+
+        cache.record("missing", AppleMusicArtworkExport::Missing, now);
+        cache.record("stale", AppleMusicArtworkExport::Stale, now);
+        cache.record("unavailable", AppleMusicArtworkExport::Unavailable, now);
+
+        assert!(cache.contains_recent("missing", now));
+        assert!(!cache.contains_recent("stale", now));
+        assert!(!cache.contains_recent("unavailable", now));
+        assert!(cache.contains_recent(
+            "missing",
+            now + MISSING_ARTWORK_TTL - Duration::from_millis(1)
+        ));
+        assert!(!cache.contains_recent("missing", now + MISSING_ARTWORK_TTL));
+    }
+
+    #[test]
+    fn successful_apple_music_export_clears_missing_cache_entry() {
+        let now = Instant::now();
+        let mut cache = MissingArtworkCache::default();
+        cache.record("track", AppleMusicArtworkExport::Missing, now);
+        cache.record("track", AppleMusicArtworkExport::Exported, now);
+        assert!(!cache.contains_recent("track", now));
     }
 
     #[test]
