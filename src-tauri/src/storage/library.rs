@@ -52,8 +52,6 @@ pub enum LibraryScanPhase {
     Discovering,
     Indexing,
     Completed,
-    #[allow(dead_code)]
-    Cancelled,
     Failed,
 }
 

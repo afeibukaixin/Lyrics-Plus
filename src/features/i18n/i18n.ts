@@ -1,7 +1,7 @@
 import { createInstance } from "i18next";
 import { initReactI18next } from "react-i18next";
 import type { LanguagePreference, NativeLanguage, SupportedLanguage } from "../../shared/types";
-import { matchSupportedLanguage, supportedLanguages } from "./languages";
+import { matchSupportedLanguage, supportedLanguages } from "../../shared/languages";
 import { translationResources } from "./resources";
 
 export const DEFAULT_LANGUAGE: SupportedLanguage = "en-US";

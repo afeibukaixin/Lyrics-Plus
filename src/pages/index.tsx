@@ -21,7 +21,6 @@ export default function App() {
   const artwork = useArtwork(playback.snapshot);
   const lyrics = useLyrics(playback.snapshot, playback.positionMs, true);
   const activeLineRef = useRef<HTMLButtonElement>(null);
-  const viewportRef = useRef<HTMLDivElement>(null);
   const [following, setFollowing] = useState(true);
   const [windowError, setWindowError] = useState<string | null>(null);
 
@@ -154,8 +153,7 @@ export default function App() {
           onPointerDown={() => setFollowing(false)}
           onTouchStart={() => setFollowing(false)}
           onWheel={() => setFollowing(false)}
-          ref={viewportRef}
-          tabIndex={0}
+        tabIndex={0}
         >
           {lines.length === 0 ? (
             <div className={styles.emptyState}>

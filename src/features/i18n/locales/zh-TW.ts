@@ -62,7 +62,7 @@ export const zhTW = {
       discovering: "正在尋找歌詞檔案… 已找到 {{discovered}} 首{{skipped}}",
       indexing: "正在建立索引 {{processed}} / {{total}}{{skipped}}",
       completed: "索引完成，共 {{total}} 首{{skipped}}", skipped: "，略過 {{count}}",
-      failed: "歌詞資料夾掃描失敗", cancelled: "上一次掃描已取消",
+failed: "歌詞資料夾掃描失敗",
     },
   },
   quickLyrics: {

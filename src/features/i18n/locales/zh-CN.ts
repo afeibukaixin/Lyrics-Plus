@@ -60,7 +60,7 @@ export const zhCN = {
       discovering: "正在发现歌词文件… 已发现 {{discovered}} 首{{skipped}}",
       indexing: "正在建立索引 {{processed}} / {{total}}{{skipped}}",
       completed: "索引完成，共 {{total}} 首{{skipped}}", skipped: "，跳过 {{count}}",
-      failed: "歌词目录扫描失败", cancelled: "上一次扫描已取消",
+failed: "歌词目录扫描失败",
     },
   },
   quickLyrics: {

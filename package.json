@@ -26,7 +26,6 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
-    "baseline-browser-mapping": "^2.11.12",
     "sass-embedded": "^1.93.2",
     "typescript": "~5.8.3",
     "unocss": "^66.5.4",

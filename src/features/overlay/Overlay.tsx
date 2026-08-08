@@ -166,7 +166,7 @@ export default function Overlay() {
   const playback = usePlayback();
   const lyrics = useLyrics(playback.snapshot, playback.positionMs, true);
   const [style, setStyle] = useState<OverlayStyle>(defaultOverlayStyle);
-  const [settings, setSettings] = useState<OverlaySettings>({ visible: true, locked: false, passthrough: false });
+  const [settings, setSettings] = useState<OverlaySettings>({ visible: true, locked: false });
   const linesRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLDivElement>(null);

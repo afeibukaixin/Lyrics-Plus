@@ -1,11 +1,9 @@
 use serde::Deserialize;
 
-use super::parse_lrc_with_options;
 use super::provider::{
-    score_candidate, LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderCapabilities,
-    ProviderError, ProviderErrorKind, ProviderFuture, NETEASE_DISPLAY_NAME,
+    score_candidate, LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderError,
+    ProviderErrorKind, ProviderFuture, NETEASE_DISPLAY_NAME,
 };
-use super::LyricsDocument;
 
 #[derive(Debug, Deserialize)]
 struct SearchEnvelope {
@@ -60,15 +58,6 @@ impl LyricsProvider for NeteaseProvider {
 
     fn display_name(&self) -> &'static str {
         NETEASE_DISPLAY_NAME
-    }
-
-    fn capabilities(&self) -> ProviderCapabilities {
-        ProviderCapabilities {
-            synced: true,
-            translation: true,
-            word_timing: true,
-            romanization: true,
-        }
     }
 
     fn search<'a>(
@@ -172,42 +161,6 @@ impl LyricsProvider for NeteaseProvider {
             }
             Ok(results)
         })
-    }
-
-    fn fetch<'a>(
-        &'a self,
-        client: &'a reqwest::Client,
-        result: &'a LyricsSearchResult,
-    ) -> ProviderFuture<'a, String> {
-        Box::pin(async move {
-            let detail = self.fetch_detail(client, &result.id).await?;
-            let line_lyrics = detail
-                .lrc
-                .map(|value| value.lyric)
-                .ok_or_else(|| self.error(ProviderErrorKind::NotFound, "没有同步歌词"))?;
-            let word_lyrics = detail
-                .yrc
-                .map(|value| value.lyric)
-                .filter(|value| !value.trim().is_empty());
-            let translation = detail
-                .tlyric
-                .map(|value| value.lyric)
-                .filter(|value| has_timed_text(value));
-            let romanization = detail
-                .romalrc
-                .map(|value| value.lyric)
-                .filter(|value| has_timed_text(value));
-            Ok(merge_tracks(
-                word_lyrics.as_deref().unwrap_or(&line_lyrics),
-                translation.as_deref(),
-                romanization.as_deref(),
-            ))
-        })
-    }
-
-    fn parse(&self, raw: &str, manual_selected: bool) -> Result<LyricsDocument, ProviderError> {
-        parse_lrc_with_options(raw, self.display_name(), manual_selected)
-            .map_err(|message| self.error(ProviderErrorKind::Parse, message))
     }
 }
 

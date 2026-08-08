@@ -90,7 +90,7 @@ export default function Settings() {
   const fileInput = useRef<HTMLInputElement>(null);
   const resetConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const providerRows = useRef(new Map<string, HTMLDivElement>());
-  const [overlaySettings, setOverlaySettings] = useState<OverlaySettings>({ visible: true, locked: false, passthrough: false });
+  const [overlaySettings, setOverlaySettings] = useState<OverlaySettings>({ visible: true, locked: false });
   const [style, setStyle] = useState<OverlayStyle>(defaultOverlayStyle);
   const [providerView, setProviderView] = useState<ProviderSettingsView | null>(null);
   const [testingProvider, setTestingProvider] = useState<string | null>(null);
@@ -165,7 +165,7 @@ export default function Settings() {
   const setLocked = async (locked: boolean) => {
     try {
       await api.setOverlayLocked(locked);
-      setOverlaySettings((current) => ({ ...current, locked, passthrough: locked }));
+      setOverlaySettings((current) => ({ ...current, locked }));
     } catch (value) { setError(messageOf(value)); }
   };
 

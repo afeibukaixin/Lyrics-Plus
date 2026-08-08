@@ -2,6 +2,14 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 
 type MaybeAsyncUnlistenFn = () => void | Promise<void>;
 
+export function isTauriRuntime() {
+  if (typeof window === "undefined") return false;
+  const internals = (window as Window & {
+    __TAURI_INTERNALS__?: { invoke?: unknown; transformCallback?: unknown };
+  }).__TAURI_INTERNALS__;
+  return typeof internals?.invoke === "function" && typeof internals.transformCallback === "function";
+}
+
 function runUnlisten(unlisten: UnlistenFn) {
   try {
     // Tauri 2 的类型仍声明返回 void，但运行时实现会返回 Promise。

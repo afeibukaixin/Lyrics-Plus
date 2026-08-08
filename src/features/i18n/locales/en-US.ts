@@ -62,7 +62,7 @@ export const enUS = {
       discovering: "Discovering lyric files… {{discovered}} found{{skipped}}",
       indexing: "Building index {{processed}} / {{total}}{{skipped}}",
       completed: "Index complete: {{total}} files{{skipped}}", skipped: ", {{count}} skipped",
-      failed: "Lyrics directory scan failed", cancelled: "The previous scan was cancelled",
+failed: "Lyrics directory scan failed",
     },
   },
   quickLyrics: {

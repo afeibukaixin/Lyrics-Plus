@@ -1476,7 +1476,6 @@ pub fn run() {
             let overlay_settings = OverlaySettings {
                 visible: configured.overlay.visible,
                 locked,
-                passthrough: locked,
             };
             let last_overlay_monitor = storage
                 .get_preference("overlay.last_monitor")
@@ -1631,10 +1630,8 @@ pub fn run() {
             commands::open_lyrics_directory,
             commands::reveal_library_entry,
             commands::set_overlay_visible,
-            commands::get_overlay_visible,
             commands::get_overlay_settings,
             commands::set_overlay_locked,
-            commands::set_overlay_passthrough,
             commands::get_overlay_style,
             commands::set_overlay_style,
             commands::nudge_overlay,

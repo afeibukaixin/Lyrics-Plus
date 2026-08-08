@@ -1,11 +1,11 @@
 use base64::Engine;
 use serde::Deserialize;
 
+use super::parse_lrc_with_options;
 use super::provider::{
-    score_candidate, LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderCapabilities,
-    ProviderError, ProviderErrorKind, ProviderFuture, KUGOU_DISPLAY_NAME,
+    score_candidate, LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderError,
+    ProviderErrorKind, ProviderFuture, KUGOU_DISPLAY_NAME,
 };
-use super::{parse_lrc_with_options, LyricsDocument};
 
 #[derive(Debug, Deserialize)]
 struct SearchEnvelope {
@@ -60,15 +60,6 @@ impl LyricsProvider for KugouProvider {
 
     fn display_name(&self) -> &'static str {
         KUGOU_DISPLAY_NAME
-    }
-
-    fn capabilities(&self) -> ProviderCapabilities {
-        ProviderCapabilities {
-            synced: true,
-            translation: true,
-            word_timing: true,
-            romanization: false,
-        }
     }
 
     fn search<'a>(
@@ -172,25 +163,6 @@ impl LyricsProvider for KugouProvider {
             }
             Ok(results)
         })
-    }
-
-    fn fetch<'a>(
-        &'a self,
-        client: &'a reqwest::Client,
-        result: &'a LyricsSearchResult,
-    ) -> ProviderFuture<'a, String> {
-        Box::pin(async move {
-            let (id, access_key) = result
-                .id
-                .split_once('|')
-                .ok_or_else(|| self.error(ProviderErrorKind::InvalidResponse, "候选标识无效"))?;
-            self.download(client, id, access_key).await
-        })
-    }
-
-    fn parse(&self, raw: &str, manual_selected: bool) -> Result<LyricsDocument, ProviderError> {
-        parse_lrc_with_options(raw, self.display_name(), manual_selected)
-            .map_err(|message| self.error(ProviderErrorKind::Parse, message))
     }
 }
 

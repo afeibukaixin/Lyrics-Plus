@@ -45,7 +45,6 @@ function scanDescription(status: LibraryScanStatus | null, t: TFunction) {
     return t("library.scan.completed", { total: status.total ?? status.processed, skipped });
   }
   if (status.phase === "failed") return t("library.scan.failed");
-  if (status.phase === "cancelled") return t("library.scan.cancelled");
   return null;
 }
 

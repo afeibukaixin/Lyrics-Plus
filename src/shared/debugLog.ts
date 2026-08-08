@@ -1,12 +1,5 @@
 import { error as writeErrorLog } from "@tauri-apps/plugin-log";
-
-function isTauriRuntime() {
-  if (typeof window === "undefined") return false;
-  const internals = (window as Window & {
-    __TAURI_INTERNALS__?: { invoke?: unknown; transformCallback?: unknown };
-  }).__TAURI_INTERNALS__;
-  return typeof internals?.invoke === "function" && typeof internals.transformCallback === "function";
-}
+import { isTauriRuntime } from "./tauriEvent";
 
 function detailOf(error: unknown, seen: Set<unknown>): string {
   if (seen.has(error)) return "[Circular error cause]";

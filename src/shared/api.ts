@@ -1,6 +1,7 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { appI18n } from "../features/i18n/i18n";
 import { reportFrontendError } from "./debugLog";
+export { isTauriRuntime } from "./tauriEvent";
 import type {
   AppConfig,
   ArtworkAsset,
@@ -30,14 +31,6 @@ import type {
   SettingsResetResponse,
   SettingsSection,
 } from "./types";
-
-export function isTauriRuntime() {
-  if (typeof window === "undefined") return false;
-  const internals = (window as Window & {
-    __TAURI_INTERNALS__?: { invoke?: unknown; transformCallback?: unknown };
-  }).__TAURI_INTERNALS__;
-  return typeof internals?.invoke === "function" && typeof internals.transformCallback === "function";
-}
 
 export type AppErrorCode = `command.${string}` | "config.conflict" | "unknown";
 
@@ -129,11 +122,8 @@ export const api = {
   removeLyricsAssociation: (trackKey: string) =>
     invoke<void>("remove_lyrics_association", { trackKey }),
   setOverlayVisible: (visible: boolean) => invoke<void>("set_overlay_visible", { visible }),
-  getOverlayVisible: () => invoke<boolean>("get_overlay_visible"),
   getOverlaySettings: () => invoke<OverlaySettings>("get_overlay_settings"),
   setOverlayLocked: (locked: boolean) => invoke<void>("set_overlay_locked", { locked }),
-  setOverlayPassthrough: (passthrough: boolean) =>
-    invoke<void>("set_overlay_passthrough", { passthrough }),
   getOverlayStyle: () => invoke<OverlayStyle>("get_overlay_style"),
   setOverlayStyle: (style: OverlayStyle) =>
     invoke<OverlayStyle>("set_overlay_style", { style }),

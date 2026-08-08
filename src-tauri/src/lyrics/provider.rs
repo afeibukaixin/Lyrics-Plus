@@ -12,7 +12,6 @@ use super::kugou::KugouProvider;
 use super::lrclib::LrcLibProvider;
 use super::netease::NeteaseProvider;
 use super::qqmusic::QqMusicProvider;
-use super::LyricsDocument;
 
 pub const LRCLIB_DISPLAY_NAME: &str = "LRCLIB";
 pub const KUGOU_DISPLAY_NAME: &str = "Kugou";
@@ -21,15 +20,6 @@ pub const NETEASE_DISPLAY_NAME: &str = "Netease";
 
 pub type ProviderFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, ProviderError>> + Send + 'a>>;
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct ProviderCapabilities {
-    pub synced: bool,
-    pub translation: bool,
-    pub word_timing: bool,
-    pub romanization: bool,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -53,12 +43,9 @@ pub struct ProviderStatus {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderErrorKind {
-    Timeout,
     Network,
     Http,
     InvalidResponse,
-    NotFound,
-    Parse,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -159,22 +146,14 @@ pub struct ProviderSearchOutcome {
     pub auto_apply_threshold: u8,
 }
 
-#[allow(dead_code)]
 pub trait LyricsProvider: Send + Sync {
     fn id(&self) -> &'static str;
     fn display_name(&self) -> &'static str;
-    fn capabilities(&self) -> ProviderCapabilities;
     fn search<'a>(
         &'a self,
         client: &'a reqwest::Client,
         input: &'a LyricsSearchInput,
     ) -> ProviderFuture<'a, Vec<LyricsSearchResult>>;
-    fn fetch<'a>(
-        &'a self,
-        client: &'a reqwest::Client,
-        result: &'a LyricsSearchResult,
-    ) -> ProviderFuture<'a, String>;
-    fn parse(&self, raw: &str, manual_selected: bool) -> Result<LyricsDocument, ProviderError>;
 }
 
 pub struct ProviderRegistry {
@@ -527,15 +506,6 @@ mod tests {
             self.id
         }
 
-        fn capabilities(&self) -> ProviderCapabilities {
-            ProviderCapabilities {
-                synced: true,
-                translation: false,
-                word_timing: false,
-                romanization: false,
-            }
-        }
-
         fn search<'a>(
             &'a self,
             _client: &'a reqwest::Client,
@@ -554,24 +524,6 @@ mod tests {
                     self.score,
                     &format!("[00:01]{}", self.id),
                 )])
-            })
-        }
-
-        fn fetch<'a>(
-            &'a self,
-            _client: &'a reqwest::Client,
-            result: &'a LyricsSearchResult,
-        ) -> ProviderFuture<'a, String> {
-            Box::pin(async move { Ok(result.lyrics.clone()) })
-        }
-
-        fn parse(&self, raw: &str, manual_selected: bool) -> Result<LyricsDocument, ProviderError> {
-            super::super::parse_lrc_with_options(raw, self.id, manual_selected).map_err(|message| {
-                ProviderError {
-                    provider_id: self.id.into(),
-                    kind: ProviderErrorKind::Parse,
-                    message,
-                }
             })
         }
     }

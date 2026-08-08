@@ -4,6 +4,12 @@ import { api, isTauriRuntime } from "../../shared/api";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
 import { defaultGlobalShortcuts, defaultOverlayStyle, type AppConfig, type GlobalShortcutSettings, type LanguagePreference } from "../../shared/types";
 
+const defaultOverlayAppearance = (({
+  horizontalMaxWidth: _horizontalMaxWidth,
+  verticalMaxHeight: _verticalMaxHeight,
+  ...appearance
+}: typeof defaultOverlayStyle) => appearance)(defaultOverlayStyle);
+
 const defaultConfig: AppConfig = {
   schemaVersion: 13,
   app: { uiFontScale: 100, language: "system", playerSelection: "auto", hideDockIcon: false, shortcuts: defaultGlobalShortcuts },
@@ -23,29 +29,7 @@ const defaultConfig: AppConfig = {
     visible: true,
     locked: false,
     hideWhenNotPlaying: false,
-    appearance: {
-      fontSize: defaultOverlayStyle.fontSize,
-      activeColor: defaultOverlayStyle.activeColor,
-      inactiveColor: defaultOverlayStyle.inactiveColor,
-      opacity: defaultOverlayStyle.opacity,
-      backgroundOpacity: defaultOverlayStyle.backgroundOpacity,
-      backgroundBlur: defaultOverlayStyle.backgroundBlur,
-      backgroundMode: defaultOverlayStyle.backgroundMode,
-      background: defaultOverlayStyle.background,
-      solidColor: defaultOverlayStyle.solidColor,
-      layout: defaultOverlayStyle.layout,
-      orientation: defaultOverlayStyle.orientation,
-      alignment: defaultOverlayStyle.alignment,
-      longText: defaultOverlayStyle.longText,
-      secondaryDisplay: defaultOverlayStyle.secondaryDisplay,
-      autoCenterWithTranslationOrRomanization: defaultOverlayStyle.autoCenterWithTranslationOrRomanization,
-      karaokeStyle: defaultOverlayStyle.karaokeStyle,
-      secondaryFontScale: defaultOverlayStyle.secondaryFontScale,
-      translationFontScale: defaultOverlayStyle.translationFontScale,
-      romanizationFontScale: defaultOverlayStyle.romanizationFontScale,
-      translationColor: defaultOverlayStyle.translationColor,
-      romanizationColor: defaultOverlayStyle.romanizationColor,
-    },
+    appearance: defaultOverlayAppearance,
   },
 };
 

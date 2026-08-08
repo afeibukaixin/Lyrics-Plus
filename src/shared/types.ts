@@ -29,7 +29,6 @@ export const defaultGlobalShortcuts: GlobalShortcutSettings = {
 export type OverlaySettings = {
   visible: boolean;
   locked: boolean;
-  passthrough: boolean;
 };
 
 export type OverlayResizeEdge = "left" | "right" | "top" | "bottom";
@@ -242,7 +241,6 @@ export type LibraryScanPhase =
   | "discovering"
   | "indexing"
   | "completed"
-  | "cancelled"
   | "failed";
 
 export type LibraryScanStatus = {

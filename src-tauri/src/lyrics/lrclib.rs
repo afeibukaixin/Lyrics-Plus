@@ -1,11 +1,9 @@
 use serde::Deserialize;
 
-use super::parse_lrc_with_options;
 use super::provider::{
-    score_candidate, LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderCapabilities,
-    ProviderError, ProviderErrorKind, ProviderFuture, LRCLIB_DISPLAY_NAME,
+    score_candidate, LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderError,
+    ProviderErrorKind, ProviderFuture, LRCLIB_DISPLAY_NAME,
 };
-use super::LyricsDocument;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -27,15 +25,6 @@ impl LyricsProvider for LrcLibProvider {
 
     fn display_name(&self) -> &'static str {
         LRCLIB_DISPLAY_NAME
-    }
-
-    fn capabilities(&self) -> ProviderCapabilities {
-        ProviderCapabilities {
-            synced: true,
-            translation: false,
-            word_timing: false,
-            romanization: false,
-        }
     }
 
     fn search<'a>(
@@ -77,7 +66,6 @@ impl LyricsProvider for LrcLibProvider {
                     format!("无法解析歌词搜索结果：{error}"),
                 )
             })?;
-            let capabilities = self.capabilities();
             let mut results = items
                 .into_iter()
                 .filter_map(|item| {
@@ -95,10 +83,10 @@ impl LyricsProvider for LrcLibProvider {
                             .duration
                             .map(|seconds| (seconds * 1000.0).round() as u64),
                         source: self.display_name().into(),
-                        synced: capabilities.synced,
-                        has_translation: capabilities.translation,
-                        has_word_timing: capabilities.word_timing,
-                        has_romanization: capabilities.romanization,
+                        synced: true,
+                        has_translation: false,
+                        has_word_timing: false,
+                        has_romanization: false,
                         score: 0.0,
                         lyrics,
                     };
@@ -110,25 +98,6 @@ impl LyricsProvider for LrcLibProvider {
             results.truncate(8);
             Ok(results)
         })
-    }
-
-    fn fetch<'a>(
-        &'a self,
-        _client: &'a reqwest::Client,
-        result: &'a LyricsSearchResult,
-    ) -> ProviderFuture<'a, String> {
-        Box::pin(async move {
-            if result.lyrics.trim().is_empty() {
-                Err(self.error(ProviderErrorKind::NotFound, "候选没有同步歌词"))
-            } else {
-                Ok(result.lyrics.clone())
-            }
-        })
-    }
-
-    fn parse(&self, raw: &str, manual_selected: bool) -> Result<LyricsDocument, ProviderError> {
-        parse_lrc_with_options(raw, self.display_name(), manual_selected)
-            .map_err(|message| self.error(ProviderErrorKind::Parse, message))
     }
 }
 

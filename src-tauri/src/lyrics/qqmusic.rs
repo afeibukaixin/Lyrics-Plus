@@ -1,11 +1,9 @@
 use serde::Deserialize;
 
-use super::parse_lrc_with_options;
 use super::provider::{
-    score_candidate, LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderCapabilities,
-    ProviderError, ProviderErrorKind, ProviderFuture, QQMUSIC_DISPLAY_NAME,
+    score_candidate, LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderError,
+    ProviderErrorKind, ProviderFuture, QQMUSIC_DISPLAY_NAME,
 };
-use super::LyricsDocument;
 
 #[derive(Debug, Deserialize)]
 struct SearchEnvelope {
@@ -53,15 +51,6 @@ impl LyricsProvider for QqMusicProvider {
 
     fn display_name(&self) -> &'static str {
         QQMUSIC_DISPLAY_NAME
-    }
-
-    fn capabilities(&self) -> ProviderCapabilities {
-        ProviderCapabilities {
-            synced: true,
-            translation: true,
-            word_timing: false,
-            romanization: false,
-        }
     }
 
     fn search<'a>(
@@ -145,27 +134,6 @@ impl LyricsProvider for QqMusicProvider {
             }
             Ok(results)
         })
-    }
-
-    fn fetch<'a>(
-        &'a self,
-        client: &'a reqwest::Client,
-        result: &'a LyricsSearchResult,
-    ) -> ProviderFuture<'a, String> {
-        Box::pin(async move {
-            let detail = self.fetch_detail(client, &result.id).await?;
-            let original = detail
-                .lyric
-                .filter(|value| has_timed_text(value))
-                .ok_or_else(|| self.error(ProviderErrorKind::NotFound, "没有同步歌词"))?;
-            let translation = detail.trans.filter(|value| has_timed_text(value));
-            Ok(merge_tracks(&original, translation.as_deref()))
-        })
-    }
-
-    fn parse(&self, raw: &str, manual_selected: bool) -> Result<LyricsDocument, ProviderError> {
-        parse_lrc_with_options(raw, self.display_name(), manual_selected)
-            .map_err(|message| self.error(ProviderErrorKind::Parse, message))
     }
 }
 

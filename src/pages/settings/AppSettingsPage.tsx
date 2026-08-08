@@ -2,14 +2,15 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { defaultGlobalShortcuts, type GlobalShortcutSettings, type LanguagePreference, type PlayerSelection } from "../../shared/types";
 import { messageOf } from "../../shared/api";
+import { languageRegistry, supportedLanguages } from "../../shared/languages";
 import { localizedSource, playbackStatusText } from "../../features/i18n/userText";
-import { languageOptions } from "../../features/i18n/languages";
 import { normalizeLanguagePreference } from "../../features/i18n/i18n";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
 import { RangeRow, SelectRow, SettingsCard, SettingsHeading, ToggleRow } from "./components";
 
 const playerOptions: PlayerSelection[] = ["auto", "apple_music", "spotify"];
+const languageOptions = supportedLanguages.map((code) => ({ code, label: languageRegistry[code].nativeLabel }));
 
 type ShortcutAction = keyof GlobalShortcutSettings;
 

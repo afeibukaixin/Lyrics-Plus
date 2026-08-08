@@ -39,7 +39,6 @@ pub struct AppState {
 pub struct OverlaySettings {
     pub visible: bool,
     pub locked: bool,
-    pub passthrough: bool,
 }
 
 impl Default for OverlaySettings {
@@ -47,7 +46,6 @@ impl Default for OverlaySettings {
         Self {
             visible: true,
             locked: false,
-            passthrough: false,
         }
     }
 }
@@ -672,15 +670,6 @@ pub fn set_overlay_visible(app: tauri::AppHandle, visible: bool) -> Result<(), S
     update_overlay_visible(&app, visible)
 }
 
-#[tauri::command]
-pub fn get_overlay_visible(state: State<'_, AppState>) -> bool {
-    state
-        .overlay_settings
-        .read()
-        .unwrap_or_else(|error| error.into_inner())
-        .visible
-}
-
 fn get_overlay_settings_inner(state: &AppState) -> OverlaySettings {
     state
         .overlay_settings
@@ -706,7 +695,6 @@ pub fn update_overlay_locked(app: &tauri::AppHandle, locked: bool) -> Result<(),
             .unwrap_or_else(|error| error.into_inner());
         let previous = settings.clone();
         settings.locked = locked;
-        settings.passthrough = locked;
         previous
     };
     let update_result = (|| {
@@ -766,15 +754,6 @@ pub fn update_overlay_locked(app: &tauri::AppHandle, locked: bool) -> Result<(),
 #[tauri::command]
 pub fn set_overlay_locked(app: tauri::AppHandle, locked: bool) -> Result<(), String> {
     update_overlay_locked(&app, locked)
-}
-
-pub fn update_overlay_passthrough(app: &tauri::AppHandle, passthrough: bool) -> Result<(), String> {
-    update_overlay_locked(app, passthrough)
-}
-
-#[tauri::command]
-pub fn set_overlay_passthrough(app: tauri::AppHandle, passthrough: bool) -> Result<(), String> {
-    update_overlay_passthrough(&app, passthrough)
 }
 
 #[tauri::command]
@@ -1491,7 +1470,6 @@ fn apply_app_config(
         .unwrap_or_else(|error| error.into_inner()) = OverlaySettings {
         visible: saved.overlay.visible,
         locked: saved.overlay.locked,
-        passthrough: saved.overlay.locked,
     };
     if let Some(window) = app.get_webview_window("lyrics-overlay") {
         let _ = window.set_ignore_cursor_events(saved.overlay.locked);
