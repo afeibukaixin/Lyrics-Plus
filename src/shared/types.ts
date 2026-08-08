@@ -148,6 +148,7 @@ export type ProviderSettingsView = {
 
 export type SettingsSection = "overlay" | "lyrics" | "app";
 export type LanguagePreference = "system" | SupportedLanguage;
+export type NativeLanguage = "zh-CN" | "en-US";
 
 export type SettingsResetResponse = {
   overlaySettings: OverlaySettings;
@@ -163,7 +164,7 @@ export type AppConfig = {
   schemaVersion: number;
   app: {
     uiFontScale: number;
-    language: LanguagePreference;
+    language: string;
     playerSelection: PlayerSelection;
     hideDockIcon: boolean;
     shortcuts: GlobalShortcutSettings;

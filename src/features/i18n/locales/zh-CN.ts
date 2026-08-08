@@ -1,6 +1,6 @@
 export const zhCN = {
   common: {
-    language: { system: "跟随系统", zhCN: "简体中文", enUS: "English (US)" },
+    language: { system: "跟随系统" },
     actions: {
       apply: "应用", clear: "清除", close: "关闭", test: "测试", testing: "测试中",
       reset: "重置", resetDefault: "恢复默认", resetting: "恢复中…", confirmAgain: "再次点击确认",

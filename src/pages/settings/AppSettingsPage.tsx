@@ -4,6 +4,7 @@ import { defaultGlobalShortcuts, type GlobalShortcutSettings, type LanguagePrefe
 import { messageOf } from "../../shared/api";
 import { localizedSource, playbackStatusText } from "../../features/i18n/userText";
 import { languageOptions } from "../../features/i18n/languages";
+import { normalizeLanguagePreference } from "../../features/i18n/i18n";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
 import { RangeRow, SelectRow, SettingsCard, SettingsHeading, ToggleRow } from "./components";
@@ -86,6 +87,7 @@ export default function AppSettingsPage() {
         })
       : t("settings.app.diagnosticsEmpty"));
   const shortcutLabel = (action: ShortcutAction) => t(`settings.app.${action}`);
+  const languagePreference = normalizeLanguagePreference(config.app.language);
 
   return (
     <>
@@ -97,10 +99,10 @@ export default function AppSettingsPage() {
         <SelectRow
           label={t("settings.app.language.label")}
           description={t("settings.app.language.description")}
-          value={config.app.language}
+          value={languagePreference}
           options={[
             ["system", t("common.language.system")],
-            ...languageOptions.map(({ code, labelKey }) => [code, t(labelKey)] as [string, string]),
+            ...languageOptions.map(({ code, label }) => [code, label] as [string, string]),
           ]}
           onChange={(language) => void setLanguage(language as LanguagePreference).catch((value) => setError(messageOf(value)))}
         />

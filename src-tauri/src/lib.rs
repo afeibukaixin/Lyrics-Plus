@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use commands::{AppState, OverlayOrientation, OverlaySettings, OverlayStyleSettings};
-use config::{ConfigStore, GlobalShortcutSettings, LanguagePreference};
+use config::{ConfigStore, GlobalShortcutSettings};
 use language::UiLanguage;
 pub(crate) use overlay_effect::sync_overlay_vibrancy;
 use overlay_effect::{HORIZONTAL_OVERLAY_SURFACE_INSET, VERTICAL_OVERLAY_SURFACE_INSET};
@@ -1546,7 +1546,7 @@ pub fn run() {
             reconcile_overlay_visibility(app.handle()).map_err(std::io::Error::other)?;
             start_overlay_pointer_monitor(app.handle().clone());
             setup_tray(app)?;
-            if configured.app.language == LanguagePreference::EnUs {
+            if !configured.app.language.uses_native_chinese() {
                 apply_native_language(app.handle(), UiLanguage::EnUs)
                     .map_err(std::io::Error::other)?;
             }

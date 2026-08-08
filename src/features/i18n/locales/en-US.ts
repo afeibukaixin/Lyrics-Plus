@@ -2,7 +2,7 @@ import type { AppTranslationResource } from "../resourceTypes";
 
 export const enUS = {
   common: {
-    language: { system: "Use system language", zhCN: "简体中文", enUS: "English (US)" },
+    language: { system: "Use system language" },
     actions: {
       apply: "Apply", clear: "Clear", close: "Close", test: "Test", testing: "Testing",
       reset: "Reset", resetDefault: "Restore defaults", resetting: "Restoring…", confirmAgain: "Click again to confirm",

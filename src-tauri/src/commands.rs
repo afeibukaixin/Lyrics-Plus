@@ -1270,6 +1270,9 @@ pub fn set_language(
     language: LanguagePreference,
     state: State<'_, AppState>,
 ) -> Result<AppConfig, String> {
+    if !language.is_valid() {
+        return Err("language must be system or a valid BCP 47 language tag".into());
+    }
     let config = state
         .config
         .update(|config| config.app.language = language)?;

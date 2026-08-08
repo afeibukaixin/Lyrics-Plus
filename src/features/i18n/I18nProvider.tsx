@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { I18nextProvider } from "react-i18next";
 import { useAppConfig } from "../config/AppConfigProvider";
 import type { LanguagePreference, SupportedLanguage } from "../../shared/types";
-import { appI18n, detectSystemLanguage, resolveLanguage } from "./i18n";
+import { appI18n, detectSystemLanguage, nativeLanguageFor, normalizeLanguagePreference, resolveLanguage } from "./i18n";
 import { api, isTauriRuntime } from "../../shared/api";
 
 type LanguageContextValue = {
@@ -16,7 +16,7 @@ const LanguageContext = createContext<LanguageContextValue | null>(null);
 export function AppI18nProvider({ children }: { children: React.ReactNode }) {
   const { config, setLanguage } = useAppConfig();
   const [systemLanguage, setSystemLanguage] = useState(detectSystemLanguage);
-  const preference = config.app.language;
+  const preference = normalizeLanguagePreference(config.app.language);
   const language = resolveLanguage(preference, systemLanguage);
 
   useEffect(() => {
@@ -38,7 +38,7 @@ export function AppI18nProvider({ children }: { children: React.ReactNode }) {
     void appI18n.changeLanguage(language).then(() => {
       document.title = appI18n.t(titleKey);
     });
-    if (isTauriRuntime()) void api.setNativeLanguage(language).catch(() => undefined);
+    if (isTauriRuntime()) void api.setNativeLanguage(nativeLanguageFor(language)).catch(() => undefined);
   }, [language]);
 
   const value = useMemo<LanguageContextValue>(() => ({

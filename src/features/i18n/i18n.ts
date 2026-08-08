@@ -1,10 +1,10 @@
 import { createInstance } from "i18next";
 import { initReactI18next } from "react-i18next";
-import type { LanguagePreference, SupportedLanguage } from "../../shared/types";
+import type { LanguagePreference, NativeLanguage, SupportedLanguage } from "../../shared/types";
 import { matchSupportedLanguage, supportedLanguages } from "./languages";
 import { translationResources } from "./resources";
 
-export const DEFAULT_LANGUAGE: SupportedLanguage = "zh-CN";
+export const DEFAULT_LANGUAGE: SupportedLanguage = "en-US";
 
 export function detectSystemLanguage(languages?: readonly string[]): SupportedLanguage {
   const candidates = languages
@@ -19,10 +19,20 @@ export function detectSystemLanguage(languages?: readonly string[]): SupportedLa
 }
 
 export function resolveLanguage(
-  preference: LanguagePreference,
+  preference: string,
   systemLanguage = detectSystemLanguage(),
 ): SupportedLanguage {
-  return preference === "system" ? systemLanguage : preference;
+  if (preference === "system") return systemLanguage;
+  return matchSupportedLanguage(preference) ?? DEFAULT_LANGUAGE;
+}
+
+export function normalizeLanguagePreference(preference: string): LanguagePreference {
+  if (preference === "system") return "system";
+  return matchSupportedLanguage(preference) ?? DEFAULT_LANGUAGE;
+}
+
+export function nativeLanguageFor(language: SupportedLanguage): NativeLanguage {
+  return language === "zh-CN" ? "zh-CN" : "en-US";
 }
 
 export const appI18n = createInstance();

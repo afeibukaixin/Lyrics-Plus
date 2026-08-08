@@ -145,7 +145,7 @@ impl Default for AppPreferences {
     fn default() -> Self {
         Self {
             ui_font_scale: 100,
-            language: LanguagePreference::System,
+            language: LanguagePreference::default(),
             player_selection: PlayerSelection::Auto,
             hide_dock_icon: false,
             shortcuts: GlobalShortcutSettings::default(),
@@ -153,15 +153,34 @@ impl Default for AppPreferences {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub enum LanguagePreference {
-    #[default]
-    #[serde(rename = "system")]
-    System,
-    #[serde(rename = "zh-CN")]
-    ZhCn,
-    #[serde(rename = "en-US")]
-    EnUs,
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(transparent)]
+pub struct LanguagePreference(String);
+
+impl LanguagePreference {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn uses_native_chinese(&self) -> bool {
+        self.0 == "zh-CN"
+    }
+
+    pub fn is_valid(&self) -> bool {
+        is_valid_language_preference(&self.0)
+    }
+}
+
+impl Default for LanguagePreference {
+    fn default() -> Self {
+        Self("system".into())
+    }
+}
+
+impl From<&str> for LanguagePreference {
+    fn from(value: &str) -> Self {
+        Self(value.into())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -401,10 +420,11 @@ pub struct ConfigStore {
     state: RwLock<ConfigStoreState>,
 }
 
-fn configured_comment_language(preference: LanguagePreference) -> UiLanguage {
-    match preference {
-        LanguagePreference::EnUs => UiLanguage::EnUs,
-        LanguagePreference::System | LanguagePreference::ZhCn => UiLanguage::ZhCn,
+fn configured_comment_language(preference: &LanguagePreference) -> UiLanguage {
+    if preference.uses_native_chinese() {
+        UiLanguage::ZhCn
+    } else {
+        UiLanguage::EnUs
     }
 }
 
@@ -813,13 +833,7 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             return Err(error_at_key(raw, key, &format!("{key} 必须是整数")));
         }
     }
-    validate_string_option(
-        value,
-        raw,
-        "/app/language",
-        "language",
-        &["system", "zh-CN", "en-US"],
-    )?;
+    validate_language_preference(value, raw)?;
     validate_string_option(
         value,
         raw,
@@ -977,6 +991,42 @@ fn validate_string_option(
         ));
     }
     Ok(())
+}
+
+fn validate_language_preference(value: &Value, raw: &str) -> Result<(), ConfigDraftError> {
+    let Some(candidate) = value.pointer("/app/language") else {
+        return Ok(());
+    };
+    let candidate = candidate
+        .as_str()
+        .ok_or_else(|| error_at_key(raw, "language", "language 必须是字符串"))?;
+    if is_valid_language_preference(candidate) {
+        return Ok(());
+    }
+    Err(error_at_key(
+        raw,
+        "language",
+        "language 必须是 system 或有效的 BCP 47 语言标签",
+    ))
+}
+
+fn is_valid_language_preference(candidate: &str) -> bool {
+    if candidate == "system" {
+        return true;
+    }
+    let mut subtags = candidate.split('-');
+    let primary = subtags.next().unwrap_or_default();
+    let primary_valid = (2..=8).contains(&primary.len())
+        && primary
+            .chars()
+            .all(|character| character.is_ascii_alphabetic());
+    let remaining_valid = subtags.all(|subtag| {
+        (1..=8).contains(&subtag.len())
+            && subtag
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric())
+    });
+    candidate.len() <= 64 && primary_valid && remaining_valid
 }
 
 fn check_keys(value: &Value, raw: &str, allowed: &[&str]) -> Result<(), ConfigDraftError> {
@@ -1147,8 +1197,10 @@ impl ConfigStore {
                 fs::read_to_string(&path).map_err(|error| format!("读取配置文件失败：{error}"))?;
             return match parse_config_draft(&raw) {
                 Ok(parsed) => {
-                    let comment_language = detect_config_comment_language(&raw)
-                        .unwrap_or_else(|| configured_comment_language(parsed.config.app.language));
+                    let comment_language =
+                        detect_config_comment_language(&raw).unwrap_or_else(|| {
+                            configured_comment_language(&parsed.config.app.language)
+                        });
                     let source_raw = canonical_config_jsonc(&parsed.config, comment_language)?;
                     if raw != source_raw {
                         atomic_write(&path, &source_raw)?;
@@ -1221,7 +1273,7 @@ impl ConfigStore {
             value.overlay.appearance = OverlayAppearance::from(&style);
         }
         let value = value.normalized()?;
-        let comment_language = configured_comment_language(value.app.language);
+        let comment_language = configured_comment_language(&value.app.language);
         let source_raw = canonical_config_jsonc(&value, comment_language)?;
         atomic_write(&path, &source_raw)?;
         Ok((
@@ -1540,23 +1592,46 @@ mod tests {
     fn schema_twelve_adds_system_language_preference() {
         let parsed = parse_config_draft(r#"{"schemaVersion":12}"#).unwrap();
         assert!(parsed.migrated);
-        assert_eq!(parsed.config.app.language, LanguagePreference::System);
+        assert_eq!(parsed.config.app.language, LanguagePreference::default());
         assert!(parsed.normalized_json.contains("\"language\": \"system\""));
     }
 
     #[test]
-    fn language_preference_round_trips_and_rejects_unknown_values() {
+    fn language_preference_accepts_supported_and_future_bcp_47_values() {
         for (raw, expected) in [
-            (r#"{"app":{"language":"zh-CN"}}"#, LanguagePreference::ZhCn),
-            (r#"{"app":{"language":"en-US"}}"#, LanguagePreference::EnUs),
+            (r#"{"app":{"language":"system"}}"#, "system"),
+            (r#"{"app":{"language":"zh-CN"}}"#, "zh-CN"),
+            (r#"{"app":{"language":"zh-TW"}}"#, "zh-TW"),
+            (r#"{"app":{"language":"en-US"}}"#, "en-US"),
+            (r#"{"app":{"language":"fr-FR"}}"#, "fr-FR"),
         ] {
             let parsed = parse_config_draft(raw).unwrap();
-            assert_eq!(parsed.config.app.language, expected);
+            assert_eq!(parsed.config.app.language.as_str(), expected);
         }
+    }
 
-        let validation = validate_config_draft(r#"{"app":{"language":"fr-FR"}}"#);
-        assert!(!validation.valid);
-        assert!(validation.error.unwrap().message.contains("language"));
+    #[test]
+    fn language_preference_rejects_invalid_language_tags() {
+        for language in ["", "zh_TW", "-zh", "1", "zh--TW", "zh-繁體"] {
+            let raw = format!(r#"{{"app":{{"language":"{language}"}}}}"#);
+            let validation = validate_config_draft(&raw);
+            assert!(!validation.valid, "{language} should be rejected");
+            assert!(validation.error.unwrap().message.contains("language"));
+        }
+    }
+
+    #[test]
+    fn only_simplified_chinese_uses_chinese_native_copy() {
+        assert_eq!(
+            configured_comment_language(&LanguagePreference::from("zh-CN")),
+            UiLanguage::ZhCn
+        );
+        for language in ["system", "zh-TW", "en-US", "ja-JP"] {
+            assert_eq!(
+                configured_comment_language(&LanguagePreference::from(language)),
+                UiLanguage::EnUs
+            );
+        }
     }
 
     #[test]
@@ -1901,7 +1976,7 @@ mod tests {
         assert!(!migrated);
         assert_eq!(store.snapshot().app.ui_font_scale, 120);
         let persisted = fs::read_to_string(root.join("config.json")).unwrap();
-        assert!(persisted.contains("// 界面文字缩放"));
+        assert!(persisted.contains("// Interface text scale"));
         assert!(persisted.contains("\"uiFontScale\": 120"));
         assert_eq!(persisted, store.editor_data().user_json);
         drop(storage);
@@ -1916,14 +1991,16 @@ mod tests {
         let (store, _) = ConfigStore::load(&root, &storage).unwrap();
         let revision = store.revision();
         let before_language_change = serde_json::to_value(store.snapshot()).unwrap();
-        assert!(store.set_comment_language(UiLanguage::EnUs).unwrap());
+        assert!(store.set_comment_language(UiLanguage::ZhCn).unwrap());
         assert_eq!(store.revision(), revision + 1);
         assert_eq!(
             serde_json::to_value(store.snapshot()).unwrap(),
             before_language_change
         );
+        assert!(store.set_comment_language(UiLanguage::EnUs).unwrap());
+        assert_eq!(store.revision(), revision + 2);
         assert!(!store.set_comment_language(UiLanguage::EnUs).unwrap());
-        assert_eq!(store.revision(), revision + 1);
+        assert_eq!(store.revision(), revision + 2);
         store
             .update(|config| config.app.ui_font_scale = 130)
             .unwrap();

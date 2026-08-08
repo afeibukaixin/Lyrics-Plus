@@ -9,6 +9,7 @@ import type {
   ConfigEditorData,
   GlobalShortcutSettings,
   LanguagePreference,
+  NativeLanguage,
   LyricsDocument,
   LibraryPage,
   LibraryPreview,
@@ -28,7 +29,6 @@ import type {
   SearchResponse,
   SettingsResetResponse,
   SettingsSection,
-  SupportedLanguage,
 } from "./types";
 
 export function isTauriRuntime() {
@@ -151,7 +151,7 @@ export const api = {
   setUiFontScale: (scale: number) => invoke<AppConfig>("set_ui_font_scale", { scale }),
   setLanguage: (language: LanguagePreference) =>
     invoke<AppConfig>("set_language", { language }),
-  setNativeLanguage: (language: SupportedLanguage) =>
+  setNativeLanguage: (language: NativeLanguage) =>
     invoke<void>("set_native_language", { language }),
   setGlobalShortcuts: (shortcuts: GlobalShortcutSettings) =>
     invoke<AppConfig>("set_global_shortcuts", { shortcuts }),
