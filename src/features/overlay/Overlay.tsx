@@ -205,6 +205,13 @@ export default function Overlay() {
     vertical: MIN_VERTICAL_HEIGHT,
   });
   const resizing = activeResizeEdge !== null;
+  const transparentMode = style.backgroundMode === "transparent" || style.background === "transparent";
+  const glassEnabled = !transparentMode && style.background === "glass";
+  const effectiveBackgroundOpacity = transparentMode ? 0 : style.backgroundOpacity;
+  const nativeVibrancy = isTauriRuntime() && /Macintosh|Mac OS X/.test(navigator.userAgent);
+  const backdropFilter = glassEnabled && !nativeVibrancy
+    ? `blur(${style.backgroundBlur}px) saturate(1.2)`
+    : "none";
 
   const clearResizeState = useCallback(() => {
     const session = resizeSession.current;
@@ -744,7 +751,8 @@ export default function Overlay() {
     <main
       className={styles.overlay}
       data-alignment={effectiveAlignment}
-      data-background={style.background}
+      data-background={glassEnabled ? "glass" : "solid"}
+      data-background-mode={transparentMode ? "transparent" : "solid"}
       data-interactive={!settings.locked}
       data-layout={style.layout}
       data-orientation={style.orientation}
@@ -757,8 +765,7 @@ export default function Overlay() {
         "--active-color": style.activeColor,
         "--inactive-color": style.inactiveColor,
         "--overlay-opacity": style.opacity,
-        "--background-opacity": style.backgroundOpacity,
-        "--background-blur": `${style.backgroundBlur}px`,
+        "--background-opacity": effectiveBackgroundOpacity,
         "--solid-color": style.solidColor,
         "--translation-color": style.translationColor,
         "--romanization-color": style.romanizationColor,
@@ -772,7 +779,13 @@ export default function Overlay() {
       } as React.CSSProperties}
       tabIndex={settings.locked ? -1 : 0}
     >
-      <div className={styles.surface}>
+      <div
+        className={styles.surface}
+        style={{
+          backdropFilter,
+          WebkitBackdropFilter: backdropFilter,
+        }}
+      >
         <div className={styles.lines} ref={linesRef}>
           <div
             className={styles.active}

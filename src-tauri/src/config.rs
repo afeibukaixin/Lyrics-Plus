@@ -7,18 +7,18 @@ use serde_json::Value;
 use tauri_plugin_global_shortcut::Shortcut;
 
 use crate::commands::{
-    KaraokeStyle, LongTextMode, OverlayAlignment, OverlayBackground, OverlayLayout,
-    OverlayOrientation, OverlayStyleSettings, SecondaryDisplayMode,
+    KaraokeStyle, LongTextMode, OverlayAlignment, OverlayBackground, OverlayBackgroundMode,
+    OverlayLayout, OverlayOrientation, OverlayStyleSettings, SecondaryDisplayMode,
 };
 use crate::lyrics::provider::{validate_settings, ProviderOrderMode, ProviderSettings};
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 10;
+pub const CONFIG_SCHEMA_VERSION: u16 = 11;
 
 pub const DEFAULT_CONFIG_JSONC: &str = r###"{
   // 配置格式版本。通常不需要手动修改。
-  "schemaVersion": 10,
+  "schemaVersion": 11,
   "app": {
     // 主界面字号：80–150，每 10% 一档。
     "uiFontScale": 100,
@@ -60,10 +60,12 @@ pub const DEFAULT_CONFIG_JSONC: &str = r###"{
       // 浮窗透明度：0.2–1.0。
       "opacity": 1.0,
       // 背景透明度：0–1.0，不影响歌词文字。
-      "backgroundOpacity": 1.0,
-      // 毛玻璃模糊强度：0–40px。
+      "backgroundOpacity": 0.6,
+      // 毛玻璃磨砂强度：0–40（设置界面显示为 0–100%）。
       "backgroundBlur": 18.0,
-      // 背景组合状态：glass（纯色+毛玻璃）、transparent、solid。
+      // 背景模式：solid（纯色）或 transparent（透明快捷模式）。
+      "backgroundMode": "solid",
+      // 背景组合状态：glass（毛玻璃开启）、solid；transparent 仅用于兼容旧配置。
       "background": "glass",
       "solidColor": "#171821",
       // 歌词布局：single、double；文字方向：horizontal、vertical。
@@ -210,6 +212,7 @@ pub struct OverlayAppearance {
     pub opacity: f64,
     pub background_opacity: f64,
     pub background_blur: f64,
+    pub background_mode: OverlayBackgroundMode,
     pub background: OverlayBackground,
     pub solid_color: String,
     pub layout: OverlayLayout,
@@ -241,6 +244,7 @@ impl From<&OverlayStyleSettings> for OverlayAppearance {
             opacity: style.opacity,
             background_opacity: style.background_opacity,
             background_blur: style.background_blur,
+            background_mode: style.background_mode,
             background: style.background,
             solid_color: style.solid_color.clone(),
             layout: style.layout,
@@ -269,6 +273,7 @@ impl OverlayAppearance {
             opacity: self.opacity,
             background_opacity: self.background_opacity,
             background_blur: self.background_blur,
+            background_mode: self.background_mode,
             background: self.background,
             solid_color: self.solid_color,
             layout: self.layout,
@@ -700,6 +705,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                     "opacity",
                     "backgroundOpacity",
                     "backgroundBlur",
+                    "backgroundMode",
                     "background",
                     "solidColor",
                     "layout",
@@ -794,6 +800,11 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         &["strict", "smart"],
     )?;
     for (pointer, key, options) in [
+        (
+            "/overlay/appearance/backgroundMode",
+            "backgroundMode",
+            &["solid", "transparent"] as &[&str],
+        ),
         (
             "/overlay/appearance/background",
             "background",
@@ -1363,7 +1374,7 @@ mod tests {
             GlobalShortcutSettings::default()
         );
         assert_eq!(parsed.config.overlay.appearance.secondary_font_scale, 0.8);
-        assert_eq!(parsed.config.overlay.appearance.background_opacity, 1.0);
+        assert_eq!(parsed.config.overlay.appearance.background_opacity, 0.6);
         assert_eq!(parsed.config.overlay.appearance.background_blur, 18.0);
     }
 
@@ -1373,6 +1384,50 @@ mod tests {
         assert!(parsed.migrated);
         assert_eq!(parsed.config.schema_version, CONFIG_SCHEMA_VERSION);
         assert_eq!(parsed.config.overlay.appearance.background_blur, 18.0);
+    }
+
+    #[test]
+    fn schema_ten_transparent_background_becomes_transparent_mode() {
+        let parsed = parse_config_draft(
+            r#"{"schemaVersion":10,"overlay":{"appearance":{"background":"transparent","backgroundOpacity":0.75}}}"#,
+        )
+        .unwrap();
+        assert!(parsed.migrated);
+        assert_eq!(
+            parsed.config.overlay.appearance.background,
+            OverlayBackground::Solid
+        );
+        assert_eq!(
+            parsed.config.overlay.appearance.background_mode,
+            OverlayBackgroundMode::Transparent
+        );
+        assert_eq!(parsed.config.overlay.appearance.background_opacity, 0.75);
+    }
+
+    #[test]
+    fn schema_ten_glass_and_solid_backgrounds_become_solid_mode() {
+        for background in ["glass", "solid"] {
+            let raw = format!(
+                r#"{{"schemaVersion":10,"overlay":{{"appearance":{{"background":"{background}","backgroundOpacity":0.35,"backgroundBlur":26}}}}}}"#
+            );
+            let parsed = parse_config_draft(&raw).unwrap();
+            assert!(parsed.migrated);
+            assert_eq!(
+                parsed.config.overlay.appearance.background_mode,
+                OverlayBackgroundMode::Solid
+            );
+            assert_eq!(parsed.config.overlay.appearance.background_opacity, 0.35);
+            assert_eq!(parsed.config.overlay.appearance.background_blur, 26.0);
+        }
+    }
+
+    #[test]
+    fn current_background_opacity_is_preserved() {
+        let parsed = parse_config_draft(
+            r#"{"schemaVersion":11,"overlay":{"appearance":{"backgroundOpacity":0.85}}}"#,
+        )
+        .unwrap();
+        assert_eq!(parsed.config.overlay.appearance.background_opacity, 0.85);
     }
 
     #[test]
@@ -1425,7 +1480,7 @@ mod tests {
             assert!(parsed.migrated);
             assert_eq!(parsed.config.overlay.appearance.layout, layout);
             assert_eq!(parsed.config.overlay.appearance.orientation, orientation);
-            assert!(parsed.normalized_json.contains("\"schemaVersion\": 10"));
+            assert!(parsed.normalized_json.contains("\"schemaVersion\": 11"));
         }
     }
 
@@ -1438,10 +1493,10 @@ mod tests {
             "vertical_double",
         ] {
             let raw = format!(
-                r#"{{"schemaVersion":10,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
+                r#"{{"schemaVersion":11,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
             );
             let validation = validate_config_draft(&raw);
-            assert!(!validation.valid, "{layout} should be invalid in schema 10");
+            assert!(!validation.valid, "{layout} should be invalid in schema 11");
             assert!(validation.error.unwrap().message.contains("orientation"));
         }
     }
@@ -1472,7 +1527,7 @@ mod tests {
     fn current_schema_preserves_explicit_legacy_provider_order() {
         let parsed = parse_config_draft(
             r#"{
-              "schemaVersion": 10,
+              "schemaVersion": 11,
               "lyrics": { "providers": {
                 "mode": "smart",
                 "providers": [

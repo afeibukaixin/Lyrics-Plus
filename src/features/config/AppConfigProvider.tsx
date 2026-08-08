@@ -5,7 +5,7 @@ import { createTauriListenerCleanup } from "../../shared/tauriEvent";
 import { defaultGlobalShortcuts, defaultOverlayStyle, type AppConfig, type GlobalShortcutSettings } from "../../shared/types";
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 10,
+  schemaVersion: 11,
   app: { uiFontScale: 100, playerSelection: "auto", hideDockIcon: false, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
@@ -29,6 +29,7 @@ const defaultConfig: AppConfig = {
       opacity: defaultOverlayStyle.opacity,
       backgroundOpacity: defaultOverlayStyle.backgroundOpacity,
       backgroundBlur: defaultOverlayStyle.backgroundBlur,
+      backgroundMode: defaultOverlayStyle.backgroundMode,
       background: defaultOverlayStyle.background,
       solidColor: defaultOverlayStyle.solidColor,
       layout: defaultOverlayStyle.layout,

@@ -62,6 +62,14 @@ pub enum OverlayBackground {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
+pub enum OverlayBackgroundMode {
+    #[default]
+    Solid,
+    Transparent,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
 pub enum OverlayLayout {
     #[default]
     Single,
@@ -129,6 +137,7 @@ pub struct OverlayStyleSettings {
     pub opacity: f64,
     pub background_opacity: f64,
     pub background_blur: f64,
+    pub background_mode: OverlayBackgroundMode,
     pub background: OverlayBackground,
     pub solid_color: String,
     pub layout: OverlayLayout,
@@ -159,8 +168,9 @@ impl Default for OverlayStyleSettings {
             active_color: "#c4b5fd".into(),
             inactive_color: "#c8d2df".into(),
             opacity: 1.0,
-            background_opacity: 1.0,
+            background_opacity: 0.6,
             background_blur: 18.0,
+            background_mode: OverlayBackgroundMode::Solid,
             background: OverlayBackground::Glass,
             solid_color: "#171821".into(),
             layout: OverlayLayout::Single,
@@ -198,6 +208,10 @@ impl OverlayStyleSettings {
         self.opacity = self.opacity.clamp(0.2, 1.0);
         self.background_opacity = self.background_opacity.clamp(0.0, 1.0);
         self.background_blur = self.background_blur.clamp(0.0, 40.0);
+        if self.background == OverlayBackground::Transparent {
+            self.background = OverlayBackground::Solid;
+            self.background_mode = OverlayBackgroundMode::Transparent;
+        }
         self.secondary_font_scale = self.secondary_font_scale.clamp(0.35, 1.0);
         self.translation_font_scale = self.translation_font_scale.clamp(0.35, 1.0);
         self.romanization_font_scale = self.romanization_font_scale.clamp(0.35, 1.0);
@@ -735,6 +749,9 @@ pub fn update_overlay_locked(app: &tauri::AppHandle, locked: bool) -> Result<(),
             .set_ignore_cursor_events(locked)
             .map_err(|error| error.to_string())?;
         let _ = window.set_focusable(!locked);
+        if !locked {
+            crate::refresh_overlay_mouse_tracking(&window);
+        }
         let _ = window.set_resizable(false);
         state
             .config
@@ -802,6 +819,9 @@ fn persist_overlay_style_for_current_monitor(
     state
         .config
         .update(|config| config.overlay.appearance = OverlayAppearance::from(style))?;
+    if let Some(window) = app.get_webview_window("lyrics-overlay") {
+        crate::sync_overlay_vibrancy(&window, style);
+    }
     app.emit("overlay://style", style)
         .map_err(|error| error.to_string())
 }
@@ -907,6 +927,9 @@ pub fn reset_overlay_bounds(app: tauri::AppHandle) -> Result<OverlayStyleSetting
         .set_ignore_cursor_events(locked)
         .map_err(|error| error.to_string())?;
     let _ = window.set_focusable(!locked);
+    if !locked {
+        crate::refresh_overlay_mouse_tracking(&window);
+    }
     let _ = window.set_resizable(false);
     crate::move_overlay_to_primary(&app, &window);
     persist_overlay_style_for_current_monitor(&app, &state, &style)?;
@@ -1438,6 +1461,9 @@ fn apply_app_config(
         .overlay_style
         .write()
         .unwrap_or_else(|error| error.into_inner()) = style.clone();
+    if let Some(window) = app.get_webview_window("lyrics-overlay") {
+        crate::sync_overlay_vibrancy(&window, &style);
+    }
 
     if !appearance_only {
         state
@@ -1468,6 +1494,9 @@ fn apply_app_config(
             }
             let _ = window.set_ignore_cursor_events(saved.overlay.locked);
             let _ = window.set_focusable(!saved.overlay.locked);
+            if !saved.overlay.locked {
+                crate::refresh_overlay_mouse_tracking(&window);
+            }
         }
         crate::sync_unlock_handle(app);
         crate::sync_tray_overlay_checked(app, saved.overlay.visible);
@@ -1527,10 +1556,12 @@ pub fn reset_settings_section(
             let window = app
                 .get_webview_window("lyrics-overlay")
                 .ok_or_else(|| "歌词浮窗不存在".to_string())?;
+            crate::sync_overlay_vibrancy(&window, &style);
             window
                 .set_ignore_cursor_events(false)
                 .map_err(|error| error.to_string())?;
             let _ = window.set_focusable(true);
+            crate::refresh_overlay_mouse_tracking(&window);
             let _ = window.set_resizable(false);
             crate::restore_overlay_position(&app, &window);
             window.show().map_err(|error| error.to_string())?;
@@ -1596,7 +1627,23 @@ mod tests {
     }
 
     #[test]
+    fn legacy_transparent_background_normalizes_to_transparent_mode() {
+        let style: OverlayStyleSettings =
+            serde_json::from_str(r##"{"background":"transparent","backgroundOpacity":0.75}"##)
+                .unwrap();
+        let style = style.normalized();
+        assert_eq!(style.background, OverlayBackground::Solid);
+        assert_eq!(style.background_mode, OverlayBackgroundMode::Transparent);
+        assert_eq!(style.background_opacity, 0.75);
+    }
+
+    #[test]
     fn new_overlay_style_defaults_to_current_secondary_display() {
+        assert_eq!(OverlayStyleSettings::default().background_opacity, 0.6);
+        assert_eq!(
+            OverlayStyleSettings::default().background_mode,
+            OverlayBackgroundMode::Solid
+        );
         assert_eq!(
             OverlayStyleSettings::default().secondary_display,
             SecondaryDisplayMode::TranslationRomanization

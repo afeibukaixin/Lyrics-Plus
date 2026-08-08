@@ -2,6 +2,7 @@ mod artwork;
 mod commands;
 mod config;
 mod lyrics;
+mod overlay_effect;
 mod player;
 mod storage;
 
@@ -10,6 +11,8 @@ use std::time::{Duration, Instant};
 
 use commands::{AppState, OverlayOrientation, OverlaySettings, OverlayStyleSettings};
 use config::{ConfigStore, GlobalShortcutSettings};
+pub(crate) use overlay_effect::sync_overlay_vibrancy;
+use overlay_effect::{HORIZONTAL_OVERLAY_SURFACE_INSET, VERTICAL_OVERLAY_SURFACE_INSET};
 use player::{query_selected_player, PlayerSelection};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -208,6 +211,45 @@ fn enable_fullscreen_auxiliary(_window: &tauri::WebviewWindow) -> tauri::Result<
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+fn refresh_macos_mouse_tracking(window: &tauri::WebviewWindow) -> tauri::Result<()> {
+    use objc2_app_kit::{NSView, NSWindow};
+
+    fn update_tracking_areas(view: &NSView) {
+        view.updateTrackingAreas();
+        for child in view.subviews().iter() {
+            update_tracking_areas(&child);
+        }
+    }
+
+    let ns_window = window.ns_window()?;
+    let ns_window = unsafe { &*ns_window.cast::<NSWindow>() };
+    ns_window.setAcceptsMouseMovedEvents(true);
+    ns_window.resetCursorRects();
+
+    let ns_view = window.ns_view()?;
+    let ns_view = unsafe { &*ns_view.cast::<NSView>() };
+    update_tracking_areas(ns_view);
+    Ok(())
+}
+
+pub(crate) fn refresh_overlay_mouse_tracking(window: &tauri::WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    {
+        let target = window.clone();
+        if let Err(error) = window.run_on_main_thread(move || {
+            if let Err(error) = refresh_macos_mouse_tracking(&target) {
+                log::warn!("刷新桌面歌词鼠标跟踪失败：{error}");
+            }
+        }) {
+            log::warn!("调度桌面歌词鼠标跟踪刷新失败：{error}");
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    let _ = window;
+}
+
 pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
     if app.get_webview_window("lyrics-overlay").is_some() {
         return Ok(());
@@ -247,6 +289,8 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
     .build()?;
 
     enable_fullscreen_auxiliary(&window)?;
+    refresh_overlay_mouse_tracking(&window);
+    sync_overlay_vibrancy(&window, &style);
 
     Ok(())
 }
@@ -734,8 +778,6 @@ pub(crate) fn move_overlay_to_primary(app: &tauri::AppHandle, window: &tauri::We
     }
 }
 
-const HORIZONTAL_OVERLAY_SURFACE_INSET: f64 = 46.0;
-const VERTICAL_OVERLAY_SURFACE_INSET: f64 = 48.0;
 const UNLOCK_HANDLE_BACKGROUND_GAP: f64 = 6.0;
 const UNLOCK_HANDLE_MONITOR_INTERVAL: Duration = Duration::from_millis(50);
 const UNLOCK_HANDLE_HIDE_DELAY: Duration = Duration::from_millis(200);
@@ -1375,6 +1417,9 @@ pub fn run() {
                 let _ = window.set_resizable(false);
                 let _ = window.set_ignore_cursor_events(overlay_settings.locked);
                 let _ = window.set_focusable(!overlay_settings.locked);
+                if !overlay_settings.locked {
+                    refresh_overlay_mouse_tracking(&window);
+                }
                 restore_overlay_position(app.handle(), &window);
                 if overlay_settings.visible {
                     let _ = window.show();
@@ -1424,6 +1469,14 @@ pub fn run() {
                 if matches!(event, tauri::WindowEvent::Resized(_)) {
                     if let Some(overlay) = window.app_handle().get_webview_window("lyrics-overlay")
                     {
+                        if let Some(state) = window.app_handle().try_state::<AppState>() {
+                            let style = state
+                                .overlay_style
+                                .read()
+                                .unwrap_or_else(|error| error.into_inner())
+                                .clone();
+                            sync_overlay_vibrancy(&overlay, &style);
+                        }
                         if !suppress_overlay_persistence(window.app_handle(), &overlay) {
                             persist_overlay_state(window.app_handle(), &overlay);
                         }
