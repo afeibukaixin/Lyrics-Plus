@@ -31,6 +31,7 @@
 .searchBox:focus-within { border-color: #9277f477; box-shadow: 0 0 0 2px #9277f412; }
 .searchBox > span { width: 15px; height: 15px; color: #8174bb; }
 .searchBox input { min-width: 0; padding: 0; border: 0; outline: none; background: transparent; color: #d5d7de; font-size: var(--typography-body-sm-size); line-height: var(--typography-body-sm-line-height); font-weight: var(--typography-body-sm-weight); }
+.searchBox input:focus-visible { outline: none; }
 .searchBox input::placeholder { color: #626878; }
 .searchBox button { width: 18px; height: 18px; border-radius: 50%; color: #777d8d; line-height: 1; }
 .searchBox button > span { width: 12px; height: 12px; margin: auto; }

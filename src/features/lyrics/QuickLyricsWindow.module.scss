@@ -22,6 +22,7 @@
 .search:focus-within { border-color: #9277f477; box-shadow: 0 0 0 2px #9277f412; }
 .search > span { width: 17px; height: 17px; color: #8d77e1; }
 .search input { min-width: 0; padding: 0; border: 0; outline: 0; background: transparent; color: #d9dbe2; font-size: var(--typography-body-size); line-height: var(--typography-body-line-height); font-weight: var(--typography-body-weight); }
+.search input:focus-visible { outline: none; }
 .search input::placeholder { color: #626877; }
 .search button { padding: 6px 11px; }
 .workspace { min-height: 0; display: grid; grid-template-columns: minmax(310px, .9fr) minmax(0, 1.35fr); gap: 13px; }
