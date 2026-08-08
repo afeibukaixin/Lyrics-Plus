@@ -200,6 +200,7 @@ export default function Overlay() {
   const [wrapped, setWrapped] = useState(false);
   const [marqueeMetrics, setMarqueeMetrics] = useState<MarqueeMetric[]>([]);
   const [activeResizeEdge, setActiveResizeEdge] = useState<OverlayResizeEdge | null>(null);
+  const [overlayHovered, setOverlayHovered] = useState(false);
   const [toolbarMinimums, setToolbarMinimums] = useState({
     horizontal: MIN_HORIZONTAL_WIDTH,
     vertical: MIN_VERTICAL_HEIGHT,
@@ -241,11 +242,16 @@ export default function Overlay() {
     }));
     const cleanupSettingsListener = createTauriListenerCleanup(listen<OverlaySettings>("overlay://settings", ({ payload }) => {
       if (payload.locked) clearResizeState();
+      if (payload.locked || !payload.visible) setOverlayHovered(false);
       setSettings(payload);
+    }));
+    const cleanupHoverListener = createTauriListenerCleanup(listen<boolean>("overlay://hover", ({ payload }) => {
+      setOverlayHovered(payload);
     }));
     return () => {
       cleanupStyleListener();
       cleanupSettingsListener();
+      cleanupHoverListener();
     };
   }, [clearResizeState]);
 
@@ -758,6 +764,7 @@ export default function Overlay() {
       data-orientation={style.orientation}
       data-long-text={style.longText}
       data-constrained={constrained}
+      data-hover={overlayHovered}
       data-resizing={resizing}
       data-tauri-drag-region={settings.locked ? "false" : "deep"}
       style={{

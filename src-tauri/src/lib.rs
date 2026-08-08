@@ -779,9 +779,10 @@ pub(crate) fn move_overlay_to_primary(app: &tauri::AppHandle, window: &tauri::We
 }
 
 const UNLOCK_HANDLE_BACKGROUND_GAP: f64 = 6.0;
-const UNLOCK_HANDLE_MONITOR_INTERVAL: Duration = Duration::from_millis(50);
+const OVERLAY_POINTER_MONITOR_INTERVAL: Duration = Duration::from_millis(50);
 const UNLOCK_HANDLE_HIDE_DELAY: Duration = Duration::from_millis(200);
 const UNLOCK_HANDLE_HOVER_EVENT: &str = "unlock-handle://hover";
+const OVERLAY_HOVER_EVENT: &str = "overlay://hover";
 
 fn point_in_window_bounds(
     point: tauri::PhysicalPosition<f64>,
@@ -794,6 +795,15 @@ fn point_in_window_bounds(
         && point.x < right
         && point.y >= position.y as f64
         && point.y < bottom
+}
+
+fn should_hover_overlay(
+    settings: &OverlaySettings,
+    cursor: tauri::PhysicalPosition<f64>,
+    position: tauri::PhysicalPosition<i32>,
+    size: tauri::PhysicalSize<u32>,
+) -> bool {
+    settings.visible && !settings.locked && point_in_window_bounds(cursor, position, size)
 }
 
 fn unlock_handle_position(
@@ -899,13 +909,14 @@ pub(crate) fn sync_unlock_handle(app: &tauri::AppHandle) {
     }
 }
 
-fn start_unlock_handle_monitor(app: tauri::AppHandle) {
+fn start_overlay_pointer_monitor(app: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         let mut last_inside_at: Option<Instant> = None;
-        let mut last_hovered: Option<bool> = None;
+        let mut last_handle_hovered: Option<bool> = None;
+        let mut last_overlay_hovered: Option<bool> = None;
 
         loop {
-            tokio::time::sleep(UNLOCK_HANDLE_MONITOR_INTERVAL).await;
+            tokio::time::sleep(OVERLAY_POINTER_MONITOR_INTERVAL).await;
 
             let Some(state) = app.try_state::<AppState>() else {
                 continue;
@@ -922,30 +933,41 @@ fn start_unlock_handle_monitor(app: tauri::AppHandle) {
                 continue;
             };
 
+            let overlay_sample = match (
+                app.cursor_position(),
+                overlay.outer_position(),
+                overlay.outer_size(),
+            ) {
+                (Ok(cursor), Ok(position), Ok(size)) => Some((cursor, position, size)),
+                _ => None,
+            };
+            let overlay_hovered =
+                overlay_sample
+                    .as_ref()
+                    .is_some_and(|(cursor, position, size)| {
+                        should_hover_overlay(&settings, *cursor, *position, *size)
+                    });
+            if last_overlay_hovered != Some(overlay_hovered) {
+                let _ = overlay.emit(OVERLAY_HOVER_EVENT, overlay_hovered);
+                last_overlay_hovered = Some(overlay_hovered);
+            }
+
             if !settings.visible || !settings.locked {
                 last_inside_at = None;
                 if handle.is_visible().unwrap_or(false) {
                     let _ = handle.hide();
                 }
-                if last_hovered != Some(false) {
+                if last_handle_hovered != Some(false) {
                     let _ = handle.emit(UNLOCK_HANDLE_HOVER_EVENT, false);
-                    last_hovered = Some(false);
+                    last_handle_hovered = Some(false);
                 }
                 continue;
             }
 
-            let sample = (
-                app.cursor_position(),
-                overlay.outer_position(),
-                overlay.outer_size(),
-                handle.outer_position(),
-                handle.outer_size(),
-            );
+            let sample = (overlay_sample, handle.outer_position(), handle.outer_size());
             let (should_show, hovered) = match sample {
                 (
-                    Ok(cursor),
-                    Ok(overlay_position),
-                    Ok(overlay_size),
+                    Some((cursor, overlay_position, overlay_size)),
                     Ok(handle_position),
                     Ok(handle_size),
                 ) => {
@@ -980,9 +1002,9 @@ fn start_unlock_handle_monitor(app: tauri::AppHandle) {
                 }
             }
             let hovered = should_show && hovered;
-            if last_hovered != Some(hovered) {
+            if last_handle_hovered != Some(hovered) {
                 let _ = handle.emit(UNLOCK_HANDLE_HOVER_EVENT, hovered);
-                last_hovered = Some(hovered);
+                last_handle_hovered = Some(hovered);
             }
         }
     });
@@ -1426,7 +1448,7 @@ pub fn run() {
                 }
             }
             sync_unlock_handle(app.handle());
-            start_unlock_handle_monitor(app.handle().clone());
+            start_overlay_pointer_monitor(app.handle().clone());
             setup_tray(app)?;
             if configured.app.hide_dock_icon {
                 apply_dock_icon_hidden(app.handle(), true).map_err(std::io::Error::other)?;
@@ -1749,6 +1771,43 @@ mod tests {
             size,
         ));
         assert!(!point_in_window_bounds(
+            tauri::PhysicalPosition::new(128.0, 228.0),
+            position,
+            size,
+        ));
+    }
+
+    #[test]
+    fn overlay_hover_requires_visible_unlocked_overlay() {
+        let cursor = tauri::PhysicalPosition::new(110.0, 210.0);
+        let position = tauri::PhysicalPosition::new(100, 200);
+        let size = tauri::PhysicalSize::new(28, 28);
+        let mut settings = OverlaySettings::default();
+
+        assert!(should_hover_overlay(&settings, cursor, position, size));
+
+        settings.visible = false;
+        assert!(!should_hover_overlay(&settings, cursor, position, size));
+
+        settings.visible = true;
+        settings.locked = true;
+        assert!(!should_hover_overlay(&settings, cursor, position, size));
+    }
+
+    #[test]
+    fn overlay_hover_uses_window_bounds() {
+        let settings = OverlaySettings::default();
+        let position = tauri::PhysicalPosition::new(100, 200);
+        let size = tauri::PhysicalSize::new(28, 28);
+
+        assert!(should_hover_overlay(
+            &settings,
+            tauri::PhysicalPosition::new(127.9, 227.9),
+            position,
+            size,
+        ));
+        assert!(!should_hover_overlay(
+            &settings,
             tauri::PhysicalPosition::new(128.0, 228.0),
             position,
             size,
