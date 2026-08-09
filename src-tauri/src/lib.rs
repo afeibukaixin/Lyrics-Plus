@@ -108,12 +108,16 @@ fn register_global_shortcuts(
     app: &tauri::AppHandle,
     shortcuts: &GlobalShortcutSettings,
 ) -> Result<(), String> {
-    let [toggle, unlock, reset] = shortcuts.parsed()?;
+    let [toggle, toggle_lock, reset] = shortcuts.parsed()?;
     let mut registered = Vec::<Shortcut>::new();
 
     let result = (|| {
         app.global_shortcut()
             .on_shortcut(toggle, |app, _, event| {
+                log::debug!(
+                    "Global shortcut event: action=toggle-overlay state={:?}",
+                    event.state
+                );
                 if event.state == ShortcutState::Pressed {
                     let visible = app
                         .state::<AppState>()
@@ -121,28 +125,73 @@ fn register_global_shortcuts(
                         .read()
                         .unwrap_or_else(|error| error.into_inner())
                         .visible;
-                    let _ = commands::update_overlay_visible(app, !visible);
+                    if let Err(error) = commands::update_overlay_visible(app, !visible) {
+                        log::warn!("Failed to toggle desktop lyrics from global shortcut: {error}");
+                    }
                 }
             })
-            .map_err(|error| format!("注册显示 / 隐藏桌面歌词快捷键失败：{error}"))?;
+            .map_err(|error| {
+                format!(
+                    "注册显示 / 隐藏桌面歌词快捷键 {} 失败：{error}",
+                    shortcuts.toggle_overlay
+                )
+            })?;
         registered.push(toggle);
 
         app.global_shortcut()
-            .on_shortcut(unlock, |app, _, event| {
+            .on_shortcut(toggle_lock, |app, _, event| {
+                log::debug!(
+                    "Global shortcut event: action=toggle-overlay-lock state={:?}",
+                    event.state
+                );
                 if event.state == ShortcutState::Pressed {
-                    let _ = commands::update_overlay_locked(app, false);
+                    let locked = app
+                        .state::<AppState>()
+                        .overlay_settings
+                        .read()
+                        .unwrap_or_else(|error| error.into_inner())
+                        .locked;
+                    let next_locked = !locked;
+                    match commands::update_overlay_locked(app, next_locked) {
+                        Ok(()) => {
+                            if !next_locked {
+                                let _ = app.emit("overlay://unlock-feedback", ());
+                            }
+                        }
+                        Err(error) => {
+                            log::warn!(
+                                "Failed to toggle desktop lyrics lock from global shortcut: {error}"
+                            );
+                        }
+                    }
                 }
             })
-            .map_err(|error| format!("注册解锁桌面歌词快捷键失败：{error}"))?;
-        registered.push(unlock);
+            .map_err(|error| {
+                format!(
+                    "注册锁定 / 解锁桌面歌词快捷键 {} 失败：{error}",
+                    shortcuts.unlock_overlay
+                )
+            })?;
+        registered.push(toggle_lock);
 
         app.global_shortcut()
             .on_shortcut(reset, |app, _, event| {
+                log::debug!(
+                    "Global shortcut event: action=reset-overlay state={:?}",
+                    event.state
+                );
                 if event.state == ShortcutState::Pressed {
-                    let _ = commands::reset_overlay_bounds(app.clone());
+                    if let Err(error) = commands::reset_overlay_bounds(app.clone()) {
+                        log::warn!("Failed to reset desktop lyrics from global shortcut: {error}");
+                    }
                 }
             })
-            .map_err(|error| format!("注册复位桌面歌词快捷键失败：{error}"))?;
+            .map_err(|error| {
+                format!(
+                    "注册复位桌面歌词快捷键 {} 失败：{error}",
+                    shortcuts.reset_overlay
+                )
+            })?;
         registered.push(reset);
         Ok(())
     })();
@@ -1158,7 +1207,11 @@ pub(crate) fn activate_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     if configured.app.hide_dock_icon {
         apply_dock_icon_hidden(app, true)?;
     }
-    register_global_shortcuts(app, &configured.app.shortcuts)?;
+    if let Err(error) = register_global_shortcuts(app, &configured.app.shortcuts) {
+        log::warn!(
+            "Failed to register global shortcuts at startup; runtime will continue: {error}"
+        );
+    }
 
     *started = true;
     commands::start_library_scan(app);
@@ -1704,6 +1757,7 @@ pub fn run() {
             commands::set_ui_font_scale,
             commands::set_language,
             commands::set_native_language,
+            commands::get_global_shortcut_status,
             commands::set_global_shortcuts,
             commands::set_dock_icon_hidden,
             commands::set_overlay_hide_when_not_playing,

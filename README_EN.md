@@ -89,7 +89,7 @@ Online lyrics depend on third-party services. Search results and response times 
 | Shortcut | Action |
 |---|---|
 | `⌘ ⇧ L` | Show or hide desktop lyrics |
-| `⌘ ⇧ U` | Unlock desktop lyrics |
+| `⌘ ⇧ U` | Lock or unlock desktop lyrics |
 | `⌘ ⇧ 0` | Reset and show desktop lyrics |
 
 ## Local Development

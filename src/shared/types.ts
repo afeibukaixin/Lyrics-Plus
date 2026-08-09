@@ -20,6 +20,8 @@ export type GlobalShortcutSettings = {
   resetOverlay: string;
 };
 
+export type GlobalShortcutStatus = Record<keyof GlobalShortcutSettings, boolean>;
+
 export type LegalNoticeStatus = {
   currentVersion: number;
   accepted: boolean;

@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { defaultGlobalShortcuts, type GlobalShortcutSettings, type LanguagePreference, type PlayerSelection } from "../../shared/types";
-import { messageOf } from "../../shared/api";
+import { defaultGlobalShortcuts, type GlobalShortcutSettings, type GlobalShortcutStatus, type LanguagePreference, type PlayerSelection } from "../../shared/types";
+import { api, messageOf } from "../../shared/api";
 import { languageRegistry, supportedLanguages } from "../../shared/languages";
 import { localizedSource, playbackStatusText } from "../../features/i18n/userText";
 import { normalizeLanguagePreference } from "../../features/i18n/i18n";
@@ -63,13 +63,19 @@ export default function AppSettingsPage() {
   } = useSettingsContext();
   const [recording, setRecording] = useState<ShortcutAction | null>(null);
   const [savingShortcut, setSavingShortcut] = useState(false);
+  const [shortcutStatus, setShortcutStatus] = useState<GlobalShortcutStatus | null>(null);
   const { t } = useTranslation();
+
+  useEffect(() => {
+    void api.getGlobalShortcutStatus().then(setShortcutStatus).catch(() => setShortcutStatus(null));
+  }, []);
 
   const saveShortcut = async (action: ShortcutAction, value: string) => {
     setSavingShortcut(true);
     setError(null);
     try {
       await setGlobalShortcuts({ ...config.app.shortcuts, [action]: value });
+      void api.getGlobalShortcutStatus().then(setShortcutStatus).catch(() => setShortcutStatus(null));
       setRecording(null);
     } catch (error) {
       setError(messageOf(error));
@@ -88,6 +94,9 @@ export default function AppSettingsPage() {
         })
       : t("settings.app.diagnosticsEmpty"));
   const shortcutLabel = (action: ShortcutAction) => t(`settings.app.${action}`);
+  const unavailableShortcuts = shortcutStatus
+    ? shortcutActions.filter((action) => !shortcutStatus[action])
+    : [];
   const languagePreference = normalizeLanguagePreference(config.app.language);
 
   return (
@@ -146,6 +155,13 @@ export default function AppSettingsPage() {
             </div>
           );
         })}
+        {unavailableShortcuts.length > 0 && (
+          <p className={styles.cardHint} data-error="true">
+            {t("settings.app.shortcutUnavailable", {
+              actions: unavailableShortcuts.map(shortcutLabel).join(", "),
+            })}
+          </p>
+        )}
       </SettingsCard>
       <SettingsCard title={t("settings.app.diagnostics")}><div className={styles.diagnostics} data-error={Boolean(playback.commandError || playback.snapshot.errorCode || lyrics.error)}><i /><span>{diagnostics}</span></div></SettingsCard>
     </>

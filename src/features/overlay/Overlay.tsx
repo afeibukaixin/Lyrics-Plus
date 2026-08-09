@@ -173,6 +173,7 @@ export default function Overlay() {
   const supportingRefs = useRef<Array<HTMLDivElement | null>>([]);
   const fitFrame = useRef<number | null>(null);
   const shrinkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unlockFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resizeSession = useRef<ActiveResizeSession | null>(null);
   const finishResizeRef = useRef<() => void>(() => undefined);
   const styleRef = useRef(style);
@@ -187,6 +188,7 @@ export default function Overlay() {
   const [marqueeMetrics, setMarqueeMetrics] = useState<MarqueeMetric[]>([]);
   const [activeResizeEdge, setActiveResizeEdge] = useState<OverlayResizeEdge | null>(null);
   const [overlayHovered, setOverlayHovered] = useState(false);
+  const [unlockFeedback, setUnlockFeedback] = useState(false);
   const [toolbarMinimums, setToolbarMinimums] = useState({
     horizontal: MIN_HORIZONTAL_WIDTH,
     vertical: MIN_VERTICAL_HEIGHT,
@@ -234,10 +236,20 @@ export default function Overlay() {
     const cleanupHoverListener = createTauriListenerCleanup(listen<boolean>("overlay://hover", ({ payload }) => {
       setOverlayHovered(payload);
     }));
+    const cleanupUnlockFeedbackListener = createTauriListenerCleanup(listen("overlay://unlock-feedback", () => {
+      if (unlockFeedbackTimer.current !== null) clearTimeout(unlockFeedbackTimer.current);
+      setUnlockFeedback(true);
+      unlockFeedbackTimer.current = setTimeout(() => {
+        unlockFeedbackTimer.current = null;
+        setUnlockFeedback(false);
+      }, 1_500);
+    }));
     return () => {
+      if (unlockFeedbackTimer.current !== null) clearTimeout(unlockFeedbackTimer.current);
       cleanupStyleListener();
       cleanupSettingsListener();
       cleanupHoverListener();
+      cleanupUnlockFeedbackListener();
     };
   }, [clearResizeState]);
 
@@ -753,7 +765,7 @@ export default function Overlay() {
       data-orientation={style.orientation}
       data-long-text={style.longText}
       data-constrained={constrained}
-      data-hover={overlayHovered}
+      data-hover={overlayHovered || unlockFeedback}
       data-resizing={resizing}
       data-tauri-drag-region={settings.locked ? "false" : "deep"}
       style={{

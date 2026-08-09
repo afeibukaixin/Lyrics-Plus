@@ -9,6 +9,7 @@ import type {
   ConfigDraftValidation,
   ConfigEditorData,
   GlobalShortcutSettings,
+  GlobalShortcutStatus,
   LanguagePreference,
   LegalNoticeStatus,
   NativeLanguage,
@@ -147,6 +148,7 @@ export const api = {
     invoke<AppConfig>("set_language", { language }),
   setNativeLanguage: (language: NativeLanguage) =>
     invoke<void>("set_native_language", { language }),
+  getGlobalShortcutStatus: () => invoke<GlobalShortcutStatus>("get_global_shortcut_status"),
   setGlobalShortcuts: (shortcuts: GlobalShortcutSettings) =>
     invoke<AppConfig>("set_global_shortcuts", { shortcuts }),
   setDockIconHidden: (hidden: boolean) =>
@@ -164,6 +166,7 @@ export const api = {
 
 export function messageOf(error: unknown): string {
   if (error instanceof AppOperationError) {
+    if (error.command === "set_global_shortcuts" && error.message) return error.message;
     return error.code === "config.conflict"
       ? appI18n.t("errors.configConflict")
       : appI18n.t("errors.command");

@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager, State};
+use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::artwork::{player_name, ArtworkAsset, ArtworkService};
@@ -47,6 +48,14 @@ pub struct LegalNoticeStatus {
 pub struct OverlaySettings {
     pub visible: bool,
     pub locked: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GlobalShortcutStatus {
+    pub toggle_overlay: bool,
+    pub unlock_overlay: bool,
+    pub reset_overlay: bool,
 }
 
 impl Default for OverlaySettings {
@@ -1308,6 +1317,20 @@ pub fn set_native_language(
             .map_err(|error| error.to_string())?;
     }
     Ok(())
+}
+
+#[tauri::command]
+pub fn get_global_shortcut_status(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<GlobalShortcutStatus, String> {
+    let [toggle, unlock, reset] = state.config.snapshot().app.shortcuts.parsed()?;
+    let shortcuts = app.global_shortcut();
+    Ok(GlobalShortcutStatus {
+        toggle_overlay: shortcuts.is_registered(toggle),
+        unlock_overlay: shortcuts.is_registered(unlock),
+        reset_overlay: shortcuts.is_registered(reset),
+    })
 }
 
 pub fn update_global_shortcuts(

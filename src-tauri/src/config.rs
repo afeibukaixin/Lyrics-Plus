@@ -201,7 +201,7 @@ impl GlobalShortcutSettings {
     pub fn parsed(&self) -> Result<[Shortcut; 3], String> {
         let entries = [
             ("显示 / 隐藏桌面歌词", self.toggle_overlay.as_str()),
-            ("解锁桌面歌词", self.unlock_overlay.as_str()),
+            ("锁定 / 解锁桌面歌词", self.unlock_overlay.as_str()),
             ("复位并显示桌面歌词", self.reset_overlay.as_str()),
         ];
         let mut parsed = Vec::with_capacity(entries.len());
