@@ -44,7 +44,7 @@ Failed to scan the lyrics library: {error}
 - 其他值优先使用 JSON 序列化，失败时回退到 `String(value)`。
 - 日志写入本身失败时不得递归上报。
 
-全局 `error` 与 `unhandledrejection` 监听器、Tauri 命令边界和桌面歌词窗口操作均通过这一入口记录。调用方不得只记录本地化后的用户提示，因为那会丢失底层原因。
+启用实时调试日志后，`DebugLogProvider` 会注册全局 `error` 与 `unhandledrejection` 监听器，并在关闭时移除。Tauri 命令边界和桌面歌词窗口操作同样通过 `reportFrontendError` 记录。调用方不得只记录本地化后的用户提示，因为那会丢失底层原因。
 
 ## Rust 业务错误边界
 
@@ -54,7 +54,7 @@ Rust 命令返回的 `Result<_, String>`、歌词源诊断和配置校验详情�
 
 ## 调试日志
 
-调试设置页显示的是开发者日志流，日志内容保持英文，不进入 i18n 资源。`DEBUG`、`INFO`、`WARN`、`ERROR` 等级名保持固定写法；启用、筛选、清空等用户界面控件仍通过 i18n 输出。
+调试设置页显示的是开发者日志流，日志内容保持英文，不进入 i18n 资源。日志流仅在用户启用后附加，保存当前会话最近 300 条记录；切换启用状态会清空已有记录。`DEBUG`、`INFO`、`WARN`、`ERROR` 等级名保持固定写法；启用、筛选、清空等用户界面控件仍通过 i18n 输出。
 
 ## 辅助脚本
 
