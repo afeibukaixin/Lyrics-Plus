@@ -971,7 +971,7 @@ fn resize_overlay_edge_bounds(
     } else {
         1.0
     };
-    let margin = (24.0 * scale).round() as i64;
+    let margin = 0_i64;
     let minimum_main_size = if minimum_main_size.is_finite() {
         minimum_main_size.max(0.0)
     } else {
@@ -1140,7 +1140,7 @@ fn fit_overlay_bounds(
     } else {
         1.0
     };
-    let margin = (24.0 * scale).round() as u32;
+    let margin = 0_u32;
     let minimum_width = (190.0 * scale).round() as u32;
     let minimum_height = (76.0 * scale).round() as u32;
     let maximum_width = monitor_size
@@ -1936,7 +1936,7 @@ mod tests {
     }
 
     #[test]
-    fn adaptive_bounds_respect_monitor_margins_and_minimums() {
+    fn adaptive_bounds_allow_monitor_edges_and_respect_minimums() {
         let (large_position, large_size) = fit_overlay_bounds(
             tauri::PhysicalPosition::new(300, 200),
             2_000.0,
@@ -1945,8 +1945,8 @@ mod tests {
             tauri::PhysicalPosition::new(0, 0),
             tauri::PhysicalSize::new(1_000, 800),
         );
-        assert_eq!(large_size, tauri::PhysicalSize::new(952, 752));
-        assert_eq!(large_position, tauri::PhysicalPosition::new(24, 24));
+        assert_eq!(large_size, tauri::PhysicalSize::new(1_000, 800));
+        assert_eq!(large_position, tauri::PhysicalPosition::new(0, 0));
 
         let (_, small_size) = fit_overlay_bounds(
             tauri::PhysicalPosition::new(300, 200),
@@ -2019,7 +2019,7 @@ mod tests {
     }
 
     #[test]
-    fn manual_edge_resize_respects_minimums_and_monitor_margin() {
+    fn manual_edge_resize_respects_minimums_and_monitor_edges() {
         let position = tauri::PhysicalPosition::new(400, 300);
         let size = tauri::PhysicalSize::new(800, 700);
         let monitor_position = tauri::PhysicalPosition::new(0, 0);
@@ -2045,7 +2045,7 @@ mod tests {
             monitor_position,
             monitor_size,
         );
-        assert_eq!(position.x as i64 + maximum.width as i64, 2832);
+        assert_eq!(position.x as i64 + maximum.width as i64, 2880);
     }
 
     #[test]
