@@ -283,9 +283,6 @@ export default function Overlay() {
       setFitLimits({ width: Math.max(190, width), height: Math.max(76, height) });
     };
     void refreshLimits();
-    return createTauriListenerCleanup(
-      getCurrentWindow().onMoved(() => void refreshLimits()),
-    );
   }, []);
 
   useEffect(() => {

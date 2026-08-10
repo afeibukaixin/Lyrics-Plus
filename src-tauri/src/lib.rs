@@ -1378,23 +1378,10 @@ fn persist_overlay_state_at(
         .overlay_monitor
         .write()
         .unwrap_or_else(|error| error.into_inner());
-    let monitor_changed = active_monitor.as_deref() != Some(&id);
-    if monitor_changed {
+    if active_monitor.as_deref() != Some(&id) {
         *active_monitor = Some(id.clone());
     }
     drop(active_monitor);
-
-    if monitor_changed {
-        let geometry = overlay_geometry(&state.storage, Some(&id));
-        let mut style = state.config.snapshot().overlay.appearance.into_style();
-        style.horizontal_max_width = geometry.horizontal_max_width;
-        style.vertical_max_height = geometry.vertical_max_height;
-        *state
-            .overlay_style
-            .write()
-            .unwrap_or_else(|error| error.into_inner()) = style.clone();
-        let _ = app.emit("overlay://style", style);
-    }
 
     let Ok(window_size) = window.outer_size() else {
         return;
