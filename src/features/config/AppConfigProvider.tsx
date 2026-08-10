@@ -11,8 +11,8 @@ const defaultOverlayAppearance = (({
 }: typeof defaultOverlayStyle) => appearance)(defaultOverlayStyle);
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 14,
-  app: { uiFontScale: 100, language: "system", playerSelection: "auto", hideDockIcon: false, shortcuts: defaultGlobalShortcuts },
+  schemaVersion: 15,
+  app: { uiFontScale: 100, language: "system", playerSelection: "auto", hideDockIcon: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
       mode: "smart",
@@ -39,7 +39,9 @@ type AppConfigContextValue = {
   setLanguage: (language: LanguagePreference) => Promise<void>;
   setGlobalShortcuts: (shortcuts: GlobalShortcutSettings) => Promise<void>;
   setDockIconHidden: (hidden: boolean) => Promise<void>;
+  setAutoCheckUpdates: (enabled: boolean) => Promise<void>;
   setOverlayHideWhenNotPlaying: (hidden: boolean) => Promise<void>;
+  loaded: boolean;
   syncConfig: (config: AppConfig) => void;
 };
 
@@ -53,11 +55,15 @@ export function AppConfigProvider({
   windowType?: "main" | "quick-lyrics" | "overlay" | "unlock-handle";
 }) {
   const [config, setConfig] = useState(defaultConfig);
+  const [loaded, setLoaded] = useState(!isTauriRuntime());
 
   useEffect(() => {
     document.documentElement.dataset.window = windowType;
     if (!isTauriRuntime()) return;
-    void api.getAppConfig().then(setConfig);
+    void api.getAppConfig().then((value) => {
+      setConfig(value);
+      setLoaded(true);
+    }).catch(() => setLoaded(false));
     return createTauriListenerCleanup(
       listen<AppConfig>("config://changed", ({ payload }) => setConfig(payload)),
     );
@@ -69,6 +75,7 @@ export function AppConfigProvider({
 
   const value = useMemo<AppConfigContextValue>(() => ({
     config,
+    loaded,
     setUiFontScale: async (scale) => {
       if (!isTauriRuntime()) {
         setConfig((current) => ({ ...current, app: { ...current.app, uiFontScale: scale } }));
@@ -100,6 +107,13 @@ export function AppConfigProvider({
       }
       setConfig(await api.setDockIconHidden(hidden));
     },
+    setAutoCheckUpdates: async (enabled) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({ ...current, app: { ...current.app, autoCheckUpdates: enabled } }));
+        return;
+      }
+      setConfig(await api.setAutoCheckUpdates(enabled));
+    },
     setOverlayHideWhenNotPlaying: async (hidden) => {
       if (!isTauriRuntime()) {
         setConfig((current) => ({
@@ -111,7 +125,7 @@ export function AppConfigProvider({
       setConfig(await api.setOverlayHideWhenNotPlaying(hidden));
     },
     syncConfig: setConfig,
-  }), [config]);
+  }), [config, loaded]);
 
   return <AppConfigContext.Provider value={value}>{children}</AppConfigContext.Provider>;
 }

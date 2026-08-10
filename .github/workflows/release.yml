@@ -57,6 +57,8 @@ jobs:
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tauriScript: pnpm tauri
           tagName: ${{ github.ref_name }}
@@ -71,13 +73,16 @@ jobs:
 
             请在 Assets 中选择与你的 Mac 芯片对应的安装包。
 
+            ### 应用内更新
+
+            支持自动更新的版本可在“设置 → 关于与更新”中检查新版。若当前版本没有该页面，请先手动下载安装本版本一次，后续即可使用应用内更新。
+
             > [!IMPORTANT]
             > 当前版本采用 macOS ad-hoc 签名，暂未进行 Apple Developer ID 签名与公证。首次打开如被 macOS 阻止，请前往“系统设置 → 隐私与安全性”，确认应用来源后选择“仍要打开”。
 
-            当前暂未提供自动更新，请关注 Releases 获取后续版本。
           releaseDraft: false
           prerelease: false
           generateReleaseNotes: true
-          uploadUpdaterJson: false
-          uploadUpdaterSignatures: false
+          uploadUpdaterJson: true
+          uploadUpdaterSignatures: true
           args: --target ${{ matrix.target }}

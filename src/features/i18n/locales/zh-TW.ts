@@ -6,7 +6,7 @@ export const zhTW = {
     actions: {
       apply: "套用", clear: "清除", close: "關閉", test: "測試", testing: "測試中",
       reset: "重設", resetDefault: "恢復預設值", resetting: "恢復中…", confirmAgain: "再次點擊以確認",
-      search: "搜尋", searching: "搜尋中…", reload: "重新載入", open: "開啟", save: "儲存",
+      search: "搜尋", searching: "搜尋中…", reload: "重新載入", open: "開啟", save: "儲存", cancel: "取消",
     },
     feature: {
       translation: "翻譯", romanization: "羅馬拼音", wordTiming: "逐字", synced: "同步",
@@ -127,7 +127,7 @@ failed: "歌詞資料夾掃描失敗",
       nav: {
         overlay: "桌面歌詞", overlayHint: "外觀、版面與浮動視窗", lyrics: "歌詞與搜尋", lyricsHint: "來源、連結與偏移",
         app: "應用程式", appHint: "播放器與快速鍵", debug: "偵錯紀錄", debugHint: "即時紀錄與篩選",
-        config: "設定檔", configHint: "JSONC 編輯與分享",
+        config: "設定檔", configHint: "JSONC 編輯與分享", about: "關於與更新", aboutHint: "版本、更新與專案連結",
       },
       resetConfirm: "再次點擊「恢復預設值」以確認重設{{section}}；歌詞庫和歌曲連結不會刪除。",
       resetDone: "{{section}}已恢復預設值。", positionReset: "桌面歌詞位置已重設。",
@@ -144,6 +144,15 @@ failed: "歌詞資料夾掃描失敗",
       shortcuts: "快速鍵", openSettings: "開啟設定", toggleOverlay: "顯示 / 隱藏桌面歌詞", unlockOverlay: "鎖定 / 解鎖桌面歌詞",
       resetOverlay: "重設並顯示桌面歌詞", record: "請按下按鍵組合 · Esc 取消", shortcutUnavailable: "{{actions}}快速鍵未註冊，可能與系統或其他應用程式衝突，請重新錄製。", diagnostics: "診斷",
       diagnosticsLyrics: "歌詞來源：{{source}} · {{count}} 行", diagnosticsEmpty: "目前歌曲沒有已連結的歌詞",
+    },
+    about: {
+      title: "關於與更新", description: "查看版本、管理更新並造訪 Lyrics Plus 專案頁面。", appInfo: "應用程式資訊",
+      version: "版本 {{version}}", updates: "軟體更新", autoCheck: "啟動時自動檢查更新", autoCheckHint: "發現新版本後會詢問是否下載並安裝。",
+      checkNow: "檢查更新", checking: "正在檢查…", installedOnly: "只有正式安裝版支援檢查更新。", updateAvailable: "發現新版本", updateFailed: "更新失敗",
+      updatePrompt: "Lyrics Plus {{version}} 已發布。是否現在下載並安裝？{{notes}}", installNow: "下載並安裝", updateError: "檢查或安裝更新失敗，請稍後再試。",
+      status: { checking: "正在檢查更新…", available: "發現新版本 {{version}}，本次已暫不安裝。", downloading: "正在下載更新…", installing: "正在安裝更新…", latest: "目前已是最新版本。", error: "更新失敗。", idle: "" },
+      project: "開源專案", projectHint: "Lyrics Plus 是採用 MIT License 發布的免費開源專案。", links: { github: "GitHub 專案", releases: "版本發布", issues: "問題回報" },
+      license: "授權與著作權", licenseHint: "應用程式碼採用 MIT License；歌詞、專輯封面和其他音樂內容的權利歸相應權利人所有。",
     },
     lyrics: {
       title: "歌詞與搜尋", description: "達到設定相似度的同步歌詞會自動套用；其他結果可在快速切換視窗中預覽。",

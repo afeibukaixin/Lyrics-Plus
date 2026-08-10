@@ -9,6 +9,7 @@ import LyricsSettingsPage from "../pages/settings/LyricsSettingsPage";
 import AppSettingsPage from "../pages/settings/AppSettingsPage";
 import DebugSettingsPage from "../pages/settings/DebugSettingsPage";
 import ConfigSettingsPage from "../pages/settings/ConfigSettingsPage";
+import AboutSettingsPage from "../pages/settings/AboutSettingsPage";
 
 const router = createHashRouter([
   {
@@ -37,6 +38,7 @@ const router = createHashRouter([
           { path: "app", element: <AppSettingsPage /> },
           { path: "debug", element: <DebugSettingsPage /> },
           { path: "config", element: <ConfigSettingsPage /> },
+          { path: "about", element: <AboutSettingsPage /> },
         ],
       },
     ],

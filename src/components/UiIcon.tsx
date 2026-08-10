@@ -10,6 +10,7 @@ const iconClassNames = {
   eyeSlash: "i-ph-eye-slash",
   fileText: "i-ph-file-text",
   gear: "i-ph-gear",
+  info: "i-ph-info",
   lock: "i-ph-lock",
   lockOpen: "i-ph-lock-open",
   minus: "i-ph-minus",

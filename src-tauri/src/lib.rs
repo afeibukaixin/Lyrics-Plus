@@ -1595,6 +1595,8 @@ pub(crate) fn restore_overlay_position(app: &tauri::AppHandle, window: &tauri::W
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Debug)
@@ -1798,6 +1800,7 @@ pub fn run() {
             commands::get_global_shortcut_status,
             commands::set_global_shortcuts,
             commands::set_dock_icon_hidden,
+            commands::set_auto_check_updates,
             commands::set_overlay_hide_when_not_playing,
             commands::export_app_config,
             commands::reveal_config_directory,

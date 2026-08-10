@@ -9,7 +9,11 @@
     "core:window:allow-start-resize-dragging",
     "opener:default",
     "dialog:allow-open",
+    "dialog:allow-ask",
+    "dialog:allow-message",
     "log:default",
+    "process:allow-restart",
+    "updater:default",
     "global-shortcut:default",
     "window-state:default"
   ]

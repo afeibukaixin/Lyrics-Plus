@@ -4,7 +4,7 @@ export const zhCN = {
     actions: {
       apply: "应用", clear: "清除", close: "关闭", test: "测试", testing: "测试中",
       reset: "重置", resetDefault: "恢复默认", resetting: "恢复中…", confirmAgain: "再次点击确认",
-      search: "搜索", searching: "搜索中…", reload: "重新载入", open: "打开", save: "保存",
+      search: "搜索", searching: "搜索中…", reload: "重新载入", open: "打开", save: "保存", cancel: "取消",
     },
     feature: {
       translation: "翻译", romanization: "音译", wordTiming: "逐字", synced: "同步",
@@ -125,7 +125,7 @@ failed: "歌词目录扫描失败",
       nav: {
         overlay: "桌面歌词", overlayHint: "外观、布局与浮窗", lyrics: "歌词与搜索", lyricsHint: "来源、关联与偏移",
         app: "应用", appHint: "播放器与快捷键", debug: "调试日志", debugHint: "实时日志与筛选",
-        config: "配置", configHint: "JSONC 编辑与分享",
+        config: "配置", configHint: "JSONC 编辑与分享", about: "关于与更新", aboutHint: "版本、更新与项目链接",
       },
       resetConfirm: "再次点击“恢复默认”以确认恢复{{section}}；歌词库和歌曲关联不会删除。",
       resetDone: "{{section}}已恢复默认。", positionReset: "桌面歌词位置已复位。",
@@ -142,6 +142,15 @@ failed: "歌词目录扫描失败",
       shortcuts: "快捷键", openSettings: "打开设置", toggleOverlay: "显示 / 隐藏桌面歌词", unlockOverlay: "锁定 / 解锁桌面歌词",
       resetOverlay: "复位并显示桌面歌词", record: "请按组合键 · Esc 取消", shortcutUnavailable: "{{actions}}快捷键未注册，可能与系统或其他应用冲突，请重新录制。", diagnostics: "诊断",
       diagnosticsLyrics: "歌词来源：{{source}} · {{count}} 行", diagnosticsEmpty: "当前没有已关联歌词",
+    },
+    about: {
+      title: "关于与更新", description: "查看版本、管理更新并访问 Lyrics Plus 项目页面。", appInfo: "应用信息",
+      version: "版本 {{version}}", updates: "软件更新", autoCheck: "启动时自动检查更新", autoCheckHint: "发现新版本后会询问是否下载并安装。",
+      checkNow: "检查更新", checking: "正在检查…", installedOnly: "仅正式安装版支持检查更新。", updateAvailable: "发现新版本", updateFailed: "更新失败",
+      updatePrompt: "Lyrics Plus {{version}} 已发布。是否现在下载并安装？{{notes}}", installNow: "下载并安装", updateError: "检查或安装更新失败，请稍后重试。",
+      status: { checking: "正在检查更新…", available: "发现新版本 {{version}}，本次已暂不安装。", downloading: "正在下载更新…", installing: "正在安装更新…", latest: "当前已是最新版本。", error: "更新失败。", idle: "" },
+      project: "开源项目", projectHint: "Lyrics Plus 是采用 MIT License 发布的免费开源项目。", links: { github: "GitHub 项目", releases: "版本发布", issues: "问题反馈" },
+      license: "许可与版权", licenseHint: "应用代码采用 MIT License；歌词、专辑封面和其他音乐内容的权利归相应权利人所有。",
     },
     lyrics: {
       title: "歌词与搜索", description: "达到设定相似度的同步歌词会自动采用；其他结果可在快速切换窗口中预览。",

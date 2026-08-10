@@ -6,7 +6,7 @@ export const enUS = {
     actions: {
       apply: "Apply", clear: "Clear", close: "Close", test: "Test", testing: "Testing",
       reset: "Reset", resetDefault: "Restore defaults", resetting: "Restoring…", confirmAgain: "Click again to confirm",
-      search: "Search", searching: "Searching…", reload: "Reload", open: "Open", save: "Save",
+      search: "Search", searching: "Searching…", reload: "Reload", open: "Open", save: "Save", cancel: "Cancel",
     },
     feature: {
       translation: "Translation", romanization: "Romanization", wordTiming: "Word timing", synced: "Synced",
@@ -127,7 +127,7 @@ failed: "Lyrics directory scan failed",
       nav: {
         overlay: "Desktop Lyrics", overlayHint: "Appearance, layout, and window", lyrics: "Lyrics & Search", lyricsHint: "Sources, links, and offset",
         app: "Application", appHint: "Player and shortcuts", debug: "Debug Logs", debugHint: "Live logs and filters",
-        config: "Configuration", configHint: "Edit and share JSONC",
+        config: "Configuration", configHint: "Edit and share JSONC", about: "About & Updates", aboutHint: "Version, updates, and project links",
       },
       resetConfirm: "Click “Restore defaults” again to reset {{section}}. The lyrics library and track links will not be deleted.",
       resetDone: "Defaults restored for {{section}}.", positionReset: "Desktop lyrics position reset.",
@@ -144,6 +144,15 @@ failed: "Lyrics directory scan failed",
       shortcuts: "Shortcuts", openSettings: "Open Settings", toggleOverlay: "Show / hide desktop lyrics", unlockOverlay: "Lock / unlock desktop lyrics",
       resetOverlay: "Reset and show desktop lyrics", record: "Press a shortcut · Esc to cancel", shortcutUnavailable: "{{actions}} is not registered and may conflict with the system or another app. Record a different shortcut.", diagnostics: "Diagnostics",
       diagnosticsLyrics: "Lyrics source: {{source}} · {{count}} lines", diagnosticsEmpty: "No lyrics are linked to the current track",
+    },
+    about: {
+      title: "About & Updates", description: "View the version, manage updates, and visit the Lyrics Plus project.", appInfo: "Application",
+      version: "Version {{version}}", updates: "Software Updates", autoCheck: "Check for updates at startup", autoCheckHint: "You will be asked before a new version is downloaded and installed.",
+      checkNow: "Check for Updates", checking: "Checking…", installedOnly: "Update checks are available only in an installed production build.", updateAvailable: "Update Available", updateFailed: "Update Failed",
+      updatePrompt: "Lyrics Plus {{version}} is available. Download and install it now?{{notes}}", installNow: "Download & Install", updateError: "The update check or installation failed. Try again later.",
+      status: { checking: "Checking for updates…", available: "Version {{version}} is available; installation was postponed.", downloading: "Downloading the update…", installing: "Installing the update…", latest: "You are using the latest version.", error: "Update failed.", idle: "" },
+      project: "Open Source Project", projectHint: "Lyrics Plus is free and open-source software released under the MIT License.", links: { github: "GitHub Repository", releases: "Releases", issues: "Report an Issue" },
+      license: "License & Copyright", licenseHint: "The application code uses the MIT License. Lyrics, album artwork, and other music content belong to their respective rightsholders.",
     },
     lyrics: {
       title: "Lyrics & Search", description: "A synchronized result meeting the similarity threshold is applied automatically; other results can be previewed in Quick Switch.",

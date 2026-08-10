@@ -17,7 +17,7 @@ use crate::lyrics::provider::{
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 14;
+pub const CONFIG_SCHEMA_VERSION: u16 = 15;
 
 fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<String, String> {
     let json =
@@ -39,6 +39,9 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             }
             line if line.starts_with("    \"hideDockIcon\":") => {
                 Some(("    ", ConfigComment::HideDockIcon))
+            }
+            line if line.starts_with("    \"autoCheckUpdates\":") => {
+                Some(("    ", ConfigComment::AutoCheckUpdates))
             }
             line if line.starts_with("    \"shortcuts\":") => {
                 Some(("    ", ConfigComment::Shortcuts))
@@ -138,6 +141,7 @@ pub struct AppPreferences {
     pub language: LanguagePreference,
     pub player_selection: PlayerSelection,
     pub hide_dock_icon: bool,
+    pub auto_check_updates: bool,
     pub shortcuts: GlobalShortcutSettings,
 }
 
@@ -148,6 +152,7 @@ impl Default for AppPreferences {
             language: LanguagePreference::default(),
             player_selection: PlayerSelection::Auto,
             hide_dock_icon: false,
+            auto_check_updates: true,
             shortcuts: GlobalShortcutSettings::default(),
         }
     }
@@ -744,6 +749,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                 "language",
                 "playerSelection",
                 "hideDockIcon",
+                "autoCheckUpdates",
                 "autostart",
                 "shortcuts",
             ],
@@ -825,6 +831,7 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
     for (pointer, key) in [
         ("/app/autostart", "autostart"),
         ("/app/hideDockIcon", "hideDockIcon"),
+        ("/app/autoCheckUpdates", "autoCheckUpdates"),
         ("/overlay/visible", "visible"),
         ("/overlay/locked", "locked"),
         ("/overlay/hideWhenNotPlaying", "hideWhenNotPlaying"),
@@ -1763,7 +1770,7 @@ mod tests {
             assert!(parsed.migrated);
             assert_eq!(parsed.config.overlay.appearance.layout, layout);
             assert_eq!(parsed.config.overlay.appearance.orientation, orientation);
-            assert!(parsed.normalized_json.contains("\"schemaVersion\": 14"));
+            assert!(parsed.normalized_json.contains("\"schemaVersion\": 15"));
         }
     }
 
@@ -1776,7 +1783,7 @@ mod tests {
             "vertical_double",
         ] {
             let raw = format!(
-                r#"{{"schemaVersion":14,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
+                r#"{{"schemaVersion":15,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
             );
             let validation = validate_config_draft(&raw);
             assert!(
@@ -1813,7 +1820,7 @@ mod tests {
     fn current_schema_preserves_explicit_legacy_provider_order() {
         let parsed = parse_config_draft(
             r#"{
-              "schemaVersion": 14,
+              "schemaVersion": 15,
               "lyrics": { "providers": {
                 "mode": "smart",
                 "providers": [
@@ -1985,6 +1992,25 @@ mod tests {
         let parsed = parse_config_draft(r#"{"app":{"hideDockIcon":true}}"#).unwrap();
         assert!(parsed.config.app.hide_dock_icon);
         assert!(parsed.normalized_json.contains("\"hideDockIcon\": true"));
+    }
+
+    #[test]
+    fn update_preference_migrates_round_trips_and_validates() {
+        let migrated = parse_config_draft(r#"{"schemaVersion":14,"app":{}}"#).unwrap();
+        assert!(migrated.migrated);
+        assert!(migrated.config.app.auto_check_updates);
+
+        let disabled = parse_config_draft(r#"{"app":{"autoCheckUpdates":false}}"#).unwrap();
+        assert!(!disabled.config.app.auto_check_updates);
+        assert!(disabled
+            .normalized_json
+            .contains("\"autoCheckUpdates\": false"));
+
+        let invalid = match parse_config_draft(r#"{"app":{"autoCheckUpdates":"yes"}}"#) {
+            Ok(_) => panic!("string update preference should be rejected"),
+            Err(error) => error,
+        };
+        assert!(invalid.message.contains("autoCheckUpdates 必须是布尔值"));
     }
 
     #[test]

@@ -173,6 +173,7 @@ export type AppConfig = {
     language: string;
     playerSelection: PlayerSelection;
     hideDockIcon: boolean;
+    autoCheckUpdates: boolean;
     shortcuts: GlobalShortcutSettings;
   };
   lyrics: {

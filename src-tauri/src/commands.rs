@@ -1392,6 +1392,20 @@ pub fn set_dock_icon_hidden(app: tauri::AppHandle, hidden: bool) -> Result<AppCo
 }
 
 #[tauri::command]
+pub fn set_auto_check_updates(
+    app: tauri::AppHandle,
+    enabled: bool,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let config = state
+        .config
+        .update(|config| config.app.auto_check_updates = enabled)?;
+    app.emit("config://changed", &config)
+        .map_err(|error| error.to_string())?;
+    Ok(config)
+}
+
+#[tauri::command]
 pub fn set_overlay_hide_when_not_playing(
     app: tauri::AppHandle,
     hidden: bool,
@@ -1624,6 +1638,7 @@ pub fn reset_settings_section(
             update_global_shortcuts(&app, GlobalShortcutSettings::default())?;
             state.config.update(|config| {
                 config.app.ui_font_scale = 100;
+                config.app.auto_check_updates = true;
             })?;
         }
     }

@@ -116,6 +116,11 @@
 .diagnostics { display: flex; align-items: center; gap: 8px; padding: 14px; color: #9298a7; font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); font-weight: var(--typography-label-weight); }
 .diagnostics i { width: 7px; height: 7px; border-radius: 50%; background: #50dba0; box-shadow: 0 0 9px #50dba055; }
 .diagnostics[data-error="true"] i { background: #e17e90; box-shadow: 0 0 9px #e17e9055; }
+.aboutHero { display: flex; align-items: center; gap: 12px; padding: 14px; }
+.aboutHero img { width: 52px; height: 52px; border-radius: 12px; }
+.aboutHero div { display: grid; gap: 3px; }
+.aboutHero strong { color: #d7dae2; font-size: var(--typography-title-size); line-height: var(--typography-title-line-height); }
+.aboutHero span { color: #73798a; font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); }
 .debugLogCount { color: #747a8a; font-family: var(--font-family-mono); font-size: var(--typography-caption-size); line-height: var(--typography-caption-line-height); font-weight: var(--typography-caption-weight); }
 .debugLogToolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 14px; border-bottom: 1px solid #ffffff09; }
 .debugLogToolbar > div { display: flex; flex-wrap: wrap; gap: 5px; }

@@ -9,6 +9,7 @@ import { AppConfigProvider } from "./features/config/AppConfigProvider";
 import { DebugLogProvider } from "./features/debug/DebugLogProvider";
 import { AppI18nProvider } from "./features/i18n/I18nProvider";
 import { LegalNoticeGate } from "./features/legal/LegalNoticeGate";
+import { UpdateProvider } from "./features/update/UpdateProvider";
 
 import "virtual:uno.css";
 import "./styles.scss";
@@ -25,7 +26,7 @@ const content = view === "overlay" ? (
 ) : view === "quick-lyrics" ? (
   <DebugLogProvider><QuickLyricsWindow /></DebugLogProvider>
 ) : (
-  <DebugLogProvider><LegalNoticeGate><RouterProvider router={router} /></LegalNoticeGate></DebugLogProvider>
+  <DebugLogProvider><LegalNoticeGate><UpdateProvider><RouterProvider router={router} /></UpdateProvider></LegalNoticeGate></DebugLogProvider>
 );
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

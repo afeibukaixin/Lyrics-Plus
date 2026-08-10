@@ -391,6 +391,7 @@ export default function Settings() {
           <NavLink to="/settings/app"><UiIcon name="gear" /><div><strong>{t("settings.shell.nav.app")}</strong><small>{t("settings.shell.nav.appHint")}</small></div></NavLink>
           <NavLink to="/settings/debug"><UiIcon name="bug" /><div><strong>{t("settings.shell.nav.debug")}</strong><small>{t("settings.shell.nav.debugHint")}</small></div></NavLink>
           <NavLink to="/settings/config"><UiIcon name="bracketsCurly" /><div><strong>{t("settings.shell.nav.config")}</strong><small>{t("settings.shell.nav.configHint")}</small></div></NavLink>
+          <NavLink to="/settings/about"><UiIcon name="info" /><div><strong>{t("settings.shell.nav.about")}</strong><small>{t("settings.shell.nav.aboutHint")}</small></div></NavLink>
         </nav>
 
         <div className={styles.content}><Outlet context={context} /></div>
