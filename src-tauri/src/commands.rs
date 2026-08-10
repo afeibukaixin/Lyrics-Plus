@@ -1179,10 +1179,13 @@ fn fit_overlay_bounds(
 }
 
 #[tauri::command]
-pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Result<(), String> {
+pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Result<bool, String> {
     let window = app
         .get_webview_window("lyrics-overlay")
         .ok_or_else(|| "歌词浮窗不存在".to_string())?;
+    if crate::primary_mouse_button_pressed() {
+        return Ok(false);
+    }
     let position = window.outer_position().map_err(|error| error.to_string())?;
     let current_size = window.outer_size().map_err(|error| error.to_string())?;
     let scale = window.scale_factor().map_err(|error| error.to_string())?;
@@ -1230,7 +1233,7 @@ pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Re
             .map_err(|error| error.to_string())?;
     }
     crate::sync_unlock_handle(&app);
-    Ok(())
+    Ok(true)
 }
 
 #[tauri::command]

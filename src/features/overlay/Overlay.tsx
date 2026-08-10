@@ -34,6 +34,7 @@ const HORIZONTAL_TOOLBAR_WINDOW_INSET = 8;
 const VERTICAL_TOOLBAR_WINDOW_INSET = 14;
 const DEFAULT_HORIZONTAL_MAX_WIDTH = 760;
 const DEFAULT_VERTICAL_MAX_HEIGHT = 620;
+const FIT_RETRY_DELAY_MS = 50;
 const SHRINK_DELAY_MS = 700;
 const MARQUEE_SPEED_PX_PER_SECOND = 35;
 const DEFAULT_MARQUEE_DURATION_SECONDS = 4;
@@ -172,6 +173,7 @@ export default function Overlay() {
   const activeRef = useRef<HTMLDivElement>(null);
   const supportingRefs = useRef<Array<HTMLDivElement | null>>([]);
   const fitFrame = useRef<number | null>(null);
+  const fitRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shrinkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unlockFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resizeSession = useRef<ActiveResizeSession | null>(null);
@@ -214,6 +216,11 @@ export default function Overlay() {
   useEffect(() => {
     styleRef.current = style;
   }, [style]);
+
+  useEffect(() => () => {
+    lastRequestedSize.current = null;
+    if (fitRetryTimer.current !== null) clearTimeout(fitRetryTimer.current);
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.window = "overlay";
@@ -442,8 +449,12 @@ export default function Overlay() {
   }, [fitLimits.height, fitLimits.width, primaryLineKey, supportingKey, style.fontSize, style.horizontalMaxWidth, style.layout, style.longText, style.orientation, style.romanizationFontScale, style.secondaryFontScale, style.translationFontScale, style.verticalMaxHeight]);
 
   useLayoutEffect(() => {
-    if (!settings.visible) return;
-    if (resizing) return;
+    if (!settings.visible || resizing) {
+      lastRequestedSize.current = null;
+      if (fitRetryTimer.current !== null) clearTimeout(fitRetryTimer.current);
+      fitRetryTimer.current = null;
+      return;
+    }
     const layoutKey = `${style.layout}:${style.orientation}`;
     const layoutChanged = lastMeasuredLayoutKey.current !== layoutKey;
     if (layoutChanged) {
@@ -550,12 +561,24 @@ export default function Overlay() {
       : Math.min(fitLimits.height, Math.max(76, Math.ceil(measuredContentHeight + overlayVerticalPadding)));
     const previous = lastRequestedSize.current;
     if (previous && Math.abs(previous.width - width) <= 2 && Math.abs(previous.height - height) <= 2) return;
+    const applySize = (nextSize: { width: number; height: number }) => {
+      if (!isTauriRuntime()) return;
+      void api.fitOverlayContent(nextSize.width, nextSize.height).then((applied) => {
+        if (applied || lastRequestedSize.current !== nextSize) return;
+        fitRetryTimer.current = setTimeout(() => {
+          fitRetryTimer.current = null;
+          if (lastRequestedSize.current === nextSize) applySize(nextSize);
+        }, FIT_RETRY_DELAY_MS);
+      });
+    };
     const requestSize = (nextSize: { width: number; height: number }) => {
       if (fitFrame.current !== null) cancelAnimationFrame(fitFrame.current);
+      if (fitRetryTimer.current !== null) clearTimeout(fitRetryTimer.current);
+      fitRetryTimer.current = null;
       fitFrame.current = requestAnimationFrame(() => {
         fitFrame.current = null;
         lastRequestedSize.current = nextSize;
-        if (isTauriRuntime()) void api.fitOverlayContent(nextSize.width, nextSize.height);
+        applySize(nextSize);
       });
     };
     if (!previous) {

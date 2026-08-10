@@ -137,7 +137,7 @@ export const api = {
   resizeOverlayEdge: (edge: OverlayResizeEdge, mainSize: number, minimumMainSize: number) =>
     invoke<OverlayResizeBounds>("resize_overlay_edge", { edge, mainSize, minimumMainSize }),
   fitOverlayContent: (width: number, height: number) =>
-    invoke<void>("fit_overlay_content", { width, height }),
+    invoke<boolean>("fit_overlay_content", { width, height }),
   showMainWindow: (page?: "settings") => invoke<void>("show_main_window", { page: page ?? null }),
   showQuickLyricsWindow: () => invoke<void>("show_quick_lyrics_window"),
   resetSettingsSection: (section: SettingsSection) =>

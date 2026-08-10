@@ -958,6 +958,18 @@ const UNLOCK_HANDLE_HIDE_DELAY: Duration = Duration::from_millis(200);
 const UNLOCK_HANDLE_HOVER_EVENT: &str = "unlock-handle://hover";
 const OVERLAY_HOVER_EVENT: &str = "overlay://hover";
 
+#[cfg(target_os = "macos")]
+pub(crate) fn primary_mouse_button_pressed() -> bool {
+    use objc2_app_kit::NSEvent;
+
+    unsafe { NSEvent::pressedMouseButtons() & 1 != 0 }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn primary_mouse_button_pressed() -> bool {
+    false
+}
+
 fn point_in_window_bounds(
     point: tauri::PhysicalPosition<f64>,
     position: tauri::PhysicalPosition<i32>,
@@ -978,6 +990,14 @@ fn should_hover_overlay(
     size: tauri::PhysicalSize<u32>,
 ) -> bool {
     settings.visible && !settings.locked && point_in_window_bounds(cursor, position, size)
+}
+
+fn stable_overlay_hover(previous: Option<bool>, sampled: bool, mouse_pressed: bool) -> bool {
+    if mouse_pressed {
+        previous.unwrap_or(sampled)
+    } else {
+        sampled
+    }
 }
 
 fn unlock_handle_position(
@@ -1119,12 +1139,20 @@ fn start_overlay_pointer_monitor(app: tauri::AppHandle) {
                 (Ok(cursor), Ok(position), Ok(size)) => Some((cursor, position, size)),
                 _ => None,
             };
-            let overlay_hovered = overlay_visible
+            let sampled_overlay_hover = overlay_visible
                 && overlay_sample
                     .as_ref()
                     .is_some_and(|(cursor, position, size)| {
                         should_hover_overlay(&settings, *cursor, *position, *size)
                     });
+            let overlay_hovered = stable_overlay_hover(
+                last_overlay_hovered,
+                sampled_overlay_hover,
+                overlay_visible
+                    && settings.visible
+                    && !settings.locked
+                    && primary_mouse_button_pressed(),
+            );
             if last_overlay_hovered != Some(overlay_hovered) {
                 let _ = overlay.emit(OVERLAY_HOVER_EVENT, overlay_hovered);
                 last_overlay_hovered = Some(overlay_hovered);
@@ -1826,6 +1854,14 @@ mod tests {
         assert_eq!(snap_coordinate(8, 0, 100), 0);
         assert_eq!(snap_coordinate(91, 0, 100), 100);
         assert_eq!(snap_coordinate(50, 0, 100), 50);
+    }
+
+    #[test]
+    fn overlay_hover_is_frozen_while_primary_button_is_pressed() {
+        assert!(stable_overlay_hover(Some(true), false, true));
+        assert!(!stable_overlay_hover(Some(false), true, true));
+        assert!(stable_overlay_hover(None, true, true));
+        assert!(!stable_overlay_hover(Some(true), false, false));
     }
 
     #[test]
