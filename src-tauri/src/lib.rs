@@ -243,6 +243,12 @@ pub(crate) fn apply_dock_icon_hidden(app: &tauri::AppHandle, hidden: bool) -> Re
         .and_then(|window| window.is_focused().ok())
         .unwrap_or(false);
 
+    app.set_activation_policy(if hidden {
+        tauri::ActivationPolicy::Accessory
+    } else {
+        tauri::ActivationPolicy::Regular
+    })
+    .map_err(|error| format!("更新应用激活策略失败：{error}"))?;
     app.set_dock_visibility(!hidden)
         .map_err(|error| format!("更新 Dock 显示状态失败：{error}"))?;
 
@@ -300,22 +306,27 @@ fn cleanup_legacy_autostart(app: &tauri::AppHandle) {
 fn cleanup_legacy_autostart(_app: &tauri::AppHandle) {}
 
 #[cfg(target_os = "macos")]
-fn enable_fullscreen_auxiliary(window: &tauri::WebviewWindow) -> tauri::Result<()> {
+fn enable_joining_other_apps_fullscreen(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
 
     let ns_window = window.ns_window()?;
     let ns_window = unsafe { &*ns_window.cast::<NSWindow>() };
     let mut behavior = ns_window.collectionBehavior();
-    behavior.insert(
+    behavior.remove(
         NSWindowCollectionBehavior::CanJoinAllSpaces
-            | NSWindowCollectionBehavior::FullScreenAuxiliary,
+            | NSWindowCollectionBehavior::Primary
+            | NSWindowCollectionBehavior::Auxiliary
+            | NSWindowCollectionBehavior::FullScreenPrimary
+            | NSWindowCollectionBehavior::FullScreenAuxiliary
+            | NSWindowCollectionBehavior::FullScreenNone,
     );
+    behavior.insert(NSWindowCollectionBehavior::CanJoinAllApplications);
     ns_window.setCollectionBehavior(behavior);
     Ok(())
 }
 
 #[cfg(not(target_os = "macos"))]
-fn enable_fullscreen_auxiliary(_window: &tauri::WebviewWindow) -> tauri::Result<()> {
+fn enable_joining_other_apps_fullscreen(_window: &tauri::WebviewWindow) -> tauri::Result<()> {
     Ok(())
 }
 
@@ -391,12 +402,11 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
     .maximizable(false)
     .minimizable(false)
     .always_on_top(true)
-    .visible_on_all_workspaces(true)
     .skip_taskbar(true)
     .visible(false)
     .build()?;
 
-    enable_fullscreen_auxiliary(&window)?;
+    enable_joining_other_apps_fullscreen(&window)?;
     refresh_overlay_mouse_tracking(&window);
     sync_overlay_vibrancy(&window, &style);
 
@@ -446,7 +456,7 @@ fn create_unlock_handle(app: &tauri::AppHandle) -> tauri::Result<()> {
     if app.get_webview_window("lyrics-unlock-handle").is_some() {
         return Ok(());
     }
-    let window = WebviewWindowBuilder::new(
+    let builder = WebviewWindowBuilder::new(
         app,
         "lyrics-unlock-handle",
         WebviewUrl::App("index.html?view=unlock-handle".into()),
@@ -461,12 +471,18 @@ fn create_unlock_handle(app: &tauri::AppHandle) -> tauri::Result<()> {
     // 否则歌词换行触发位置同步时，可能抢走当前应用的焦点。
     .focusable(false)
     .always_on_top(true)
-    .visible_on_all_workspaces(true)
     .skip_taskbar(true)
-    .visible(false)
-    .build()?;
+    .visible(false);
 
-    enable_fullscreen_auxiliary(&window)?;
+    #[cfg(target_os = "macos")]
+    let builder = {
+        let overlay = app
+            .get_webview_window("lyrics-overlay")
+            .ok_or(tauri::Error::WindowNotFound)?;
+        builder.parent(&overlay)?
+    };
+
+    builder.build()?;
 
     Ok(())
 }
@@ -1183,14 +1199,24 @@ pub(crate) fn activate_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     }
 
     let configured = state.config.snapshot();
+    // 创建浮窗时需要 Accessory 资格；创建后恢复用户的 Dock 设置。
+    #[cfg(target_os = "macos")]
+    apply_dock_icon_hidden(app, true)?;
     let overlay_settings = state
         .overlay_settings
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .clone();
 
-    create_overlay(app).map_err(|error| error.to_string())?;
-    create_unlock_handle(app).map_err(|error| error.to_string())?;
+    let create_windows = (|| {
+        create_overlay(app).map_err(|error| error.to_string())?;
+        create_unlock_handle(app).map_err(|error| error.to_string())
+    })();
+    #[cfg(target_os = "macos")]
+    let restore_dock = apply_dock_icon_hidden(app, configured.app.hide_dock_icon);
+    create_windows?;
+    #[cfg(target_os = "macos")]
+    restore_dock?;
     if let Some(window) = app.get_webview_window("lyrics-overlay") {
         let _ = window.set_resizable(false);
         let _ = window.set_ignore_cursor_events(overlay_settings.locked);
@@ -1203,9 +1229,6 @@ pub(crate) fn activate_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     setup_tray(app).map_err(|error| error.to_string())?;
     if !configured.app.language.uses_native_chinese() {
         apply_native_language(app, UiLanguage::EnUs)?;
-    }
-    if configured.app.hide_dock_icon {
-        apply_dock_icon_hidden(app, true)?;
     }
     if let Err(error) = register_global_shortcuts(app, &configured.app.shortcuts) {
         log::warn!(
