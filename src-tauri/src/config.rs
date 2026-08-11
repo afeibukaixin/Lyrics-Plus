@@ -172,6 +172,10 @@ pub struct SystemMediaApplication {
     pub bundle_id: String,
 }
 
+pub fn is_dedicated_player_bundle_id(bundle_id: &str) -> bool {
+    matches!(bundle_id, "com.apple.Music" | "com.spotify.client")
+}
+
 pub fn normalize_system_media_applications(
     applications: Vec<SystemMediaApplication>,
 ) -> Result<Vec<SystemMediaApplication>, String> {
@@ -190,6 +194,9 @@ pub fn normalize_system_media_applications(
                 .any(|value| !(value.is_ascii_alphanumeric() || matches!(value, '.' | '-')))
         {
             return Err(format!("无效的 Bundle ID：{bundle_id}"));
+        }
+        if is_dedicated_player_bundle_id(bundle_id) {
+            continue;
         }
         if bundle_ids.insert(bundle_id.to_owned()) {
             let name = application.name.trim();
@@ -2254,7 +2261,7 @@ mod tests {
     #[test]
     fn system_media_applications_validate_deduplicate_and_round_trip() {
         let parsed = parse_config_draft(
-            r#"{"app":{"systemMediaApplications":[{"name":"Player","bundleId":"org.example.Player"},{"name":"Duplicate","bundleId":"org.example.Player"}]}}"#,
+            r#"{"app":{"systemMediaApplications":[{"name":"Player","bundleId":"org.example.Player"},{"name":"Duplicate","bundleId":"org.example.Player"},{"name":"Music","bundleId":"com.apple.Music"},{"name":"Spotify","bundleId":"com.spotify.client"}]}}"#,
         )
         .unwrap();
         assert_eq!(parsed.config.app.system_media_applications.len(), 1);

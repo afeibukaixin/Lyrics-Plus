@@ -106,7 +106,7 @@ export default function App() {
             )}
           </div>
           <div className={styles.trackMeta}>
-            <span>{(playback.snapshot.sourceAppName ?? playback.snapshot.sourceAppBundleId)?.toUpperCase() ?? (playback.snapshot.player === "apple_music" ? "APPLE MUSIC" : playback.snapshot.player === "spotify" ? "SPOTIFY" : t("home.nowPlaying").toUpperCase())}</span>
+            <span>{(playback.snapshot.player === "system" ? t("home.systemMedia") : playback.snapshot.player === "apple_music" ? "Apple Music" : playback.snapshot.player === "spotify" ? "Spotify" : t("home.nowPlaying")).toUpperCase()}</span>
             <h1>{currentTitle}</h1>
             <p>{currentArtist}{playback.snapshot.album ? ` · ${playback.snapshot.album}` : ""}</p>
           </div>

@@ -24,7 +24,10 @@
     "security": {
       "assetProtocol": {
         "enable": true,
-        "scope": ["$APPCACHE/artworks/**/*"]
+        "scope": [
+          "$APPCACHE/artworks/**/*",
+          "$APPCACHE/system-media-applications/**/*"
+        ]
       },
       "csp": {
         "default-src": "'self' customprotocol: asset:",

@@ -68,7 +68,7 @@ export const zhTW = {
   home: {
     mainNavigation: "主要導覽", library: "歌詞庫", settings: "設定",
     syncing: "同步中", waitingPlayback: "等待播放", waitingMusic: "等待音樂開始",
-    startPlayback: "請在 Apple Music 或 Spotify 播放一首歌", nowPlaying: "正在播放",
+    startPlayback: "開啟音樂應用程式播放一首歌", systemMedia: "系統媒體", nowPlaying: "正在播放",
     previous: "上一首", playPause: "播放或暫停", next: "下一首", progress: "播放進度",
     lyrics: "歌詞", source: "來源：{{source}}", searchingLyrics: "正在自動搜尋歌詞…", waitingLyrics: "等待歌詞",
     switchLyrics: "切換歌詞 ↗", matching: "正在從多個歌詞來源比對",
@@ -139,7 +139,7 @@ failed: "歌詞資料夾掃描失敗",
     },
     app: {
       title: "應用程式", description: "選擇播放器並管理主介面、選單列與快速鍵。", player: "播放器",
-      playerAuto: "自動選擇", playerSystem: "系統正在播放", systemApplications: "系統播放應用程式", systemApplicationsHint: "僅限制自動模式中的第三方應用程式；清單為空時允許全部。", addCurrentApplication: "加入目前播放應用程式", chooseApplications: "從 Finder 選擇應用程式", systemApplicationsPicker: "macOS 應用程式", display: "主介面顯示", language: { label: "介面語言", description: "立即套用到所有視窗，並儲存至應用程式設定。" },
+      playerMode: "播放方式", playerAuto: "智慧選擇", playerSystem: "僅使用系統媒體", playerHint: "建議使用智慧選擇；辨識異常時再手動指定。", systemApplications: "系統播放應用程式", systemApplicationsHint: "只允許清單中的第三方系統媒體應用程式；留空則不限制。", addCurrentApplication: "加入目前播放應用程式", chooseApplications: "從 Finder 選擇應用程式", systemApplicationsPicker: "macOS 應用程式", display: "主介面顯示", language: { label: "介面語言", description: "立即套用到所有視窗，並儲存至應用程式設定。" },
       fontScale: "主介面字體大小", fontScaleHint: "只放大首頁、設定和歌詞庫的文字；視窗大小、控制項和桌面歌詞不受影響。",
       dockMenu: "Dock 與選單列", hideDock: "隱藏 Dock 圖示和執行指示點", hideDockHint: "隱藏後仍可透過選單列圖示開啟 Lyrics Plus",
       shortcuts: "快速鍵", openSettings: "開啟設定", toggleOverlay: "顯示 / 隱藏桌面歌詞", unlockOverlay: "鎖定 / 解鎖桌面歌詞",

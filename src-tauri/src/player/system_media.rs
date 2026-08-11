@@ -1,7 +1,10 @@
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::process::Command;
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, OnceLock, RwLock,
+};
 use std::time::{Duration, Instant, SystemTime};
 
 use image::DynamicImage;
@@ -41,6 +44,7 @@ pub struct SystemMediaService {
 struct AdapterClient {
     _player: NowPlayingPerl,
     latest: Arc<RwLock<Option<TimedInfo>>>,
+    resync_requested: Arc<AtomicBool>,
     script_path: PathBuf,
     framework_path: PathBuf,
 }
@@ -68,11 +72,14 @@ impl SystemMediaService {
                     .map_err(|_| "无法启动系统媒体适配器".to_string())?;
                 let latest = Arc::new(RwLock::new(None));
                 let latest_for_listener = latest.clone();
+                let resync_requested = Arc::new(AtomicBool::new(true));
+                let resync_for_listener = resync_requested.clone();
                 player.subscribe(move |info| {
                     let next = info.as_ref().cloned().and_then(timed_info);
                     *latest_for_listener
                         .write()
                         .unwrap_or_else(|error| error.into_inner()) = next;
+                    resync_for_listener.store(true, Ordering::SeqCst);
                 });
                 // ponytail: media-remote 0.3.7 未暴露 Perl 控制命令；固定版本并定位它刚创建的临时目录，上游开放 API 后删除此兼容层。
                 let directory = adapter_directories()
@@ -97,10 +104,10 @@ impl SystemMediaService {
                         detail
                     });
                 }
-                sync_elapsed_from_adapter(&latest, &output.stdout);
                 Ok(AdapterClient {
                     _player: player,
                     latest,
+                    resync_requested,
                     script_path,
                     framework_path,
                 })
@@ -120,6 +127,7 @@ impl SystemMediaService {
                 )
             }
         };
+        refresh_elapsed(player);
         let info = player
             .latest
             .read()
@@ -205,17 +213,38 @@ impl SystemMediaService {
     }
 }
 
-fn sync_elapsed_from_adapter(latest: &RwLock<Option<TimedInfo>>, output: &[u8]) {
-    let Ok(payload) = serde_json::from_slice::<Value>(output) else {
+fn refresh_elapsed(client: &AdapterClient) {
+    if client
+        .latest
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .is_none()
+        || !client.resync_requested.swap(false, Ordering::SeqCst)
+    {
         return;
+    }
+    if let Ok(output) = run_adapter(
+        &client.script_path,
+        &client.framework_path,
+        ["get", "--no-artwork", "--now"],
+    ) {
+        if output.status.success() {
+            sync_elapsed_from_adapter(&client.latest, &output.stdout);
+        }
+    }
+}
+
+fn sync_elapsed_from_adapter(latest: &RwLock<Option<TimedInfo>>, output: &[u8]) -> bool {
+    let Ok(payload) = serde_json::from_slice::<Value>(output) else {
+        return false;
     };
     let Some(position_ms) = milliseconds(payload.get("elapsedTimeNow").and_then(Value::as_f64))
     else {
-        return;
+        return false;
     };
     let mut latest = latest.write().unwrap_or_else(|error| error.into_inner());
     let Some(timed) = latest.as_mut() else {
-        return;
+        return false;
     };
     let same_track = payload.get("title").and_then(Value::as_str) == timed.info.title.as_deref()
         && payload.get("bundleIdentifier").and_then(Value::as_str)
@@ -224,6 +253,7 @@ fn sync_elapsed_from_adapter(latest: &RwLock<Option<TimedInfo>>, output: &[u8]) 
         timed.info.elapsed_time = Some(position_ms as f64 / 1000.0);
         timed.received_at = Instant::now();
     }
+    same_track
 }
 
 fn seek_with_system_controller(position_ms: u64) -> Result<(), String> {
@@ -412,10 +442,10 @@ mod tests {
             info: info(),
             received_at: Instant::now(),
         }));
-        sync_elapsed_from_adapter(
+        assert!(sync_elapsed_from_adapter(
             &latest,
             br#"{"title":" Test Song ","bundleIdentifier":"com.example.Player","elapsedTimeNow":56.86}"#,
-        );
+        ));
         let timed = latest.read().unwrap();
         assert_eq!(timed.as_ref().unwrap().info.elapsed_time, Some(56.86));
     }

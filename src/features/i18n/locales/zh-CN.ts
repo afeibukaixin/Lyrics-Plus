@@ -66,7 +66,7 @@ export const zhCN = {
   home: {
     mainNavigation: "主导航", library: "歌词库", settings: "设置",
     syncing: "同步中", waitingPlayback: "等待播放", waitingMusic: "等待音乐开始",
-    startPlayback: "打开 Apple Music 或 Spotify 播放一首歌", nowPlaying: "正在播放",
+    startPlayback: "打开音乐应用播放一首歌", systemMedia: "系统媒体", nowPlaying: "正在播放",
     previous: "上一首", playPause: "播放或暂停", next: "下一首", progress: "播放进度",
     lyrics: "歌词", source: "来源：{{source}}", searchingLyrics: "正在自动搜索歌词…", waitingLyrics: "等待歌词",
     switchLyrics: "切换歌词 ↗", matching: "正在从多个歌词源匹配",
@@ -137,7 +137,7 @@ failed: "歌词目录扫描失败",
     },
     app: {
       title: "应用", description: "选择播放器并管理主界面、菜单栏与快捷键。", player: "播放器",
-      playerAuto: "自动选择", playerSystem: "系统正在播放", systemApplications: "系统播放应用", systemApplicationsHint: "仅限制自动模式中的第三方应用；列表为空时允许全部。", addCurrentApplication: "添加当前播放应用", chooseApplications: "从访达选择应用", systemApplicationsPicker: "macOS 应用", display: "主界面显示", language: { label: "界面语言", description: "立即应用到所有窗口，并随应用配置保存。" },
+      playerMode: "播放方式", playerAuto: "智能选择", playerSystem: "仅使用系统媒体", playerHint: "推荐使用智能选择；识别异常时再手动指定。", systemApplications: "系统播放应用", systemApplicationsHint: "只允许列表中的第三方系统媒体应用；留空则不限制。", addCurrentApplication: "添加当前播放应用", chooseApplications: "从访达选择应用", systemApplicationsPicker: "macOS 应用", display: "主界面显示", language: { label: "界面语言", description: "立即应用到所有窗口，并随应用配置保存。" },
       fontScale: "主界面字号", fontScaleHint: "只放大首页、设置和歌词库的文字；窗口尺寸、控件和桌面歌词不受影响。",
       dockMenu: "Dock 与菜单栏", hideDock: "隐藏 Dock 图标和运行指示点", hideDockHint: "隐藏后仍可通过菜单栏图标打开 Lyrics Plus",
       shortcuts: "快捷键", openSettings: "打开设置", toggleOverlay: "显示 / 隐藏桌面歌词", unlockOverlay: "锁定 / 解锁桌面歌词",

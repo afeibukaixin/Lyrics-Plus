@@ -3,7 +3,10 @@ use std::process::Command;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
+use image::ImageFormat;
+use media_remote::get_bundle_info;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tauri::{Emitter, Manager, State};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_opener::OpenerExt;
@@ -49,6 +52,23 @@ pub struct AppState {
 pub struct LegalNoticeStatus {
     pub current_version: u16,
     pub accepted: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemMediaApplicationMetadata {
+    pub bundle_id: String,
+    pub name: String,
+    pub icon_path: Option<String>,
+}
+
+fn save_system_media_application_icon(
+    icon: image::DynamicImage,
+    path: &Path,
+) -> image::ImageResult<()> {
+    icon.thumbnail(80, 80)
+        .to_rgba8()
+        .save_with_format(path, ImageFormat::Png)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1365,6 +1385,54 @@ pub fn resolve_system_media_applications(
 }
 
 #[tauri::command]
+pub async fn get_system_media_application_metadata(
+    app: tauri::AppHandle,
+    bundle_ids: Vec<String>,
+) -> Vec<SystemMediaApplicationMetadata> {
+    let cache_dir = app
+        .path()
+        .app_cache_dir()
+        .ok()
+        .map(|path| path.join("system-media-applications"));
+    tauri::async_runtime::spawn_blocking(move || {
+        let cache_dir = cache_dir.filter(|path| {
+            std::fs::create_dir_all(path)
+                .map_err(|error| {
+                    log::warn!("Failed to create system media icon cache: {error}");
+                })
+                .is_ok()
+        });
+        bundle_ids
+            .into_iter()
+            .filter_map(|bundle_id| {
+                let bundle = get_bundle_info(&bundle_id)?;
+                let icon_path = cache_dir.as_ref().and_then(|directory| {
+                    let digest = Sha256::digest(bundle_id.as_bytes());
+                    let key = digest
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect::<String>();
+                    let path = directory.join(format!("{key}.png"));
+                    save_system_media_application_icon(bundle.icon, &path)
+                        .map(|_| path.to_string_lossy().into_owned())
+                        .map_err(|error| {
+                            log::warn!("Failed to cache system media application icon: {error}");
+                        })
+                        .ok()
+                });
+                Some(SystemMediaApplicationMetadata {
+                    bundle_id,
+                    name: bundle.name,
+                    icon_path,
+                })
+            })
+            .collect()
+    })
+    .await
+    .unwrap_or_default()
+}
+
+#[tauri::command]
 pub fn set_system_media_applications(
     app: tauri::AppHandle,
     applications: Vec<SystemMediaApplication>,
@@ -2261,5 +2329,21 @@ mod tests {
         .unwrap();
         assert!(resolve_system_media_application(&root.join("NoId.app")).is_err());
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn caches_non_png_native_icon_as_rgba_png() {
+        let path = std::env::temp_dir().join(format!(
+            "lyrics-plus-system-media-icon-{}.png",
+            std::process::id()
+        ));
+        let icon = image::DynamicImage::ImageRgb32F(image::ImageBuffer::from_pixel(
+            2,
+            2,
+            image::Rgb([1.0, 0.5, 0.0]),
+        ));
+        save_system_media_application_icon(icon, &path).unwrap();
+        assert_eq!(image::open(&path).unwrap().color(), image::ColorType::Rgba8);
+        let _ = std::fs::remove_file(path);
     }
 }

@@ -68,7 +68,7 @@ export const enUS = {
   home: {
     mainNavigation: "Main navigation", library: "Lyrics Library", settings: "Settings",
     syncing: "Syncing", waitingPlayback: "Waiting", waitingMusic: "Waiting for music",
-    startPlayback: "Play a song in Apple Music or Spotify", nowPlaying: "Now Playing",
+    startPlayback: "Play a song in a music app", systemMedia: "System Media", nowPlaying: "Now Playing",
     previous: "Previous track", playPause: "Play or pause", next: "Next track", progress: "Playback progress",
     lyrics: "Lyrics", source: "Source: {{source}}", searchingLyrics: "Searching for lyrics…", waitingLyrics: "Waiting for lyrics",
     switchLyrics: "Switch lyrics ↗", matching: "Matching across lyric providers",
@@ -139,7 +139,7 @@ failed: "Lyrics directory scan failed",
     },
     app: {
       title: "Application", description: "Choose a player and manage the main interface, menu bar, and shortcuts.", player: "Player",
-      playerAuto: "Automatic", playerSystem: "System Now Playing", systemApplications: "System Media Applications", systemApplicationsHint: "Only limits third-party apps in Automatic mode; an empty list allows all.", addCurrentApplication: "Add Current App", chooseApplications: "Choose Apps in Finder", systemApplicationsPicker: "macOS Applications", display: "Main Interface", language: { label: "Interface language", description: "Applies immediately to every window and is saved in the app configuration." },
+      playerMode: "Playback mode", playerAuto: "Smart Selection", playerSystem: "System Media Only", playerHint: "Smart Selection is recommended; choose a player manually if detection is incorrect.", systemApplications: "System Media Applications", systemApplicationsHint: "Only allow listed third-party System Media apps; leave empty to allow all.", addCurrentApplication: "Add Current App", chooseApplications: "Choose Apps in Finder", systemApplicationsPicker: "macOS Applications", display: "Main Interface", language: { label: "Interface language", description: "Applies immediately to every window and is saved in the app configuration." },
       fontScale: "Interface text size", fontScaleHint: "Only text on the home page, settings, and lyrics library is scaled. Window sizes, controls, and desktop lyrics are unchanged.",
       dockMenu: "Dock & Menu Bar", hideDock: "Hide Dock icon and running indicator", hideDockHint: "Lyrics Plus remains available from the menu bar",
       shortcuts: "Shortcuts", openSettings: "Open Settings", toggleOverlay: "Show / hide desktop lyrics", unlockOverlay: "Lock / unlock desktop lyrics",

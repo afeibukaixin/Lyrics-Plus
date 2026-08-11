@@ -4,7 +4,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use wait_timeout::ChildExt;
 
-use crate::config::SystemMediaApplication;
+use crate::config::{is_dedicated_player_bundle_id, SystemMediaApplication};
 
 mod system_media;
 pub use system_media::SystemMediaService;
@@ -385,6 +385,7 @@ mod tests {
     #[test]
     fn system_source_allowlist_only_filters_third_party_apps() {
         let mut snapshot = PlaybackSnapshot {
+            is_running: true,
             source_app_bundle_id: Some("org.example.Player".into()),
             ..PlaybackSnapshot::default()
         };
@@ -404,6 +405,46 @@ mod tests {
                 bundle_id: "org.example.Other".into(),
             }],
         ));
+    }
+
+    #[test]
+    fn manual_system_source_uses_the_same_allowlist() {
+        let snapshot = PlaybackSnapshot {
+            player: Some(PlayerKind::System),
+            is_running: true,
+            source_app_bundle_id: Some("org.example.Player".into()),
+            ..PlaybackSnapshot::default()
+        };
+        let allowed = [SystemMediaApplication {
+            name: "Player".into(),
+            bundle_id: "org.example.Player".into(),
+        }];
+        assert_eq!(filter_system_source(snapshot.clone(), &[]).error_code, None);
+        assert_eq!(
+            filter_system_source(snapshot.clone(), &allowed).error_code,
+            None
+        );
+        assert_eq!(
+            filter_system_source(
+                snapshot,
+                &[SystemMediaApplication {
+                    name: "Other".into(),
+                    bundle_id: "org.example.Other".into(),
+                }],
+            )
+            .error_code,
+            Some(PlaybackErrorCode::SourceNotAllowed)
+        );
+
+        for bundle_id in ["com.apple.Music", "com.spotify.client"] {
+            let builtin = PlaybackSnapshot {
+                player: Some(PlayerKind::System),
+                is_running: true,
+                source_app_bundle_id: Some(bundle_id.into()),
+                ..PlaybackSnapshot::default()
+            };
+            assert_eq!(filter_system_source(builtin, &allowed).error_code, None);
+        }
     }
 
     #[test]
@@ -502,7 +543,10 @@ pub fn query_selected_player(
     match selection {
         PlayerSelection::AppleMusic => (query_player(PlayerKind::AppleMusic), None),
         PlayerSelection::Spotify => (query_player(PlayerKind::Spotify), None),
-        PlayerSelection::System => (system_media.snapshot(), None),
+        PlayerSelection::System => (
+            filter_system_source(system_media.snapshot(), system_media_applications),
+            None,
+        ),
         PlayerSelection::Auto => query_auto_player(
             system_media.snapshot(),
             previous_auto_player,
@@ -536,16 +580,17 @@ fn query_auto_player(
                     (system, Some(PlayerKind::System))
                 };
             }
-            _ if system_source_allowed(&system, system_media_applications) => {
-                return (system, Some(PlayerKind::System));
+            _ => {
+                return (
+                    filter_system_source(system, system_media_applications),
+                    Some(PlayerKind::System),
+                )
             }
-            _ => return (source_not_allowed(&system), Some(PlayerKind::System)),
         }
     }
-    if system.source_app_bundle_id.is_some()
-        && !system_source_allowed(&system, system_media_applications)
-    {
-        return (source_not_allowed(&system), Some(PlayerKind::System));
+    let system = filter_system_source(system, system_media_applications);
+    if system.error_code == Some(PlaybackErrorCode::SourceNotAllowed) {
+        return (system, Some(PlayerKind::System));
     }
     if previous_auto_player == Some(PlayerKind::System)
         && system.is_running
@@ -598,11 +643,22 @@ fn system_source_allowed(
     let Some(bundle_id) = snapshot.source_app_bundle_id.as_deref() else {
         return applications.is_empty();
     };
-    matches!(bundle_id, "com.apple.Music" | "com.spotify.client")
+    is_dedicated_player_bundle_id(bundle_id)
         || applications.is_empty()
         || applications
             .iter()
             .any(|application| application.bundle_id == bundle_id)
+}
+
+fn filter_system_source(
+    snapshot: PlaybackSnapshot,
+    applications: &[SystemMediaApplication],
+) -> PlaybackSnapshot {
+    if !snapshot.is_running || system_source_allowed(&snapshot, applications) {
+        snapshot
+    } else {
+        source_not_allowed(&snapshot)
+    }
 }
 
 fn source_not_allowed(snapshot: &PlaybackSnapshot) -> PlaybackSnapshot {
