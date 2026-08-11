@@ -157,6 +157,8 @@ failed: "歌詞資料夾掃描失敗",
     lyrics: {
       title: "歌詞與搜尋", description: "達到設定相似度的同步歌詞會自動套用；其他結果可在快速切換視窗中預覽。",
       autoMatch: "自動比對", threshold: "自動比對相似度", thresholdHint: "第一筆同步歌詞達到此相似度時會自動套用；低於門檻的結果仍可手動選擇。",
+      titleFilters: "標題忽略內容", titleFiltersHint: "輸入需要忽略的文字，程式會智慧移除所在的括號或標題後綴；只影響本機比對分數。",
+      titleFilterPlaceholder: "例如：feat、片尾曲、主題曲", titleFiltersEmpty: "尚未設定標題忽略內容。", addTitleFilter: "新增", removeTitleFilter: "刪除第 {{index}} 項",
       currentTrack: "目前歌曲", noTrack: "目前沒有歌曲正在播放", notAssociated: "尚未連結歌詞", manualSearch: "手動搜尋目前歌曲",
       importLrc: "匯入 LRC", unlink: "取消連結", offset: "歌詞偏移 {{value}}ms", providerPriority: "歌詞來源優先順序",
       strict: "嚴格優先順序", smart: "智慧排序", smartHint: "分數差距較大時，智慧排序可能會覆蓋手動順序。",

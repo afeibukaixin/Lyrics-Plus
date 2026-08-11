@@ -60,7 +60,7 @@ export type SettingsOutletContext = {
   updateStyle: (patch: Partial<OverlayStyle>) => Promise<boolean>;
   setVisible: (visible: boolean) => Promise<void>;
   setLocked: (locked: boolean) => Promise<void>;
-  saveProviderSettings: (settings: ProviderSettings) => Promise<void>;
+  saveProviderSettings: (settings: ProviderSettings) => Promise<boolean>;
   beginProviderDrag: (providerId: string, sourceIndex: number, event: ReactPointerEvent<HTMLButtonElement>) => void;
   continueProviderDrag: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   finishProviderDrag: (event: ReactPointerEvent<HTMLButtonElement>) => void;
@@ -170,7 +170,13 @@ export default function Settings() {
   };
 
   const saveProviderSettings = async (settings: ProviderSettings) => {
-    try { setProviderView(await api.setProviderSettings(settings)); } catch (value) { setError(messageOf(value)); }
+    try {
+      setProviderView(await api.setProviderSettings(settings));
+      return true;
+    } catch (value) {
+      setError(messageOf(value));
+      return false;
+    }
   };
 
   const moveProvider = async (sourceId: string, targetId: string) => {

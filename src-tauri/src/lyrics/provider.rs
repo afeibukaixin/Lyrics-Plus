@@ -1,12 +1,13 @@
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::RwLock;
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use strsim::normalized_levenshtein;
+use zhhz::{Config, Converter};
 
 use super::kugou::KugouProvider;
 use super::lrclib::LrcLibProvider;
@@ -69,6 +70,8 @@ pub struct LyricsSearchInput {
     pub artist: String,
     pub album: Option<String>,
     pub duration_ms: Option<u64>,
+    #[serde(skip)]
+    pub(crate) title_filter_keywords: Arc<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,10 +114,35 @@ pub struct ProviderSettings {
     pub providers: Vec<ProviderPreference>,
     #[serde(default = "default_auto_apply_threshold")]
     pub auto_apply_threshold: u8,
+    #[serde(default = "default_title_filter_keywords")]
+    pub title_filter_keywords: Vec<String>,
 }
+
+const MAX_TITLE_FILTER_KEYWORDS: usize = 32;
+const MAX_TITLE_FILTER_KEYWORD_LENGTH: usize = 64;
 
 const fn default_auto_apply_threshold() -> u8 {
     60
+}
+
+fn default_title_filter_keywords() -> Vec<String> {
+    [
+        "feat",
+        "ft",
+        "featuring",
+        "主题曲",
+        "片头曲",
+        "片尾曲",
+        "插曲",
+        "电影",
+        "电视剧",
+        "动画",
+        "游戏",
+        "ost",
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .collect()
 }
 
 impl Default for ProviderSettings {
@@ -129,6 +157,7 @@ impl Default for ProviderSettings {
                 })
                 .collect(),
             auto_apply_threshold: default_auto_apply_threshold(),
+            title_filter_keywords: default_title_filter_keywords(),
         }
     }
 }
@@ -211,8 +240,11 @@ impl ProviderRegistry {
         }
     }
 
-    pub fn set_settings(&self, settings: ProviderSettings) -> Result<ProviderSettingsView, String> {
-        validate_settings(&settings)?;
+    pub fn set_settings(
+        &self,
+        mut settings: ProviderSettings,
+    ) -> Result<ProviderSettingsView, String> {
+        normalize_settings(&mut settings)?;
         *self
             .settings
             .write()
@@ -251,8 +283,14 @@ impl ProviderRegistry {
             return Err("请至少启用一个歌词源".into());
         }
 
+        let mut scoring_input = input.clone();
+        scoring_input.title_filter_keywords = Arc::new(prepare_title_filter_keywords(
+            &settings.title_filter_keywords,
+        )?);
+        let scoring_input = &scoring_input;
         let jobs = enabled.iter().map(|provider| async move {
-            let outcome = tokio::time::timeout(self.timeout, provider.search(client, input)).await;
+            let outcome =
+                tokio::time::timeout(self.timeout, provider.search(client, scoring_input)).await;
             (*provider, outcome)
         });
         let outcomes = join_all(jobs).await;
@@ -323,6 +361,7 @@ impl ProviderRegistry {
             artist: "周杰伦".into(),
             album: None,
             duration_ms: Some(269_000),
+            title_filter_keywords: Arc::default(),
         };
         match tokio::time::timeout(self.timeout, provider.search(client, &input)).await {
             Ok(Ok(results)) => {
@@ -415,10 +454,48 @@ pub(crate) fn validate_settings(settings: &ProviderSettings) -> Result<(), Strin
     if !settings.providers.iter().any(|provider| provider.enabled) {
         return Err("请至少启用一个歌词源".into());
     }
+    prepare_title_filter_keywords(&settings.title_filter_keywords)?;
     Ok(())
 }
 
-pub(crate) fn complete_settings(settings: &mut ProviderSettings) {
+pub(crate) fn normalize_settings(settings: &mut ProviderSettings) -> Result<(), String> {
+    for keyword in &mut settings.title_filter_keywords {
+        *keyword = keyword.trim().to_string();
+    }
+    validate_settings(settings)?;
+    complete_settings(settings);
+    Ok(())
+}
+
+fn prepare_title_filter_keywords(keywords: &[String]) -> Result<Vec<String>, String> {
+    if keywords.len() > MAX_TITLE_FILTER_KEYWORDS {
+        return Err(format!("标题屏蔽内容最多 {MAX_TITLE_FILTER_KEYWORDS} 条"));
+    }
+    let mut seen = HashSet::new();
+    keywords
+        .iter()
+        .enumerate()
+        .map(|(index, keyword)| {
+            let keyword = keyword.trim();
+            if keyword.is_empty() {
+                return Err(format!("第 {} 条标题屏蔽内容不能为空", index + 1));
+            }
+            if keyword.chars().count() > MAX_TITLE_FILTER_KEYWORD_LENGTH {
+                return Err(format!(
+                    "第 {} 条标题屏蔽内容不能超过 {MAX_TITLE_FILTER_KEYWORD_LENGTH} 个字符",
+                    index + 1
+                ));
+            }
+            let keyword = simplify(keyword);
+            if !seen.insert(keyword.clone()) {
+                return Err(format!("第 {} 条标题屏蔽内容重复", index + 1));
+            }
+            Ok(keyword)
+        })
+        .collect()
+}
+
+fn complete_settings(settings: &mut ProviderSettings) {
     for (id, _) in provider_definitions() {
         if !settings.providers.iter().any(|provider| provider.id == id) {
             settings.providers.push(ProviderPreference {
@@ -448,16 +525,103 @@ fn now_ms() -> u64 {
         .as_millis() as u64
 }
 
-fn normalise(value: &str) -> String {
-    value
+fn simplify(value: &str) -> String {
+    // ponytail: small candidate batches share one lock; use thread-local converters if scoring becomes hot.
+    static CONVERTER: OnceLock<Mutex<Converter>> = OnceLock::new();
+
+    CONVERTER
+        .get_or_init(|| Mutex::new(Converter::new(Config::T2s)))
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .convert(value)
         .to_lowercase()
+}
+
+fn normalise(value: &str) -> String {
+    simplify(value)
         .chars()
         .filter(|character| character.is_alphanumeric())
         .collect()
 }
 
+fn keyword_position(title: &str, keyword: &str) -> Option<(usize, usize)> {
+    let needs_ascii_boundaries = keyword
+        .chars()
+        .all(|character| character.is_ascii_alphanumeric());
+    title.match_indices(keyword).find_map(|(start, matched)| {
+        let end = start + matched.len();
+        let boundary_matches = !needs_ascii_boundaries
+            || (title[..start]
+                .chars()
+                .next_back()
+                .is_none_or(|character| !character.is_ascii_alphanumeric())
+                && title[end..]
+                    .chars()
+                    .next()
+                    .is_none_or(|character| !character.is_ascii_alphanumeric()));
+        boundary_matches.then_some((start, end))
+    })
+}
+
+fn enclosing_bracket_range(title: &str, start: usize, end: usize) -> Option<(usize, usize)> {
+    [('(', ')'), ('[', ']'), ('（', '）'), ('【', '】')]
+        .into_iter()
+        .filter_map(|(open, close)| {
+            let open_index = title[..start].rfind(open)?;
+            if title[open_index + open.len_utf8()..start].contains(close) {
+                return None;
+            }
+            let close_index = end + title[end..].find(close)? + close.len_utf8();
+            Some((open_index, close_index))
+        })
+        .max_by_key(|(open_index, _)| *open_index)
+}
+
+fn suffix_delimiter_start(title: &str, before: usize) -> Option<usize> {
+    title[..before]
+        .char_indices()
+        .filter_map(|(index, character)| ['-', '–', '—'].contains(&character).then_some(index))
+        .next_back()
+}
+
+fn work_title_start(title: &str, before: usize) -> Option<usize> {
+    [('《', '》'), ('「', '」'), ('『', '』')]
+        .into_iter()
+        .filter_map(|(open, close)| {
+            let open_index = title[..before].rfind(open)?;
+            title[open_index + open.len_utf8()..before]
+                .contains(close)
+                .then_some(open_index)
+        })
+        .max()
+}
+
+fn filter_title(value: &str, keywords: &[String]) -> String {
+    let mut title = simplify(value);
+    for keyword in keywords {
+        while let Some((start, end)) = keyword_position(&title, keyword) {
+            if let Some((open, close)) = enclosing_bracket_range(&title, start, end) {
+                title.replace_range(open..close, "");
+            } else if let Some(delimiter) = suffix_delimiter_start(&title, start) {
+                title.truncate(delimiter);
+            } else if let Some(open) = work_title_start(&title, start) {
+                title.truncate(open);
+            } else if ["feat", "ft", "featuring"].contains(&keyword.as_str()) {
+                title.truncate(start);
+            } else {
+                title.replace_range(start..end, "");
+            }
+            title = title.trim().to_string();
+        }
+    }
+    title
+}
+
 pub fn score_candidate(input: &LyricsSearchInput, result: &LyricsSearchResult) -> f64 {
-    let title = normalized_levenshtein(&normalise(&input.title), &normalise(&result.title));
+    let title = normalized_levenshtein(
+        &normalise(&filter_title(&input.title, &input.title_filter_keywords)),
+        &normalise(&filter_title(&result.title, &input.title_filter_keywords)),
+    );
     let artist = normalized_levenshtein(&normalise(&input.artist), &normalise(&result.artist));
     let album = match (&input.album, &result.album) {
         (Some(expected), Some(actual)) => {
@@ -567,8 +731,121 @@ mod tests {
             artist: "Adele".into(),
             album: Some("25".into()),
             duration_ms: Some(295_000),
+            title_filter_keywords: Arc::default(),
         };
         assert!(score_candidate(&input, &result("lrclib", 0.0, "line")) > 0.98);
+    }
+
+    #[test]
+    fn normalise_treats_traditional_and_simplified_chinese_as_equal() {
+        assert_eq!(normalise("愛上你不是我決定"), normalise("爱上你不是我决定"));
+        assert_eq!(normalise("蕭敬騰"), normalise("萧敬腾"));
+    }
+
+    #[test]
+    fn traditional_metadata_scores_the_same_as_simplified_metadata() {
+        let traditional = LyricsSearchInput {
+            title: "愛上你不是我決定".into(),
+            artist: "蕭敬騰".into(),
+            album: Some("愛的時刻".into()),
+            duration_ms: Some(295_000),
+            title_filter_keywords: Arc::default(),
+        };
+        let simplified = LyricsSearchInput {
+            title: "爱上你不是我决定".into(),
+            artist: "萧敬腾".into(),
+            album: Some("爱的时刻".into()),
+            duration_ms: Some(295_000),
+            title_filter_keywords: Arc::default(),
+        };
+        let mut candidate = result("lrclib", 0.0, "line");
+        candidate.title = simplified.title.clone();
+        candidate.artist = simplified.artist.clone();
+        candidate.album = simplified.album.clone();
+        candidate.duration_ms = simplified.duration_ms;
+
+        let traditional_score = score_candidate(&traditional, &candidate);
+        assert_eq!(traditional_score, score_candidate(&simplified, &candidate));
+        assert!(traditional_score > 0.98);
+    }
+
+    #[test]
+    fn default_title_filters_remove_only_matching_metadata() {
+        let keywords = prepare_title_filter_keywords(&default_title_filter_keywords()).unwrap();
+        assert_eq!(
+            filter_title("All For You - 《蜘蛛人：重生日》電影片尾曲", &keywords),
+            "all for you"
+        );
+        assert_eq!(
+            filter_title("愛上你不是我決定 (feat. A-Lin)", &keywords),
+            "爱上你不是我决定"
+        );
+        assert_eq!(
+            filter_title("All For You 《蜘蛛人：重生日》電影片尾曲", &keywords),
+            "all for you"
+        );
+        assert_eq!(filter_title("Song featuring Artist", &keywords), "song");
+        for title in [
+            "A-B",
+            "Song (Live)",
+            "Song - Remix",
+            "Song (Acoustic)",
+            "伴奏",
+            "Soft Landing",
+            "Most Wanted",
+        ] {
+            assert_eq!(filter_title(title, &keywords), simplify(title));
+        }
+        assert_eq!(filter_title("Song Demo", &["demo".into()]), "song");
+        assert_eq!(filter_title("Song (Live)", &["live".into()]), "song");
+        assert_eq!(filter_title("伴奏", &["伴奏".into()]), "");
+    }
+
+    #[test]
+    fn title_filters_apply_to_both_sides_of_scoring() {
+        let keywords =
+            Arc::new(prepare_title_filter_keywords(&default_title_filter_keywords()).unwrap());
+        let mut input = LyricsSearchInput {
+            title: "All For You - 《蜘蛛人：重生日》電影片尾曲".into(),
+            artist: "OneRepublic".into(),
+            album: None,
+            duration_ms: Some(240_000),
+            title_filter_keywords: keywords.clone(),
+        };
+        let mut candidate = result("lrclib", 0.0, "line");
+        candidate.title = "All For You".into();
+        candidate.artist = input.artist.clone();
+        candidate.album = None;
+        candidate.duration_ms = input.duration_ms;
+        assert!(score_candidate(&input, &candidate) > 0.98);
+
+        input.title = "愛上你不是我決定".into();
+        candidate.title = "爱上你不是我决定 (feat. A-Lin)".into();
+        candidate.artist = "蕭敬騰".into();
+        input.artist = "萧敬腾".into();
+        assert!(score_candidate(&input, &candidate) > 0.98);
+    }
+
+    #[test]
+    fn title_filter_validation_rejects_invalid_lists() {
+        assert!(prepare_title_filter_keywords(&[]).is_ok());
+        for keywords in [
+            vec![" ".into()],
+            vec!["same".into(), "same".into()],
+            vec!["OST".into(), "ost".into()],
+            vec!["电影".into(), "電影".into()],
+            vec!["x".repeat(MAX_TITLE_FILTER_KEYWORD_LENGTH + 1)],
+            vec!["x".into(); MAX_TITLE_FILTER_KEYWORDS + 1],
+        ] {
+            assert!(prepare_title_filter_keywords(&keywords).is_err());
+        }
+
+        let mut settings = ProviderSettings {
+            title_filter_keywords: vec!["  Live  ".into()],
+            ..ProviderSettings::default()
+        };
+        normalize_settings(&mut settings).unwrap();
+        assert_eq!(settings.title_filter_keywords, ["Live"]);
     }
 
     #[test]
@@ -610,6 +887,7 @@ mod tests {
                 enabled: true,
             }],
             auto_apply_threshold: 60,
+            ..ProviderSettings::default()
         })
         .is_err());
         assert!(validate_settings(&ProviderSettings {
@@ -619,6 +897,7 @@ mod tests {
                 enabled: false,
             }],
             auto_apply_threshold: 60,
+            ..ProviderSettings::default()
         })
         .is_err());
         assert!(validate_settings(&ProviderSettings {
@@ -651,6 +930,7 @@ mod tests {
         let settings = ProviderSettings::default();
         assert_eq!(settings.mode, ProviderOrderMode::Smart);
         assert_eq!(settings.auto_apply_threshold, 60);
+        assert_eq!(settings.title_filter_keywords.len(), 12);
         assert_eq!(
             settings
                 .providers
@@ -674,6 +954,7 @@ mod tests {
                     enabled: true,
                 })
                 .collect(),
+            title_filter_keywords: default_title_filter_keywords(),
         };
 
         let view = registry.set_settings(settings.clone()).unwrap();
@@ -695,6 +976,7 @@ mod tests {
                     enabled: true,
                 },
             ],
+            title_filter_keywords: default_title_filter_keywords(),
         };
         let statuses = ["lrclib", "netease"]
             .into_iter()
@@ -742,6 +1024,7 @@ mod tests {
                         artist: "Adele".into(),
                         album: None,
                         duration_ms: None,
+                        title_filter_keywords: Arc::default(),
                     },
                 )
                 .await
@@ -769,6 +1052,7 @@ mod tests {
                 artist: "Adele".into(),
                 album: None,
                 duration_ms: None,
+                title_filter_keywords: Arc::default(),
             };
             let strict = mock_registry(ProviderOrderMode::Strict, false)
                 .search(&client, &input)
@@ -797,6 +1081,7 @@ mod tests {
                 artist: "周杰伦".into(),
                 album: Some("叶惠美".into()),
                 duration_ms: Some(269_000),
+                title_filter_keywords: Arc::default(),
             };
             for target in ["netease", "qqmusic", "kugou", "lrclib"] {
                 let settings = ProviderSettings {
@@ -809,6 +1094,7 @@ mod tests {
                             enabled: id == target,
                         })
                         .collect(),
+                    title_filter_keywords: default_title_filter_keywords(),
                 };
                 let registry = ProviderRegistry::new(settings);
                 let outcome = registry.search(&client, &input).await.unwrap();

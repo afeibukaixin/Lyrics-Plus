@@ -11,13 +11,11 @@ use crate::commands::{
     OverlayLayout, OverlayOrientation, OverlayStyleSettings, SecondaryDisplayMode,
 };
 use crate::language::{detect_config_comment_language, ConfigComment, UiLanguage};
-use crate::lyrics::provider::{
-    complete_settings, validate_settings, ProviderOrderMode, ProviderSettings,
-};
+use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSettings};
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 15;
+pub const CONFIG_SCHEMA_VERSION: u16 = 16;
 
 fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<String, String> {
     let json =
@@ -48,6 +46,9 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             }
             line if line.starts_with("      \"autoApplyThreshold\":") => {
                 Some(("      ", ConfigComment::AutoApplyThreshold))
+            }
+            line if line.starts_with("      \"titleFilterKeywords\":") => {
+                Some(("      ", ConfigComment::TitleFilterKeywords))
             }
             line if line.starts_with("      \"mode\":") => {
                 Some(("      ", ConfigComment::ProviderMode))
@@ -369,8 +370,7 @@ impl AppConfig {
                 return Err(format!("{name}不是有效的颜色值"));
             }
         }
-        validate_settings(&self.lyrics.providers)?;
-        complete_settings(&mut self.lyrics.providers);
+        normalize_settings(&mut self.lyrics.providers)?;
         self.overlay.appearance = OverlayAppearance::from(&normalized_style);
         Ok(self)
     }
@@ -765,7 +765,16 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
     if let Some(lyrics) = value.get("lyrics") {
         check_keys(lyrics, raw, &["providers"])?;
         if let Some(providers) = lyrics.get("providers") {
-            check_keys(providers, raw, &["mode", "providers", "autoApplyThreshold"])?;
+            check_keys(
+                providers,
+                raw,
+                &[
+                    "mode",
+                    "providers",
+                    "autoApplyThreshold",
+                    "titleFilterKeywords",
+                ],
+            )?;
             if let Some(items) = providers.get("providers").and_then(Value::as_array) {
                 for item in items {
                     check_keys(item, raw, &["id", "enabled"])?;
@@ -1527,6 +1536,7 @@ mod tests {
         assert_eq!(parsed.config.schema_version, CONFIG_SCHEMA_VERSION);
         assert_eq!(parsed.normalized_json, default_jsonc);
         assert!(parsed.normalized_json.contains("// 配置结构版本"));
+        assert!(parsed.normalized_json.contains("// 仅在本地匹配评分前"));
     }
 
     #[test]
@@ -1672,6 +1682,27 @@ mod tests {
     }
 
     #[test]
+    fn schema_fifteen_adds_default_title_keywords_but_preserves_an_empty_list() {
+        let migrated = parse_config_draft(r#"{"schemaVersion":15}"#).unwrap();
+        assert!(migrated.migrated);
+        assert_eq!(
+            migrated.config.lyrics.providers.title_filter_keywords,
+            ProviderSettings::default().title_filter_keywords
+        );
+
+        let disabled = parse_config_draft(
+            r#"{"schemaVersion":15,"lyrics":{"providers":{"titleFilterKeywords":[]}}}"#,
+        )
+        .unwrap();
+        assert!(disabled
+            .config
+            .lyrics
+            .providers
+            .title_filter_keywords
+            .is_empty());
+    }
+
+    #[test]
     fn language_preference_accepts_supported_and_future_bcp_47_values() {
         for (raw, expected) in [
             (r#"{"app":{"language":"system"}}"#, "system"),
@@ -1770,7 +1801,9 @@ mod tests {
             assert!(parsed.migrated);
             assert_eq!(parsed.config.overlay.appearance.layout, layout);
             assert_eq!(parsed.config.overlay.appearance.orientation, orientation);
-            assert!(parsed.normalized_json.contains("\"schemaVersion\": 15"));
+            assert!(parsed
+                .normalized_json
+                .contains(&format!("\"schemaVersion\": {CONFIG_SCHEMA_VERSION}")));
         }
     }
 
@@ -1783,7 +1816,7 @@ mod tests {
             "vertical_double",
         ] {
             let raw = format!(
-                r#"{{"schemaVersion":15,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
+                r#"{{"schemaVersion":16,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
             );
             let validation = validate_config_draft(&raw);
             assert!(
@@ -1820,7 +1853,7 @@ mod tests {
     fn current_schema_preserves_explicit_legacy_provider_order() {
         let parsed = parse_config_draft(
             r#"{
-              "schemaVersion": 15,
+              "schemaVersion": 16,
               "lyrics": { "providers": {
                 "mode": "smart",
                 "providers": [

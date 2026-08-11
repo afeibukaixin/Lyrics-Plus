@@ -155,6 +155,8 @@ failed: "歌词目录扫描失败",
     lyrics: {
       title: "歌词与搜索", description: "达到设定相似度的同步歌词会自动采用；其他结果可在快速切换窗口中预览。",
       autoMatch: "自动匹配", threshold: "自动匹配相似度", thresholdHint: "首条同步歌词达到此相似度时自动采用；低于阈值的结果仍可手动选择。",
+      titleFilters: "标题屏蔽内容", titleFiltersHint: "输入需要忽略的文字，程序会智能移除所在的括号或标题后缀；仅影响本地匹配评分。",
+      titleFilterPlaceholder: "例如：feat、片尾曲、主题曲", titleFiltersEmpty: "未配置标题屏蔽内容。", addTitleFilter: "添加", removeTitleFilter: "删除第 {{index}} 项",
       currentTrack: "当前歌曲", noTrack: "没有正在播放的歌曲", notAssociated: "未关联歌词", manualSearch: "手动搜索当前歌曲",
       importLrc: "导入 LRC", unlink: "解除关联", offset: "歌词偏移 {{value}}ms", providerPriority: "歌词源优先级",
       strict: "严格优先级", smart: "智能排序", smartHint: "智能排序会在分数差距较大时覆盖手动顺序。",

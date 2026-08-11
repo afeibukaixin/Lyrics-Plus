@@ -36,6 +36,7 @@ sha2 = "0.10"
 strsim = "0.11"
 tokio = { version = "1", features = ["macros", "sync", "time"] }
 wait-timeout = "0.2"
+zhhz = "0.8.2"
 tauri-plugin-updater = "2.10.0"
 tauri-plugin-process = "2"
 

@@ -2349,6 +2349,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "wait-timeout",
+ "zhhz",
 ]
 
 [[package]]
@@ -2401,9 +2402,9 @@ checksum = "2532096657941c2fea9c289d370a250971c689d4f143798ff67113ec042024a5"
 
 [[package]]
 name = "memchr"
-version = "2.7.6"
+version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
+checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
 name = "memoffset"
@@ -6412,6 +6413,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.108",
+]
+
+[[package]]
+name = "zhhz"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "792bab37bb3235bec4655690863ca150bca3f65251ed968f11ee700874ce921f"
+dependencies = [
+ "anyhow",
+ "memchr",
+ "serde_json",
 ]
 
 [[package]]

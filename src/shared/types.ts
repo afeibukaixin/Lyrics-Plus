@@ -135,6 +135,7 @@ export type ProviderSettings = {
   mode: ProviderOrderMode;
   providers: ProviderPreference[];
   autoApplyThreshold: number;
+  titleFilterKeywords: string[];
 };
 
 export type ProviderHealth = "unknown" | "available" | "degraded" | "unavailable";

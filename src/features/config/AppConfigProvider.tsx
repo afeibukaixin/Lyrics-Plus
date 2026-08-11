@@ -10,13 +10,19 @@ const defaultOverlayAppearance = (({
   ...appearance
 }: typeof defaultOverlayStyle) => appearance)(defaultOverlayStyle);
 
+const defaultTitleFilterKeywords = [
+  "feat", "ft", "featuring", "主题曲", "片头曲", "片尾曲",
+  "插曲", "电影", "电视剧", "动画", "游戏", "ost",
+];
+
 const defaultConfig: AppConfig = {
-  schemaVersion: 15,
+  schemaVersion: 16,
   app: { uiFontScale: 100, language: "system", playerSelection: "auto", hideDockIcon: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
       mode: "smart",
       autoApplyThreshold: 60,
+      titleFilterKeywords: defaultTitleFilterKeywords,
       providers: [
         { id: "lrclib", enabled: true },
         { id: "kugou", enabled: false },

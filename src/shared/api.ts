@@ -168,7 +168,7 @@ export const api = {
 
 export function messageOf(error: unknown): string {
   if (error instanceof AppOperationError) {
-    if (error.command === "set_global_shortcuts" && error.message) return error.message;
+    if (["set_global_shortcuts", "set_provider_settings"].includes(error.command) && error.message) return error.message;
     return error.code === "config.conflict"
       ? appI18n.t("errors.configConflict")
       : appI18n.t("errors.command");

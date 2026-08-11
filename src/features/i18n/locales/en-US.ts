@@ -157,6 +157,8 @@ failed: "Lyrics directory scan failed",
     lyrics: {
       title: "Lyrics & Search", description: "A synchronized result meeting the similarity threshold is applied automatically; other results can be previewed in Quick Switch.",
       autoMatch: "Automatic Matching", threshold: "Match similarity", thresholdHint: "The first synchronized result is applied when it reaches this threshold; lower-scoring results remain available for manual selection.",
+      titleFilters: "Ignored Title Content", titleFiltersHint: "Enter text to ignore. Its surrounding brackets or title suffix are removed intelligently for local scoring only.",
+      titleFilterPlaceholder: "For example: feat, ending theme, ost", titleFiltersEmpty: "No ignored title content configured.", addTitleFilter: "Add", removeTitleFilter: "Remove item {{index}}",
       currentTrack: "Current Track", noTrack: "Nothing is playing", notAssociated: "No linked lyrics", manualSearch: "Search current track manually",
       importLrc: "Import LRC", unlink: "Unlink", offset: "Lyrics offset {{value}}ms", providerPriority: "Provider Priority",
       strict: "Strict priority", smart: "Smart sorting", smartHint: "Smart sorting can override manual order when score differences are substantial.",

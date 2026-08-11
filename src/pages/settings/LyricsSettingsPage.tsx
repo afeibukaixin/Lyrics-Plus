@@ -1,5 +1,6 @@
 import type { ProviderSettings, ProviderStatus } from "../../shared/types";
 import type { TFunction } from "i18next";
+import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { localizedSource } from "../../features/i18n/userText";
 import { api, messageOf } from "../../shared/api";
@@ -14,6 +15,8 @@ function healthLabel(status: ProviderStatus | undefined, t: TFunction) {
 
 export default function LyricsSettingsPage() {
   const { t } = useTranslation();
+  const [titleFilterDraft, setTitleFilterDraft] = useState("");
+  const [savingTitleFilters, setSavingTitleFilters] = useState(false);
   const {
     playback,
     lyrics,
@@ -46,6 +49,28 @@ export default function LyricsSettingsPage() {
       ].join(" · ")
     : t("settings.common.capabilitiesHint");
 
+  const addTitleFilter = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!providerView || !titleFilterDraft.trim() || savingTitleFilters) return;
+    setSavingTitleFilters(true);
+    const saved = await saveProviderSettings({
+      ...providerView.settings,
+      titleFilterKeywords: [...providerView.settings.titleFilterKeywords, titleFilterDraft],
+    });
+    if (saved) setTitleFilterDraft("");
+    setSavingTitleFilters(false);
+  };
+
+  const removeTitleFilter = async (index: number) => {
+    if (!providerView || savingTitleFilters) return;
+    setSavingTitleFilters(true);
+    await saveProviderSettings({
+      ...providerView.settings,
+      titleFilterKeywords: providerView.settings.titleFilterKeywords.filter((_, itemIndex) => itemIndex !== index),
+    });
+    setSavingTitleFilters(false);
+  };
+
   return (
     <>
       <SettingsHeading title={t("settings.lyrics.title")} description={t("settings.lyrics.description")} onReset={() => void resetSection("lyrics")} resetting={resettingSection === "lyrics"} confirming={confirmingReset === "lyrics"} />
@@ -54,6 +79,21 @@ export default function LyricsSettingsPage() {
           if (providerView) void saveProviderSettings({ ...providerView.settings, autoApplyThreshold });
         }} />
         <p className={styles.cardHint}>{t("settings.lyrics.thresholdHint")}</p>
+      </SettingsCard>
+      <SettingsCard title={t("settings.lyrics.titleFilters")}>
+        <p className={styles.cardHint}>{t("settings.lyrics.titleFiltersHint")}</p>
+        <div className={styles.titleFilters}>
+          {providerView?.settings.titleFilterKeywords.length
+            ? providerView.settings.titleFilterKeywords.map((keyword, index) => <div className={styles.titleFilter} key={`${keyword}-${index}`}>
+                <span>{keyword}</span>
+                <button type="button" disabled={savingTitleFilters} aria-label={t("settings.lyrics.removeTitleFilter", { index: index + 1 })} onClick={() => void removeTitleFilter(index)}>×</button>
+              </div>)
+            : <p>{t("settings.lyrics.titleFiltersEmpty")}</p>}
+        </div>
+        <form className={styles.titleFilterForm} onSubmit={(event) => void addTitleFilter(event)}>
+          <input aria-label={t("settings.lyrics.titleFilterPlaceholder")} placeholder={t("settings.lyrics.titleFilterPlaceholder")} spellCheck={false} value={titleFilterDraft} onChange={(event) => setTitleFilterDraft(event.target.value)} />
+          <button disabled={!providerView || !titleFilterDraft.trim() || savingTitleFilters}>{t("settings.lyrics.addTitleFilter")}</button>
+        </form>
       </SettingsCard>
       <SettingsCard title={t("settings.lyrics.currentTrack")}>
         <div className={styles.currentTrack}><div><strong>{playback.snapshot.title ?? t("settings.lyrics.noTrack")}</strong><small>{playback.snapshot.artist ?? "—"}</small></div><em>{lyrics.document ? localizedSource(lyrics.document.metadata.source, t) : t("settings.lyrics.notAssociated")}</em></div>
