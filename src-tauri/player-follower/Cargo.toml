@@ -1,0 +1,10 @@
+[package]
+name = "lyrics-plus-player-follower"
+version = "1.0.2"
+edition = "2021"
+publish = false
+
+[dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["NSRunningApplication"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["NSArray", "NSString"] }

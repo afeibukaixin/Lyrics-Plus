@@ -1,4 +1,19 @@
+use serde::Serialize;
+
 use crate::config::AppPreferences;
+
+const LAUNCH_AGENT_LABEL: &str = "com.xiaoafei.lyrics-plus.player-follower";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlayerFollowerServiceState {
+    Development,
+    Unsupported,
+    NotRegistered,
+    Enabled,
+    RequiresApproval,
+    NotFound,
+}
 
 pub(crate) fn followed_player_bundle_id(preferences: &AppPreferences) -> Option<&str> {
     preferences
@@ -7,111 +22,110 @@ pub(crate) fn followed_player_bundle_id(preferences: &AppPreferences) -> Option<
         .map(|application| application.bundle_id.as_str())
 }
 
+fn runtime_supports_follower(is_dev: bool, is_macos: bool) -> bool {
+    !is_dev && is_macos
+}
+
 #[cfg(target_os = "macos")]
 mod macos {
     use std::fs;
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
     use std::process::Command;
+    use std::sync::mpsc;
     use std::time::Duration;
 
+    use block2::RcBlock;
     use objc2::rc::autoreleasepool;
     use objc2_app_kit::NSRunningApplication;
-    use objc2_foundation::NSString;
+    use objc2_foundation::{NSError, NSString};
+    use objc2_service_management::{SMAppService, SMAppServiceStatus};
     use tauri::Manager;
 
-    use super::followed_player_bundle_id;
+    use super::{
+        followed_player_bundle_id, runtime_supports_follower, PlayerFollowerServiceState,
+        LAUNCH_AGENT_LABEL,
+    };
     use crate::commands::AppState;
     use crate::config::AppPreferences;
 
-    const LAUNCH_AGENT_LABEL: &str = "com.xiaoafei.lyrics-plus.player-follower";
-    const FOLLOWER_SCRIPT: &str = r#"
-ObjC.import('AppKit')
-ObjC.import('Foundation')
+    const AGENT_PLIST_NAME: &str = "com.xiaoafei.lyrics-plus.player-follower.plist";
+    const TARGET_FILE_NAME: &str = "player-follower-target";
+    const VERSION_FILE_NAME: &str = "player-follower-service-version";
 
-function isRunning(bundleId) {
-  return $.NSRunningApplication.runningApplicationsWithBundleIdentifier(bundleId).count > 0
-}
-
-function launch(path) {
-  const task = $.NSTask.alloc.init
-  task.launchPath = '/usr/bin/open'
-  task.arguments = ['-g', path]
-  task.launch()
-}
-
-function run(argv) {
-  const targetBundleId = argv[0]
-  const appPath = argv[1]
-  const appBundleId = argv[2]
-  let handled = isRunning(targetBundleId) && isRunning(appBundleId)
-  while (true) {
-    const targetRunning = isRunning(targetBundleId)
-    const appRunning = isRunning(appBundleId)
-    if (!targetRunning) handled = false
-    else if (appRunning) handled = true
-    else if (!handled) {
-      launch(appPath)
-      handled = true
-    }
-    delay(1)
-  }
-}
-"#;
-
-    pub(crate) fn sync_launch_agent(
+    pub(crate) fn sync_service(
         app: &tauri::AppHandle,
         preferences: &AppPreferences,
     ) -> Result<(), String> {
-        let path = app
+        if !runtime_supports_follower(tauri::is_dev(), true) {
+            return Ok(());
+        }
+        cleanup_legacy_launch_agent(app)?;
+
+        let app_dir = app
             .path()
-            .home_dir()
-            .map_err(|error| format!("无法定位用户目录：{error}"))?
-            .join("Library/LaunchAgents")
-            .join(format!("{LAUNCH_AGENT_LABEL}.plist"));
-        let domain = launchd_domain()?;
+            .app_data_dir()
+            .map_err(|error| format!("无法定位应用数据目录：{error}"))?;
+        let target_path = app_dir.join(TARGET_FILE_NAME);
+        let version_path = app_dir.join(VERSION_FILE_NAME);
+        let service = service();
+
         let Some(target) = followed_player_bundle_id(preferences) else {
-            bootout(&domain, &path);
-            if path.exists() {
-                fs::remove_file(&path)
-                    .map_err(|error| format!("移除播放器跟随配置失败：{error}"))?;
-            }
-            return Ok(());
-        };
-        let Some(app_bundle) = current_app_bundle()? else {
-            log::debug!("Skipping player follower registration outside an application bundle");
-            return Ok(());
+            remove_file_if_exists(&target_path)?;
+            remove_file_if_exists(&version_path)?;
+            return unregister_if_needed(&service);
         };
 
-        let parent = path
-            .parent()
-            .ok_or_else(|| "播放器跟随配置目录无效".to_string())?;
-        fs::create_dir_all(parent)
+        fs::create_dir_all(&app_dir)
             .map_err(|error| format!("创建播放器跟随配置目录失败：{error}"))?;
-        let plist = launch_agent_plist(target, &app_bundle, &app.config().identifier);
-        let temporary = path.with_extension("plist.tmp");
-        fs::write(&temporary, plist).map_err(|error| format!("写入播放器跟随配置失败：{error}"))?;
-        fs::rename(&temporary, &path)
-            .map_err(|error| format!("保存播放器跟随配置失败：{error}"))?;
+        atomic_write(&target_path, target)?;
 
-        bootout(&domain, &path);
-        let output = Command::new("/bin/launchctl")
-            .args(["bootstrap", &domain])
-            .arg(&path)
-            .output()
-            .map_err(|error| format!("启动播放器跟随服务失败：{error}"))?;
-        if output.status.success() {
-            Ok(())
+        let status = unsafe { service.status() };
+        if status == SMAppServiceStatus::NotFound {
+            return Err("播放器跟随 Helper 未正确打包".into());
+        }
+        if status == SMAppServiceStatus::NotRegistered {
+            register(&service)?;
+            atomic_write(&version_path, env!("CARGO_PKG_VERSION"))?;
+            return Ok(());
+        }
+        if status == SMAppServiceStatus::Enabled
+            && fs::read_to_string(&version_path)
+                .ok()
+                .is_none_or(|version| version.trim() != env!("CARGO_PKG_VERSION"))
+        {
+            reregister(&service)?;
+        }
+        atomic_write(&version_path, env!("CARGO_PKG_VERSION"))
+    }
+
+    pub(crate) fn service_state() -> PlayerFollowerServiceState {
+        if tauri::is_dev() {
+            return PlayerFollowerServiceState::Development;
+        }
+        let status = unsafe { service().status() };
+        if status == SMAppServiceStatus::NotRegistered {
+            PlayerFollowerServiceState::NotRegistered
+        } else if status == SMAppServiceStatus::Enabled {
+            PlayerFollowerServiceState::Enabled
+        } else if status == SMAppServiceStatus::RequiresApproval {
+            PlayerFollowerServiceState::RequiresApproval
         } else {
-            let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            Err(if detail.is_empty() {
-                "启动播放器跟随服务失败".into()
-            } else {
-                format!("启动播放器跟随服务失败：{detail}")
-            })
+            PlayerFollowerServiceState::NotFound
         }
     }
 
+    pub(crate) fn open_system_settings() -> Result<(), String> {
+        if tauri::is_dev() {
+            return Err("开发模式下播放器跟随不可用".into());
+        }
+        unsafe { SMAppService::openSystemSettingsLoginItems() };
+        Ok(())
+    }
+
     pub(crate) fn start_exit_monitor(app: tauri::AppHandle) {
+        if tauri::is_dev() {
+            return;
+        }
         tauri::async_runtime::spawn(async move {
             let mut tracked = None;
             loop {
@@ -127,6 +141,37 @@ function run(argv) {
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
         });
+    }
+
+    fn service() -> objc2::rc::Retained<SMAppService> {
+        unsafe { SMAppService::agentServiceWithPlistName(&NSString::from_str(AGENT_PLIST_NAME)) }
+    }
+
+    fn register(service: &SMAppService) -> Result<(), String> {
+        unsafe { service.registerAndReturnError() }
+            .map_err(|error| format!("注册播放器跟随服务失败：{error}"))
+    }
+
+    fn unregister_if_needed(service: &SMAppService) -> Result<(), String> {
+        let status = unsafe { service.status() };
+        if status == SMAppServiceStatus::NotRegistered || status == SMAppServiceStatus::NotFound {
+            return Ok(());
+        }
+        unsafe { service.unregisterAndReturnError() }
+            .map_err(|error| format!("停用播放器跟随服务失败：{error}"))
+    }
+
+    fn reregister(service: &SMAppService) -> Result<(), String> {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        let completion = RcBlock::new(move |error: *mut NSError| {
+            let _ = sender.send(error.is_null());
+        });
+        unsafe { service.unregisterWithCompletionHandler(&completion) };
+        match receiver.recv_timeout(Duration::from_secs(3)) {
+            Ok(true) => register(service),
+            Ok(false) => Err("更新播放器跟随服务失败".into()),
+            Err(_) => Err("等待播放器跟随服务停止超时".into()),
+        }
     }
 
     fn should_exit(
@@ -161,13 +206,35 @@ function run(argv) {
         })
     }
 
-    fn current_app_bundle() -> Result<Option<PathBuf>, String> {
-        let executable = std::env::current_exe()
-            .map_err(|error| format!("无法定位 Lyrics Plus 可执行文件：{error}"))?;
-        Ok(executable
-            .ancestors()
-            .find(|path| path.extension().and_then(|value| value.to_str()) == Some("app"))
-            .map(Path::to_path_buf))
+    fn atomic_write(path: &Path, value: &str) -> Result<(), String> {
+        let temporary = path.with_extension("tmp");
+        fs::write(&temporary, value).map_err(|error| format!("写入播放器跟随配置失败：{error}"))?;
+        fs::rename(&temporary, path).map_err(|error| format!("保存播放器跟随配置失败：{error}"))
+    }
+
+    fn remove_file_if_exists(path: &Path) -> Result<(), String> {
+        if path.exists() {
+            fs::remove_file(path).map_err(|error| format!("移除播放器跟随配置失败：{error}"))?;
+        }
+        Ok(())
+    }
+
+    fn cleanup_legacy_launch_agent(app: &tauri::AppHandle) -> Result<(), String> {
+        let path = app
+            .path()
+            .home_dir()
+            .map_err(|error| format!("无法定位用户目录：{error}"))?
+            .join("Library/LaunchAgents")
+            .join(format!("{LAUNCH_AGENT_LABEL}.plist"));
+        if !path.exists() {
+            return Ok(());
+        }
+        let domain = launchd_domain()?;
+        let _ = Command::new("/bin/launchctl")
+            .args(["bootout", &domain])
+            .arg(&path)
+            .output();
+        fs::remove_file(path).map_err(|error| format!("移除旧播放器跟随服务失败：{error}"))
     }
 
     fn launchd_domain() -> Result<String, String> {
@@ -183,58 +250,8 @@ function run(argv) {
         }
     }
 
-    fn bootout(domain: &str, path: &Path) {
-        let _ = Command::new("/bin/launchctl")
-            .args(["bootout", domain])
-            .arg(path)
-            .output();
-    }
-
-    fn launch_agent_plist(target: &str, app_bundle: &Path, app_bundle_id: &str) -> String {
-        format!(
-            r#"<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>{}</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/usr/bin/osascript</string>
-    <string>-l</string><string>JavaScript</string>
-    <string>-e</string><string>{}</string>
-    <string>--</string>
-    <string>{}</string>
-    <string>{}</string>
-    <string>{}</string>
-  </array>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
-  <key>ProcessType</key><string>Background</string>
-</dict>
-</plist>
-"#,
-            LAUNCH_AGENT_LABEL,
-            xml_escape(FOLLOWER_SCRIPT),
-            xml_escape(target),
-            xml_escape(&app_bundle.to_string_lossy()),
-            xml_escape(app_bundle_id),
-        )
-    }
-
-    fn xml_escape(value: &str) -> String {
-        value
-            .replace('&', "&amp;")
-            .replace('<', "&lt;")
-            .replace('>', "&gt;")
-            .replace('"', "&quot;")
-            .replace('\'', "&apos;")
-    }
-
     #[cfg(test)]
     mod tests {
-        use std::io::Write;
-        use std::process::Stdio;
-
         use super::*;
 
         #[test]
@@ -251,57 +268,14 @@ function run(argv) {
             assert!(!should_exit(&mut tracked, Some("org.example.Other"), false));
             assert!(!should_exit(&mut tracked, None, false));
         }
-
-        #[test]
-        fn launch_agent_escapes_values() {
-            let plist = launch_agent_plist(
-                "org.example.A&B",
-                Path::new("/Applications/A&B.app"),
-                "org.example.Lyrics",
-            );
-            assert!(plist.contains("org.example.A&amp;B"));
-            assert!(plist.contains("/Applications/A&amp;B.app"));
-            assert!(plist.contains("KeepAlive"));
-
-            let mut validator = Command::new("/usr/bin/plutil")
-                .args(["-lint", "-"])
-                .stdin(Stdio::piped())
-                .stdout(Stdio::null())
-                .spawn()
-                .unwrap();
-            validator
-                .stdin
-                .take()
-                .unwrap()
-                .write_all(plist.as_bytes())
-                .unwrap();
-            assert!(validator.wait().unwrap().success());
-        }
-
-        #[test]
-        fn follower_script_stays_running_while_waiting() {
-            let mut follower = Command::new("/usr/bin/osascript")
-                .args(["-l", "JavaScript", "-e", FOLLOWER_SCRIPT, "--"])
-                .args([
-                    "org.example.NotRunning",
-                    "/Applications/NotInstalled.app",
-                    "org.example.Lyrics",
-                ])
-                .spawn()
-                .unwrap();
-            std::thread::sleep(Duration::from_millis(200));
-            assert!(follower.try_wait().unwrap().is_none());
-            follower.kill().unwrap();
-            follower.wait().unwrap();
-        }
     }
 }
 
 #[cfg(target_os = "macos")]
-pub(crate) use macos::{start_exit_monitor, sync_launch_agent};
+pub(crate) use macos::{open_system_settings, service_state, start_exit_monitor, sync_service};
 
 #[cfg(not(target_os = "macos"))]
-pub(crate) fn sync_launch_agent(
+pub(crate) fn sync_service(
     _app: &tauri::AppHandle,
     _preferences: &AppPreferences,
 ) -> Result<(), String> {
@@ -309,12 +283,23 @@ pub(crate) fn sync_launch_agent(
 }
 
 #[cfg(not(target_os = "macos"))]
+pub(crate) fn service_state() -> PlayerFollowerServiceState {
+    PlayerFollowerServiceState::Unsupported
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn open_system_settings() -> Result<(), String> {
+    Err("当前系统不支持播放器跟随".into())
+}
+
+#[cfg(not(target_os = "macos"))]
 pub(crate) fn start_exit_monitor(_app: tauri::AppHandle) {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::config::RegisteredApplication;
+
+    use super::*;
 
     #[test]
     fn follows_only_an_explicit_player() {
@@ -329,5 +314,12 @@ mod tests {
             followed_player_bundle_id(&preferences),
             Some("org.example.Player")
         );
+    }
+
+    #[test]
+    fn development_mode_disables_follower() {
+        assert!(!runtime_supports_follower(true, true));
+        assert!(!runtime_supports_follower(false, false));
+        assert!(runtime_supports_follower(false, true));
     }
 }

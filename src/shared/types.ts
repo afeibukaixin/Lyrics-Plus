@@ -20,6 +20,14 @@ export type RegisteredApplication = {
   bundleId: string;
 };
 
+export type PlayerFollowerServiceState =
+  | "development"
+  | "unsupported"
+  | "not_registered"
+  | "enabled"
+  | "requires_approval"
+  | "not_found";
+
 export type GlobalShortcutSettings = {
   toggleOverlay: string;
   unlockOverlay: string;

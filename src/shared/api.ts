@@ -24,6 +24,7 @@ import type {
   OverlayResizeEdge,
   OverlayStyle,
   PlaybackSnapshot,
+  PlayerFollowerServiceState,
   PlayerKind,
   PlayerSelection,
   ProviderSettings,
@@ -153,6 +154,10 @@ export const api = {
     invoke<RegisteredApplication>("resolve_player_follower_application", { path }),
   setPlayerFollowerApplication: (application: RegisteredApplication | null) =>
     invoke<AppConfig>("set_player_follower_application", { application }),
+  getPlayerFollowerServiceStatus: () =>
+    invoke<PlayerFollowerServiceState>("get_player_follower_service_status"),
+  openPlayerFollowerSystemSettings: () =>
+    invoke<void>("open_player_follower_system_settings"),
   getApplicationIcons: (bundleIds: string[]) =>
     invoke<Record<string, string>>("get_application_icons", { bundleIds }),
   resolveApplicationByBundleId: (bundleId: string) =>

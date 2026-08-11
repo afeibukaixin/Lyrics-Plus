@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import { UiIcon } from "../../components/UiIcon";
-import { defaultGlobalShortcuts, type GlobalShortcutSettings, type GlobalShortcutStatus, type LanguagePreference, type PlayerSelection, type RegisteredApplication } from "../../shared/types";
+import { defaultGlobalShortcuts, type GlobalShortcutSettings, type GlobalShortcutStatus, type LanguagePreference, type PlayerFollowerServiceState, type PlayerSelection, type RegisteredApplication } from "../../shared/types";
 import { api, messageOf } from "../../shared/api";
 import { languageRegistry, supportedLanguages } from "../../shared/languages";
 import { localizedSource, playbackStatusText } from "../../features/i18n/userText";
@@ -102,6 +102,7 @@ export default function AppSettingsPage() {
   const [shortcutStatus, setShortcutStatus] = useState<GlobalShortcutStatus | null>(null);
   const [savingApplications, setSavingApplications] = useState(false);
   const [savingPlayerFollower, setSavingPlayerFollower] = useState(false);
+  const [playerFollowerService, setPlayerFollowerService] = useState<PlayerFollowerServiceState | null>(null);
   const [applicationIcons, setApplicationIcons] = useState<Record<string, string>>(() => ({ ...applicationIconCache }));
   const { t } = useTranslation();
 
@@ -114,6 +115,10 @@ export default function AppSettingsPage() {
   useEffect(() => {
     void api.getGlobalShortcutStatus().then(setShortcutStatus).catch(() => setShortcutStatus(null));
   }, []);
+
+  useEffect(() => {
+    void api.getPlayerFollowerServiceStatus().then(setPlayerFollowerService).catch(() => setPlayerFollowerService("not_found"));
+  }, [config.app.playerFollowerApplication?.bundleId]);
 
   useEffect(() => {
     const cached = Object.fromEntries(iconBundleIds.flatMap((bundleId) => (
@@ -219,9 +224,39 @@ export default function AppSettingsPage() {
     } catch (error) {
       setError(messageOf(error));
     } finally {
+      await api.getPlayerFollowerServiceStatus().then(setPlayerFollowerService).catch(() => setPlayerFollowerService("not_found"));
       setSavingPlayerFollower(false);
     }
   };
+  const clearPlayerFollower = async () => {
+    setSavingPlayerFollower(true);
+    setError(null);
+    try {
+      await setPlayerFollowerApplication(null);
+    } catch (error) {
+      setError(messageOf(error));
+    } finally {
+      await api.getPlayerFollowerServiceStatus().then(setPlayerFollowerService).catch(() => setPlayerFollowerService("not_found"));
+      setSavingPlayerFollower(false);
+    }
+  };
+  const retryPlayerFollower = async () => {
+    if (!config.app.playerFollowerApplication) return;
+    setSavingPlayerFollower(true);
+    setError(null);
+    try {
+      await setPlayerFollowerApplication(config.app.playerFollowerApplication);
+    } catch (error) {
+      setError(messageOf(error));
+    } finally {
+      await api.getPlayerFollowerServiceStatus().then(setPlayerFollowerService).catch(() => setPlayerFollowerService("not_found"));
+      setSavingPlayerFollower(false);
+    }
+  };
+  const followerUnavailable = playerFollowerService === null
+    || playerFollowerService === "development"
+    || playerFollowerService === "unsupported"
+    || playerFollowerService === "not_found";
   return (
     <>
       <SettingsHeading title={t("settings.app.title")} description={t("settings.app.description")} onReset={() => void resetSection("app")} resetting={resettingSection === "app"} confirming={confirmingReset === "app"} />
@@ -237,9 +272,24 @@ export default function AppSettingsPage() {
       <SettingsCard title={t("settings.app.playerFollower")}>
         <div className={styles.systemApplicationsToolbar}>
           <p className={styles.cardHint}>{t("settings.app.playerFollowerHint")}</p>
-          <button className={styles.shortcutReset} disabled={savingPlayerFollower} onClick={() => void choosePlayerFollower()}><UiIcon name="plus" />{t("settings.app.choosePlayerFollower")}</button>
+          <button className={styles.shortcutReset} disabled={savingPlayerFollower || followerUnavailable} onClick={() => void choosePlayerFollower()}><UiIcon name="plus" />{t("settings.app.choosePlayerFollower")}</button>
         </div>
-        <ApplicationList applications={config.app.playerFollowerApplication ? [config.app.playerFollowerApplication] : []} icons={applicationIcons} busy={savingPlayerFollower} emptyLabel={t("settings.app.playerFollowerEmpty")} removeLabel={t("common.actions.remove")} onRemove={() => void setPlayerFollowerApplication(null).catch((error) => setError(messageOf(error)))} />
+        <ApplicationList applications={config.app.playerFollowerApplication ? [config.app.playerFollowerApplication] : []} icons={applicationIcons} busy={savingPlayerFollower || followerUnavailable} emptyLabel={t("settings.app.playerFollowerEmpty")} removeLabel={t("common.actions.remove")} onRemove={() => void clearPlayerFollower()} />
+        {playerFollowerService === "development" && <p className={styles.cardHint}>{t("settings.app.playerFollowerDevelopment")}</p>}
+        {playerFollowerService === "unsupported" && <p className={styles.cardHint} data-error="true">{t("settings.app.playerFollowerUnsupported")}</p>}
+        {playerFollowerService === "not_found" && <p className={styles.cardHint} data-error="true">{t("settings.app.playerFollowerNotFound")}</p>}
+        {playerFollowerService === "not_registered" && config.app.playerFollowerApplication && (
+          <div className={styles.systemApplicationsToolbar}>
+            <p className={styles.cardHint} data-error="true">{t("settings.app.playerFollowerNotRegistered")}</p>
+            <button className={styles.shortcutReset} disabled={savingPlayerFollower} onClick={() => void retryPlayerFollower()}>{t("settings.app.retryPlayerFollower")}</button>
+          </div>
+        )}
+        {playerFollowerService === "requires_approval" && (
+          <div className={styles.systemApplicationsToolbar}>
+            <p className={styles.cardHint} data-error="true">{t("settings.app.playerFollowerApproval")}</p>
+            <button className={styles.shortcutReset} onClick={() => void api.openPlayerFollowerSystemSettings().catch((error) => setError(messageOf(error)))}>{t("settings.app.openLoginItems")}</button>
+          </div>
+        )}
       </SettingsCard>
       <SettingsCard title={t("settings.app.systemApplications")}>
         <div className={styles.systemApplicationsToolbar}>

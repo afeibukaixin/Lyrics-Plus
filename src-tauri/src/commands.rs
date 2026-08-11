@@ -1394,10 +1394,20 @@ pub fn set_player_follower_application(
     let config = state
         .config
         .update(|config| config.app.player_follower_application = application)?;
-    crate::player_lifecycle::sync_launch_agent(&app, &config.app)?;
     app.emit("config://changed", &config)
         .map_err(|error| error.to_string())?;
+    crate::player_lifecycle::sync_service(&app, &config.app)?;
     Ok(config)
+}
+
+#[tauri::command]
+pub fn get_player_follower_service_status() -> crate::player_lifecycle::PlayerFollowerServiceState {
+    crate::player_lifecycle::service_state()
+}
+
+#[tauri::command]
+pub fn open_player_follower_system_settings() -> Result<(), String> {
+    crate::player_lifecycle::open_system_settings()
 }
 
 #[tauri::command]
@@ -1768,12 +1778,12 @@ fn apply_app_config(
     }
     crate::reconcile_overlay_visibility(app)?;
     crate::sync_tray_overlay_checked(app, saved.overlay.visible);
-    crate::player_lifecycle::sync_launch_agent(app, &saved.app)?;
     let _ = app.emit("player://selection", saved.app.player_selection);
     let _ = app.emit("overlay://settings", get_overlay_settings_inner(&state));
     let _ = app.emit("overlay://style", &style);
     app.emit("config://changed", &saved)
         .map_err(|error| error.to_string())?;
+    crate::player_lifecycle::sync_service(app, &saved.app)?;
     Ok(saved)
 }
 
@@ -1783,6 +1793,7 @@ pub fn reset_settings_section(
     section: SettingsSection,
     state: State<'_, AppState>,
 ) -> Result<SettingsResetResponse, String> {
+    let mut player_follower_error = None;
     match section {
         SettingsSection::Overlay => {
             state
@@ -1856,12 +1867,15 @@ pub fn reset_settings_section(
                 config.app.system_media_applications.clear();
                 config.app.player_follower_application = None;
             })?;
-            crate::player_lifecycle::sync_launch_agent(&app, &config.app)?;
+            player_follower_error = crate::player_lifecycle::sync_service(&app, &config.app).err();
         }
     }
 
     let configured = state.config.snapshot();
     let _ = app.emit("config://changed", &configured);
+    if let Some(error) = player_follower_error {
+        return Err(error);
+    }
     Ok(SettingsResetResponse {
         overlay_settings: get_overlay_settings_inner(&state),
         overlay_style: state

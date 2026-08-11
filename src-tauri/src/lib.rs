@@ -1675,7 +1675,7 @@ pub fn run() {
                     .map_err(|error| error.to_string())?,
             });
 
-            if let Err(error) = player_lifecycle::sync_launch_agent(app.handle(), &configured.app) {
+            if let Err(error) = player_lifecycle::sync_service(app.handle(), &configured.app) {
                 log::warn!("Failed to configure player follower: {error}");
             }
 
@@ -1797,6 +1797,8 @@ pub fn run() {
             commands::set_system_media_applications,
             commands::resolve_player_follower_application,
             commands::set_player_follower_application,
+            commands::get_player_follower_service_status,
+            commands::open_player_follower_system_settings,
             commands::get_application_icons,
             commands::resolve_application_by_bundle_id,
             commands::set_language,
