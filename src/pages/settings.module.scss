@@ -86,9 +86,9 @@
 .cardHint[data-error="true"] { color: #e08a96; }
 .titleFilters { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px 10px; }
 .titleFilters > p { width: 100%; margin: 0; padding: 8px 4px; color: #666c7c; font-size: var(--typography-caption-size); line-height: var(--typography-caption-line-height); }
-.titleFilter { min-width: 0; max-width: 100%; display: inline-flex; gap: 6px; align-items: center; padding: 5px 5px 5px 9px; border: 1px solid #ffffff0c; border-radius: 8px; background: #ffffff04; }
-.titleFilter span { min-width: 0; color: #aeb3c1; overflow-wrap: anywhere; font-size: var(--typography-caption-size); line-height: var(--typography-caption-line-height); }
-.titleFilter button { flex: 0 0 26px; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 6px; color: #737989; transition: color .15s, background .15s; }
+.titleFilter { min-width: 0; max-width: 100%; display: inline-flex; gap: 5px; align-items: center; padding: 2px 3px 2px 8px; border: 1px solid #ffffff0c; border-radius: 8px; background: #ffffff04; }
+.titleFilter > span { min-width: 0; color: #aeb3c1; overflow-wrap: anywhere; font-size: var(--typography-caption-size); line-height: var(--typography-caption-line-height); }
+.titleFilter button { flex: 0 0 24px; width: 24px; height: 24px; display: grid; place-items: center; padding: 0; border-radius: 6px; color: #737989; transition: color .15s, background .15s; }
 .titleFilter button:hover { background: #ffffff0a; color: #d98c99; }
 .titleFilter button > span { width: 16px; height: 16px; }
 .titleFilter button:disabled, .titleFilterForm button:disabled { opacity: .35; cursor: default; }
