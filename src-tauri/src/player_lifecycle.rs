@@ -86,10 +86,7 @@ mod macos {
         atomic_write(&target_path, target)?;
 
         let status = unsafe { service.status() };
-        if status == SMAppServiceStatus::NotFound {
-            return Err("播放器跟随 Helper 未正确打包".into());
-        }
-        if status == SMAppServiceStatus::NotRegistered {
+        if status == SMAppServiceStatus::NotRegistered || status == SMAppServiceStatus::NotFound {
             register(&service)?;
             atomic_write(&version_path, env!("CARGO_PKG_VERSION"))?;
             return Ok(());

@@ -75,10 +75,14 @@ fn target_path() -> PathBuf {
 }
 
 fn app_bundle_path() -> Option<PathBuf> {
-    env::current_exe().ok()?.ancestors().find_map(|path| {
-        (path.extension().and_then(|value| value.to_str()) == Some("app"))
-            .then(|| path.to_path_buf())
-    })
+    env::current_exe()
+        .ok()?
+        .ancestors()
+        .filter_map(|path| {
+            (path.extension().and_then(|value| value.to_str()) == Some("app"))
+                .then(|| path.to_path_buf())
+        })
+        .last()
 }
 
 fn application_is_running(bundle_id: &str) -> bool {
