@@ -141,10 +141,12 @@ export default function AppSettingsPage() {
         <div className={styles.playerOptions}>{playerOptions.map((option) => <button key={option} data-active={playback.selection === option} onClick={() => playback.setSelection(option)}>{option === "auto" ? t("settings.app.playerAuto") : option === "apple_music" ? "Apple Music" : option === "spotify" ? "Spotify" : t("settings.app.playerSystem")}</button>)}</div>
       </SettingsCard>
       <SettingsCard title={t("settings.app.systemApplications")}>
-        <p className={styles.cardHint}>{t("settings.app.systemApplicationsHint")}</p>
-        <div className={styles.shortcutControls}>
-          <button className={styles.shortcutReset} disabled={savingApplications || !canAddCurrent} onClick={() => void saveApplications([...config.app.systemMediaApplications, { name: playback.snapshot.sourceAppName ?? currentBundleId!, bundleId: currentBundleId! }])}>{t("settings.app.addCurrentApplication")}</button>
-          <button className={styles.shortcutReset} disabled={savingApplications} onClick={() => void chooseApplications()}>{t("settings.app.chooseApplications")}</button>
+        <div className={styles.systemApplicationsToolbar}>
+          <p className={styles.cardHint}>{t("settings.app.systemApplicationsHint")}</p>
+          <div className={styles.shortcutControls}>
+            <button className={styles.shortcutReset} disabled={savingApplications || !canAddCurrent} onClick={() => void saveApplications([...config.app.systemMediaApplications, { name: playback.snapshot.sourceAppName ?? currentBundleId!, bundleId: currentBundleId! }])}>{t("settings.app.addCurrentApplication")}</button>
+            <button className={styles.shortcutReset} disabled={savingApplications} onClick={() => void chooseApplications()}>{t("settings.app.chooseApplications")}</button>
+          </div>
         </div>
         {config.app.systemMediaApplications.map((application) => (
           <div className={styles.shortcutRow} key={application.bundleId}>

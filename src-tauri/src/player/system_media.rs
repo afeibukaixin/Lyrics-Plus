@@ -2,7 +2,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{Arc, OnceLock, RwLock};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use image::DynamicImage;
 use media_remote::{NowPlayingInfo, NowPlayingPerl, Subscription};
@@ -69,12 +69,7 @@ impl SystemMediaService {
                 let latest = Arc::new(RwLock::new(None));
                 let latest_for_listener = latest.clone();
                 player.subscribe(move |info| {
-                    let next = info.as_ref().cloned().and_then(|info| {
-                        valid_elapsed_time(&info).then_some(TimedInfo {
-                            info,
-                            received_at: Instant::now(),
-                        })
-                    });
+                    let next = info.as_ref().cloned().and_then(timed_info);
                     *latest_for_listener
                         .write()
                         .unwrap_or_else(|error| error.into_inner()) = next;
@@ -301,6 +296,23 @@ fn valid_elapsed_time(info: &NowPlayingInfo) -> bool {
     }
 }
 
+fn timed_info(mut info: NowPlayingInfo) -> Option<TimedInfo> {
+    if !valid_elapsed_time(&info) {
+        return None;
+    }
+    if info.is_playing == Some(true) {
+        if let (Some(elapsed), Some(updated_at)) = (info.elapsed_time, info.info_update_time) {
+            if let Ok(age) = SystemTime::now().duration_since(updated_at) {
+                info.elapsed_time = Some(elapsed + age.as_secs_f64());
+            }
+        }
+    }
+    Some(TimedInfo {
+        info,
+        received_at: Instant::now(),
+    })
+}
+
 fn system_track_id(info: &NowPlayingInfo) -> Option<String> {
     let title = info.title.as_deref()?;
     let artist = info.artist.as_deref().unwrap_or_default();
@@ -350,7 +362,6 @@ fn snapshot_from_info(timed: &TimedInfo) -> PlaybackSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::SystemTime;
 
     fn info() -> NowPlayingInfo {
         NowPlayingInfo {
@@ -407,6 +418,16 @@ mod tests {
         );
         let timed = latest.read().unwrap();
         assert_eq!(timed.as_ref().unwrap().info.elapsed_time, Some(56.86));
+    }
+
+    #[test]
+    fn anchors_existing_playback_to_the_media_timestamp() {
+        let mut current = info();
+        current.info_update_time = Some(SystemTime::now() - Duration::from_secs(30));
+        let snapshot = snapshot_from_info(&timed_info(current).unwrap());
+        assert!(snapshot
+            .position_ms
+            .is_some_and(|position| (42_345..43_345).contains(&position)));
     }
 
     #[test]
