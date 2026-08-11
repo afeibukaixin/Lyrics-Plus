@@ -15,7 +15,7 @@ use config::{ConfigStore, GlobalShortcutSettings};
 use language::UiLanguage;
 pub(crate) use overlay_effect::sync_overlay_vibrancy;
 use overlay_effect::{HORIZONTAL_OVERLAY_SURFACE_INSET, VERTICAL_OVERLAY_SURFACE_INSET};
-use player::{query_selected_player, PlayerSelection};
+use player::{query_selected_player, PlayerSelection, SystemMediaService};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
@@ -646,9 +646,22 @@ fn start_player_monitor(app: tauri::AppHandle) {
                         .unwrap_or_else(|error| error.into_inner())
                 })
                 .unwrap_or(None);
+            let system_media = app
+                .try_state::<AppState>()
+                .map(|state| state.system_media.clone())
+                .unwrap_or_else(|| Arc::new(SystemMediaService::default()));
+            let system_media_applications = app
+                .try_state::<AppState>()
+                .map(|state| state.config.snapshot().app.system_media_applications)
+                .unwrap_or_default();
 
             let (snapshot, next_auto_player) = tauri::async_runtime::spawn_blocking(move || {
-                query_selected_player(selection, previous_auto_player)
+                query_selected_player(
+                    selection,
+                    previous_auto_player,
+                    &system_media,
+                    &system_media_applications,
+                )
             })
             .await
             .unwrap_or_else(|error| {
@@ -1673,6 +1686,7 @@ pub fn run() {
                 config,
                 providers: Arc::new(lyrics::provider::ProviderRegistry::new(provider_settings)),
                 artwork: Arc::new(artwork),
+                system_media: Arc::new(SystemMediaService::default()),
                 http: reqwest::Client::builder()
                     .user_agent(concat!(
                         "Lyrics Plus/",
@@ -1795,6 +1809,8 @@ pub fn run() {
             commands::show_quick_lyrics_window,
             commands::get_app_config,
             commands::set_ui_font_scale,
+            commands::resolve_system_media_applications,
+            commands::set_system_media_applications,
             commands::set_language,
             commands::set_native_language,
             commands::get_global_shortcut_status,

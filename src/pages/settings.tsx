@@ -41,6 +41,7 @@ export type SettingsOutletContext = {
   setUiFontScale: ReturnType<typeof useAppConfig>["setUiFontScale"];
   setLanguage: ReturnType<typeof useAppConfig>["setLanguage"];
   setGlobalShortcuts: ReturnType<typeof useAppConfig>["setGlobalShortcuts"];
+  setSystemMediaApplications: ReturnType<typeof useAppConfig>["setSystemMediaApplications"];
   setDockIconHidden: ReturnType<typeof useAppConfig>["setDockIconHidden"];
   setOverlayHideWhenNotPlaying: ReturnType<typeof useAppConfig>["setOverlayHideWhenNotPlaying"];
   playback: ReturnType<typeof usePlayback>;
@@ -81,6 +82,7 @@ export default function Settings() {
     setUiFontScale,
     setLanguage,
     setGlobalShortcuts,
+    setSystemMediaApplications,
     setDockIconHidden,
     setOverlayHideWhenNotPlaying,
     syncConfig,
@@ -350,6 +352,7 @@ export default function Settings() {
       setUiFontScale,
       setLanguage,
     setGlobalShortcuts,
+    setSystemMediaApplications,
     setDockIconHidden,
     setOverlayHideWhenNotPlaying,
     playback,

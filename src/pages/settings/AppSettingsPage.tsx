@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { open } from "@tauri-apps/plugin-dialog";
 import { defaultGlobalShortcuts, type GlobalShortcutSettings, type GlobalShortcutStatus, type LanguagePreference, type PlayerSelection } from "../../shared/types";
 import { api, messageOf } from "../../shared/api";
 import { languageRegistry, supportedLanguages } from "../../shared/languages";
@@ -9,7 +10,7 @@ import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
 import { RangeRow, SelectRow, SettingsCard, SettingsHeading, ToggleRow } from "./components";
 
-const playerOptions: PlayerSelection[] = ["auto", "apple_music", "spotify"];
+const playerOptions: PlayerSelection[] = ["auto", "apple_music", "spotify", "system"];
 const languageOptions = supportedLanguages.map((code) => ({ code, label: languageRegistry[code].nativeLabel }));
 
 type ShortcutAction = keyof GlobalShortcutSettings;
@@ -53,6 +54,7 @@ export default function AppSettingsPage() {
     setUiFontScale,
     setLanguage,
     setGlobalShortcuts,
+    setSystemMediaApplications,
     setDockIconHidden,
     playback,
     lyrics,
@@ -64,6 +66,7 @@ export default function AppSettingsPage() {
   const [recording, setRecording] = useState<ShortcutAction | null>(null);
   const [savingShortcut, setSavingShortcut] = useState(false);
   const [shortcutStatus, setShortcutStatus] = useState<GlobalShortcutStatus | null>(null);
+  const [savingApplications, setSavingApplications] = useState(false);
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -98,12 +101,57 @@ export default function AppSettingsPage() {
     ? shortcutActions.filter((action) => !shortcutStatus[action])
     : [];
   const languagePreference = normalizeLanguagePreference(config.app.language);
+  const currentBundleId = playback.snapshot.sourceAppBundleId;
+  const canAddCurrent = Boolean(currentBundleId)
+    && !["com.apple.Music", "com.spotify.client"].includes(currentBundleId ?? "")
+    && !config.app.systemMediaApplications.some((application) => application.bundleId === currentBundleId);
+  const saveApplications = async (applications: typeof config.app.systemMediaApplications) => {
+    setSavingApplications(true);
+    setError(null);
+    try {
+      await setSystemMediaApplications(applications);
+    } catch (error) {
+      setError(messageOf(error));
+    } finally {
+      setSavingApplications(false);
+    }
+  };
+  const chooseApplications = async () => {
+    const paths = await open({
+      multiple: true,
+      filters: [{ name: t("settings.app.systemApplicationsPicker"), extensions: ["app"] }],
+    });
+    if (!paths) return;
+    setSavingApplications(true);
+    setError(null);
+    try {
+      const resolved = await api.resolveSystemMediaApplications(Array.isArray(paths) ? paths : [paths]);
+      await setSystemMediaApplications([...config.app.systemMediaApplications, ...resolved]);
+    } catch (error) {
+      setError(messageOf(error));
+    } finally {
+      setSavingApplications(false);
+    }
+  };
 
   return (
     <>
       <SettingsHeading title={t("settings.app.title")} description={t("settings.app.description")} onReset={() => void resetSection("app")} resetting={resettingSection === "app"} confirming={confirmingReset === "app"} />
       <SettingsCard title={t("settings.app.player")}>
-        <div className={styles.playerOptions}>{playerOptions.map((option) => <button key={option} data-active={playback.selection === option} onClick={() => playback.setSelection(option)}>{option === "auto" ? t("settings.app.playerAuto") : option === "apple_music" ? "Apple Music" : "Spotify"}</button>)}</div>
+        <div className={styles.playerOptions}>{playerOptions.map((option) => <button key={option} data-active={playback.selection === option} onClick={() => playback.setSelection(option)}>{option === "auto" ? t("settings.app.playerAuto") : option === "apple_music" ? "Apple Music" : option === "spotify" ? "Spotify" : t("settings.app.playerSystem")}</button>)}</div>
+      </SettingsCard>
+      <SettingsCard title={t("settings.app.systemApplications")}>
+        <p className={styles.cardHint}>{t("settings.app.systemApplicationsHint")}</p>
+        <div className={styles.shortcutControls}>
+          <button className={styles.shortcutReset} disabled={savingApplications || !canAddCurrent} onClick={() => void saveApplications([...config.app.systemMediaApplications, { name: playback.snapshot.sourceAppName ?? currentBundleId!, bundleId: currentBundleId! }])}>{t("settings.app.addCurrentApplication")}</button>
+          <button className={styles.shortcutReset} disabled={savingApplications} onClick={() => void chooseApplications()}>{t("settings.app.chooseApplications")}</button>
+        </div>
+        {config.app.systemMediaApplications.map((application) => (
+          <div className={styles.shortcutRow} key={application.bundleId}>
+            <span>{application.name}<small>{application.bundleId}</small></span>
+            <button className={styles.shortcutReset} disabled={savingApplications} onClick={() => void saveApplications(config.app.systemMediaApplications.filter((item) => item.bundleId !== application.bundleId))}>{t("common.actions.remove")}</button>
+          </div>
+        ))}
       </SettingsCard>
       <SettingsCard title={t("settings.app.display")}>
         <SelectRow

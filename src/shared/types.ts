@@ -2,7 +2,7 @@ import type { SupportedLanguage } from "./languages";
 
 export type { SupportedLanguage } from "./languages";
 
-export type PlayerKind = "apple_music" | "spotify";
+export type PlayerKind = "apple_music" | "spotify" | "system";
 export type PlayerSelection = "auto" | PlayerKind;
 export type PlaybackErrorCode =
   | "waiting"
@@ -12,7 +12,13 @@ export type PlaybackErrorCode =
   | "invalid_response"
   | "multiple_playing"
   | "no_unique_player"
+  | "source_not_allowed"
   | "unavailable";
+
+export type SystemMediaApplication = {
+  name: string;
+  bundleId: string;
+};
 
 export type GlobalShortcutSettings = {
   toggleOverlay: string;
@@ -53,6 +59,8 @@ export type PlaybackSnapshot = {
   title: string | null;
   artist: string | null;
   album: string | null;
+  sourceAppName: string | null;
+  sourceAppBundleId: string | null;
   durationMs: number | null;
   positionMs: number | null;
   canSeek: boolean;
@@ -173,6 +181,7 @@ export type AppConfig = {
     uiFontScale: number;
     language: string;
     playerSelection: PlayerSelection;
+    systemMediaApplications: SystemMediaApplication[];
     hideDockIcon: boolean;
     autoCheckUpdates: boolean;
     shortcuts: GlobalShortcutSettings;

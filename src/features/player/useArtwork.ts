@@ -18,15 +18,26 @@ export function useArtwork(snapshot: PlaybackSnapshot) {
     if (!isTauriRuntime() || !player || !trackId) return;
 
     let current = true;
-    void api.getTrackArtwork(player, trackId).then((asset) => {
-      if (!current || !asset || asset.player !== player || asset.trackId !== trackId) return;
-      setArtwork({ url: convertFileSrc(asset.filePath), loaded: false });
-    }).catch(() => {
-      if (current) setArtwork(null);
-    });
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let attempts = 0;
+    const load = () => {
+      attempts += 1;
+      void api.getTrackArtwork(player, trackId).then((asset) => {
+        if (!current) return;
+        if (!asset || asset.player !== player || asset.trackId !== trackId) {
+          if (player === "system" && attempts < 5) retry = setTimeout(load, 1_000);
+          return;
+        }
+        setArtwork({ url: convertFileSrc(asset.filePath), loaded: false });
+      }).catch(() => {
+        if (current) setArtwork(null);
+      });
+    };
+    load();
 
     return () => {
       current = false;
+      if (retry) clearTimeout(retry);
     };
   }, [player, trackId]);
 

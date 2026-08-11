@@ -6,7 +6,7 @@ export const zhTW = {
     actions: {
       apply: "套用", clear: "清除", close: "關閉", test: "測試", testing: "測試中",
       reset: "重設", resetDefault: "恢復預設值", resetting: "恢復中…", confirmAgain: "再次點擊以確認",
-      search: "搜尋", searching: "搜尋中…", reload: "重新載入", open: "開啟", save: "儲存", cancel: "取消",
+      search: "搜尋", searching: "搜尋中…", reload: "重新載入", open: "開啟", save: "儲存", cancel: "取消", remove: "移除",
     },
     feature: {
       translation: "翻譯", romanization: "羅馬拼音", wordTiming: "逐字", synced: "同步",
@@ -62,7 +62,8 @@ export const zhTW = {
     notInstalled: "尚未安裝 {{player}}", automationDenied: "沒有播放器自動化權限。請前往「系統設定 → 隱私權與安全性 → 自動化」，允許 Lyrics Plus 控制播放器。",
     responseTimeout: "播放器回應逾時", invalidResponse: "無法讀取播放器狀態",
     multiplePlaying: "Apple Music 與 Spotify 正同時播放，請手動選擇播放器",
-    noUniquePlayer: "未偵測到唯一正在播放的 Apple Music 或 Spotify",
+    noUniquePlayer: "未偵測到正在播放的應用程式",
+    sourceNotAllowed: "{{application}}（{{bundleId}}）不在自動識別允許清單中",
   },
   home: {
     mainNavigation: "主要導覽", library: "歌詞庫", settings: "設定",
@@ -138,7 +139,7 @@ failed: "歌詞資料夾掃描失敗",
     },
     app: {
       title: "應用程式", description: "選擇播放器並管理主介面、選單列與快速鍵。", player: "播放器",
-      playerAuto: "自動選擇", display: "主介面顯示", language: { label: "介面語言", description: "立即套用到所有視窗，並儲存至應用程式設定。" },
+      playerAuto: "自動選擇", playerSystem: "系統正在播放", systemApplications: "系統播放應用程式", systemApplicationsHint: "僅限制自動模式中的第三方應用程式；清單為空時允許全部。", addCurrentApplication: "加入目前播放應用程式", chooseApplications: "從 Finder 選擇應用程式", systemApplicationsPicker: "macOS 應用程式", display: "主介面顯示", language: { label: "介面語言", description: "立即套用到所有視窗，並儲存至應用程式設定。" },
       fontScale: "主介面字體大小", fontScaleHint: "只放大首頁、設定和歌詞庫的文字；視窗大小、控制項和桌面歌詞不受影響。",
       dockMenu: "Dock 與選單列", hideDock: "隱藏 Dock 圖示和執行指示點", hideDockHint: "隱藏後仍可透過選單列圖示開啟 Lyrics Plus",
       shortcuts: "快速鍵", openSettings: "開啟設定", toggleOverlay: "顯示 / 隱藏桌面歌詞", unlockOverlay: "鎖定 / 解鎖桌面歌詞",

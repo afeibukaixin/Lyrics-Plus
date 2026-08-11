@@ -6,7 +6,7 @@ use std::process::Command;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use image::codecs::jpeg::JpegEncoder;
-use image::ImageReader;
+use image::{DynamicImage, ImageReader};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
@@ -206,6 +206,7 @@ impl ArtworkService {
         let album = snapshot.album.clone().unwrap_or_default();
 
         let source = match player {
+            PlayerKind::System => return Ok(None),
             PlayerKind::Spotify => {
                 let expected_id = track_id.to_string();
                 let url = tauri::async_runtime::spawn_blocking(move || {
@@ -265,6 +266,32 @@ impl ArtworkService {
         Ok(Some(asset(player, track_id, &final_path)))
     }
 
+    pub async fn store_system_artwork(
+        &self,
+        track_id: &str,
+        image: DynamicImage,
+    ) -> Result<ArtworkAsset, String> {
+        let _guard = self.operation_lock.lock().await;
+        let final_path = self.cache_path(PlayerKind::System, track_id);
+        if is_nonempty_file(&final_path) {
+            return Ok(asset(PlayerKind::System, track_id, &final_path));
+        }
+
+        let output_path = final_path.clone();
+        let temp_path = self.temp_path("system-media");
+        let cache_dir = self.cache_dir.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            let normalized = normalize_dynamic_image(image)?;
+            write_atomically(&output_path, &temp_path, &normalized)?;
+            prune_cache(&cache_dir, MAX_CACHE_FILES);
+            Ok::<(), String>(())
+        })
+        .await
+        .map_err(|error| format!("Failed to join system artwork processing task: {error}"))??;
+
+        Ok(asset(PlayerKind::System, track_id, &final_path))
+    }
+
     fn cache_path(&self, player: PlayerKind, track_id: &str) -> PathBuf {
         self.cache_dir
             .join(format!("{}.jpg", cache_key(player, track_id)))
@@ -284,6 +311,7 @@ pub(crate) fn player_name(player: PlayerKind) -> &'static str {
     match player {
         PlayerKind::AppleMusic => "apple_music",
         PlayerKind::Spotify => "spotify",
+        PlayerKind::System => "system",
     }
 }
 
@@ -296,6 +324,7 @@ fn cache_key(player: PlayerKind, track_id: &str) -> String {
             )
         }
         PlayerKind::Spotify => format!("{}:{track_id}", player_name(player)),
+        PlayerKind::System => format!("{}:{track_id}", player_name(player)),
     };
     let digest = Sha256::digest(identity.as_bytes());
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
@@ -451,7 +480,12 @@ fn normalize_image(source: &[u8]) -> Result<Vec<u8>, String> {
         .with_guessed_format()
         .map_err(|error| format!("Failed to detect artwork format: {error}"))?
         .decode()
-        .map_err(|error| format!("Failed to decode artwork: {error}"))?
+        .map_err(|error| format!("Failed to decode artwork: {error}"))?;
+    normalize_dynamic_image(image)
+}
+
+fn normalize_dynamic_image(image: DynamicImage) -> Result<Vec<u8>, String> {
+    let image = image
         .thumbnail(MAX_ARTWORK_DIMENSION, MAX_ARTWORK_DIMENSION)
         .to_rgb8();
     let mut output = Vec::new();
@@ -677,6 +711,19 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(result.file_path, path.to_string_lossy());
+    }
+
+    #[tokio::test]
+    async fn stores_system_artwork_in_the_shared_cache() {
+        let root = tempdir().unwrap();
+        let service = ArtworkService::new(root.path().to_path_buf()).unwrap();
+        let image = image::load_from_memory(&sample_png(900, 600)).unwrap();
+        let result = service
+            .store_system_artwork("system-track", image)
+            .await
+            .unwrap();
+        assert_eq!(result.player, PlayerKind::System);
+        assert!(is_nonempty_file(Path::new(&result.file_path)));
     }
 
     #[test]

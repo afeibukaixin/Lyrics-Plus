@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
@@ -34,6 +35,9 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             }
             line if line.starts_with("    \"playerSelection\":") => {
                 Some(("    ", ConfigComment::PlayerSelection))
+            }
+            line if line.starts_with("    \"systemMediaApplications\":") => {
+                Some(("    ", ConfigComment::SystemMediaApplications))
             }
             line if line.starts_with("    \"hideDockIcon\":") => {
                 Some(("    ", ConfigComment::HideDockIcon))
@@ -141,6 +145,7 @@ pub struct AppPreferences {
     pub ui_font_scale: u16,
     pub language: LanguagePreference,
     pub player_selection: PlayerSelection,
+    pub system_media_applications: Vec<SystemMediaApplication>,
     pub hide_dock_icon: bool,
     pub auto_check_updates: bool,
     pub shortcuts: GlobalShortcutSettings,
@@ -152,11 +157,49 @@ impl Default for AppPreferences {
             ui_font_scale: 100,
             language: LanguagePreference::default(),
             player_selection: PlayerSelection::Auto,
+            system_media_applications: Vec::new(),
             hide_dock_icon: false,
             auto_check_updates: true,
             shortcuts: GlobalShortcutSettings::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemMediaApplication {
+    pub name: String,
+    pub bundle_id: String,
+}
+
+pub fn normalize_system_media_applications(
+    applications: Vec<SystemMediaApplication>,
+) -> Result<Vec<SystemMediaApplication>, String> {
+    let mut bundle_ids = HashSet::new();
+    let mut normalized = Vec::new();
+    for application in applications {
+        let bundle_id = application.bundle_id.trim();
+        if bundle_id.is_empty() {
+            return Err("系统播放应用的 Bundle ID 不能为空".into());
+        }
+        if bundle_id.len() > 255
+            || bundle_id.starts_with('.')
+            || bundle_id.ends_with('.')
+            || bundle_id
+                .chars()
+                .any(|value| !(value.is_ascii_alphanumeric() || matches!(value, '.' | '-')))
+        {
+            return Err(format!("无效的 Bundle ID：{bundle_id}"));
+        }
+        if bundle_ids.insert(bundle_id.to_owned()) {
+            let name = application.name.trim();
+            normalized.push(SystemMediaApplication {
+                name: if name.is_empty() { bundle_id } else { name }.to_owned(),
+                bundle_id: bundle_id.to_owned(),
+            });
+        }
+    }
+    Ok(normalized)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -363,6 +406,8 @@ impl AppConfig {
         }
         self.schema_version = CONFIG_SCHEMA_VERSION;
         self.app.ui_font_scale = normalize_ui_font_scale(self.app.ui_font_scale);
+        self.app.system_media_applications =
+            normalize_system_media_applications(self.app.system_media_applications)?;
         self.app.shortcuts.parsed()?;
         let normalized_style = self.overlay.appearance.clone().into_style();
         for (name, color) in color_fields(&normalized_style) {
@@ -748,6 +793,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                 "uiFontScale",
                 "language",
                 "playerSelection",
+                "systemMediaApplications",
                 "hideDockIcon",
                 "autoCheckUpdates",
                 "autostart",
@@ -760,6 +806,11 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                 raw,
                 &["toggleOverlay", "unlockOverlay", "resetOverlay"],
             )?;
+        }
+        if let Some(applications) = app.get("systemMediaApplications").and_then(Value::as_array) {
+            for application in applications {
+                check_keys(application, raw, &["name", "bundleId"])?;
+            }
         }
     }
     if let Some(lyrics) = value.get("lyrics") {
@@ -837,6 +888,29 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             return Err(error_at_key(raw, key, &format!("{key} 必须是对象")));
         }
     }
+    if let Some(applications) = value.pointer("/app/systemMediaApplications") {
+        let Some(applications) = applications.as_array() else {
+            return Err(error_at_key(
+                raw,
+                "systemMediaApplications",
+                "systemMediaApplications 必须是数组",
+            ));
+        };
+        for application in applications {
+            let Some(application) = application.as_object() else {
+                return Err(error_at_key(
+                    raw,
+                    "systemMediaApplications",
+                    "系统播放应用必须是对象",
+                ));
+            };
+            for key in ["name", "bundleId"] {
+                if !application.get(key).is_some_and(Value::is_string) {
+                    return Err(error_at_key(raw, key, &format!("{key} 必须是字符串")));
+                }
+            }
+        }
+    }
     for (pointer, key) in [
         ("/app/autostart", "autostart"),
         ("/app/hideDockIcon", "hideDockIcon"),
@@ -875,7 +949,7 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         raw,
         "/app/playerSelection",
         "playerSelection",
-        &["auto", "apple_music", "spotify"],
+        &["auto", "apple_music", "spotify", "system"],
     )?;
     for (pointer, key) in [
         ("/app/shortcuts/toggleOverlay", "toggleOverlay"),
@@ -1484,6 +1558,19 @@ mod tests {
         assert_eq!(parsed.config.app.ui_font_scale, 120);
         assert_eq!(parsed.config.overlay.appearance.active_color, "#ff0000");
         assert_eq!(parsed.config.app.player_selection, PlayerSelection::Auto);
+    }
+
+    #[test]
+    fn accepts_system_player_selection() {
+        let parsed = parse_config_draft(r#"{"app":{"playerSelection":"system"}}"#).unwrap();
+        assert_eq!(parsed.config.app.player_selection, PlayerSelection::System);
+        let serialized = serde_json::to_value(parsed.config).unwrap();
+        assert_eq!(
+            serialized
+                .pointer("/app/playerSelection")
+                .and_then(Value::as_str),
+            Some("system")
+        );
     }
 
     #[test]
@@ -2162,5 +2249,27 @@ mod tests {
         assert_eq!(store.snapshot().app.ui_font_scale, 120);
         drop(storage);
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn system_media_applications_validate_deduplicate_and_round_trip() {
+        let parsed = parse_config_draft(
+            r#"{"app":{"systemMediaApplications":[{"name":"Player","bundleId":"org.example.Player"},{"name":"Duplicate","bundleId":"org.example.Player"}]}}"#,
+        )
+        .unwrap();
+        assert_eq!(parsed.config.app.system_media_applications.len(), 1);
+        assert_eq!(
+            parsed.config.app.system_media_applications[0].bundle_id,
+            "org.example.Player"
+        );
+        assert!(parse_config_draft(
+            r#"{"app":{"systemMediaApplications":[{"name":"Broken","bundleId":""}]}}"#
+        )
+        .is_err());
+        assert!(parse_config_draft(
+            r#"{"app":{"systemMediaApplications":[{"name":"Broken","bundleId":"not valid"}]}}"#
+        )
+        .is_err());
+        assert!(parse_config_draft(r#"{"app":{"systemMediaApplications":{}}}"#).is_err());
     }
 }

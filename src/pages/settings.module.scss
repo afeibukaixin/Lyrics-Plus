@@ -110,12 +110,13 @@
 .provider .switch { width: 30px; height: 17px; }
 .provider .switch span { width: 13px; height: 13px; }
 .provider .switch[data-on="true"] span { transform: translateX(13px); }
-.playerOptions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; padding: 13px; }
+.playerOptions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; padding: 13px; }
 .playerOptions button { min-width: 0; padding: 11px; border: 1px solid #ffffff0d; border-radius: 9px; background: #ffffff04; color: #7d8393; overflow-wrap: anywhere; font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); font-weight: var(--typography-label-weight); }
 .playerOptions button[data-active="true"] { border-color: #9277f455; background: #9277f417; color: #b6a5ff; }
 .shortcutRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 11px 14px; border-bottom: 1px solid #ffffff09; color: #979cab; font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); font-weight: var(--typography-label-weight); }
 .shortcutRow:last-child { border-bottom: 0; }
 .shortcutRow kbd { padding: 4px 7px; border: 1px solid #ffffff13; border-radius: 6px; background: #0c0e13; color: #b9bdc9; font: inherit; }
+.shortcutRow small { display: block; margin-top: 2px; color: #666c7b; font-size: var(--typography-caption-size); font-weight: 400; }
 .shortcutControls { display: flex; align-items: center; gap: 6px; }
 .shortcutRecorder, .shortcutReset { padding: 5px 8px; border: 1px solid #ffffff13; border-radius: 6px; background: #0c0e13; color: #b9bdc9; font-size: var(--typography-caption-size); line-height: var(--typography-caption-line-height); font-weight: var(--typography-caption-weight); }
 .shortcutRecorder { min-width: 112px; }

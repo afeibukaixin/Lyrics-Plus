@@ -6,7 +6,7 @@ export const enUS = {
     actions: {
       apply: "Apply", clear: "Clear", close: "Close", test: "Test", testing: "Testing",
       reset: "Reset", resetDefault: "Restore defaults", resetting: "Restoring…", confirmAgain: "Click again to confirm",
-      search: "Search", searching: "Searching…", reload: "Reload", open: "Open", save: "Save", cancel: "Cancel",
+      search: "Search", searching: "Searching…", reload: "Reload", open: "Open", save: "Save", cancel: "Cancel", remove: "Remove",
     },
     feature: {
       translation: "Translation", romanization: "Romanization", wordTiming: "Word timing", synced: "Synced",
@@ -62,7 +62,8 @@ export const enUS = {
     notInstalled: "{{player}} is not installed", automationDenied: "Player automation access is unavailable. Allow Lyrics Plus to control the player in System Settings → Privacy & Security → Automation.",
     responseTimeout: "The player did not respond in time", invalidResponse: "Could not read the player state",
     multiplePlaying: "Apple Music and Spotify are both playing. Select a player manually.",
-    noUniquePlayer: "No single active Apple Music or Spotify player was detected.",
+    noUniquePlayer: "No active media application was detected.",
+    sourceNotAllowed: "{{application}} ({{bundleId}}) is not allowed for automatic detection.",
   },
   home: {
     mainNavigation: "Main navigation", library: "Lyrics Library", settings: "Settings",
@@ -138,7 +139,7 @@ failed: "Lyrics directory scan failed",
     },
     app: {
       title: "Application", description: "Choose a player and manage the main interface, menu bar, and shortcuts.", player: "Player",
-      playerAuto: "Automatic", display: "Main Interface", language: { label: "Interface language", description: "Applies immediately to every window and is saved in the app configuration." },
+      playerAuto: "Automatic", playerSystem: "System Now Playing", systemApplications: "System Media Applications", systemApplicationsHint: "Only limits third-party apps in Automatic mode; an empty list allows all.", addCurrentApplication: "Add Current App", chooseApplications: "Choose Apps in Finder", systemApplicationsPicker: "macOS Applications", display: "Main Interface", language: { label: "Interface language", description: "Applies immediately to every window and is saved in the app configuration." },
       fontScale: "Interface text size", fontScaleHint: "Only text on the home page, settings, and lyrics library is scaled. Window sizes, controls, and desktop lyrics are unchanged.",
       dockMenu: "Dock & Menu Bar", hideDock: "Hide Dock icon and running indicator", hideDockHint: "Lyrics Plus remains available from the menu bar",
       shortcuts: "Shortcuts", openSettings: "Open Settings", toggleOverlay: "Show / hide desktop lyrics", unlockOverlay: "Lock / unlock desktop lyrics",

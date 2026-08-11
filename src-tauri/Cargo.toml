@@ -45,6 +45,7 @@ objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["NSEvent", "NSGraphics", "NSResponder", "NSUserInterfaceItemIdentification", "NSView", "NSVisualEffectView", "NSWindow", "objc2-quartz-core"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["NSArray", "NSEnumerator", "NSGeometry", "NSString"] }
 objc2-quartz-core = { version = "0.3", default-features = false, features = ["CALayer", "objc2-core-foundation"] }
+media-remote = "=0.3.7"
 
 [dev-dependencies]
 tempfile = "3"

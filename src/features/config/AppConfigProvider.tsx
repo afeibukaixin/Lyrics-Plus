@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, isTauriRuntime } from "../../shared/api";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
-import { defaultGlobalShortcuts, defaultOverlayStyle, type AppConfig, type GlobalShortcutSettings, type LanguagePreference } from "../../shared/types";
+import { defaultGlobalShortcuts, defaultOverlayStyle, type AppConfig, type GlobalShortcutSettings, type LanguagePreference, type SystemMediaApplication } from "../../shared/types";
 
 const defaultOverlayAppearance = (({
   horizontalMaxWidth: _horizontalMaxWidth,
@@ -17,7 +17,7 @@ const defaultTitleFilterKeywords = [
 
 const defaultConfig: AppConfig = {
   schemaVersion: 16,
-  app: { uiFontScale: 100, language: "system", playerSelection: "auto", hideDockIcon: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
+  app: { uiFontScale: 100, language: "system", playerSelection: "auto", systemMediaApplications: [], hideDockIcon: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
       mode: "smart",
@@ -44,6 +44,7 @@ type AppConfigContextValue = {
   setUiFontScale: (scale: number) => Promise<void>;
   setLanguage: (language: LanguagePreference) => Promise<void>;
   setGlobalShortcuts: (shortcuts: GlobalShortcutSettings) => Promise<void>;
+  setSystemMediaApplications: (applications: SystemMediaApplication[]) => Promise<void>;
   setDockIconHidden: (hidden: boolean) => Promise<void>;
   setAutoCheckUpdates: (enabled: boolean) => Promise<void>;
   setOverlayHideWhenNotPlaying: (hidden: boolean) => Promise<void>;
@@ -102,6 +103,13 @@ export function AppConfigProvider({
         return;
       }
       setConfig(await api.setGlobalShortcuts(shortcuts));
+    },
+    setSystemMediaApplications: async (applications) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({ ...current, app: { ...current.app, systemMediaApplications: applications } }));
+        return;
+      }
+      setConfig(await api.setSystemMediaApplications(applications));
     },
     setDockIconHidden: async (hidden) => {
       if (!isTauriRuntime()) {

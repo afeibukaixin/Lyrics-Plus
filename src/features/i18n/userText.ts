@@ -22,15 +22,18 @@ export function playbackStatusText(snapshot: PlaybackSnapshot, t: TFunction): st
   switch (snapshot.errorCode) {
     case "waiting": return t("player.waiting");
     case "not_installed": return t("player.notInstalled", {
-      player: snapshot.player === "apple_music" ? "Apple Music" : "Spotify",
+      player: snapshot.player === "apple_music" ? "Apple Music" : snapshot.player === "spotify" ? "Spotify" : t("settings.app.playerSystem"),
     });
     case "automation_denied": return t("player.automationDenied");
     case "response_timeout": return t("player.responseTimeout");
     case "invalid_response": return t("player.invalidResponse");
     case "multiple_playing": return t("player.multiplePlaying");
     case "no_unique_player": return t("player.noUniquePlayer");
+    case "source_not_allowed": return t("player.sourceNotAllowed", {
+      application: snapshot.sourceAppName ?? snapshot.sourceAppBundleId ?? t("settings.app.playerSystem"),
+      bundleId: snapshot.sourceAppBundleId ?? "",
+    });
     case "unavailable": return t("player.unavailable");
     default: return snapshot.error ? t("player.unavailable") : null;
   }
 }
-

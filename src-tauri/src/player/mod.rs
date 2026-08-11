@@ -4,6 +4,11 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use wait_timeout::ChildExt;
 
+use crate::config::SystemMediaApplication;
+
+mod system_media;
+pub use system_media::SystemMediaService;
+
 const PROCESS_TIMEOUT_ERROR: &str = "Process timed out";
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -11,6 +16,7 @@ const PROCESS_TIMEOUT_ERROR: &str = "Process timed out";
 pub enum PlayerKind {
     AppleMusic,
     Spotify,
+    System,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -19,6 +25,7 @@ pub enum PlayerSelection {
     Auto,
     AppleMusic,
     Spotify,
+    System,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -31,6 +38,7 @@ pub enum PlaybackErrorCode {
     InvalidResponse,
     MultiplePlaying,
     NoUniquePlayer,
+    SourceNotAllowed,
     Unavailable,
 }
 
@@ -40,6 +48,7 @@ impl PlayerSelection {
             Self::Auto => None,
             Self::AppleMusic => Some(PlayerKind::AppleMusic),
             Self::Spotify => Some(PlayerKind::Spotify),
+            Self::System => Some(PlayerKind::System),
         }
     }
 
@@ -47,6 +56,7 @@ impl PlayerSelection {
         match value.as_deref() {
             Some("apple_music") => Self::AppleMusic,
             Some("spotify") => Self::Spotify,
+            Some("system") => Self::System,
             _ => Self::Auto,
         }
     }
@@ -62,6 +72,8 @@ pub struct PlaybackSnapshot {
     pub title: Option<String>,
     pub artist: Option<String>,
     pub album: Option<String>,
+    pub source_app_name: Option<String>,
+    pub source_app_bundle_id: Option<String>,
     pub duration_ms: Option<u64>,
     pub position_ms: Option<u64>,
     pub can_seek: bool,
@@ -80,6 +92,8 @@ impl Default for PlaybackSnapshot {
             title: None,
             artist: None,
             album: None,
+            source_app_name: None,
+            source_app_bundle_id: None,
             duration_ms: None,
             position_ms: None,
             can_seek: false,
@@ -112,6 +126,8 @@ impl PlaybackSnapshot {
             title: None,
             artist: None,
             album: None,
+            source_app_name: None,
+            source_app_bundle_id: None,
             duration_ms: None,
             position_ms: None,
             can_seek: false,
@@ -233,6 +249,7 @@ fn query_player(kind: PlayerKind) -> PlaybackSnapshot {
             };
             ("spotify", path)
         }
+        PlayerKind::System => unreachable!("system playback uses SystemMediaService"),
     };
     if !app_path.exists() {
         let name = if kind == PlayerKind::AppleMusic {
@@ -352,53 +369,251 @@ mod tests {
         assert_eq!(snapshot.error_code, Some(PlaybackErrorCode::Waiting));
         assert!(snapshot.error.is_some());
     }
+
+    #[test]
+    fn restores_system_player_selection() {
+        assert_eq!(
+            PlayerSelection::from_stored(Some("system".into())),
+            PlayerSelection::System
+        );
+        assert_eq!(
+            PlayerSelection::System.preferred_kind(),
+            Some(PlayerKind::System)
+        );
+    }
+
+    #[test]
+    fn system_source_allowlist_only_filters_third_party_apps() {
+        let mut snapshot = PlaybackSnapshot {
+            source_app_bundle_id: Some("org.example.Player".into()),
+            ..PlaybackSnapshot::default()
+        };
+        assert!(system_source_allowed(&snapshot, &[]));
+        assert!(!system_source_allowed(
+            &snapshot,
+            &[SystemMediaApplication {
+                name: "Other".into(),
+                bundle_id: "org.example.Other".into(),
+            }],
+        ));
+        snapshot.source_app_bundle_id = Some("com.apple.Music".into());
+        assert!(system_source_allowed(
+            &snapshot,
+            &[SystemMediaApplication {
+                name: "Other".into(),
+                bundle_id: "org.example.Other".into(),
+            }],
+        ));
+    }
+
+    #[test]
+    fn automatic_routing_prefers_system_source_then_native_fallbacks() {
+        let playing_system = |bundle_id: &str| PlaybackSnapshot {
+            player: Some(PlayerKind::System),
+            is_running: true,
+            is_playing: true,
+            title: Some("Track".into()),
+            source_app_bundle_id: Some(bundle_id.into()),
+            ..PlaybackSnapshot::default()
+        };
+        let native_music = PlaybackSnapshot {
+            player: Some(PlayerKind::AppleMusic),
+            is_running: true,
+            is_playing: true,
+            title: Some("Track".into()),
+            ..PlaybackSnapshot::default()
+        };
+        let (snapshot, selected) =
+            query_auto_player(playing_system("com.apple.Music"), None, &[], |kind| {
+                if kind == PlayerKind::AppleMusic {
+                    native_music.clone()
+                } else {
+                    PlaybackSnapshot::default()
+                }
+            });
+        assert_eq!(snapshot.player, Some(PlayerKind::AppleMusic));
+        assert_eq!(selected, Some(PlayerKind::AppleMusic));
+
+        let (snapshot, selected) =
+            query_auto_player(playing_system("com.spotify.client"), None, &[], |_| {
+                PlaybackSnapshot::default()
+            });
+        assert_eq!(snapshot.player, Some(PlayerKind::System));
+        assert_eq!(selected, Some(PlayerKind::System));
+
+        let allowed = [SystemMediaApplication {
+            name: "Browser".into(),
+            bundle_id: "org.example.Browser".into(),
+        }];
+        let (snapshot, _) = query_auto_player(
+            playing_system("org.example.Browser"),
+            None,
+            &allowed,
+            |_| PlaybackSnapshot::default(),
+        );
+        assert_eq!(snapshot.error_code, None);
+        let (snapshot, _) = query_auto_player(
+            playing_system("org.example.Blocked"),
+            None,
+            &allowed,
+            |_| PlaybackSnapshot::default(),
+        );
+        assert_eq!(
+            snapshot.error_code,
+            Some(PlaybackErrorCode::SourceNotAllowed)
+        );
+    }
+
+    #[test]
+    fn automatic_routing_keeps_paused_system_source_and_uses_legacy_detection_without_one() {
+        let paused = PlaybackSnapshot {
+            player: Some(PlayerKind::System),
+            is_running: true,
+            title: Some("Paused Track".into()),
+            source_app_bundle_id: Some("org.example.Player".into()),
+            ..PlaybackSnapshot::default()
+        };
+        let (snapshot, selected) = query_auto_player(paused, Some(PlayerKind::System), &[], |_| {
+            PlaybackSnapshot::default()
+        });
+        assert_eq!(snapshot.title.as_deref(), Some("Paused Track"));
+        assert_eq!(selected, Some(PlayerKind::System));
+
+        let (snapshot, selected) =
+            query_auto_player(PlaybackSnapshot::default(), None, &[], |kind| {
+                PlaybackSnapshot {
+                    player: Some(kind),
+                    is_running: true,
+                    is_playing: kind == PlayerKind::Spotify,
+                    ..PlaybackSnapshot::default()
+                }
+            });
+        assert_eq!(snapshot.player, Some(PlayerKind::Spotify));
+        assert_eq!(selected, Some(PlayerKind::Spotify));
+    }
 }
 
 pub fn query_selected_player(
     selection: PlayerSelection,
     previous_auto_player: Option<PlayerKind>,
+    system_media: &SystemMediaService,
+    system_media_applications: &[SystemMediaApplication],
 ) -> (PlaybackSnapshot, Option<PlayerKind>) {
     match selection {
         PlayerSelection::AppleMusic => (query_player(PlayerKind::AppleMusic), None),
         PlayerSelection::Spotify => (query_player(PlayerKind::Spotify), None),
-        PlayerSelection::Auto => {
-            let music = query_player(PlayerKind::AppleMusic);
-            let spotify = query_player(PlayerKind::Spotify);
-            if music.is_playing && spotify.is_playing {
-                (
-                    PlaybackSnapshot::unavailable_with_code(
-                        None,
-                        PlaybackErrorCode::MultiplePlaying,
-                        "Apple Music 与 Spotify 同时在播放，请手动选择播放器".into(),
-                    ),
-                    None,
-                )
-            } else if music.is_playing {
-                (music, Some(PlayerKind::AppleMusic))
-            } else if spotify.is_playing {
-                (spotify, Some(PlayerKind::Spotify))
-            } else if previous_auto_player == Some(PlayerKind::AppleMusic)
-                && music.is_running
-                && music.title.is_some()
-            {
-                (music, previous_auto_player)
-            } else if previous_auto_player == Some(PlayerKind::Spotify)
-                && spotify.is_running
-                && spotify.title.is_some()
-            {
-                (spotify, previous_auto_player)
-            } else {
-                (
-                    PlaybackSnapshot::unavailable_with_code(
-                        None,
-                        PlaybackErrorCode::NoUniquePlayer,
-                        "未检测到唯一正在播放的 Apple Music 或 Spotify".into(),
-                    ),
-                    None,
-                )
+        PlayerSelection::System => (system_media.snapshot(), None),
+        PlayerSelection::Auto => query_auto_player(
+            system_media.snapshot(),
+            previous_auto_player,
+            system_media_applications,
+            query_player,
+        ),
+    }
+}
+
+fn query_auto_player(
+    system: PlaybackSnapshot,
+    previous_auto_player: Option<PlayerKind>,
+    system_media_applications: &[SystemMediaApplication],
+    query: impl Fn(PlayerKind) -> PlaybackSnapshot,
+) -> (PlaybackSnapshot, Option<PlayerKind>) {
+    if system.is_playing {
+        match system.source_app_bundle_id.as_deref() {
+            Some("com.apple.Music") => {
+                let music = query(PlayerKind::AppleMusic);
+                return if music.is_playing {
+                    (music, Some(PlayerKind::AppleMusic))
+                } else {
+                    (system, Some(PlayerKind::System))
+                };
             }
+            Some("com.spotify.client") => {
+                let spotify = query(PlayerKind::Spotify);
+                return if spotify.is_playing {
+                    (spotify, Some(PlayerKind::Spotify))
+                } else {
+                    (system, Some(PlayerKind::System))
+                };
+            }
+            _ if system_source_allowed(&system, system_media_applications) => {
+                return (system, Some(PlayerKind::System));
+            }
+            _ => return (source_not_allowed(&system), Some(PlayerKind::System)),
         }
     }
+    if system.source_app_bundle_id.is_some()
+        && !system_source_allowed(&system, system_media_applications)
+    {
+        return (source_not_allowed(&system), Some(PlayerKind::System));
+    }
+    if previous_auto_player == Some(PlayerKind::System)
+        && system.is_running
+        && system.title.is_some()
+        && system_source_allowed(&system, system_media_applications)
+    {
+        return (system, previous_auto_player);
+    }
+    let music = query(PlayerKind::AppleMusic);
+    let spotify = query(PlayerKind::Spotify);
+    if music.is_playing && spotify.is_playing {
+        (
+            PlaybackSnapshot::unavailable_with_code(
+                None,
+                PlaybackErrorCode::MultiplePlaying,
+                "Apple Music 与 Spotify 同时在播放，请手动选择播放器".into(),
+            ),
+            None,
+        )
+    } else if music.is_playing {
+        (music, Some(PlayerKind::AppleMusic))
+    } else if spotify.is_playing {
+        (spotify, Some(PlayerKind::Spotify))
+    } else if previous_auto_player == Some(PlayerKind::AppleMusic)
+        && music.is_running
+        && music.title.is_some()
+    {
+        (music, previous_auto_player)
+    } else if previous_auto_player == Some(PlayerKind::Spotify)
+        && spotify.is_running
+        && spotify.title.is_some()
+    {
+        (spotify, previous_auto_player)
+    } else {
+        (
+            PlaybackSnapshot::unavailable_with_code(
+                None,
+                PlaybackErrorCode::NoUniquePlayer,
+                "未检测到唯一正在播放的 Apple Music 或 Spotify".into(),
+            ),
+            None,
+        )
+    }
+}
+
+fn system_source_allowed(
+    snapshot: &PlaybackSnapshot,
+    applications: &[SystemMediaApplication],
+) -> bool {
+    let Some(bundle_id) = snapshot.source_app_bundle_id.as_deref() else {
+        return applications.is_empty();
+    };
+    matches!(bundle_id, "com.apple.Music" | "com.spotify.client")
+        || applications.is_empty()
+        || applications
+            .iter()
+            .any(|application| application.bundle_id == bundle_id)
+}
+
+fn source_not_allowed(snapshot: &PlaybackSnapshot) -> PlaybackSnapshot {
+    let mut unavailable = PlaybackSnapshot::unavailable_with_code(
+        Some(PlayerKind::System),
+        PlaybackErrorCode::SourceNotAllowed,
+        "当前系统播放应用不在允许列表中".into(),
+    );
+    unavailable.source_app_name = snapshot.source_app_name.clone();
+    unavailable.source_app_bundle_id = snapshot.source_app_bundle_id.clone();
+    unavailable
 }
 
 pub fn perform_action(
@@ -409,6 +624,7 @@ pub fn perform_action(
     let app = match kind {
         PlayerKind::AppleMusic => "Music",
         PlayerKind::Spotify => "Spotify",
+        PlayerKind::System => return Err("系统播放器操作必须通过系统媒体服务执行".into()),
     };
     let script = match action {
         "play_pause" => format!("tell application \"{app}\" to playpause"),

@@ -12,6 +12,8 @@ const initialSnapshot: PlaybackSnapshot = {
   title: null,
   artist: null,
   album: null,
+  sourceAppName: null,
+  sourceAppBundleId: null,
   durationMs: null,
   positionMs: null,
   canSeek: false,

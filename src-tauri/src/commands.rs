@@ -1,4 +1,7 @@
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::{Arc, Mutex, RwLock};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager, State};
@@ -7,8 +10,9 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::artwork::{player_name, ArtworkAsset, ArtworkService};
 use crate::config::{
-    validate_config_draft, AppConfig, ConfigDraftValidation, ConfigEditorData, ConfigStore,
-    GlobalShortcutSettings, LanguagePreference, OverlayAppearance,
+    normalize_system_media_applications, validate_config_draft, AppConfig, ConfigDraftValidation,
+    ConfigEditorData, ConfigStore, GlobalShortcutSettings, LanguagePreference, OverlayAppearance,
+    SystemMediaApplication,
 };
 use crate::language::UiLanguage;
 use crate::lyrics::provider::{
@@ -16,7 +20,10 @@ use crate::lyrics::provider::{
     ProviderSettingsView, ProviderStatus,
 };
 use crate::lyrics::LyricsDocument;
-use crate::player::{perform_action, PlaybackSnapshot, PlayerKind, PlayerSelection};
+use crate::player::{
+    perform_action, run_with_timeout, PlaybackSnapshot, PlayerKind, PlayerSelection,
+    SystemMediaService,
+};
 use crate::storage::library::{LibraryPage, LibraryPreview, LibraryScanStatus};
 use crate::storage::{SaveKind, SaveRequest, Storage};
 
@@ -33,6 +40,7 @@ pub struct AppState {
     pub config: Arc<ConfigStore>,
     pub providers: Arc<ProviderRegistry>,
     pub artwork: Arc<ArtworkService>,
+    pub system_media: Arc<SystemMediaService>,
     pub http: reqwest::Client,
 }
 
@@ -348,7 +356,20 @@ pub async fn get_track_artwork(
         return Ok(None);
     }
 
-    match state.artwork.resolve(&snapshot, &state.http).await {
+    let result = if player == PlayerKind::System {
+        match state.system_media.artwork(&track_id) {
+            Some(image) => state
+                .artwork
+                .store_system_artwork(&track_id, image)
+                .await
+                .map(Some),
+            None => Ok(None),
+        }
+    } else {
+        state.artwork.resolve(&snapshot, &state.http).await
+    };
+
+    match result {
         Ok(asset) => Ok(asset),
         Err(error) => {
             log::warn!(
@@ -408,9 +429,16 @@ pub async fn player_action(
         .unwrap_or_else(|error| error.into_inner())
         .player
         .ok_or_else(|| "当前没有可控制的播放器".to_string())?;
-    tauri::async_runtime::spawn_blocking(move || perform_action(player, &action, position_ms))
-        .await
-        .map_err(|error| error.to_string())?
+    let system_media = state.system_media.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        if player == PlayerKind::System {
+            system_media.perform_action(&action, position_ms)
+        } else {
+            perform_action(player, &action, position_ms)
+        }
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
@@ -1291,6 +1319,66 @@ pub fn set_ui_font_scale(
     Ok(config)
 }
 
+fn plist_string(path: &Path, key: &str) -> Option<String> {
+    let mut command = Command::new("/usr/bin/plutil");
+    command.args(["-extract", key, "raw", "-o", "-"]).arg(path);
+    let output = run_with_timeout(command, Duration::from_secs(3)).ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    String::from_utf8(output.stdout)
+        .ok()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+}
+
+fn resolve_system_media_application(path: &Path) -> Result<SystemMediaApplication, String> {
+    if !path.is_dir() || path.extension().and_then(|value| value.to_str()) != Some("app") {
+        return Err(format!("不是有效的 .app：{}", path.display()));
+    }
+    let plist = path.join("Contents/Info.plist");
+    if !plist.is_file() {
+        return Err(format!("应用缺少 Info.plist：{}", path.display()));
+    }
+    let bundle_id = plist_string(&plist, "CFBundleIdentifier")
+        .ok_or_else(|| format!("应用缺少 Bundle ID：{}", path.display()))?;
+    let name = plist_string(&plist, "CFBundleDisplayName")
+        .or_else(|| plist_string(&plist, "CFBundleName"))
+        .or_else(|| {
+            path.file_stem()
+                .map(|value| value.to_string_lossy().into_owned())
+        })
+        .unwrap_or_else(|| bundle_id.clone());
+    Ok(SystemMediaApplication { name, bundle_id })
+}
+
+#[tauri::command]
+pub fn resolve_system_media_applications(
+    paths: Vec<PathBuf>,
+) -> Result<Vec<SystemMediaApplication>, String> {
+    normalize_system_media_applications(
+        paths
+            .iter()
+            .map(|path| resolve_system_media_application(path))
+            .collect::<Result<Vec<_>, _>>()?,
+    )
+}
+
+#[tauri::command]
+pub fn set_system_media_applications(
+    app: tauri::AppHandle,
+    applications: Vec<SystemMediaApplication>,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let applications = normalize_system_media_applications(applications)?;
+    let config = state
+        .config
+        .update(|config| config.app.system_media_applications = applications)?;
+    app.emit("config://changed", &config)
+        .map_err(|error| error.to_string())?;
+    Ok(config)
+}
+
 #[tauri::command]
 pub fn set_language(
     app: tauri::AppHandle,
@@ -1639,6 +1727,7 @@ pub fn reset_settings_section(
             state.config.update(|config| {
                 config.app.ui_font_scale = 100;
                 config.app.auto_check_updates = true;
+                config.app.system_media_applications.clear();
             })?;
         }
     }
@@ -2137,5 +2226,40 @@ mod tests {
             serde_json::to_string(&OverlayAlignment::Distributed).unwrap(),
             r#""distributed""#
         );
+    }
+
+    #[test]
+    fn resolves_a_macos_application_bundle() {
+        let root =
+            std::env::temp_dir().join(format!("lyrics-plus-app-resolver-{}", std::process::id()));
+        let application = root.join("Example.app");
+        std::fs::create_dir_all(application.join("Contents")).unwrap();
+        std::fs::write(
+            application.join("Contents/Info.plist"),
+            r#"<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>org.example.Player</string><key>CFBundleName</key><string>Example Player</string></dict></plist>"#,
+        )
+        .unwrap();
+        let resolved = resolve_system_media_application(&application).unwrap();
+        assert_eq!(resolved.bundle_id, "org.example.Player");
+        assert_eq!(resolved.name, "Example Player");
+        assert_eq!(
+            resolve_system_media_applications(vec![application.clone(), application.clone()])
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(resolve_system_media_application(&root).is_err());
+        let missing_plist = root.join("Missing.app");
+        std::fs::create_dir_all(&missing_plist).unwrap();
+        assert!(resolve_system_media_application(&missing_plist).is_err());
+        let missing_bundle_id = root.join("NoId.app/Contents");
+        std::fs::create_dir_all(&missing_bundle_id).unwrap();
+        std::fs::write(
+            missing_bundle_id.join("Info.plist"),
+            r#"<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleName</key><string>No ID</string></dict></plist>"#,
+        )
+        .unwrap();
+        assert!(resolve_system_media_application(&root.join("NoId.app")).is_err());
+        let _ = std::fs::remove_dir_all(root);
     }
 }
