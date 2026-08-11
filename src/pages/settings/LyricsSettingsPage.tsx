@@ -35,7 +35,7 @@ export default function LyricsSettingsPage() {
     setProviderDrag,
     providerDragTransform,
     toggleProvider,
-    testProvider,
+    testProviders,
     handleFile,
     resetSection,
     setError,
@@ -109,13 +109,14 @@ export default function LyricsSettingsPage() {
       <SettingsCard title={t("settings.lyrics.providerPriority")} trailing={providerView && <select aria-label={t("settings.lyrics.providerPriority")} disabled={savingProviderOrder} value={providerView.settings.mode} onChange={(event) => void saveProviderSettings({ ...providerView.settings, mode: event.target.value as ProviderSettings["mode"] })}><option value="strict">{t("settings.lyrics.strict")}</option><option value="smart">{t("settings.lyrics.smart")}</option></select>}>
         <p className={styles.cardHint}>{providerView?.settings.mode === "smart" ? t("settings.lyrics.smartHint") : t("settings.lyrics.strictHint")}</p>
         <p className={styles.cardHint}>{t("settings.lyrics.onlineProviderNotice")}</p>
-        <div className={styles.providers} data-dragging={Boolean(providerDrag)} aria-busy={savingProviderOrder}>{providerView?.settings.providers.map((provider, index) => {
+        <div className={styles.buttonRow}><button disabled={!providerView?.settings.providers.length || testingProvider !== null} onClick={() => void testProviders(providerView!.settings.providers.map((provider) => provider.id))}>{testingProvider === "*" ? t("common.actions.testing") : t("common.actions.testAll")}</button></div>
+        <div className={styles.providers} data-dragging={Boolean(providerDrag)} aria-busy={savingProviderOrder || testingProvider !== null}>{providerView?.settings.providers.map((provider, index) => {
           const status = providerView.statuses.find((item) => item.providerId === provider.id);
           return <div className={styles.provider} data-dragging={providerDrag?.providerId === provider.id} key={provider.id} ref={(element) => { if (element) providerRows.current.set(provider.id, element); else providerRows.current.delete(provider.id); }} style={{ transform: providerDragTransform(index) }}>
             <button type="button" className={styles.dragHandle} disabled={savingProviderOrder} aria-label={t("settings.lyrics.dragProvider", { provider: status?.name ?? provider.id })} onPointerDown={(event) => beginProviderDrag(provider.id, index, event)} onPointerMove={continueProviderDrag} onPointerUp={finishProviderDrag} onPointerCancel={() => setProviderDrag(null)} onLostPointerCapture={() => setProviderDrag(null)}><UiIcon name="drag" /></button>
             <b>#{index + 1}</b><div><strong>{status?.name ?? provider.id}</strong><small data-health={status?.health ?? "unknown"}>{healthLabel(status, t)} · {t(`settings.lyrics.healthHint.${status?.health ?? "unknown"}`)}</small></div>
             <button aria-label={status?.name ?? provider.id} aria-pressed={provider.enabled} className={styles.switch} disabled={savingProviderOrder} data-on={provider.enabled} onClick={() => toggleProvider(provider.id)}><span /></button>
-            <button disabled={testingProvider === provider.id} onClick={() => void testProvider(provider.id)}>{testingProvider === provider.id ? t("common.actions.testing") : t("common.actions.test")}</button>
+            <button disabled={testingProvider !== null} onClick={() => void testProviders([provider.id])}>{testingProvider === provider.id || testingProvider === "*" ? t("common.actions.testing") : t("common.actions.test")}</button>
           </div>;
         })}</div>
       </SettingsCard>

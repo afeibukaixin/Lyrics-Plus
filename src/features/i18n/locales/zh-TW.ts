@@ -4,7 +4,7 @@ export const zhTW = {
   common: {
     language: { system: "跟隨系統" },
     actions: {
-      apply: "套用", clear: "清除", close: "關閉", test: "測試", testing: "測試中",
+      apply: "套用", clear: "清除", close: "關閉", test: "測試", testAll: "一鍵測試全部", testing: "測試中",
       reset: "重設", resetDefault: "恢復預設值", resetting: "恢復中…", confirmAgain: "再次點擊以確認",
       search: "搜尋", searching: "搜尋中…", reload: "重新載入", open: "開啟", save: "儲存", cancel: "取消", remove: "移除",
     },

@@ -70,7 +70,7 @@ export type SettingsOutletContext = {
   setProviderDrag: Dispatch<SetStateAction<ProviderDragState | null>>;
   providerDragTransform: (index: number) => string | undefined;
   toggleProvider: (id: string) => void;
-  testProvider: (providerId: string) => Promise<void>;
+  testProviders: (providerIds: string[]) => Promise<void>;
   handleFile: (file?: File) => Promise<void>;
   resetSection: (target: SettingsSection) => Promise<void>;
   resetOverlayBounds: () => Promise<void>;
@@ -278,11 +278,12 @@ export default function Settings() {
     });
   };
 
-  const testProvider = async (providerId: string) => {
-    setTestingProvider(providerId);
+  const testProviders = async (providerIds: string[]) => {
+    if (testingProvider || providerIds.length === 0) return;
+    setTestingProvider(providerIds.length === 1 ? providerIds[0] : "*");
     try {
-      const status = await api.testProvider(providerId);
-      setProviderView((current) => current ? { ...current, statuses: current.statuses.map((item) => item.providerId === providerId ? status : item) } : current);
+      const statuses = await Promise.all(providerIds.map(api.testProvider));
+      setProviderView((current) => current ? { ...current, statuses: current.statuses.map((item) => statuses.find((status) => status.providerId === item.providerId) ?? item) } : current);
     } catch (value) { setError(messageOf(value)); } finally { setTestingProvider(null); }
   };
 
@@ -385,7 +386,7 @@ export default function Settings() {
     setProviderDrag,
     providerDragTransform,
     toggleProvider,
-    testProvider,
+    testProviders,
     handleFile,
     resetSection,
     resetOverlayBounds,

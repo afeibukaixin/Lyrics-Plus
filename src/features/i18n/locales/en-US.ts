@@ -4,7 +4,7 @@ export const enUS = {
   common: {
     language: { system: "Use system language" },
     actions: {
-      apply: "Apply", clear: "Clear", close: "Close", test: "Test", testing: "Testing",
+      apply: "Apply", clear: "Clear", close: "Close", test: "Test", testAll: "Test all", testing: "Testing",
       reset: "Reset", resetDefault: "Restore defaults", resetting: "Restoring…", confirmAgain: "Click again to confirm",
       search: "Search", searching: "Searching…", reload: "Reload", open: "Open", save: "Save", cancel: "Cancel", remove: "Remove",
     },
