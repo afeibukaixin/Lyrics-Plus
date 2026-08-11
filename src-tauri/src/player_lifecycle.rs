@@ -7,11 +7,17 @@ const LAUNCH_AGENT_LABEL: &str = "com.xiaoafei.lyrics-plus.player-follower";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PlayerFollowerServiceState {
+    #[cfg(target_os = "macos")]
     Development,
+    #[cfg(not(target_os = "macos"))]
     Unsupported,
+    #[cfg(target_os = "macos")]
     NotRegistered,
+    #[cfg(target_os = "macos")]
     Enabled,
+    #[cfg(target_os = "macos")]
     RequiresApproval,
+    #[cfg(target_os = "macos")]
     NotFound,
 }
 
