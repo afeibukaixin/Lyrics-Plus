@@ -5,7 +5,7 @@
   <p><a href="README_ZH.md">简体中文</a> · English</p>
 </div>
 
-Lyrics Plus follows the active song, playback state, and position in Apple Music or Spotify, then keeps the main window and desktop overlay in sync. Its current feature scope is complete, including multi-provider lyrics search, translations and romanization, word-level timing, a local lyrics library, and a highly customizable desktop overlay.
+Lyrics Plus follows the active song, playback state, and position in Apple Music, Spotify, or compatible third-party macOS media apps through the system media channel, then keeps the main window and desktop overlay in sync. Its current feature scope is complete, including multi-provider lyrics search, translations and romanization, word-level timing, a local lyrics library, and a highly customizable desktop overlay.
 
 Built with Tauri 2, React, TypeScript, and Rust, Lyrics Plus is focused on a native macOS desktop experience.
 
@@ -21,6 +21,8 @@ Switch freely between a transparent background, horizontal single-line, horizont
 |---|---|:---:|
 | Players | Apple Music playback synchronization | ✅ |
 | Players | Spotify playback synchronization | ✅ |
+| Players | System Media synchronization for compatible third-party macOS media apps | ✅ |
+| Players | System Media source selection and optional third-party app allowlist | ✅ |
 | Players | Automatic song, playback state, and position updates | ✅ |
 | Lyrics discovery | Concurrent multi-provider search and candidate ranking | ✅ |
 | Lyrics discovery | Manual candidate selection and title-based re-search | ✅ |
@@ -68,6 +70,8 @@ Lyrics with word-level timing can use sweep, bounce, or full-word highlight effe
 
 Lyrics Plus reads the active player's track information and playback position to keep the main window and desktop overlay synchronized. Lyrics are retrieved independently through third-party lyrics services, so they do not depend on the player's built-in lyrics availability.
 
+In addition to the dedicated Apple Music and Spotify integrations, System Media mode can follow third-party macOS media apps that expose Now Playing metadata through the system media channel. Select **System Media** in Settings → Application and optionally add apps to the allowlist. Metadata and playback controls depend on what each media app exposes.
+
 ## Download and First Launch
 
 Visit [GitHub Releases](https://github.com/afeibukaixin/Lyrics-Plus/releases/latest) to download the latest build for your Mac:
@@ -80,7 +84,7 @@ Move Lyrics Plus to the Applications folder, then open it.
 > [!IMPORTANT]
 > Current builds use macOS ad-hoc signing and are not signed with an Apple Developer ID or notarized. If macOS blocks the first launch, open System Settings → Privacy & Security, verify the app source, and choose Open Anyway.
 
-The first attempt to read or control a player may trigger a macOS Automation permission request. Allow Lyrics Plus to control Apple Music or Spotify under System Settings → Privacy & Security → Automation; otherwise, complete playback information may not be available.
+The dedicated Apple Music and Spotify integrations may trigger a macOS Automation permission request. Allow Lyrics Plus to control those apps under System Settings → Privacy & Security → Automation; this permission is separate from the System Media channel used by compatible third-party apps.
 
 Online lyrics depend on third-party services. Search results and response times may vary with network conditions and provider availability.
 

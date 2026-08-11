@@ -81,7 +81,7 @@ jobs:
             > 当前版本采用 macOS ad-hoc 签名，暂未进行 Apple Developer ID 签名与公证。首次打开如被 macOS 阻止，请前往“系统设置 → 隐私与安全性”，确认应用来源后选择“仍要打开”。
 
           releaseDraft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
           generateReleaseNotes: true
           uploadUpdaterJson: true
           uploadUpdaterSignatures: true
