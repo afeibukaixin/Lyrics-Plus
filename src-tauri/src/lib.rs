@@ -5,6 +5,7 @@ mod language;
 mod lyrics;
 mod overlay_effect;
 mod player;
+mod player_lifecycle;
 mod storage;
 
 use std::sync::{Arc, Mutex, RwLock};
@@ -1260,6 +1261,7 @@ pub(crate) fn activate_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     }
     start_overlay_pointer_monitor(app.clone());
     start_player_monitor(app.clone());
+    player_lifecycle::start_exit_monitor(app.clone());
     Ok(())
 }
 
@@ -1673,6 +1675,10 @@ pub fn run() {
                     .map_err(|error| error.to_string())?,
             });
 
+            if let Err(error) = player_lifecycle::sync_launch_agent(app.handle(), &configured.app) {
+                log::warn!("Failed to configure player follower: {error}");
+            }
+
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_size(tauri::LogicalSize::new(980.0, 720.0));
                 let _ = window.set_resizable(false);
@@ -1789,6 +1795,8 @@ pub fn run() {
             commands::set_ui_font_scale,
             commands::resolve_system_media_applications,
             commands::set_system_media_applications,
+            commands::resolve_player_follower_application,
+            commands::set_player_follower_application,
             commands::get_application_icons,
             commands::resolve_application_by_bundle_id,
             commands::set_language,

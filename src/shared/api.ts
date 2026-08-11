@@ -149,6 +149,10 @@ export const api = {
     invoke<RegisteredApplication[]>("resolve_system_media_applications", { paths }),
   setSystemMediaApplications: (applications: RegisteredApplication[]) =>
     invoke<AppConfig>("set_system_media_applications", { applications }),
+  resolvePlayerFollowerApplication: (path: string) =>
+    invoke<RegisteredApplication>("resolve_player_follower_application", { path }),
+  setPlayerFollowerApplication: (application: RegisteredApplication | null) =>
+    invoke<AppConfig>("set_player_follower_application", { application }),
   getApplicationIcons: (bundleIds: string[]) =>
     invoke<Record<string, string>>("get_application_icons", { bundleIds }),
   resolveApplicationByBundleId: (bundleId: string) =>
@@ -179,7 +183,7 @@ export const api = {
 
 export function messageOf(error: unknown): string {
   if (error instanceof AppOperationError) {
-    if (["set_global_shortcuts", "set_provider_settings", "set_system_media_applications", "resolve_system_media_applications", "resolve_application_by_bundle_id"].includes(error.command) && error.message) return error.message;
+    if (["set_global_shortcuts", "set_provider_settings", "set_system_media_applications", "resolve_system_media_applications", "resolve_player_follower_application", "set_player_follower_application", "resolve_application_by_bundle_id"].includes(error.command) && error.message) return error.message;
     return error.code === "config.conflict"
       ? appI18n.t("errors.configConflict")
       : appI18n.t("errors.command");

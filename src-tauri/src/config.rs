@@ -16,12 +16,13 @@ use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSet
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 22;
+pub const CONFIG_SCHEMA_VERSION: u16 = 23;
 const APP_CONFIG_KEYS: &[&str] = &[
     "uiFontScale",
     "language",
     "playerSelection",
     "systemMediaApplications",
+    "playerFollowerApplication",
     "hideDockIcon",
     "silentStartup",
     "autoCheckUpdates",
@@ -48,6 +49,9 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             }
             line if line.starts_with("    \"systemMediaApplications\":") => {
                 Some(("    ", ConfigComment::SystemMediaApplications))
+            }
+            line if line.starts_with("    \"playerFollowerApplication\":") => {
+                Some(("    ", ConfigComment::PlayerFollowerApplication))
             }
             line if line.starts_with("    \"hideDockIcon\":") => {
                 Some(("    ", ConfigComment::HideDockIcon))
@@ -159,6 +163,7 @@ pub struct AppPreferences {
     pub language: LanguagePreference,
     pub player_selection: PlayerSelection,
     pub system_media_applications: Vec<RegisteredApplication>,
+    pub player_follower_application: Option<RegisteredApplication>,
     pub hide_dock_icon: bool,
     pub silent_startup: bool,
     pub auto_check_updates: bool,
@@ -172,6 +177,7 @@ impl Default for AppPreferences {
             language: LanguagePreference::default(),
             player_selection: PlayerSelection::Auto,
             system_media_applications: Vec::new(),
+            player_follower_application: None,
             hide_dock_icon: false,
             silent_startup: false,
             auto_check_updates: true,
@@ -197,31 +203,46 @@ pub fn normalize_system_media_applications(
     let mut bundle_ids = HashSet::new();
     let mut normalized = Vec::new();
     for application in applications {
-        let bundle_id = application.bundle_id.trim();
-        if bundle_id.is_empty() {
-            return Err("系统播放应用的 Bundle ID 不能为空".into());
-        }
-        if bundle_id.len() > 255
-            || bundle_id.starts_with('.')
-            || bundle_id.ends_with('.')
-            || bundle_id
-                .chars()
-                .any(|value| !(value.is_ascii_alphanumeric() || matches!(value, '.' | '-')))
-        {
-            return Err(format!("无效的 Bundle ID：{bundle_id}"));
-        }
-        if is_dedicated_player_bundle_id(bundle_id) {
+        let application = normalize_registered_application(application)?;
+        if is_dedicated_player_bundle_id(&application.bundle_id) {
             return Err("Apple Music 和 Spotify 使用专用通道，不能添加到系统播放应用".into());
         }
-        if bundle_ids.insert(bundle_id.to_owned()) {
-            let name = application.name.trim();
-            normalized.push(RegisteredApplication {
-                name: if name.is_empty() { bundle_id } else { name }.to_owned(),
-                bundle_id: bundle_id.to_owned(),
-            });
+        if bundle_ids.insert(application.bundle_id.clone()) {
+            normalized.push(application);
         }
     }
     Ok(normalized)
+}
+
+pub fn normalize_player_follower_application(
+    application: Option<RegisteredApplication>,
+) -> Result<Option<RegisteredApplication>, String> {
+    application
+        .map(normalize_registered_application)
+        .transpose()
+}
+
+fn normalize_registered_application(
+    application: RegisteredApplication,
+) -> Result<RegisteredApplication, String> {
+    let bundle_id = application.bundle_id.trim();
+    if bundle_id.is_empty() {
+        return Err("应用的 Bundle ID 不能为空".into());
+    }
+    if bundle_id.len() > 255
+        || bundle_id.starts_with('.')
+        || bundle_id.ends_with('.')
+        || bundle_id
+            .chars()
+            .any(|value| !(value.is_ascii_alphanumeric() || matches!(value, '.' | '-')))
+    {
+        return Err(format!("无效的 Bundle ID：{bundle_id}"));
+    }
+    let name = application.name.trim();
+    Ok(RegisteredApplication {
+        name: if name.is_empty() { bundle_id } else { name }.to_owned(),
+        bundle_id: bundle_id.to_owned(),
+    })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -430,6 +451,8 @@ impl AppConfig {
         self.app.ui_font_scale = normalize_ui_font_scale(self.app.ui_font_scale);
         self.app.system_media_applications =
             normalize_system_media_applications(self.app.system_media_applications)?;
+        self.app.player_follower_application =
+            normalize_player_follower_application(self.app.player_follower_application)?;
         self.app.shortcuts.parsed()?;
         let normalized_style = self.overlay.appearance.clone().into_style();
         for (name, color) in color_fields(&normalized_style) {
@@ -908,6 +931,22 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
                     raw,
                     "systemMediaApplications",
                     "系统播放应用必须是对象",
+                ));
+            };
+            for key in ["name", "bundleId"] {
+                if !application.get(key).is_some_and(Value::is_string) {
+                    return Err(error_at_key(raw, key, &format!("{key} 必须是字符串")));
+                }
+            }
+        }
+    }
+    if let Some(application) = value.pointer("/app/playerFollowerApplication") {
+        if !application.is_null() {
+            let Some(application) = application.as_object() else {
+                return Err(error_at_key(
+                    raw,
+                    "playerFollowerApplication",
+                    "playerFollowerApplication 必须是对象或 null",
                 ));
             };
             for key in ["name", "bundleId"] {
@@ -1989,7 +2028,7 @@ mod tests {
     fn current_schema_preserves_explicit_legacy_provider_order() {
         let parsed = parse_config_draft(
             r#"{
-              "schemaVersion": 22,
+              "schemaVersion": 23,
               "lyrics": { "providers": {
                 "mode": "smart",
                 "providers": [
@@ -2339,5 +2378,45 @@ mod tests {
             assert!(parse_config_draft(&raw).is_err());
         }
         assert!(parse_config_draft(r#"{"app":{"systemMediaApplications":{}}}"#).is_err());
+        let multiple = parse_config_draft(
+            r#"{"app":{"systemMediaApplications":[{"name":"First","bundleId":"org.example.First"},{"name":"Second","bundleId":"org.example.Second"}]}}"#,
+        )
+        .unwrap();
+        assert_eq!(multiple.config.app.system_media_applications.len(), 2);
+
+        let migrated = parse_config_draft(
+            r#"{"schemaVersion":22,"app":{"systemMediaApplications":[{"name":"First","bundleId":"org.example.First"},{"name":"Second","bundleId":"org.example.Second"}]}}"#,
+        )
+        .unwrap();
+        assert_eq!(migrated.config.app.system_media_applications.len(), 2);
+        assert_eq!(migrated.config.app.player_follower_application, None);
+    }
+
+    #[test]
+    fn player_follower_is_a_separate_optional_application() {
+        for bundle_id in [
+            "com.apple.Music",
+            "com.spotify.client",
+            "org.example.Player",
+        ] {
+            let raw = format!(
+                r#"{{"app":{{"playerFollowerApplication":{{"name":"Player","bundleId":"{bundle_id}"}}}}}}"#
+            );
+            let parsed = parse_config_draft(&raw).unwrap();
+            assert_eq!(
+                parsed
+                    .config
+                    .app
+                    .player_follower_application
+                    .as_ref()
+                    .map(|application| application.bundle_id.as_str()),
+                Some(bundle_id)
+            );
+        }
+        assert!(parse_config_draft(
+            r#"{"app":{"playerFollowerApplication":{"name":"Broken","bundleId":""}}}"#
+        )
+        .is_err());
+        assert!(parse_config_draft(r#"{"app":{"playerFollowerApplication":[]}}"#).is_err());
     }
 }

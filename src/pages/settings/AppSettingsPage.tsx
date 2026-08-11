@@ -87,6 +87,7 @@ export default function AppSettingsPage() {
     setLanguage,
     setGlobalShortcuts,
     setSystemMediaApplications,
+    setPlayerFollowerApplication,
     setDockIconHidden,
     setSilentStartup,
     playback,
@@ -100,10 +101,14 @@ export default function AppSettingsPage() {
   const [savingShortcut, setSavingShortcut] = useState(false);
   const [shortcutStatus, setShortcutStatus] = useState<GlobalShortcutStatus | null>(null);
   const [savingApplications, setSavingApplications] = useState(false);
+  const [savingPlayerFollower, setSavingPlayerFollower] = useState(false);
   const [applicationIcons, setApplicationIcons] = useState<Record<string, string>>(() => ({ ...applicationIconCache }));
   const { t } = useTranslation();
 
-  const iconBundleIds = [...new Set(config.app.systemMediaApplications.map((application) => application.bundleId))];
+  const iconBundleIds = [...new Set([
+    ...config.app.systemMediaApplications.map((application) => application.bundleId),
+    ...(config.app.playerFollowerApplication ? [config.app.playerFollowerApplication.bundleId] : []),
+  ])];
   const iconKey = iconBundleIds.join("\n");
 
   useEffect(() => {
@@ -184,20 +189,37 @@ export default function AppSettingsPage() {
     }
   };
   const chooseSystemApplications = async () => {
-    const paths = await open({
+    const selected = await open({
       multiple: true,
       filters: [{ name: t("settings.app.systemApplicationsPicker"), extensions: ["app"] }],
     });
-    if (!paths) return;
+    if (!selected) return;
     setSavingApplications(true);
     setError(null);
     try {
-      const resolved = await api.resolveSystemMediaApplications(Array.isArray(paths) ? paths : [paths]);
+      const resolved = await api.resolveSystemMediaApplications(Array.isArray(selected) ? selected : [selected]);
       await setSystemMediaApplications([...config.app.systemMediaApplications, ...resolved]);
     } catch (error) {
       setError(messageOf(error));
     } finally {
       setSavingApplications(false);
+    }
+  };
+  const choosePlayerFollower = async () => {
+    const selected = await open({
+      multiple: false,
+      filters: [{ name: t("settings.app.playerFollowerPicker"), extensions: ["app"] }],
+    });
+    if (!selected) return;
+    setSavingPlayerFollower(true);
+    setError(null);
+    try {
+      const resolved = await api.resolvePlayerFollowerApplication(selected);
+      await setPlayerFollowerApplication(resolved);
+    } catch (error) {
+      setError(messageOf(error));
+    } finally {
+      setSavingPlayerFollower(false);
     }
   };
   return (
@@ -211,6 +233,13 @@ export default function AppSettingsPage() {
           options={playerOptions.map((option) => [option, option === "auto" ? t("settings.app.playerAuto") : option === "apple_music" ? "Apple Music" : option === "spotify" ? "Spotify" : t("settings.app.playerSystem")])}
           onChange={(selection) => playback.setSelection(selection as PlayerSelection)}
         />
+      </SettingsCard>
+      <SettingsCard title={t("settings.app.playerFollower")}>
+        <div className={styles.systemApplicationsToolbar}>
+          <p className={styles.cardHint}>{t("settings.app.playerFollowerHint")}</p>
+          <button className={styles.shortcutReset} disabled={savingPlayerFollower} onClick={() => void choosePlayerFollower()}><UiIcon name="plus" />{t("settings.app.choosePlayerFollower")}</button>
+        </div>
+        <ApplicationList applications={config.app.playerFollowerApplication ? [config.app.playerFollowerApplication] : []} icons={applicationIcons} busy={savingPlayerFollower} emptyLabel={t("settings.app.playerFollowerEmpty")} removeLabel={t("common.actions.remove")} onRemove={() => void setPlayerFollowerApplication(null).catch((error) => setError(messageOf(error)))} />
       </SettingsCard>
       <SettingsCard title={t("settings.app.systemApplications")}>
         <div className={styles.systemApplicationsToolbar}>

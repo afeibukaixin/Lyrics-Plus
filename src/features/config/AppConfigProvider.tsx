@@ -16,8 +16,8 @@ const defaultTitleFilterKeywords = [
 ];
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 22,
-  app: { uiFontScale: 100, language: "system", playerSelection: "auto", systemMediaApplications: [], hideDockIcon: false, silentStartup: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
+  schemaVersion: 23,
+  app: { uiFontScale: 100, language: "system", playerSelection: "auto", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, silentStartup: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
       mode: "smart",
@@ -45,6 +45,7 @@ type AppConfigContextValue = {
   setLanguage: (language: LanguagePreference) => Promise<void>;
   setGlobalShortcuts: (shortcuts: GlobalShortcutSettings) => Promise<void>;
   setSystemMediaApplications: (applications: RegisteredApplication[]) => Promise<void>;
+  setPlayerFollowerApplication: (application: RegisteredApplication | null) => Promise<void>;
   setDockIconHidden: (hidden: boolean) => Promise<void>;
   setSilentStartup: (enabled: boolean) => Promise<void>;
   setAutoCheckUpdates: (enabled: boolean) => Promise<void>;
@@ -111,6 +112,13 @@ export function AppConfigProvider({
         return;
       }
       setConfig(await api.setSystemMediaApplications(applications));
+    },
+    setPlayerFollowerApplication: async (application) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({ ...current, app: { ...current.app, playerFollowerApplication: application } }));
+        return;
+      }
+      setConfig(await api.setPlayerFollowerApplication(application));
     },
     setDockIconHidden: async (hidden) => {
       if (!isTauriRuntime()) {

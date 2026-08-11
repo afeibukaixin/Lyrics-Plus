@@ -182,6 +182,7 @@ export type AppConfig = {
     language: string;
     playerSelection: PlayerSelection;
     systemMediaApplications: RegisteredApplication[];
+    playerFollowerApplication: RegisteredApplication | null;
     hideDockIcon: boolean;
     silentStartup: boolean;
     autoCheckUpdates: boolean;

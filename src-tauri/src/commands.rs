@@ -11,9 +11,9 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::artwork::{player_name, ArtworkAsset, ArtworkService};
 use crate::config::{
-    normalize_system_media_applications, validate_config_draft, AppConfig, ConfigDraftValidation,
-    ConfigEditorData, ConfigStore, GlobalShortcutSettings, LanguagePreference, OverlayAppearance,
-    RegisteredApplication,
+    normalize_player_follower_application, normalize_system_media_applications,
+    validate_config_draft, AppConfig, ConfigDraftValidation, ConfigEditorData, ConfigStore,
+    GlobalShortcutSettings, LanguagePreference, OverlayAppearance, RegisteredApplication,
 };
 use crate::language::UiLanguage;
 use crate::lyrics::provider::{
@@ -1379,6 +1379,28 @@ pub fn set_system_media_applications(
 }
 
 #[tauri::command]
+pub fn resolve_player_follower_application(path: PathBuf) -> Result<RegisteredApplication, String> {
+    normalize_player_follower_application(Some(resolve_registered_application(&path)?))?
+        .ok_or_else(|| "未选择播放器".into())
+}
+
+#[tauri::command]
+pub fn set_player_follower_application(
+    app: tauri::AppHandle,
+    application: Option<RegisteredApplication>,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let application = normalize_player_follower_application(application)?;
+    let config = state
+        .config
+        .update(|config| config.app.player_follower_application = application)?;
+    crate::player_lifecycle::sync_launch_agent(&app, &config.app)?;
+    app.emit("config://changed", &config)
+        .map_err(|error| error.to_string())?;
+    Ok(config)
+}
+
+#[tauri::command]
 pub async fn get_application_icons(
     bundle_ids: Vec<String>,
 ) -> Result<HashMap<String, String>, String> {
@@ -1746,6 +1768,7 @@ fn apply_app_config(
     }
     crate::reconcile_overlay_visibility(app)?;
     crate::sync_tray_overlay_checked(app, saved.overlay.visible);
+    crate::player_lifecycle::sync_launch_agent(app, &saved.app)?;
     let _ = app.emit("player://selection", saved.app.player_selection);
     let _ = app.emit("overlay://settings", get_overlay_settings_inner(&state));
     let _ = app.emit("overlay://style", &style);
@@ -1826,12 +1849,14 @@ pub fn reset_settings_section(
             update_player_selection(&app, PlayerSelection::Auto)?;
             update_dock_icon_hidden(&app, false)?;
             update_global_shortcuts(&app, GlobalShortcutSettings::default())?;
-            state.config.update(|config| {
+            let config = state.config.update(|config| {
                 config.app.ui_font_scale = 100;
                 config.app.silent_startup = false;
                 config.app.auto_check_updates = true;
                 config.app.system_media_applications.clear();
+                config.app.player_follower_application = None;
             })?;
+            crate::player_lifecycle::sync_launch_agent(&app, &config.app)?;
         }
     }
 
