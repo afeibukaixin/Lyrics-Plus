@@ -1810,7 +1810,6 @@ pub fn run() {
             commands::get_app_config,
             commands::set_ui_font_scale,
             commands::resolve_system_media_applications,
-            commands::get_system_media_application_metadata,
             commands::set_system_media_applications,
             commands::set_language,
             commands::set_native_language,

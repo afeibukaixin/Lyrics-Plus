@@ -20,12 +20,6 @@ export type SystemMediaApplication = {
   bundleId: string;
 };
 
-export type SystemMediaApplicationMetadata = {
-  bundleId: string;
-  name: string;
-  iconPath: string | null;
-};
-
 export type GlobalShortcutSettings = {
   toggleOverlay: string;
   unlockOverlay: string;

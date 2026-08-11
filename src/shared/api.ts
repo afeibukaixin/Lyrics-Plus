@@ -33,7 +33,6 @@ import type {
   SettingsResetResponse,
   SettingsSection,
   SystemMediaApplication,
-  SystemMediaApplicationMetadata,
 } from "./types";
 
 export type AppErrorCode = `command.${string}` | "config.conflict" | "unknown";
@@ -148,8 +147,6 @@ export const api = {
   setUiFontScale: (scale: number) => invoke<AppConfig>("set_ui_font_scale", { scale }),
   resolveSystemMediaApplications: (paths: string[]) =>
     invoke<SystemMediaApplication[]>("resolve_system_media_applications", { paths }),
-  getSystemMediaApplicationMetadata: (bundleIds: string[]) =>
-    invoke<SystemMediaApplicationMetadata[]>("get_system_media_application_metadata", { bundleIds }),
   setSystemMediaApplications: (applications: SystemMediaApplication[]) =>
     invoke<AppConfig>("set_system_media_applications", { applications }),
   setLanguage: (language: LanguagePreference) =>
