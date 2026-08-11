@@ -48,7 +48,7 @@ mod macos {
     use crate::commands::AppState;
     use crate::config::AppPreferences;
 
-    const AGENT_PLIST_NAME: &str = "com.xiaoafei.lyrics-plus.player-follower.plist";
+    const HELPER_BUNDLE_ID: &str = "com.xiaoafei.lyrics-plus.player-follower";
     const TARGET_FILE_NAME: &str = "player-follower-target";
     const VERSION_FILE_NAME: &str = "player-follower-service-version";
 
@@ -144,7 +144,9 @@ mod macos {
     }
 
     fn service() -> objc2::rc::Retained<SMAppService> {
-        unsafe { SMAppService::agentServiceWithPlistName(&NSString::from_str(AGENT_PLIST_NAME)) }
+        unsafe {
+            SMAppService::loginItemServiceWithIdentifier(&NSString::from_str(HELPER_BUNDLE_ID))
+        }
     }
 
     fn register(service: &SMAppService) -> Result<(), String> {

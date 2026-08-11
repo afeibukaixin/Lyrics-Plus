@@ -3,10 +3,11 @@
     "beforeBundleCommand": "node scripts/build-player-follower.mjs"
   },
   "bundle": {
-    "externalBin": ["binaries/lyrics-plus-player-follower"],
     "macOS": {
       "files": {
-        "Library/LaunchAgents/com.xiaoafei.lyrics-plus.player-follower.plist": "./player-follower/com.xiaoafei.lyrics-plus.player-follower.plist"
+        "Library/LoginItems/Lyrics Plus Player Follower.app/Contents/Info.plist": "./binaries/Lyrics Plus Player Follower.app/Contents/Info.plist",
+        "Library/LoginItems/Lyrics Plus Player Follower.app/Contents/MacOS/lyrics-plus-player-follower": "./binaries/Lyrics Plus Player Follower.app/Contents/MacOS/lyrics-plus-player-follower",
+        "Library/LoginItems/Lyrics Plus Player Follower.app/Contents/_CodeSignature/CodeResources": "./binaries/Lyrics Plus Player Follower.app/Contents/_CodeSignature/CodeResources"
       }
     }
   }
