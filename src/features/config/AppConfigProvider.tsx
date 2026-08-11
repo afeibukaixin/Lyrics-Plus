@@ -16,8 +16,8 @@ const defaultTitleFilterKeywords = [
 ];
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 21,
-  app: { uiFontScale: 100, language: "system", playerSelection: "auto", systemMediaApplications: [], hideDockIcon: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
+  schemaVersion: 22,
+  app: { uiFontScale: 100, language: "system", playerSelection: "auto", systemMediaApplications: [], hideDockIcon: false, silentStartup: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
       mode: "smart",
@@ -25,9 +25,9 @@ const defaultConfig: AppConfig = {
       titleFilterKeywords: defaultTitleFilterKeywords,
       providers: [
         { id: "lrclib", enabled: true },
-        { id: "kugou", enabled: false },
-        { id: "qqmusic", enabled: false },
-        { id: "netease", enabled: false },
+        { id: "kugou", enabled: true },
+        { id: "qqmusic", enabled: true },
+        { id: "netease", enabled: true },
       ],
     },
   },
@@ -46,6 +46,7 @@ type AppConfigContextValue = {
   setGlobalShortcuts: (shortcuts: GlobalShortcutSettings) => Promise<void>;
   setSystemMediaApplications: (applications: RegisteredApplication[]) => Promise<void>;
   setDockIconHidden: (hidden: boolean) => Promise<void>;
+  setSilentStartup: (enabled: boolean) => Promise<void>;
   setAutoCheckUpdates: (enabled: boolean) => Promise<void>;
   setOverlayHideWhenNotPlaying: (hidden: boolean) => Promise<void>;
   loaded: boolean;
@@ -120,6 +121,13 @@ export function AppConfigProvider({
         return;
       }
       setConfig(await api.setDockIconHidden(hidden));
+    },
+    setSilentStartup: async (enabled) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({ ...current, app: { ...current.app, silentStartup: enabled } }));
+        return;
+      }
+      setConfig(await api.setSilentStartup(enabled));
     },
     setAutoCheckUpdates: async (enabled) => {
       if (!isTauriRuntime()) {

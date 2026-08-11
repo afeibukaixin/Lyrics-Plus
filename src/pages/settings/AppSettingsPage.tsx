@@ -88,6 +88,7 @@ export default function AppSettingsPage() {
     setGlobalShortcuts,
     setSystemMediaApplications,
     setDockIconHidden,
+    setSilentStartup,
     playback,
     lyrics,
     resettingSection,
@@ -237,6 +238,7 @@ export default function AppSettingsPage() {
       </SettingsCard>
       <SettingsCard title={t("settings.app.dockMenu")}>
         <ToggleRow label={t("settings.app.hideDock")} description={t("settings.app.hideDockHint")} value={config.app.hideDockIcon} onChange={(hidden) => setDockIconHidden(hidden).catch((value) => setError(messageOf(value)))} />
+        <ToggleRow label={t("settings.app.silentStartup")} description={t("settings.app.silentStartupHint")} value={config.app.silentStartup} onChange={(enabled) => setSilentStartup(enabled).catch((value) => setError(messageOf(value)))} />
       </SettingsCard>
       <SettingsCard title={t("settings.app.shortcuts")}>
         <div className={styles.shortcutRow}><span>{t("settings.app.openSettings")}</span><kbd>⌘ ,</kbd></div>

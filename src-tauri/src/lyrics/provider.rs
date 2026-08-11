@@ -153,7 +153,7 @@ impl Default for ProviderSettings {
                 .into_iter()
                 .map(|(id, _)| ProviderPreference {
                     id: id.into(),
-                    enabled: id == "lrclib",
+                    enabled: true,
                 })
                 .collect(),
             auto_apply_threshold: default_auto_apply_threshold(),
@@ -656,17 +656,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn defaults_to_the_public_provider_only() {
+    fn defaults_to_all_providers_enabled() {
         let settings = ProviderSettings::default();
-        assert_eq!(
-            settings
-                .providers
-                .iter()
-                .filter(|provider| provider.enabled)
-                .map(|provider| provider.id.as_str())
-                .collect::<Vec<_>>(),
-            ["lrclib"]
-        );
+        assert!(settings.providers.iter().all(|provider| provider.enabled));
     }
 
     struct MockProvider {

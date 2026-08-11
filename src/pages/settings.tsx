@@ -43,6 +43,7 @@ export type SettingsOutletContext = {
   setGlobalShortcuts: ReturnType<typeof useAppConfig>["setGlobalShortcuts"];
   setSystemMediaApplications: ReturnType<typeof useAppConfig>["setSystemMediaApplications"];
   setDockIconHidden: ReturnType<typeof useAppConfig>["setDockIconHidden"];
+  setSilentStartup: ReturnType<typeof useAppConfig>["setSilentStartup"];
   setOverlayHideWhenNotPlaying: ReturnType<typeof useAppConfig>["setOverlayHideWhenNotPlaying"];
   playback: ReturnType<typeof usePlayback>;
   lyrics: ReturnType<typeof useLyrics>;
@@ -84,6 +85,7 @@ export default function Settings() {
     setGlobalShortcuts,
     setSystemMediaApplications,
     setDockIconHidden,
+    setSilentStartup,
     setOverlayHideWhenNotPlaying,
     syncConfig,
   } = useAppConfig();
@@ -354,6 +356,7 @@ export default function Settings() {
     setGlobalShortcuts,
     setSystemMediaApplications,
     setDockIconHidden,
+    setSilentStartup,
     setOverlayHideWhenNotPlaying,
     playback,
     lyrics,

@@ -886,6 +886,10 @@ pub(crate) fn show_main_window_centered(app: &tauri::AppHandle) -> Result<(), St
     show_main_window_at(app, None)
 }
 
+fn should_show_main_window(notice_accepted: bool, silent_startup: bool) -> bool {
+    !notice_accepted || !silent_startup
+}
+
 pub(crate) fn show_main_window_at(
     app: &tauri::AppHandle,
     route: Option<&str>,
@@ -1678,6 +1682,9 @@ pub fn run() {
             if notice_accepted {
                 activate_runtime(app.handle()).map_err(std::io::Error::other)?;
             }
+            if should_show_main_window(notice_accepted, configured.app.silent_startup) {
+                show_main_window_centered(app.handle()).map_err(std::io::Error::other)?;
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -1789,6 +1796,7 @@ pub fn run() {
             commands::get_global_shortcut_status,
             commands::set_global_shortcuts,
             commands::set_dock_icon_hidden,
+            commands::set_silent_startup,
             commands::set_auto_check_updates,
             commands::set_overlay_hide_when_not_playing,
             commands::export_app_config,
@@ -1811,6 +1819,13 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn silent_startup_hides_only_after_accepting_the_notice() {
+        assert!(should_show_main_window(false, true));
+        assert!(should_show_main_window(true, false));
+        assert!(!should_show_main_window(true, true));
+    }
 
     #[test]
     fn overlay_initial_size_restores_the_saved_fixed_axis() {

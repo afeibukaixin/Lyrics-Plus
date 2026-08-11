@@ -16,13 +16,14 @@ use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSet
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 21;
+pub const CONFIG_SCHEMA_VERSION: u16 = 22;
 const APP_CONFIG_KEYS: &[&str] = &[
     "uiFontScale",
     "language",
     "playerSelection",
     "systemMediaApplications",
     "hideDockIcon",
+    "silentStartup",
     "autoCheckUpdates",
     "shortcuts",
 ];
@@ -50,6 +51,9 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             }
             line if line.starts_with("    \"hideDockIcon\":") => {
                 Some(("    ", ConfigComment::HideDockIcon))
+            }
+            line if line.starts_with("    \"silentStartup\":") => {
+                Some(("    ", ConfigComment::SilentStartup))
             }
             line if line.starts_with("    \"autoCheckUpdates\":") => {
                 Some(("    ", ConfigComment::AutoCheckUpdates))
@@ -156,6 +160,7 @@ pub struct AppPreferences {
     pub player_selection: PlayerSelection,
     pub system_media_applications: Vec<RegisteredApplication>,
     pub hide_dock_icon: bool,
+    pub silent_startup: bool,
     pub auto_check_updates: bool,
     pub shortcuts: GlobalShortcutSettings,
 }
@@ -168,6 +173,7 @@ impl Default for AppPreferences {
             player_selection: PlayerSelection::Auto,
             system_media_applications: Vec::new(),
             hide_dock_icon: false,
+            silent_startup: false,
             auto_check_updates: true,
             shortcuts: GlobalShortcutSettings::default(),
         }
@@ -913,6 +919,7 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
     }
     for (pointer, key) in [
         ("/app/hideDockIcon", "hideDockIcon"),
+        ("/app/silentStartup", "silentStartup"),
         ("/app/autoCheckUpdates", "autoCheckUpdates"),
         ("/overlay/visible", "visible"),
         ("/overlay/locked", "locked"),
@@ -1619,6 +1626,7 @@ mod tests {
             canonical_config_jsonc(&AppConfig::default(), UiLanguage::ZhCn).unwrap();
         let parsed = parse_config_draft(&default_jsonc).unwrap();
         assert_eq!(parsed.config.app.ui_font_scale, 100);
+        assert!(!parsed.config.app.silent_startup);
         assert_eq!(parsed.config.schema_version, CONFIG_SCHEMA_VERSION);
         assert_eq!(parsed.normalized_json, default_jsonc);
         assert!(parsed.normalized_json.contains("// 配置结构版本"));
@@ -1646,7 +1654,7 @@ mod tests {
             parsed.config.app.shortcuts,
             GlobalShortcutSettings::default()
         );
-        assert_eq!(parsed.config.overlay.appearance.secondary_font_scale, 0.8);
+        assert_eq!(parsed.config.overlay.appearance.secondary_font_scale, 1.0);
         assert_eq!(parsed.config.overlay.appearance.background_opacity, 0.6);
         assert_eq!(parsed.config.overlay.appearance.background_blur, 18.0);
     }
@@ -1737,10 +1745,13 @@ mod tests {
             }"#,
         )
         .unwrap();
-        assert!(old_default.config.lyrics.providers.providers[0].enabled);
-        assert!(old_default.config.lyrics.providers.providers[1..]
+        assert!(old_default
+            .config
+            .lyrics
+            .providers
+            .providers
             .iter()
-            .all(|provider| !provider.enabled));
+            .all(|provider| provider.enabled));
 
         let customized = parse_config_draft(
             r#"{
@@ -1978,7 +1989,7 @@ mod tests {
     fn current_schema_preserves_explicit_legacy_provider_order() {
         let parsed = parse_config_draft(
             r#"{
-              "schemaVersion": 21,
+              "schemaVersion": 22,
               "lyrics": { "providers": {
                 "mode": "smart",
                 "providers": [
@@ -2144,6 +2155,25 @@ mod tests {
         let parsed = parse_config_draft(r#"{"app":{"hideDockIcon":true}}"#).unwrap();
         assert!(parsed.config.app.hide_dock_icon);
         assert!(parsed.normalized_json.contains("\"hideDockIcon\": true"));
+    }
+
+    #[test]
+    fn silent_startup_migrates_round_trips_and_validates() {
+        let migrated = parse_config_draft(r#"{"schemaVersion":21}"#).unwrap();
+        assert!(migrated.migrated);
+        assert!(!migrated.config.app.silent_startup);
+
+        let enabled = parse_config_draft(r#"{"app":{"silentStartup":true}}"#).unwrap();
+        assert!(enabled.config.app.silent_startup);
+        assert!(enabled.normalized_json.contains("\"silentStartup\": true"));
+
+        let invalid = validate_config_draft(r#"{"app":{"silentStartup":"yes"}}"#);
+        assert!(!invalid.valid);
+        assert!(invalid
+            .error
+            .unwrap()
+            .message
+            .contains("silentStartup 必须是布尔值"));
     }
 
     #[test]

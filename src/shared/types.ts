@@ -183,6 +183,7 @@ export type AppConfig = {
     playerSelection: PlayerSelection;
     systemMediaApplications: RegisteredApplication[];
     hideDockIcon: boolean;
+    silentStartup: boolean;
     autoCheckUpdates: boolean;
     shortcuts: GlobalShortcutSettings;
   };
@@ -335,7 +336,7 @@ export const defaultOverlayStyle: OverlayStyle = {
   secondaryDisplay: "translation_romanization",
   autoCenterWithTranslationOrRomanization: false,
   karaokeStyle: "sweep",
-  secondaryFontScale: 0.8,
+  secondaryFontScale: 1,
   translationFontScale: 0.8,
   romanizationFontScale: 0.8,
   translationColor: "#cbd5e1",

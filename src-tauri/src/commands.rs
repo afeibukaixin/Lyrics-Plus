@@ -207,7 +207,7 @@ impl Default for OverlayStyleSettings {
             translation_enabled: true,
             romanization_enabled: true,
             karaoke_style: KaraokeStyle::Sweep,
-            secondary_font_scale: 0.8,
+            secondary_font_scale: 1.0,
             translation_font_scale: 0.8,
             romanization_font_scale: 0.8,
             translation_color: "#cbd5e1".into(),
@@ -1572,6 +1572,20 @@ pub fn set_dock_icon_hidden(app: tauri::AppHandle, hidden: bool) -> Result<AppCo
 }
 
 #[tauri::command]
+pub fn set_silent_startup(
+    app: tauri::AppHandle,
+    enabled: bool,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let config = state
+        .config
+        .update(|config| config.app.silent_startup = enabled)?;
+    app.emit("config://changed", &config)
+        .map_err(|error| error.to_string())?;
+    Ok(config)
+}
+
+#[tauri::command]
 pub fn set_auto_check_updates(
     app: tauri::AppHandle,
     enabled: bool,
@@ -1818,6 +1832,7 @@ pub fn reset_settings_section(
             update_global_shortcuts(&app, GlobalShortcutSettings::default())?;
             state.config.update(|config| {
                 config.app.ui_font_scale = 100;
+                config.app.silent_startup = false;
                 config.app.auto_check_updates = true;
                 config.app.system_media_applications.clear();
             })?;
@@ -1884,6 +1899,7 @@ mod tests {
             OverlayStyleSettings::default().secondary_display,
             SecondaryDisplayMode::TranslationRomanization
         );
+        assert_eq!(OverlayStyleSettings::default().secondary_font_scale, 1.0);
         assert!(!OverlayStyleSettings::default().auto_center_with_translation_or_romanization);
     }
 
