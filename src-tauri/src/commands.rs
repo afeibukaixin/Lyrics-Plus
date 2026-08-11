@@ -434,11 +434,7 @@ pub async fn player_action(
         .ok_or_else(|| "当前没有可控制的播放器".to_string())?;
     let system_media = state.system_media.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        if player == PlayerKind::System {
-            system_media.perform_action(&action, position_ms)
-        } else {
-            perform_action(player, &action, position_ms)
-        }
+        perform_action(player, &system_media, &action, position_ms)
     })
     .await
     .map_err(|error| error.to_string())?

@@ -6,8 +6,9 @@ use wait_timeout::ChildExt;
 
 use crate::config::{is_dedicated_player_bundle_id, RegisteredApplication};
 
-mod system_media;
-pub use system_media::SystemMediaService;
+pub(crate) mod automation;
+mod system;
+pub use system::SystemMediaService;
 
 const PROCESS_TIMEOUT_ERROR: &str = "Process timed out";
 
@@ -192,131 +193,6 @@ pub(crate) fn run_with_timeout(mut command: Command, timeout: Duration) -> Resul
             let _ = child.wait();
             Err(PROCESS_TIMEOUT_ERROR.into())
         }
-    }
-}
-
-const JXA_SCRIPT: &str = r#"
-ObjC.import('Foundation');
-function value(callable, fallback) {
-  try { const v = callable(); return v === undefined || v === null ? fallback : v; }
-  catch (_) { return fallback; }
-}
-function result(playerName) {
-  const isMusic = playerName === 'apple_music';
-  const appPath = $.NSProcessInfo.processInfo.environment.objectForKey('LYRICS_PLUS_APP_PATH').js;
-  const app = Application(appPath);
-  const running = value(() => app.running(), false);
-  if (!running) return { player: playerName, isRunning: false, isPlaying: false, canSeek: false };
-  const state = String(value(() => app.playerState(), 'stopped')).toLowerCase();
-  if (state === 'stopped') return { player: playerName, isRunning: true, isPlaying: false, canSeek: false };
-  const track = value(() => app.currentTrack(), null);
-  if (!track) return { player: playerName, isRunning: true, isPlaying: state === 'playing', canSeek: false };
-  const durationRaw = Number(value(() => track.duration(), 0));
-  const durationMs = isMusic ? Math.round(durationRaw * 1000) : Math.round(durationRaw);
-  const positionMs = Math.round(Number(value(() => app.playerPosition(), 0)) * 1000);
-  const trackId = String(value(() => isMusic ? track.persistentID() : track.id(), '')) || null;
-  return {
-    player: playerName,
-    isRunning: true,
-    isPlaying: state === 'playing',
-    trackId,
-    title: value(() => track.name(), null),
-    artist: value(() => track.artist(), null),
-    album: value(() => track.album(), null),
-    durationMs: durationMs > 0 ? durationMs : null,
-    positionMs: positionMs >= 0 ? positionMs : null,
-    canSeek: true
-  };
-}
-JSON.stringify(result($.NSProcessInfo.processInfo.environment.objectForKey('LYRICS_PLUS_PLAYER').js));
-"#;
-
-fn query_player(kind: PlayerKind) -> PlaybackSnapshot {
-    let (player_value, app_path) = match kind {
-        PlayerKind::AppleMusic => (
-            "apple_music",
-            std::path::PathBuf::from("/System/Applications/Music.app"),
-        ),
-        PlayerKind::Spotify => {
-            let system = std::path::PathBuf::from("/Applications/Spotify.app");
-            let user = std::env::var_os("HOME")
-                .map(std::path::PathBuf::from)
-                .map(|home| home.join("Applications/Spotify.app"));
-            let path = if system.exists() {
-                system
-            } else {
-                user.unwrap_or(system)
-            };
-            ("spotify", path)
-        }
-        PlayerKind::System => unreachable!("system playback uses SystemMediaService"),
-    };
-    if !app_path.exists() {
-        let name = if kind == PlayerKind::AppleMusic {
-            "Apple Music"
-        } else {
-            "Spotify"
-        };
-        return PlaybackSnapshot::unavailable_with_code(
-            Some(kind),
-            PlaybackErrorCode::NotInstalled,
-            format!("未安装 {name}"),
-        );
-    }
-    let mut command = Command::new("/usr/bin/osascript");
-    command
-        .args(["-l", "JavaScript", "-e", JXA_SCRIPT])
-        .env("LYRICS_PLUS_PLAYER", player_value)
-        .env("LYRICS_PLUS_APP_PATH", app_path);
-    let output = run_with_timeout(command, Duration::from_secs(3));
-
-    match output {
-        Ok(output) if output.status.success() => {
-            let mut snapshot = serde_json::from_slice::<PlaybackSnapshot>(&output.stdout)
-                .unwrap_or_else(|error| {
-                    PlaybackSnapshot::unavailable_with_code(
-                        Some(kind),
-                        PlaybackErrorCode::InvalidResponse,
-                        format!("无法解析播放器响应：{error}"),
-                    )
-                });
-            snapshot.observed_at_ms = now_ms();
-            ensure_track_id(&mut snapshot);
-            snapshot
-        }
-        Ok(output) => {
-            let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            let detail = if detail.contains("-1743")
-                || detail.to_lowercase().contains("not authorized")
-            {
-                "没有播放器自动化权限。请到“系统设置 → 隐私与安全性 → 自动化”允许 Lyrics Plus 控制播放器。".into()
-            } else {
-                detail
-            };
-            let error_code = if detail.contains("自动化权限") {
-                PlaybackErrorCode::AutomationDenied
-            } else {
-                PlaybackErrorCode::Unavailable
-            };
-            PlaybackSnapshot::unavailable_with_code(
-                Some(kind),
-                error_code,
-                if detail.is_empty() {
-                    "播放器未授权或暂不可用".into()
-                } else {
-                    detail
-                },
-            )
-        }
-        Err(error) => PlaybackSnapshot::unavailable_with_code(
-            Some(kind),
-            if error == PROCESS_TIMEOUT_ERROR {
-                PlaybackErrorCode::ResponseTimeout
-            } else {
-                PlaybackErrorCode::Unavailable
-            },
-            error,
-        ),
     }
 }
 
@@ -541,8 +417,8 @@ pub fn query_selected_player(
     system_media_applications: &[RegisteredApplication],
 ) -> (PlaybackSnapshot, Option<PlayerKind>) {
     match selection {
-        PlayerSelection::AppleMusic => (query_player(PlayerKind::AppleMusic), None),
-        PlayerSelection::Spotify => (query_player(PlayerKind::Spotify), None),
+        PlayerSelection::AppleMusic => (automation::snapshot(PlayerKind::AppleMusic), None),
+        PlayerSelection::Spotify => (automation::snapshot(PlayerKind::Spotify), None),
         PlayerSelection::System => (
             filter_system_source(system_media.snapshot(), system_media_applications),
             None,
@@ -551,7 +427,7 @@ pub fn query_selected_player(
             system_media.snapshot(),
             previous_auto_player,
             system_media_applications,
-            query_player,
+            automation::snapshot,
         ),
     }
 }
@@ -674,30 +550,14 @@ fn source_not_allowed(snapshot: &PlaybackSnapshot) -> PlaybackSnapshot {
 
 pub fn perform_action(
     kind: PlayerKind,
+    system_media: &SystemMediaService,
     action: &str,
     position_ms: Option<u64>,
 ) -> Result<(), String> {
-    let app = match kind {
-        PlayerKind::AppleMusic => "Music",
-        PlayerKind::Spotify => "Spotify",
-        PlayerKind::System => return Err("系统播放器操作必须通过系统媒体服务执行".into()),
-    };
-    let script = match action {
-        "play_pause" => format!("tell application \"{app}\" to playpause"),
-        "next" => format!("tell application \"{app}\" to next track"),
-        "previous" => format!("tell application \"{app}\" to previous track"),
-        "seek" => format!(
-            "tell application \"{app}\" to set player position to {}",
-            position_ms.ok_or_else(|| "缺少跳转位置".to_string())? as f64 / 1000.0
-        ),
-        _ => return Err("未知播放器操作".into()),
-    };
-    let mut command = Command::new("/usr/bin/osascript");
-    command.args(["-e", &script]);
-    let output = run_with_timeout(command, Duration::from_secs(3))?;
-    if output.status.success() {
-        Ok(())
-    } else {
-        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+    match kind {
+        PlayerKind::System => system_media.perform_action(action, position_ms),
+        PlayerKind::AppleMusic | PlayerKind::Spotify => {
+            automation::perform_action(kind, action, position_ms)
+        }
     }
 }

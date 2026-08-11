@@ -2,16 +2,18 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use image::codecs::jpeg::JpegEncoder;
 use image::{DynamicImage, ImageReader};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
 
-use crate::player::{run_with_timeout, PlaybackSnapshot, PlayerKind};
+use crate::player::automation::{
+    export_apple_music_artwork, spotify_artwork_url, AppleMusicArtworkExport,
+};
+use crate::player::{PlaybackSnapshot, PlayerKind};
 
 const MAX_SOURCE_BYTES: usize = 10 * 1024 * 1024;
 const MAX_ARTWORK_DIMENSION: u32 = 384;
@@ -20,99 +22,12 @@ const MAX_CACHE_FILES: usize = 200;
 const MISSING_ARTWORK_TTL: Duration = Duration::from_secs(5 * 60);
 const APPLE_MUSIC_CACHE_VERSION: &str = "v2";
 
-const SPOTIFY_ARTWORK_SCRIPT: &str = r#"
-ObjC.import('Foundation');
-function value(callable, fallback) {
-  try { const result = callable(); return result === undefined || result === null ? fallback : result; }
-  catch (_) { return fallback; }
-}
-const environment = $.NSProcessInfo.processInfo.environment;
-const appPath = environment.objectForKey('LYRICS_PLUS_APP_PATH').js;
-const expectedId = environment.objectForKey('LYRICS_PLUS_TRACK_ID').js;
-const expectedTitle = environment.objectForKey('LYRICS_PLUS_TRACK_TITLE').js;
-const expectedArtist = environment.objectForKey('LYRICS_PLUS_TRACK_ARTIST').js;
-const expectedAlbum = environment.objectForKey('LYRICS_PLUS_TRACK_ALBUM').js;
-const app = Application(appPath);
-if (!value(() => app.running(), false)) {
-  JSON.stringify({ status: 'unavailable' });
-} else {
-  const track = value(() => app.currentTrack(), null);
-  const trackId = track ? String(value(() => track.id(), '')) : '';
-  const matches = track && (expectedId.startsWith('fallback:')
-    ? String(value(() => track.name(), '')) === expectedTitle
-      && String(value(() => track.artist(), '')) === expectedArtist
-      && String(value(() => track.album(), '')) === expectedAlbum
-    : trackId === expectedId);
-  if (!matches) {
-    JSON.stringify({ status: 'stale' });
-  } else {
-    JSON.stringify({ status: 'ok', url: value(() => track.artworkUrl(), null) });
-  }
-}
-"#;
-
-const APPLE_MUSIC_ARTWORK_SCRIPT: &str = r#"
-on run argv
-  set expectedId to item 1 of argv
-  set expectedTitle to item 2 of argv
-  set expectedArtist to item 3 of argv
-  set expectedAlbum to item 4 of argv
-  set outputPath to item 5 of argv
-  set fileHandle to missing value
-
-  tell application "Music"
-    if not running then return "unavailable"
-    set currentTrackRef to current track
-    if currentTrackRef is missing value then return "unavailable"
-    if expectedId starts with "fallback:" then
-      if (name of currentTrackRef as text) is not expectedTitle then return "stale"
-      if (artist of currentTrackRef as text) is not expectedArtist then return "stale"
-      if (album of currentTrackRef as text) is not expectedAlbum then return "stale"
-    else
-      if (persistent ID of currentTrackRef as text) is not expectedId then return "stale"
-    end if
-    if (count of artworks of currentTrackRef) is 0 then return "missing"
-    set artworkData to raw data of artwork 1 of currentTrackRef
-  end tell
-
-  try
-    set outputFile to POSIX file outputPath
-    set fileHandle to open for access outputFile with write permission
-    set eof fileHandle to 0
-    write artworkData to fileHandle
-    close access fileHandle
-    return "ok"
-  on error errorMessage
-    if fileHandle is not missing value then
-      try
-        close access fileHandle
-      end try
-    end if
-    return "error:" & errorMessage
-  end try
-end run
-"#;
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArtworkAsset {
     pub player: PlayerKind,
     pub track_id: String,
     pub file_path: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct SpotifyArtworkResponse {
-    status: String,
-    url: Option<String>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AppleMusicArtworkExport {
-    Exported,
-    Missing,
-    Stale,
-    Unavailable,
 }
 
 #[derive(Default)]
@@ -338,108 +253,6 @@ fn asset(player: PlayerKind, track_id: &str, path: &Path) -> ArtworkAsset {
     }
 }
 
-fn spotify_artwork_url(
-    expected_id: &str,
-    title: &str,
-    artist: &str,
-    album: &str,
-) -> Result<Option<String>, String> {
-    let app_path = spotify_app_path();
-    if !app_path.exists() {
-        log::debug!("Track artwork source lookup completed: player=spotify status=unavailable");
-        return Ok(None);
-    }
-    let mut command = Command::new("/usr/bin/osascript");
-    command
-        .args(["-l", "JavaScript", "-e", SPOTIFY_ARTWORK_SCRIPT])
-        .env("LYRICS_PLUS_APP_PATH", app_path)
-        .env("LYRICS_PLUS_TRACK_ID", expected_id)
-        .env("LYRICS_PLUS_TRACK_TITLE", title)
-        .env("LYRICS_PLUS_TRACK_ARTIST", artist)
-        .env("LYRICS_PLUS_TRACK_ALBUM", album);
-    let output = run_with_timeout(command, Duration::from_secs(3))?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
-    }
-    let response: SpotifyArtworkResponse = serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("Failed to parse Spotify artwork response: {error}"))?;
-    if response.status != "ok" {
-        log::debug!(
-            "Track artwork source lookup completed: player=spotify status={}",
-            response.status
-        );
-        return Ok(None);
-    }
-    let url = response.url.filter(|url| !url.trim().is_empty());
-    log::debug!(
-        "Track artwork source lookup completed: player=spotify status={}",
-        if url.is_some() { "ok" } else { "missing" }
-    );
-    Ok(url)
-}
-
-fn spotify_app_path() -> PathBuf {
-    let system = PathBuf::from("/Applications/Spotify.app");
-    if system.exists() {
-        return system;
-    }
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .map(|home| home.join("Applications/Spotify.app"))
-        .unwrap_or(system)
-}
-
-fn export_apple_music_artwork(
-    expected_id: &str,
-    title: &str,
-    artist: &str,
-    album: &str,
-    output_path: &Path,
-) -> Result<AppleMusicArtworkExport, String> {
-    let mut command = Command::new("/usr/bin/osascript");
-    command
-        .args(["-e", APPLE_MUSIC_ARTWORK_SCRIPT])
-        .arg("--")
-        .arg(expected_id)
-        .arg(title)
-        .arg(artist)
-        .arg(album)
-        .arg(output_path);
-    let output = run_with_timeout(command, Duration::from_secs(4))?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
-    }
-    let status = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if let Some(error) = status.strip_prefix("error:") {
-        return Err(error.trim().to_string());
-    }
-    let result = parse_apple_music_artwork_status(&status, output_path)?;
-    let status = match result {
-        AppleMusicArtworkExport::Exported => "ok",
-        AppleMusicArtworkExport::Missing => "missing",
-        AppleMusicArtworkExport::Stale => "stale",
-        AppleMusicArtworkExport::Unavailable => "unavailable",
-    };
-    log::debug!("Track artwork source lookup completed: player=apple_music status={status}");
-    Ok(result)
-}
-
-fn parse_apple_music_artwork_status(
-    status: &str,
-    output_path: &Path,
-) -> Result<AppleMusicArtworkExport, String> {
-    match status {
-        "ok" if is_nonempty_file(output_path) => Ok(AppleMusicArtworkExport::Exported),
-        "ok" => Err("Apple Music artwork export produced an empty file".into()),
-        "missing" => Ok(AppleMusicArtworkExport::Missing),
-        "stale" => Ok(AppleMusicArtworkExport::Stale),
-        "unavailable" => Ok(AppleMusicArtworkExport::Unavailable),
-        value => Err(format!(
-            "Apple Music artwork script returned an unknown status: {value}"
-        )),
-    }
-}
-
 async fn download_artwork(http: &reqwest::Client, url: &str) -> Result<Vec<u8>, String> {
     let parsed =
         reqwest::Url::parse(url).map_err(|error| format!("Invalid artwork URL: {error}"))?;
@@ -571,74 +384,6 @@ mod tests {
         assert_ne!(
             cache_key(PlayerKind::AppleMusic, "track"),
             legacy_apple_music_key
-        );
-    }
-
-    #[cfg(target_os = "macos")]
-    #[test]
-    fn apple_music_artwork_script_compiles() {
-        let root = tempdir().unwrap();
-        let output_path = root.path().join("apple-music-artwork.scpt");
-        let output = Command::new("/usr/bin/osacompile")
-            .arg("-o")
-            .arg(&output_path)
-            .arg("-e")
-            .arg(APPLE_MUSIC_ARTWORK_SCRIPT)
-            .output()
-            .unwrap();
-        assert!(
-            output.status.success(),
-            "Apple Music 封面脚本编译失败：{}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        );
-        assert!(output_path.exists());
-    }
-
-    #[cfg(target_os = "macos")]
-    #[test]
-    fn osascript_preserves_unicode_arguments() {
-        let output = Command::new("/usr/bin/osascript")
-            .args([
-                "-e",
-                "on run argv\nreturn (item 1 of argv) & \"|\" & (item 2 of argv)\nend run",
-                "--",
-                "催眠",
-                "王菲",
-            ])
-            .output()
-            .unwrap();
-        assert!(
-            output.status.success(),
-            "AppleScript Unicode 参数读取失败：{}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        );
-        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "催眠|王菲");
-    }
-
-    #[test]
-    fn parses_apple_music_artwork_export_statuses() {
-        let root = tempdir().unwrap();
-        let output_path = root.path().join("artwork.tmp");
-
-        assert_eq!(
-            parse_apple_music_artwork_status("missing", &output_path).unwrap(),
-            AppleMusicArtworkExport::Missing
-        );
-        assert_eq!(
-            parse_apple_music_artwork_status("stale", &output_path).unwrap(),
-            AppleMusicArtworkExport::Stale
-        );
-        assert_eq!(
-            parse_apple_music_artwork_status("unavailable", &output_path).unwrap(),
-            AppleMusicArtworkExport::Unavailable
-        );
-        assert!(parse_apple_music_artwork_status("ok", &output_path).is_err());
-        assert!(parse_apple_music_artwork_status("unexpected", &output_path).is_err());
-
-        fs::write(&output_path, b"artwork").unwrap();
-        assert_eq!(
-            parse_apple_music_artwork_status("ok", &output_path).unwrap(),
-            AppleMusicArtworkExport::Exported
         );
     }
 
