@@ -137,7 +137,7 @@ failed: "歌词目录扫描失败",
     },
     app: {
       title: "应用", description: "选择播放器并管理主界面、菜单栏与快捷键。", player: "播放器",
-      playerMode: "播放方式", playerAuto: "智能选择", playerSystem: "仅使用系统媒体", playerHint: "推荐使用智能选择；识别异常时再手动指定。", systemApplications: "系统播放应用", systemApplicationsHint: "只允许列表中的第三方系统媒体应用；留空则不限制。", addCurrentApplication: "添加当前播放应用", chooseApplications: "从访达选择应用", systemApplicationsPicker: "macOS 应用", display: "主界面显示", language: { label: "界面语言", description: "立即应用到所有窗口，并随应用配置保存。" },
+      playerMode: "播放方式", playerAuto: "智能选择", playerSystem: "仅使用系统媒体", playerHint: "推荐使用智能选择；识别异常时再手动指定。", systemApplications: "系统播放应用", systemApplicationsHint: "仅用于系统媒体通道；不包含 Apple Music 和 Spotify，留空则不限制第三方来源。", systemApplicationsEmpty: "尚未添加系统播放应用", addCurrentApplication: "添加当前播放应用", chooseApplications: "从访达选择应用", systemApplicationsPicker: "macOS 应用", display: "主界面显示", language: { label: "界面语言", description: "立即应用到所有窗口，并随应用配置保存。" },
       fontScale: "主界面字号", fontScaleHint: "只放大首页、设置和歌词库的文字；窗口尺寸、控件和桌面歌词不受影响。",
       dockMenu: "Dock 与菜单栏", hideDock: "隐藏 Dock 图标和运行指示点", hideDockHint: "隐藏后仍可通过菜单栏图标打开 Lyrics Plus",
       shortcuts: "快捷键", openSettings: "打开设置", toggleOverlay: "显示 / 隐藏桌面歌词", unlockOverlay: "锁定 / 解锁桌面歌词",

@@ -88,7 +88,9 @@
 .titleFilters > p { width: 100%; margin: 0; padding: 8px 4px; color: #666c7c; font-size: var(--typography-caption-size); line-height: var(--typography-caption-line-height); }
 .titleFilter { min-width: 0; max-width: 100%; display: inline-flex; gap: 6px; align-items: center; padding: 5px 5px 5px 9px; border: 1px solid #ffffff0c; border-radius: 8px; background: #ffffff04; }
 .titleFilter span { min-width: 0; color: #aeb3c1; overflow-wrap: anywhere; font-size: var(--typography-caption-size); line-height: var(--typography-caption-line-height); }
-.titleFilter button { flex: 0 0 26px; width: 26px; height: 26px; border-radius: 6px; color: #d98c99; }
+.titleFilter button { flex: 0 0 26px; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 6px; color: #737989; transition: color .15s, background .15s; }
+.titleFilter button:hover { background: #ffffff0a; color: #d98c99; }
+.titleFilter button > span { width: 16px; height: 16px; }
 .titleFilter button:disabled, .titleFilterForm button:disabled { opacity: .35; cursor: default; }
 .titleFilterForm { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; padding: 10px 14px 13px; border-top: 1px solid #ffffff09; }
 .titleFilterForm input { min-width: 0; padding: 7px 8px; border: 1px solid #ffffff12; border-radius: 7px; outline: none; background: #0e1016; color: #cfd2dc; font-family: var(--font-family-mono); font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); }
@@ -113,21 +115,28 @@
 .systemApplicationsToolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 10px 14px; }
 .systemApplicationsToolbar .cardHint { flex: 1 1 320px; padding: 0; }
 .systemApplicationsToolbar .shortcutControls { margin-left: auto; flex-wrap: wrap; }
-.systemApplicationGrid { max-height: 240px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 12px 14px; overflow-y: auto; border-top: 1px solid #ffffff09; }
-.systemApplicationItem { min-width: 0; display: flex; align-items: center; gap: 9px; padding: 9px; border: 1px solid #ffffff0d; border-radius: 10px; background: #ffffff04; }
-.systemApplicationMeta { min-width: 0; flex: 1; display: grid; gap: 2px; }
-.systemApplicationMeta strong, .systemApplicationMeta small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.systemApplicationMeta strong { color: #c2c6d1; font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); font-weight: var(--typography-label-weight); }
-.systemApplicationMeta small { color: #686e7e; font-size: var(--typography-caption-size); line-height: var(--typography-caption-line-height); }
-.systemApplicationItem > .shortcutReset { flex: none; }
-@media (max-width: 640px) { .systemApplicationGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 420px) { .systemApplicationGrid { grid-template-columns: minmax(0, 1fr); } }
+.applicationList { max-height: 260px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; padding: 10px; overflow-y: auto; border-top: 1px solid #ffffff09; }
+.applicationItem { min-width: 0; display: grid; grid-template-columns: 32px minmax(0, 1fr) 28px; align-items: center; gap: 10px; min-height: 52px; padding: 7px 8px; border: 1px solid #ffffff0b; border-radius: 10px; background: #ffffff02; }
+.applicationItem:hover { border-color: #ffffff14; background: #ffffff05; }
+.applicationItem > img, .applicationIconFallback { width: 32px; height: 32px; border-radius: 7px; }
+.applicationItem > img { object-fit: contain; }
+.applicationIconFallback { display: grid; place-items: center; background: #ffffff0a; color: #7e8494; }
+.applicationIconFallback > span { width: 18px; height: 18px; }
+.applicationItem strong { min-width: 0; overflow: hidden; color: #c9ccd5; font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); font-weight: var(--typography-label-weight); text-overflow: ellipsis; white-space: nowrap; }
+.applicationRemove { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; color: #737989; opacity: .65; transition: opacity .15s, color .15s, background .15s; }
+.applicationItem:hover .applicationRemove, .applicationRemove:focus-visible { opacity: 1; }
+.applicationRemove:hover { background: #ffffff0a; color: #d98c99; }
+.applicationRemove:disabled { opacity: .28; cursor: default; }
+.applicationRemove > span { width: 16px; height: 16px; }
+.applicationEmpty { padding: 16px 14px 18px; border-top: 1px solid #ffffff09; color: #666c7b; font-size: var(--typography-caption-size); line-height: var(--typography-caption-line-height); text-align: center; }
 .shortcutRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 11px 14px; border-bottom: 1px solid #ffffff09; color: #979cab; font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); font-weight: var(--typography-label-weight); }
 .shortcutRow:last-child { border-bottom: 0; }
 .shortcutRow kbd { padding: 4px 7px; border: 1px solid #ffffff13; border-radius: 6px; background: #0c0e13; color: #b9bdc9; font: inherit; }
 .shortcutRow small { display: block; margin-top: 2px; color: #666c7b; font-size: var(--typography-caption-size); font-weight: 400; }
 .shortcutControls { display: flex; align-items: center; gap: 6px; }
 .shortcutRecorder, .shortcutReset { padding: 5px 8px; border: 1px solid #ffffff13; border-radius: 6px; background: #0c0e13; color: #b9bdc9; font-size: var(--typography-caption-size); line-height: var(--typography-caption-line-height); font-weight: var(--typography-caption-weight); }
+.shortcutReset { display: inline-flex; align-items: center; gap: 4px; }
+.shortcutReset > span { width: 14px; height: 14px; }
 .shortcutRecorder { min-width: 112px; }
 .shortcutRecorder[data-recording="true"] { border-color: #9277f477; background: #9277f417; color: #c4b5fd; }
 .shortcutRecorder:focus-visible { outline: 2px solid #a98fff; outline-offset: 2px; }

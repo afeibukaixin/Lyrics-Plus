@@ -17,8 +17,8 @@ export function SettingsCard({ title, trailing, children }: { title: string; tra
   return <section className={styles.card}><header><h3>{title}</h3>{trailing}</header>{children}</section>;
 }
 
-export function ToggleRow({ label, description, value, onChange }: { label: string; description?: string; value: boolean; onChange: (value: boolean) => void | Promise<unknown> }) {
-  return <div className={styles.settingRow}><div><strong>{label}</strong>{description && <small>{description}</small>}</div><button aria-label={label} aria-pressed={value} className={styles.switch} data-on={value} onClick={() => void onChange(!value)}><span /></button></div>;
+export function ToggleRow({ label, description, value, disabled = false, onChange }: { label: string; description?: string; value: boolean; disabled?: boolean; onChange: (value: boolean) => void | Promise<unknown> }) {
+  return <div className={styles.settingRow}><div><strong>{label}</strong>{description && <small>{description}</small>}</div><button aria-label={label} aria-pressed={value} className={styles.switch} data-on={value} disabled={disabled} onClick={() => void onChange(!value)}><span /></button></div>;
 }
 
 export function RangeRow({ label, value, min, max, step = 1, suffix, displayValue, disabled = false, onChange }: { label: string; value: number; min: number; max: number; step?: number; suffix: string; displayValue?: number; disabled?: boolean; onChange: (value: number) => void }) {

@@ -4,7 +4,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use wait_timeout::ChildExt;
 
-use crate::config::{is_dedicated_player_bundle_id, SystemMediaApplication};
+use crate::config::{is_dedicated_player_bundle_id, RegisteredApplication};
 
 mod system_media;
 pub use system_media::SystemMediaService;
@@ -392,7 +392,7 @@ mod tests {
         assert!(system_source_allowed(&snapshot, &[]));
         assert!(!system_source_allowed(
             &snapshot,
-            &[SystemMediaApplication {
+            &[RegisteredApplication {
                 name: "Other".into(),
                 bundle_id: "org.example.Other".into(),
             }],
@@ -400,7 +400,7 @@ mod tests {
         snapshot.source_app_bundle_id = Some("com.apple.Music".into());
         assert!(system_source_allowed(
             &snapshot,
-            &[SystemMediaApplication {
+            &[RegisteredApplication {
                 name: "Other".into(),
                 bundle_id: "org.example.Other".into(),
             }],
@@ -415,7 +415,7 @@ mod tests {
             source_app_bundle_id: Some("org.example.Player".into()),
             ..PlaybackSnapshot::default()
         };
-        let allowed = [SystemMediaApplication {
+        let allowed = [RegisteredApplication {
             name: "Player".into(),
             bundle_id: "org.example.Player".into(),
         }];
@@ -427,7 +427,7 @@ mod tests {
         assert_eq!(
             filter_system_source(
                 snapshot,
-                &[SystemMediaApplication {
+                &[RegisteredApplication {
                     name: "Other".into(),
                     bundle_id: "org.example.Other".into(),
                 }],
@@ -482,7 +482,7 @@ mod tests {
         assert_eq!(snapshot.player, Some(PlayerKind::System));
         assert_eq!(selected, Some(PlayerKind::System));
 
-        let allowed = [SystemMediaApplication {
+        let allowed = [RegisteredApplication {
             name: "Browser".into(),
             bundle_id: "org.example.Browser".into(),
         }];
@@ -538,7 +538,7 @@ pub fn query_selected_player(
     selection: PlayerSelection,
     previous_auto_player: Option<PlayerKind>,
     system_media: &SystemMediaService,
-    system_media_applications: &[SystemMediaApplication],
+    system_media_applications: &[RegisteredApplication],
 ) -> (PlaybackSnapshot, Option<PlayerKind>) {
     match selection {
         PlayerSelection::AppleMusic => (query_player(PlayerKind::AppleMusic), None),
@@ -559,7 +559,7 @@ pub fn query_selected_player(
 fn query_auto_player(
     system: PlaybackSnapshot,
     previous_auto_player: Option<PlayerKind>,
-    system_media_applications: &[SystemMediaApplication],
+    system_media_applications: &[RegisteredApplication],
     query: impl Fn(PlayerKind) -> PlaybackSnapshot,
 ) -> (PlaybackSnapshot, Option<PlayerKind>) {
     if system.is_playing {
@@ -638,7 +638,7 @@ fn query_auto_player(
 
 fn system_source_allowed(
     snapshot: &PlaybackSnapshot,
-    applications: &[SystemMediaApplication],
+    applications: &[RegisteredApplication],
 ) -> bool {
     let Some(bundle_id) = snapshot.source_app_bundle_id.as_deref() else {
         return applications.is_empty();
@@ -652,7 +652,7 @@ fn system_source_allowed(
 
 fn filter_system_source(
     snapshot: PlaybackSnapshot,
-    applications: &[SystemMediaApplication],
+    applications: &[RegisteredApplication],
 ) -> PlaybackSnapshot {
     if !snapshot.is_running || system_source_allowed(&snapshot, applications) {
         snapshot

@@ -15,7 +15,7 @@ export type PlaybackErrorCode =
   | "source_not_allowed"
   | "unavailable";
 
-export type SystemMediaApplication = {
+export type RegisteredApplication = {
   name: string;
   bundleId: string;
 };
@@ -181,7 +181,7 @@ export type AppConfig = {
     uiFontScale: number;
     language: string;
     playerSelection: PlayerSelection;
-    systemMediaApplications: SystemMediaApplication[];
+    systemMediaApplications: RegisteredApplication[];
     hideDockIcon: boolean;
     autoCheckUpdates: boolean;
     shortcuts: GlobalShortcutSettings;

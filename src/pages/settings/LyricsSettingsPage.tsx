@@ -86,7 +86,7 @@ export default function LyricsSettingsPage() {
           {providerView?.settings.titleFilterKeywords.length
             ? providerView.settings.titleFilterKeywords.map((keyword, index) => <div className={styles.titleFilter} key={`${keyword}-${index}`}>
                 <span>{keyword}</span>
-                <button type="button" disabled={savingTitleFilters} aria-label={t("settings.lyrics.removeTitleFilter", { index: index + 1 })} onClick={() => void removeTitleFilter(index)}>×</button>
+                <button type="button" disabled={savingTitleFilters} aria-label={t("settings.lyrics.removeTitleFilter", { index: index + 1 })} onClick={() => void removeTitleFilter(index)}><UiIcon name="close" /></button>
               </div>)
             : <p>{t("settings.lyrics.titleFiltersEmpty")}</p>}
         </div>

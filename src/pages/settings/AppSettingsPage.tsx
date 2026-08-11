@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
-import { defaultGlobalShortcuts, type GlobalShortcutSettings, type GlobalShortcutStatus, type LanguagePreference, type PlayerSelection } from "../../shared/types";
+import { UiIcon } from "../../components/UiIcon";
+import { defaultGlobalShortcuts, type GlobalShortcutSettings, type GlobalShortcutStatus, type LanguagePreference, type PlayerSelection, type RegisteredApplication } from "../../shared/types";
 import { api, messageOf } from "../../shared/api";
 import { languageRegistry, supportedLanguages } from "../../shared/languages";
 import { localizedSource, playbackStatusText } from "../../features/i18n/userText";
@@ -16,6 +17,7 @@ const languageOptions = supportedLanguages.map((code) => ({ code, label: languag
 type ShortcutAction = keyof GlobalShortcutSettings;
 
 const shortcutActions: ShortcutAction[] = ["toggleOverlay", "unlockOverlay", "resetOverlay"];
+const applicationIconCache: Record<string, string> = {};
 
 function shortcutDisplay(value: string) {
   const mac = navigator.userAgent.includes("Mac");
@@ -48,6 +50,36 @@ function shortcutFromEvent(event: React.KeyboardEvent<HTMLButtonElement>) {
   return [...modifiers, event.code].join("+");
 }
 
+function ApplicationList({ applications, icons, busy, emptyLabel, removeLabel, onRemove }: {
+  applications: RegisteredApplication[];
+  icons: Record<string, string>;
+  busy: boolean;
+  emptyLabel: string;
+  removeLabel: string;
+  onRemove: (bundleId: string) => void;
+}) {
+  if (applications.length === 0) return <p className={styles.applicationEmpty}>{emptyLabel}</p>;
+  return (
+    <div className={styles.applicationList}>
+      {applications.map((application) => {
+        return <div className={styles.applicationItem} key={application.bundleId} title={application.bundleId}>
+          {icons[application.bundleId]
+            ? <img alt="" src={icons[application.bundleId]} />
+            : <span className={styles.applicationIconFallback}><UiIcon name="musicNote" /></span>}
+          <strong>{application.name}</strong>
+          <button
+            aria-label={`${removeLabel} ${application.name}`}
+            className={styles.applicationRemove}
+            disabled={busy}
+            title={removeLabel}
+            onClick={() => onRemove(application.bundleId)}
+          ><UiIcon name="close" /></button>
+        </div>;
+      })}
+    </div>
+  );
+}
+
 export default function AppSettingsPage() {
   const {
     config,
@@ -67,11 +99,31 @@ export default function AppSettingsPage() {
   const [savingShortcut, setSavingShortcut] = useState(false);
   const [shortcutStatus, setShortcutStatus] = useState<GlobalShortcutStatus | null>(null);
   const [savingApplications, setSavingApplications] = useState(false);
+  const [applicationIcons, setApplicationIcons] = useState<Record<string, string>>(() => ({ ...applicationIconCache }));
   const { t } = useTranslation();
+
+  const iconBundleIds = [...new Set(config.app.systemMediaApplications.map((application) => application.bundleId))];
+  const iconKey = iconBundleIds.join("\n");
 
   useEffect(() => {
     void api.getGlobalShortcutStatus().then(setShortcutStatus).catch(() => setShortcutStatus(null));
   }, []);
+
+  useEffect(() => {
+    const cached = Object.fromEntries(iconBundleIds.flatMap((bundleId) => (
+      applicationIconCache[bundleId] ? [[bundleId, applicationIconCache[bundleId]]] : []
+    )));
+    setApplicationIcons(cached);
+    let cancelled = false;
+    for (const bundleId of iconBundleIds) {
+      if (applicationIconCache[bundleId]) continue;
+      void api.getApplicationIcons([bundleId]).then((icons) => {
+        Object.assign(applicationIconCache, icons);
+        if (!cancelled) setApplicationIcons((current) => ({ ...current, ...icons }));
+      }).catch(() => undefined);
+    }
+    return () => { cancelled = true; };
+  }, [iconKey]);
 
   const saveShortcut = async (action: ShortcutAction, value: string) => {
     setSavingShortcut(true);
@@ -101,10 +153,11 @@ export default function AppSettingsPage() {
     ? shortcutActions.filter((action) => !shortcutStatus[action])
     : [];
   const languagePreference = normalizeLanguagePreference(config.app.language);
-  const currentBundleId = playback.snapshot.sourceAppBundleId;
-  const canAddCurrent = Boolean(currentBundleId)
-    && !["com.apple.Music", "com.spotify.client"].includes(currentBundleId ?? "")
-    && !config.app.systemMediaApplications.some((application) => application.bundleId === currentBundleId);
+  const currentSystemApplication = playback.snapshot.isRunning && playback.snapshot.player === "system" && playback.snapshot.sourceAppBundleId
+    ? { name: playback.snapshot.sourceAppName ?? playback.snapshot.sourceAppBundleId, bundleId: playback.snapshot.sourceAppBundleId }
+    : null;
+  const canAddCurrentSystem = Boolean(currentSystemApplication)
+    && !config.app.systemMediaApplications.some((application) => application.bundleId === currentSystemApplication?.bundleId);
   const saveApplications = async (applications: typeof config.app.systemMediaApplications) => {
     setSavingApplications(true);
     setError(null);
@@ -116,7 +169,20 @@ export default function AppSettingsPage() {
       setSavingApplications(false);
     }
   };
-  const chooseApplications = async () => {
+  const addCurrentSystemApplication = async () => {
+    if (!currentSystemApplication) return;
+    setSavingApplications(true);
+    setError(null);
+    try {
+      const resolved = await api.resolveApplicationByBundleId(currentSystemApplication.bundleId);
+      await setSystemMediaApplications([...config.app.systemMediaApplications, resolved]);
+    } catch (error) {
+      setError(messageOf(error));
+    } finally {
+      setSavingApplications(false);
+    }
+  };
+  const chooseSystemApplications = async () => {
     const paths = await open({
       multiple: true,
       filters: [{ name: t("settings.app.systemApplicationsPicker"), extensions: ["app"] }],
@@ -133,7 +199,6 @@ export default function AppSettingsPage() {
       setSavingApplications(false);
     }
   };
-
   return (
     <>
       <SettingsHeading title={t("settings.app.title")} description={t("settings.app.description")} onReset={() => void resetSection("app")} resetting={resettingSection === "app"} confirming={confirmingReset === "app"} />
@@ -150,23 +215,11 @@ export default function AppSettingsPage() {
         <div className={styles.systemApplicationsToolbar}>
           <p className={styles.cardHint}>{t("settings.app.systemApplicationsHint")}</p>
           <div className={styles.shortcutControls}>
-            <button className={styles.shortcutReset} disabled={savingApplications || !canAddCurrent} onClick={() => void saveApplications([...config.app.systemMediaApplications, { name: playback.snapshot.sourceAppName ?? currentBundleId!, bundleId: currentBundleId! }])}>{t("settings.app.addCurrentApplication")}</button>
-            <button className={styles.shortcutReset} disabled={savingApplications} onClick={() => void chooseApplications()}>{t("settings.app.chooseApplications")}</button>
+            <button className={styles.shortcutReset} disabled={savingApplications || !canAddCurrentSystem} onClick={() => void addCurrentSystemApplication()}><UiIcon name="plus" />{t("settings.app.addCurrentApplication")}</button>
+            <button className={styles.shortcutReset} disabled={savingApplications} onClick={() => void chooseSystemApplications()}><UiIcon name="plus" />{t("settings.app.chooseApplications")}</button>
           </div>
         </div>
-        {config.app.systemMediaApplications.length > 0 && (
-          <div className={styles.systemApplicationGrid}>
-            {config.app.systemMediaApplications.map((application) => (
-              <div className={styles.systemApplicationItem} key={application.bundleId}>
-                <span className={styles.systemApplicationMeta}>
-                  <strong title={application.name}>{application.name}</strong>
-                  {application.name !== application.bundleId && <small title={application.bundleId}>{application.bundleId}</small>}
-                </span>
-                <button className={styles.shortcutReset} disabled={savingApplications} onClick={() => void saveApplications(config.app.systemMediaApplications.filter((item) => item.bundleId !== application.bundleId))}>{t("common.actions.remove")}</button>
-              </div>
-            ))}
-          </div>
-        )}
+        <ApplicationList applications={config.app.systemMediaApplications} icons={applicationIcons} busy={savingApplications} emptyLabel={t("settings.app.systemApplicationsEmpty")} removeLabel={t("common.actions.remove")} onRemove={(bundleId) => void saveApplications(config.app.systemMediaApplications.filter((application) => application.bundleId !== bundleId))} />
       </SettingsCard>
       <SettingsCard title={t("settings.app.display")}>
         <SelectRow

@@ -139,7 +139,7 @@ failed: "歌詞資料夾掃描失敗",
     },
     app: {
       title: "應用程式", description: "選擇播放器並管理主介面、選單列與快速鍵。", player: "播放器",
-      playerMode: "播放方式", playerAuto: "智慧選擇", playerSystem: "僅使用系統媒體", playerHint: "建議使用智慧選擇；辨識異常時再手動指定。", systemApplications: "系統播放應用程式", systemApplicationsHint: "只允許清單中的第三方系統媒體應用程式；留空則不限制。", addCurrentApplication: "加入目前播放應用程式", chooseApplications: "從 Finder 選擇應用程式", systemApplicationsPicker: "macOS 應用程式", display: "主介面顯示", language: { label: "介面語言", description: "立即套用到所有視窗，並儲存至應用程式設定。" },
+      playerMode: "播放方式", playerAuto: "智慧選擇", playerSystem: "僅使用系統媒體", playerHint: "建議使用智慧選擇；辨識異常時再手動指定。", systemApplications: "系統播放應用程式", systemApplicationsHint: "僅用於系統媒體通道；不包含 Apple Music 和 Spotify，留空則不限制第三方來源。", systemApplicationsEmpty: "尚未加入系統播放應用程式", addCurrentApplication: "加入目前播放應用程式", chooseApplications: "從 Finder 選擇應用程式", systemApplicationsPicker: "macOS 應用程式", display: "主介面顯示", language: { label: "介面語言", description: "立即套用到所有視窗，並儲存至應用程式設定。" },
       fontScale: "主介面字體大小", fontScaleHint: "只放大首頁、設定和歌詞庫的文字；視窗大小、控制項和桌面歌詞不受影響。",
       dockMenu: "Dock 與選單列", hideDock: "隱藏 Dock 圖示和執行指示點", hideDockHint: "隱藏後仍可透過選單列圖示開啟 Lyrics Plus",
       shortcuts: "快速鍵", openSettings: "開啟設定", toggleOverlay: "顯示 / 隱藏桌面歌詞", unlockOverlay: "鎖定 / 解鎖桌面歌詞",

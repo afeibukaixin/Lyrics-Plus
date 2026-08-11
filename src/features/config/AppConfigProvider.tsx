@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, isTauriRuntime } from "../../shared/api";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
-import { defaultGlobalShortcuts, defaultOverlayStyle, type AppConfig, type GlobalShortcutSettings, type LanguagePreference, type SystemMediaApplication } from "../../shared/types";
+import { defaultGlobalShortcuts, defaultOverlayStyle, type AppConfig, type GlobalShortcutSettings, type LanguagePreference, type RegisteredApplication } from "../../shared/types";
 
 const defaultOverlayAppearance = (({
   horizontalMaxWidth: _horizontalMaxWidth,
@@ -16,7 +16,7 @@ const defaultTitleFilterKeywords = [
 ];
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 16,
+  schemaVersion: 21,
   app: { uiFontScale: 100, language: "system", playerSelection: "auto", systemMediaApplications: [], hideDockIcon: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
@@ -44,7 +44,7 @@ type AppConfigContextValue = {
   setUiFontScale: (scale: number) => Promise<void>;
   setLanguage: (language: LanguagePreference) => Promise<void>;
   setGlobalShortcuts: (shortcuts: GlobalShortcutSettings) => Promise<void>;
-  setSystemMediaApplications: (applications: SystemMediaApplication[]) => Promise<void>;
+  setSystemMediaApplications: (applications: RegisteredApplication[]) => Promise<void>;
   setDockIconHidden: (hidden: boolean) => Promise<void>;
   setAutoCheckUpdates: (enabled: boolean) => Promise<void>;
   setOverlayHideWhenNotPlaying: (hidden: boolean) => Promise<void>;

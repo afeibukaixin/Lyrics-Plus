@@ -278,34 +278,6 @@ pub(crate) fn apply_dock_icon_hidden(_app: &tauri::AppHandle, _hidden: bool) -> 
 }
 
 #[cfg(target_os = "macos")]
-fn cleanup_legacy_autostart(app: &tauri::AppHandle) {
-    let home_dir = match app.path().home_dir() {
-        Ok(home_dir) => home_dir,
-        Err(error) => {
-            log::warn!(
-                "Failed to locate the user home directory; skipped legacy autostart cleanup: {error}"
-            );
-            return;
-        }
-    };
-    let launch_agent = home_dir
-        .join("Library")
-        .join("LaunchAgents")
-        .join(format!("{}.plist", app.package_info().name));
-    if launch_agent.exists() {
-        if let Err(error) = std::fs::remove_file(&launch_agent) {
-            log::warn!(
-                "Failed to remove legacy autostart entry {}: {error}",
-                launch_agent.display()
-            );
-        }
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn cleanup_legacy_autostart(_app: &tauri::AppHandle) {}
-
-#[cfg(target_os = "macos")]
 fn enable_joining_other_apps_fullscreen(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
 
@@ -975,7 +947,7 @@ const OVERLAY_HOVER_EVENT: &str = "overlay://hover";
 pub(crate) fn primary_mouse_button_pressed() -> bool {
     use objc2_app_kit::NSEvent;
 
-    unsafe { NSEvent::pressedMouseButtons() & 1 != 0 }
+    NSEvent::pressedMouseButtons() & 1 != 0
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -1628,7 +1600,6 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            cleanup_legacy_autostart(app.handle());
             let storage = storage::Storage::new(app.handle())?;
             let notice_accepted = legal_notice_accepted(&storage).unwrap_or(false);
             let app_dir = app.path().app_data_dir()?;
@@ -1811,6 +1782,8 @@ pub fn run() {
             commands::set_ui_font_scale,
             commands::resolve_system_media_applications,
             commands::set_system_media_applications,
+            commands::get_application_icons,
+            commands::resolve_application_by_bundle_id,
             commands::set_language,
             commands::set_native_language,
             commands::get_global_shortcut_status,

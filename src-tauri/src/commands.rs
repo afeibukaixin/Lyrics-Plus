@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex, RwLock};
@@ -12,7 +13,7 @@ use crate::artwork::{player_name, ArtworkAsset, ArtworkService};
 use crate::config::{
     normalize_system_media_applications, validate_config_draft, AppConfig, ConfigDraftValidation,
     ConfigEditorData, ConfigStore, GlobalShortcutSettings, LanguagePreference, OverlayAppearance,
-    SystemMediaApplication,
+    RegisteredApplication,
 };
 use crate::language::UiLanguage;
 use crate::lyrics::provider::{
@@ -394,6 +395,9 @@ pub fn update_player_selection(
     selection: PlayerSelection,
 ) -> Result<(), String> {
     let state = app.state::<AppState>();
+    let saved = state
+        .config
+        .update(|config| config.app.player_selection = selection)?;
     *state
         .selection
         .write()
@@ -402,10 +406,9 @@ pub fn update_player_selection(
         .auto_player
         .write()
         .unwrap_or_else(|error| error.into_inner()) = None;
-    state
-        .config
-        .update(|config| config.app.player_selection = selection)?;
     app.emit("player://selection", selection)
+        .map_err(|error| error.to_string())?;
+    app.emit("config://changed", &saved)
         .map_err(|error| error.to_string())
 }
 
@@ -1332,7 +1335,7 @@ fn plist_string(path: &Path, key: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-fn resolve_system_media_application(path: &Path) -> Result<SystemMediaApplication, String> {
+fn resolve_registered_application(path: &Path) -> Result<RegisteredApplication, String> {
     if !path.is_dir() || path.extension().and_then(|value| value.to_str()) != Some("app") {
         return Err(format!("不是有效的 .app：{}", path.display()));
     }
@@ -1349,17 +1352,17 @@ fn resolve_system_media_application(path: &Path) -> Result<SystemMediaApplicatio
                 .map(|value| value.to_string_lossy().into_owned())
         })
         .unwrap_or_else(|| bundle_id.clone());
-    Ok(SystemMediaApplication { name, bundle_id })
+    Ok(RegisteredApplication { name, bundle_id })
 }
 
 #[tauri::command]
 pub fn resolve_system_media_applications(
     paths: Vec<PathBuf>,
-) -> Result<Vec<SystemMediaApplication>, String> {
+) -> Result<Vec<RegisteredApplication>, String> {
     normalize_system_media_applications(
         paths
             .iter()
-            .map(|path| resolve_system_media_application(path))
+            .map(|path| resolve_registered_application(path))
             .collect::<Result<Vec<_>, _>>()?,
     )
 }
@@ -1367,7 +1370,7 @@ pub fn resolve_system_media_applications(
 #[tauri::command]
 pub fn set_system_media_applications(
     app: tauri::AppHandle,
-    applications: Vec<SystemMediaApplication>,
+    applications: Vec<RegisteredApplication>,
     state: State<'_, AppState>,
 ) -> Result<AppConfig, String> {
     let applications = normalize_system_media_applications(applications)?;
@@ -1377,6 +1380,95 @@ pub fn set_system_media_applications(
     app.emit("config://changed", &config)
         .map_err(|error| error.to_string())?;
     Ok(config)
+}
+
+#[tauri::command]
+pub async fn get_application_icons(
+    bundle_ids: Vec<String>,
+) -> Result<HashMap<String, String>, String> {
+    tauri::async_runtime::spawn_blocking(move || collect_application_icons(bundle_ids))
+        .await
+        .map_err(|error| format!("读取应用图标失败：{error}"))
+}
+
+fn collect_application_icons(bundle_ids: Vec<String>) -> HashMap<String, String> {
+    bundle_ids
+        .into_iter()
+        .filter_map(|bundle_id| application_icon(&bundle_id).map(|icon| (bundle_id, icon)))
+        .collect()
+}
+
+#[cfg(target_os = "macos")]
+fn application_icon(bundle_id: &str) -> Option<String> {
+    use objc2::rc::autoreleasepool;
+    use objc2_app_kit::NSWorkspace;
+    use objc2_foundation::NSString;
+
+    autoreleasepool(|_| {
+        let workspace = NSWorkspace::sharedWorkspace();
+        let url =
+            workspace.URLForApplicationWithBundleIdentifier(&NSString::from_str(bundle_id))?;
+        let path = url.path()?;
+        application_icon_at_path(&path.to_string())
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn application_icon_at_path(path: &str) -> Option<String> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    use objc2::{rc::autoreleasepool, AnyThread};
+    use objc2_app_kit::{NSBitmapImageFileType, NSBitmapImageRep, NSWorkspace};
+    use objc2_foundation::{NSDictionary, NSPoint, NSRect, NSSize, NSString};
+
+    autoreleasepool(|_| {
+        let workspace = NSWorkspace::sharedWorkspace();
+        let icon = workspace.iconForFile(&NSString::from_str(path));
+        let mut bounds = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(64.0, 64.0));
+        let image = unsafe { icon.CGImageForProposedRect_context_hints(&mut bounds, None, None)? };
+        let bitmap = NSBitmapImageRep::initWithCGImage(NSBitmapImageRep::alloc(), &image);
+        let properties = NSDictionary::new();
+        let png = unsafe {
+            bitmap.representationUsingType_properties(NSBitmapImageFileType::PNG, &properties)?
+        };
+        Some(format!(
+            "data:image/png;base64,{}",
+            STANDARD.encode(png.to_vec())
+        ))
+    })
+}
+
+#[cfg(not(target_os = "macos"))]
+fn application_icon(_bundle_id: &str) -> Option<String> {
+    None
+}
+
+#[tauri::command]
+pub async fn resolve_application_by_bundle_id(
+    bundle_id: String,
+) -> Result<RegisteredApplication, String> {
+    tauri::async_runtime::spawn_blocking(move || resolve_application_bundle_id(&bundle_id))
+        .await
+        .map_err(|error| format!("读取应用信息失败：{error}"))?
+}
+
+#[cfg(target_os = "macos")]
+fn resolve_application_bundle_id(bundle_id: &str) -> Result<RegisteredApplication, String> {
+    use objc2_app_kit::NSWorkspace;
+    use objc2_foundation::NSString;
+
+    let workspace = NSWorkspace::sharedWorkspace();
+    let url = workspace
+        .URLForApplicationWithBundleIdentifier(&NSString::from_str(bundle_id))
+        .ok_or_else(|| format!("找不到应用：{bundle_id}"))?;
+    let path = url
+        .path()
+        .ok_or_else(|| format!("无法读取应用路径：{bundle_id}"))?;
+    resolve_registered_application(Path::new(&path.to_string()))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn resolve_application_bundle_id(_bundle_id: &str) -> Result<RegisteredApplication, String> {
+    Err("应用解析仅支持 macOS".into())
 }
 
 #[tauri::command]
@@ -1566,7 +1658,7 @@ fn apply_app_config(
 ) -> Result<AppConfig, String> {
     let previous_config = state.config.snapshot();
     let previous_dock_icon_hidden = previous_config.app.hide_dock_icon;
-    let previous_shortcuts = previous_config.app.shortcuts;
+    let previous_shortcuts = previous_config.app.shortcuts.clone();
     let dock_visibility_changed = previous_dock_icon_hidden != next.app.hide_dock_icon;
     if dock_visibility_changed {
         crate::apply_dock_icon_hidden(app, next.app.hide_dock_icon)?;
@@ -2239,7 +2331,7 @@ mod tests {
             r#"<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>org.example.Player</string><key>CFBundleName</key><string>Example Player</string></dict></plist>"#,
         )
         .unwrap();
-        let resolved = resolve_system_media_application(&application).unwrap();
+        let resolved = resolve_registered_application(&application).unwrap();
         assert_eq!(resolved.bundle_id, "org.example.Player");
         assert_eq!(resolved.name, "Example Player");
         assert_eq!(
@@ -2248,10 +2340,10 @@ mod tests {
                 .len(),
             1
         );
-        assert!(resolve_system_media_application(&root).is_err());
+        assert!(resolve_registered_application(&root).is_err());
         let missing_plist = root.join("Missing.app");
         std::fs::create_dir_all(&missing_plist).unwrap();
-        assert!(resolve_system_media_application(&missing_plist).is_err());
+        assert!(resolve_registered_application(&missing_plist).is_err());
         let missing_bundle_id = root.join("NoId.app/Contents");
         std::fs::create_dir_all(&missing_bundle_id).unwrap();
         std::fs::write(
@@ -2259,7 +2351,24 @@ mod tests {
             r#"<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleName</key><string>No ID</string></dict></plist>"#,
         )
         .unwrap();
-        assert!(resolve_system_media_application(&root.join("NoId.app")).is_err());
+        assert!(resolve_registered_application(&root.join("NoId.app")).is_err());
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn application_icons_are_small_pngs_and_skip_missing_apps() {
+        use base64::Engine as _;
+
+        let icon = application_icon_at_path("/System/Applications/Music.app")
+            .expect("Music.app should have a readable native icon");
+        let icons = collect_application_icons(vec!["invalid.lyrics-plus.icon-test".into()]);
+        let png = base64::engine::general_purpose::STANDARD
+            .decode(icon.split_once(',').unwrap().1)
+            .unwrap();
+
+        assert!(icon.starts_with("data:image/png;base64,iVBORw0KGgo"));
+        assert_eq!(&png[16..24], &[0, 0, 0, 64, 0, 0, 0, 64]);
+        assert!(icons.is_empty());
     }
 }

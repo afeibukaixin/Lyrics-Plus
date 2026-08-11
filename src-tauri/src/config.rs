@@ -16,7 +16,16 @@ use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSet
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 16;
+pub const CONFIG_SCHEMA_VERSION: u16 = 21;
+const APP_CONFIG_KEYS: &[&str] = &[
+    "uiFontScale",
+    "language",
+    "playerSelection",
+    "systemMediaApplications",
+    "hideDockIcon",
+    "autoCheckUpdates",
+    "shortcuts",
+];
 
 fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<String, String> {
     let json =
@@ -145,7 +154,7 @@ pub struct AppPreferences {
     pub ui_font_scale: u16,
     pub language: LanguagePreference,
     pub player_selection: PlayerSelection,
-    pub system_media_applications: Vec<SystemMediaApplication>,
+    pub system_media_applications: Vec<RegisteredApplication>,
     pub hide_dock_icon: bool,
     pub auto_check_updates: bool,
     pub shortcuts: GlobalShortcutSettings,
@@ -167,7 +176,7 @@ impl Default for AppPreferences {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct SystemMediaApplication {
+pub struct RegisteredApplication {
     pub name: String,
     pub bundle_id: String,
 }
@@ -177,8 +186,8 @@ pub fn is_dedicated_player_bundle_id(bundle_id: &str) -> bool {
 }
 
 pub fn normalize_system_media_applications(
-    applications: Vec<SystemMediaApplication>,
-) -> Result<Vec<SystemMediaApplication>, String> {
+    applications: Vec<RegisteredApplication>,
+) -> Result<Vec<RegisteredApplication>, String> {
     let mut bundle_ids = HashSet::new();
     let mut normalized = Vec::new();
     for application in applications {
@@ -196,11 +205,11 @@ pub fn normalize_system_media_applications(
             return Err(format!("无效的 Bundle ID：{bundle_id}"));
         }
         if is_dedicated_player_bundle_id(bundle_id) {
-            continue;
+            return Err("Apple Music 和 Spotify 使用专用通道，不能添加到系统播放应用".into());
         }
         if bundle_ids.insert(bundle_id.to_owned()) {
             let name = application.name.trim();
-            normalized.push(SystemMediaApplication {
+            normalized.push(RegisteredApplication {
                 name: if name.is_empty() { bundle_id } else { name }.to_owned(),
                 bundle_id: bundle_id.to_owned(),
             });
@@ -601,9 +610,6 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
             column: 1,
         });
     }
-    validate_known_fields(&user, raw)?;
-    validate_field_types_and_options(&user, raw)?;
-
     let version = match user.get("schemaVersion") {
         None => CONFIG_SCHEMA_VERSION,
         Some(Value::Number(value)) => {
@@ -628,14 +634,17 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
             &format!("配置文件版本 {version} 高于当前支持的版本 {CONFIG_SCHEMA_VERSION}"),
         ));
     }
+    if version < CONFIG_SCHEMA_VERSION {
+        if let Some(app) = user.get_mut("app").and_then(Value::as_object_mut) {
+            app.retain(|key, _| APP_CONFIG_KEYS.contains(&key.as_str()));
+        }
+    }
+    validate_known_fields(&user, raw)?;
+    validate_field_types_and_options(&user, raw)?;
+
     let migrated_layout = migrate_legacy_overlay_layout(&mut user, version, raw)?;
     #[cfg(test)]
-    let migrated = version < CONFIG_SCHEMA_VERSION
-        || user
-            .get("app")
-            .and_then(Value::as_object)
-            .is_some_and(|app| app.contains_key("autostart"))
-        || migrated_layout;
+    let migrated = version < CONFIG_SCHEMA_VERSION || migrated_layout;
     #[cfg(not(test))]
     let _ = migrated_layout;
     if version < 2 {
@@ -650,9 +659,6 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
                 as u16;
             *scale = Value::from(migrate_v1_font_scale(old));
         }
-    }
-    if let Some(app) = user.get_mut("app").and_then(Value::as_object_mut) {
-        app.remove("autostart");
     }
     user.as_object_mut()
         .expect("checked object")
@@ -793,20 +799,7 @@ fn sanitize_jsonc(raw: &str) -> Result<String, ConfigDraftError> {
 fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftError> {
     check_keys(value, raw, &["schemaVersion", "app", "lyrics", "overlay"])?;
     if let Some(app) = value.get("app") {
-        check_keys(
-            app,
-            raw,
-            &[
-                "uiFontScale",
-                "language",
-                "playerSelection",
-                "systemMediaApplications",
-                "hideDockIcon",
-                "autoCheckUpdates",
-                "autostart",
-                "shortcuts",
-            ],
-        )?;
+        check_keys(app, raw, APP_CONFIG_KEYS)?;
         if let Some(shortcuts) = app.get("shortcuts") {
             check_keys(
                 shortcuts,
@@ -919,7 +912,6 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         }
     }
     for (pointer, key) in [
-        ("/app/autostart", "autostart"),
         ("/app/hideDockIcon", "hideDockIcon"),
         ("/app/autoCheckUpdates", "autoCheckUpdates"),
         ("/overlay/visible", "visible"),
@@ -1797,6 +1789,45 @@ mod tests {
     }
 
     #[test]
+    fn previous_schema_discards_removed_app_fields() {
+        let parsed = parse_config_draft(
+            r#"{"schemaVersion":20,"app":{"removedField":true,"systemMediaApplications":[{"name":"Player","bundleId":"org.example.Player"}]}}"#,
+        )
+        .unwrap();
+        assert!(parsed.migrated);
+        assert_eq!(
+            parsed.config.app.system_media_applications,
+            [RegisteredApplication {
+                name: "Player".into(),
+                bundle_id: "org.example.Player".into(),
+            }]
+        );
+        assert!(!parsed.normalized_json.contains("removedField"));
+    }
+
+    #[test]
+    fn system_media_apps_reject_dedicated_players() {
+        let applications = vec![
+            RegisteredApplication {
+                name: "Spotify".into(),
+                bundle_id: "com.spotify.client".into(),
+            },
+            RegisteredApplication {
+                name: "Player".into(),
+                bundle_id: "org.example.Player".into(),
+            },
+        ];
+        assert_eq!(
+            normalize_system_media_applications(vec![applications[1].clone()]).unwrap(),
+            [RegisteredApplication {
+                name: "Player".into(),
+                bundle_id: "org.example.Player".into(),
+            }]
+        );
+        assert!(normalize_system_media_applications(vec![applications[0].clone()]).is_err());
+    }
+
+    #[test]
     fn language_preference_accepts_supported_and_future_bcp_47_values() {
         for (raw, expected) in [
             (r#"{"app":{"language":"system"}}"#, "system"),
@@ -1910,7 +1941,7 @@ mod tests {
             "vertical_double",
         ] {
             let raw = format!(
-                r#"{{"schemaVersion":16,"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
+                r#"{{"schemaVersion":{CONFIG_SCHEMA_VERSION},"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
             );
             let validation = validate_config_draft(&raw);
             assert!(
@@ -1947,7 +1978,7 @@ mod tests {
     fn current_schema_preserves_explicit_legacy_provider_order() {
         let parsed = parse_config_draft(
             r#"{
-              "schemaVersion": 16,
+              "schemaVersion": 21,
               "lyrics": { "providers": {
                 "mode": "smart",
                 "providers": [
@@ -1976,6 +2007,13 @@ mod tests {
     }
 
     #[test]
+    fn schema_sixteen_migrates_to_current_schema() {
+        let parsed = parse_config_draft(r#"{"schemaVersion":16}"#).unwrap();
+        assert!(parsed.migrated);
+        assert_eq!(parsed.config.schema_version, CONFIG_SCHEMA_VERSION);
+    }
+
+    #[test]
     fn newer_schema_is_rejected() {
         let validation = validate_config_draft(r#"{"schemaVersion":99}"#);
         assert!(!validation.valid);
@@ -1992,7 +2030,6 @@ mod tests {
     #[test]
     fn invalid_types_enums_colors_and_ranges_report_the_field() {
         for (raw, field) in [
-            (r#"{"app":{"autostart":"yes"}}"#, "autostart"),
             (r#"{"app":{"hideDockIcon":"yes"}}"#, "hideDockIcon"),
             (r#"{"app":{"playerSelection":"music"}}"#, "playerSelection"),
             (r#"{"app":{"uiFontScale":151}}"#, "uiFontScale"),
@@ -2100,18 +2137,6 @@ mod tests {
         assert!(parsed
             .normalized_json
             .contains("\"autoCenterWithTranslationOrRomanization\": true"));
-    }
-
-    #[test]
-    fn version_two_autostart_is_accepted_and_removed() {
-        let parsed =
-            parse_config_draft(r#"{"schemaVersion":2,"app":{"uiFontScale":120,"autostart":true}}"#)
-                .unwrap();
-        assert!(parsed.migrated);
-        assert_eq!(parsed.config.schema_version, CONFIG_SCHEMA_VERSION);
-        assert_eq!(parsed.config.app.ui_font_scale, 120);
-        assert!(!parsed.config.app.hide_dock_icon);
-        assert!(!parsed.normalized_json.contains("autostart"));
     }
 
     #[test]
@@ -2261,7 +2286,7 @@ mod tests {
     #[test]
     fn system_media_applications_validate_deduplicate_and_round_trip() {
         let parsed = parse_config_draft(
-            r#"{"app":{"systemMediaApplications":[{"name":"Player","bundleId":"org.example.Player"},{"name":"Duplicate","bundleId":"org.example.Player"},{"name":"Music","bundleId":"com.apple.Music"},{"name":"Spotify","bundleId":"com.spotify.client"}]}}"#,
+            r#"{"app":{"systemMediaApplications":[{"name":"Player","bundleId":"org.example.Player"},{"name":"Duplicate","bundleId":"org.example.Player"}]}}"#,
         )
         .unwrap();
         assert_eq!(parsed.config.app.system_media_applications.len(), 1);
@@ -2277,6 +2302,12 @@ mod tests {
             r#"{"app":{"systemMediaApplications":[{"name":"Broken","bundleId":"not valid"}]}}"#
         )
         .is_err());
+        for bundle_id in ["com.apple.Music", "com.spotify.client"] {
+            let raw = format!(
+                r#"{{"app":{{"systemMediaApplications":[{{"name":"Dedicated","bundleId":"{bundle_id}"}}]}}}}"#
+            );
+            assert!(parse_config_draft(&raw).is_err());
+        }
         assert!(parse_config_draft(r#"{"app":{"systemMediaApplications":{}}}"#).is_err());
     }
 }

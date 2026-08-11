@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "node scripts/tauri.mjs"
+    "tauri": "node scripts/tauri.mjs",
+    "tauri:dev:shell": "node scripts/tauri.mjs dev --config '{\"build\":{\"beforeDevCommand\":\"\"}}'"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

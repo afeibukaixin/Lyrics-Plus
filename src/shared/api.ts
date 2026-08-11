@@ -32,7 +32,7 @@ import type {
   SearchResponse,
   SettingsResetResponse,
   SettingsSection,
-  SystemMediaApplication,
+  RegisteredApplication,
 } from "./types";
 
 export type AppErrorCode = `command.${string}` | "config.conflict" | "unknown";
@@ -146,9 +146,13 @@ export const api = {
   getAppConfig: () => invoke<AppConfig>("get_app_config"),
   setUiFontScale: (scale: number) => invoke<AppConfig>("set_ui_font_scale", { scale }),
   resolveSystemMediaApplications: (paths: string[]) =>
-    invoke<SystemMediaApplication[]>("resolve_system_media_applications", { paths }),
-  setSystemMediaApplications: (applications: SystemMediaApplication[]) =>
+    invoke<RegisteredApplication[]>("resolve_system_media_applications", { paths }),
+  setSystemMediaApplications: (applications: RegisteredApplication[]) =>
     invoke<AppConfig>("set_system_media_applications", { applications }),
+  getApplicationIcons: (bundleIds: string[]) =>
+    invoke<Record<string, string>>("get_application_icons", { bundleIds }),
+  resolveApplicationByBundleId: (bundleId: string) =>
+    invoke<RegisteredApplication>("resolve_application_by_bundle_id", { bundleId }),
   setLanguage: (language: LanguagePreference) =>
     invoke<AppConfig>("set_language", { language }),
   setNativeLanguage: (language: NativeLanguage) =>
@@ -173,7 +177,7 @@ export const api = {
 
 export function messageOf(error: unknown): string {
   if (error instanceof AppOperationError) {
-    if (["set_global_shortcuts", "set_provider_settings", "set_system_media_applications", "resolve_system_media_applications"].includes(error.command) && error.message) return error.message;
+    if (["set_global_shortcuts", "set_provider_settings", "set_system_media_applications", "resolve_system_media_applications", "resolve_application_by_bundle_id"].includes(error.command) && error.message) return error.message;
     return error.code === "config.conflict"
       ? appI18n.t("errors.configConflict")
       : appI18n.t("errors.command");
