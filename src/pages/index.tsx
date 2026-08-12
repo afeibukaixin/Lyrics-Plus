@@ -94,7 +94,10 @@ export default function App() {
       <div className={styles.workspace}>
         <section className={styles.nowPlaying}>
           <div className={styles.artwork} aria-hidden="true">
-            <UiIcon name="musicNote" />
+            <span className={styles.artworkPlaceholder} data-loading={artwork.loading}>
+              <UiIcon className={styles.artworkPlaceholderNote} name="musicNote" />
+              {artwork.loading && <UiIcon className={styles.artworkSpinner} name="spinner" spin />}
+            </span>
             {artwork.url && (
               <img
                 alt=""

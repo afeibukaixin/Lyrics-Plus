@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
+use std::sync::{Mutex as StdMutex, OnceLock, RwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use image::codecs::jpeg::JpegEncoder;
@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use strsim::normalized_levenshtein;
 use tokio::sync::Mutex;
+use zhhz::{Config, Converter};
 
 use crate::config::{
     is_dedicated_player_bundle_id, normalize_registered_application, RegisteredApplication,
@@ -28,7 +29,7 @@ const JPEG_QUALITY: u8 = 85;
 const MAX_CACHE_FILES: usize = 200;
 const MISSING_ARTWORK_TTL: Duration = Duration::from_secs(5 * 60);
 const NETWORK_MISSING_TTL_SECS: u64 = 24 * 60 * 60;
-const NETWORK_MATCH_VERSION: &str = "v2";
+const NETWORK_MATCH_VERSION: &str = "v3";
 const ITUNES_REQUEST_INTERVAL: Duration = Duration::from_secs(3);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -551,13 +552,25 @@ impl ArtworkService {
         snapshot: &PlaybackSnapshot,
         country: &str,
     ) -> Result<Option<ArtworkSource>, String> {
-        let mut last = self.last_itunes_request.lock().await;
-        if let Some(wait) = last.and_then(|at| ITUNES_REQUEST_INTERVAL.checked_sub(at.elapsed())) {
-            tokio::time::sleep(wait).await;
+        let (Some(title), Some(artist)) = (snapshot.title.as_deref(), snapshot.artist.as_deref())
+        else {
+            return Ok(None);
+        };
+        for artist in artist_candidates(artist) {
+            let mut last = self.last_itunes_request.lock().await;
+            if let Some(wait) =
+                last.and_then(|at| ITUNES_REQUEST_INTERVAL.checked_sub(at.elapsed()))
+            {
+                tokio::time::sleep(wait).await;
+            }
+            *last = Some(Instant::now());
+            drop(last);
+            let term = format!("{title} {artist}");
+            if let Some(source) = search_itunes(http, snapshot, country, &term).await? {
+                return Ok(Some(source));
+            }
         }
-        *last = Some(Instant::now());
-        drop(last);
-        search_itunes(http, snapshot, country).await
+        Ok(None)
     }
 
     pub async fn test_provider(
@@ -805,6 +818,153 @@ fn normalize_text(value: &str) -> String {
         .collect()
 }
 
+fn normalize_match_text(value: &str) -> String {
+    // ponytail: artwork candidates are tiny; share one converter until this becomes measurable.
+    static CONVERTER: OnceLock<StdMutex<Converter>> = OnceLock::new();
+    CONVERTER
+        .get_or_init(|| StdMutex::new(Converter::new(Config::T2s)))
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .convert(value)
+        .chars()
+        .filter(|character| character.is_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+fn bracket_artist_parts(value: &str) -> Option<(String, Vec<String>)> {
+    let mut outer = String::new();
+    let mut inner = String::new();
+    let mut inners = Vec::new();
+    let mut stack = Vec::new();
+    let mut found = false;
+    for character in value.chars() {
+        let closing = match character {
+            '(' => Some(')'),
+            '（' => Some('）'),
+            '[' => Some(']'),
+            '【' => Some('】'),
+            _ => None,
+        };
+        if let Some(closing) = closing {
+            if !stack.is_empty() {
+                inner.push(character);
+            }
+            stack.push(closing);
+            found = true;
+        } else if matches!(character, ')' | '）' | ']' | '】') {
+            if stack.pop() != Some(character) {
+                return None;
+            }
+            if stack.is_empty() {
+                if !inner.trim().is_empty() {
+                    inners.push(inner.trim().to_owned());
+                }
+                inner.clear();
+            } else {
+                inner.push(character);
+            }
+        } else if stack.is_empty() {
+            outer.push(character);
+        } else {
+            inner.push(character);
+        }
+    }
+    (found && stack.is_empty()).then_some((outer.trim().to_owned(), inners))
+}
+
+fn split_artist_names(value: &str) -> Vec<String> {
+    let mut separated = String::with_capacity(value.len());
+    for character in value.chars() {
+        if matches!(
+            character,
+            '、' | ',' | '，' | '/' | '&' | '＆' | '和' | '与'
+        ) {
+            separated.push_str(" | ");
+        } else {
+            separated.push(character);
+        }
+    }
+    let mut results = Vec::new();
+    let mut current = String::new();
+    for token in separated.split_whitespace() {
+        let normalized = token.to_ascii_lowercase();
+        let attached_artist = ["feat.", "ft."].into_iter().find_map(|marker| {
+            normalized
+                .strip_prefix(marker)
+                .map(|_| &token[marker.len()..])
+        });
+        let marker = token == "|"
+            || attached_artist.is_some()
+            || matches!(normalized.trim_matches('.'), "feat" | "ft" | "with");
+        if marker {
+            if !current.trim().is_empty() {
+                results.push(current.trim().to_owned());
+                current.clear();
+            }
+            if let Some(artist) = attached_artist.filter(|artist| !artist.trim().is_empty()) {
+                current.push_str(artist);
+            }
+        } else {
+            if !current.is_empty() {
+                current.push(' ');
+            }
+            current.push_str(token);
+        }
+    }
+    if !current.trim().is_empty() {
+        results.push(current.trim().to_owned());
+    }
+    results
+}
+
+fn artist_candidates(value: &str) -> Vec<String> {
+    let mut candidates = Vec::new();
+    let mut seen = HashSet::new();
+    let mut push = |candidate: &str| {
+        let candidate = candidate.trim();
+        let key = normalize_match_text(candidate);
+        if !key.is_empty() && seen.insert(key) && candidates.len() < 3 {
+            candidates.push(candidate.to_owned());
+        }
+    };
+    push(value);
+    if let Some((outer, inners)) = bracket_artist_parts(value) {
+        push(&outer);
+        for inner in inners {
+            let artists = split_artist_names(&inner);
+            if artists.len() > 1 {
+                for artist in artists {
+                    push(&artist);
+                }
+            } else {
+                push(&inner);
+            }
+        }
+    }
+    let artists = split_artist_names(value);
+    if artists.len() > 1 {
+        for artist in artists {
+            push(&artist);
+        }
+    }
+    candidates
+}
+
+fn artist_similarity(expected: &str, actual: &str) -> f64 {
+    artist_candidates(expected)
+        .iter()
+        .flat_map(|expected| {
+            artist_candidates(actual).into_iter().map(move |actual| {
+                normalized_levenshtein(
+                    &normalize_match_text(expected),
+                    &normalize_match_text(&actual),
+                )
+            })
+        })
+        .fold(0.0, f64::max)
+}
+
 fn hash_from_path(path: &str) -> Option<String> {
     Path::new(path).file_stem()?.to_str().map(str::to_owned)
 }
@@ -858,12 +1018,12 @@ async fn search_cover_art_archive(
         .json::<MusicBrainzResponse>()
         .await
         .map_err(|error| format!("MusicBrainz 响应无效：{error}"))?;
-    let expected_artist = normalize_text(artist);
-    let expected_album = normalize_text(album);
+    let expected_artist = normalize_match_text(artist);
+    let expected_album = normalize_match_text(album);
     let Some(group) = response.release_groups.into_iter().find(|group| {
         group.score >= 80
-            && normalize_text(&group.title) == expected_album
-            && normalize_text(
+            && normalize_match_text(&group.title) == expected_album
+            && normalize_match_text(
                 &group
                     .artist_credit
                     .iter()
@@ -916,20 +1076,16 @@ async fn search_itunes(
     http: &reqwest::Client,
     snapshot: &PlaybackSnapshot,
     country: &str,
+    term: &str,
 ) -> Result<Option<ArtworkSource>, String> {
-    let (Some(title), Some(artist)) = (snapshot.title.as_deref(), snapshot.artist.as_deref())
-    else {
-        return Ok(None);
-    };
-    let term = format!("{title} {artist}");
     let response = http
         .get("https://itunes.apple.com/search")
         .query(&[
-            ("term", term.as_str()),
+            ("term", term),
             ("country", country),
             ("media", "music"),
             ("entity", "song"),
-            ("limit", "20"),
+            ("limit", "50"),
         ])
         .send()
         .await
@@ -964,20 +1120,18 @@ async fn search_itunes(
 
 fn itunes_match_score(snapshot: &PlaybackSnapshot, track: &ItunesTrack) -> Option<f64> {
     let title = normalized_levenshtein(
-        &normalize_text(snapshot.title.as_deref()?),
-        &normalize_text(&track.track_name),
+        &normalize_match_text(snapshot.title.as_deref()?),
+        &normalize_match_text(&track.track_name),
     );
-    let artist = normalized_levenshtein(
-        &normalize_text(snapshot.artist.as_deref()?),
-        &normalize_text(&track.artist_name),
-    );
+    let artist = artist_similarity(snapshot.artist.as_deref()?, &track.artist_name);
     if title < 0.3 || artist < 0.6 {
         return None;
     }
     let album = match (snapshot.album.as_deref(), track.collection_name.as_deref()) {
-        (Some(expected), Some(actual)) => {
-            normalized_levenshtein(&normalize_text(expected), &normalize_text(actual))
-        }
+        (Some(expected), Some(actual)) => normalized_levenshtein(
+            &normalize_match_text(expected),
+            &normalize_match_text(actual),
+        ),
         _ => 0.6,
     };
     let duration = match (snapshot.duration_ms, track.track_time_millis) {
@@ -1317,6 +1471,43 @@ mod tests {
     }
 
     #[test]
+    fn artist_candidates_cover_aliases_and_stay_bounded() {
+        assert_eq!(
+            artist_candidates("菲菲公主（陆绮菲）"),
+            ["菲菲公主（陆绮菲）", "菲菲公主", "陆绮菲"]
+        );
+        assert_eq!(artist_candidates("A / B & C"), ["A / B & C", "A", "B"]);
+        assert_eq!(artist_candidates("A和B"), ["A和B", "A", "B"]);
+        assert_eq!(artist_candidates("A feat.B"), ["A feat.B", "A", "B"]);
+        assert_eq!(artist_candidates("和平乐队"), ["和平乐队"]);
+        assert_eq!(artist_candidates("歌手（）"), ["歌手（）"]);
+        assert_eq!(artist_candidates("歌手（别名"), ["歌手（别名"]);
+    }
+
+    #[test]
+    fn itunes_match_accepts_artist_alias_but_rejects_wrong_artist() {
+        let snapshot = PlaybackSnapshot {
+            title: Some("第57次取消发送".into()),
+            artist: Some("菲菲公主（陆绮菲）".into()),
+            album: Some("第57次取消发送".into()),
+            duration_ms: Some(180_608),
+            ..PlaybackSnapshot::default()
+        };
+        let track = |artist: &str| ItunesTrack {
+            track_name: "第57次取消發送".into(),
+            artist_name: artist.into(),
+            collection_name: Some("第57次取消發送".into()),
+            collection_id: Some(1),
+            artwork_url100: Some("https://example.com/100x100.jpg".into()),
+            collection_view_url: None,
+            track_time_millis: Some(180_608),
+        };
+
+        assert!(itunes_match_score(&snapshot, &track("陸綺菲")).is_some());
+        assert!(itunes_match_score(&snapshot, &track("其他歌手")).is_none());
+    }
+
+    #[test]
     fn itunes_country_is_validated_and_separates_negative_cache() {
         for country in ["CN", "TW", "HK", "US"] {
             assert_eq!(validate_itunes_country(country).unwrap(), country);
@@ -1331,6 +1522,7 @@ mod tests {
             network_missing_key("TW", "artist|album"),
             network_missing_key("HK", "artist|album")
         );
+        assert!(network_missing_key("HK", "artist|album").starts_with("v3:"));
     }
 
     #[test]
