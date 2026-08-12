@@ -28,6 +28,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Read annotated release notes
+        id: release_notes
+        shell: bash
+        run: |
+          if [[ "$(git cat-file -t "refs/tags/${GITHUB_REF_NAME}")" != "tag" ]]; then
+            echo "Release tags must be annotated." >&2
+            exit 1
+          fi
+          notes="$(git tag -l --format='%(contents)' "${GITHUB_REF_NAME}")"
+          if [[ -z "${notes//[[:space:]]/}" ]]; then
+            echo "Annotated release tags must include release notes." >&2
+            exit 1
+          fi
+          {
+            echo 'notes<<RELEASE_NOTES_EOF'
+            printf '%s\n' "$notes"
+            echo 'RELEASE_NOTES_EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -63,26 +84,10 @@ jobs:
           tauriScript: pnpm tauri
           tagName: ${{ github.ref_name }}
           releaseName: Lyrics Plus ${{ github.ref_name }}
-          releaseBody: |
-            此版本由 GitHub Actions 自动构建，提供 Apple Silicon 与 Intel 两种架构的安装包。
-
-            ### 下载说明
-
-            - **Apple Silicon**：适用于 M1、M2、M3、M4 及后续 Apple 芯片机型（`aarch64-apple-darwin`）
-            - **Intel**：适用于 Intel 处理器机型（`x86_64-apple-darwin`）
-
-            请在 Assets 中选择与你的 Mac 芯片对应的安装包。
-
-            ### 应用内更新
-
-            支持自动更新的版本可在“设置 → 关于与更新”中检查新版。若当前版本没有该页面，请先手动下载安装本版本一次，后续即可使用应用内更新。
-
-            > [!IMPORTANT]
-            > 当前版本采用 macOS ad-hoc 签名，暂未进行 Apple Developer ID 签名与公证。首次打开如被 macOS 阻止，请前往“系统设置 → 隐私与安全性”，确认应用来源后选择“仍要打开”。
-
+          releaseBody: ${{ steps.release_notes.outputs.notes }}
           releaseDraft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
-          generateReleaseNotes: true
+          generateReleaseNotes: false
           uploadUpdaterJson: true
           uploadUpdaterSignatures: true
           args: --target ${{ matrix.target }}
