@@ -1419,6 +1419,7 @@ pub fn accept_legal_notice(
 
 #[tauri::command]
 pub fn quit_application(app: tauri::AppHandle) {
+    log::info!("Application exit requested: reason=frontend_quit_command");
     app.exit(0);
 }
 

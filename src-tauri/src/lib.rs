@@ -562,7 +562,10 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                     log::warn!("Failed to open settings from the tray: {error}");
                 }
             }
-            "quit" => app.exit(0),
+            "quit" => {
+                log::info!("Application exit requested: reason=tray_quit");
+                app.exit(0);
+            }
             _ => {}
         })
         .build(app)?;
@@ -1953,6 +1956,9 @@ pub fn run() {
                         })
                         .unwrap_or(false);
                     if !runtime_started {
+                        log::info!(
+                            "Application exit requested: reason=main_window_closed_before_runtime_started"
+                        );
                         window.app_handle().exit(0);
                         return;
                     }

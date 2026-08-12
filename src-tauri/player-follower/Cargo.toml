@@ -5,6 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
+block2 = "0.6"
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", default-features = false, features = ["NSRunningApplication"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["NSArray", "NSString"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["NSRunningApplication", "NSWorkspace"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["block2", "NSArray", "NSDictionary", "NSNotification", "NSOperation", "NSRunLoop", "NSString"] }

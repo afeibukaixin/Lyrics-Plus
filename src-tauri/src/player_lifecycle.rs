@@ -37,13 +37,17 @@ mod macos {
     use std::fs;
     use std::path::Path;
     use std::process::Command;
+    use std::ptr::NonNull;
     use std::sync::mpsc;
     use std::time::Duration;
 
     use block2::RcBlock;
     use objc2::rc::autoreleasepool;
-    use objc2_app_kit::NSRunningApplication;
-    use objc2_foundation::{NSError, NSString};
+    use objc2_app_kit::{
+        NSRunningApplication, NSWorkspace, NSWorkspaceApplicationKey,
+        NSWorkspaceDidTerminateApplicationNotification,
+    };
+    use objc2_foundation::{NSError, NSNotification, NSOperationQueue, NSString};
     use objc2_service_management::{SMAppService, SMAppServiceStatus};
     use tauri::Manager;
 
@@ -57,6 +61,7 @@ mod macos {
     const HELPER_BUNDLE_ID: &str = "com.xiaoafei.lyrics-plus.player-follower";
     const TARGET_FILE_NAME: &str = "player-follower-target";
     const VERSION_FILE_NAME: &str = "player-follower-service-version";
+    const SERVICE_VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), ":event-v2");
 
     pub(crate) fn sync_service(
         app: &tauri::AppHandle,
@@ -88,17 +93,17 @@ mod macos {
         let status = unsafe { service.status() };
         if status == SMAppServiceStatus::NotRegistered || status == SMAppServiceStatus::NotFound {
             register(&service)?;
-            atomic_write(&version_path, env!("CARGO_PKG_VERSION"))?;
+            atomic_write(&version_path, SERVICE_VERSION)?;
             return Ok(());
         }
         if status == SMAppServiceStatus::Enabled
             && fs::read_to_string(&version_path)
                 .ok()
-                .is_none_or(|version| version.trim() != env!("CARGO_PKG_VERSION"))
+                .is_none_or(|version| version.trim() != SERVICE_VERSION)
         {
             reregister(&service)?;
         }
-        atomic_write(&version_path, env!("CARGO_PKG_VERSION"))
+        atomic_write(&version_path, SERVICE_VERSION)
     }
 
     pub(crate) fn service_state() -> PlayerFollowerServiceState {
@@ -129,21 +134,63 @@ mod macos {
         if tauri::is_dev() {
             return;
         }
-        tauri::async_runtime::spawn(async move {
-            let mut tracked = None;
-            loop {
-                let target = app.try_state::<AppState>().and_then(|state| {
-                    let config = state.config.snapshot();
-                    followed_player_bundle_id(&config.app).map(str::to_owned)
-                });
-                let running = target.as_deref().is_some_and(application_is_running);
-                if should_exit(&mut tracked, target.as_deref(), running) {
-                    app.exit(0);
-                    break;
-                }
-                tokio::time::sleep(Duration::from_secs(1)).await;
+        let registration_app = app.clone();
+        if let Err(error) =
+            app.run_on_main_thread(move || register_exit_observers(registration_app))
+        {
+            log::warn!("Failed to register player exit observers: {error}");
+        }
+    }
+
+    fn register_exit_observers(app: tauri::AppHandle) {
+        let center = NSWorkspace::sharedWorkspace().notificationCenter();
+        let queue = NSOperationQueue::mainQueue();
+
+        let terminated_app = app;
+        let terminated = RcBlock::new(move |notification: NonNull<NSNotification>| {
+            let Some(bundle_id) = notification_bundle_id(notification) else {
+                return;
+            };
+            let target = terminated_app.try_state::<AppState>().and_then(|state| {
+                let config = state.config.snapshot();
+                followed_player_bundle_id(&config.app).map(str::to_owned)
+            });
+            if !is_followed_player(target.as_deref(), &bundle_id) {
+                return;
             }
+
+            log::warn!(
+                "Application exit requested: reason=followed_player_terminated bundle_id={bundle_id}"
+            );
+            terminated_app.exit(0);
         });
+
+        unsafe {
+            let _ = center.addObserverForName_object_queue_usingBlock(
+                Some(NSWorkspaceDidTerminateApplicationNotification),
+                None,
+                Some(&queue),
+                &terminated,
+            );
+        }
+    }
+
+    fn is_followed_player(target: Option<&str>, bundle_id: &str) -> bool {
+        target == Some(bundle_id)
+    }
+
+    fn notification_bundle_id(notification: NonNull<NSNotification>) -> Option<String> {
+        autoreleasepool(|_| {
+            let notification = unsafe { notification.as_ref() };
+            let user_info = notification.userInfo()?;
+            let application = user_info
+                .objectForKey(unsafe { NSWorkspaceApplicationKey })?
+                .downcast::<NSRunningApplication>()
+                .ok()?;
+            application
+                .bundleIdentifier()
+                .map(|value| value.to_string())
+        })
     }
 
     fn service() -> objc2::rc::Retained<SMAppService> {
@@ -177,38 +224,6 @@ mod macos {
             Ok(false) => Err("更新播放器跟随服务失败".into()),
             Err(_) => Err("等待播放器跟随服务停止超时".into()),
         }
-    }
-
-    fn should_exit(
-        tracked: &mut Option<(String, bool)>,
-        target: Option<&str>,
-        running: bool,
-    ) -> bool {
-        let Some(target) = target else {
-            *tracked = None;
-            return false;
-        };
-        match tracked {
-            Some((previous, was_running)) if previous == target => {
-                let exit = *was_running && !running;
-                *was_running = running;
-                exit
-            }
-            _ => {
-                *tracked = Some((target.to_owned(), running));
-                false
-            }
-        }
-    }
-
-    fn application_is_running(bundle_id: &str) -> bool {
-        autoreleasepool(|_| {
-            NSRunningApplication::runningApplicationsWithBundleIdentifier(&NSString::from_str(
-                bundle_id,
-            ))
-            .count()
-                > 0
-        })
     }
 
     fn atomic_write(path: &Path, value: &str) -> Result<(), String> {
@@ -260,18 +275,16 @@ mod macos {
         use super::*;
 
         #[test]
-        fn exits_only_when_the_same_target_stops() {
-            let mut tracked = None;
-            assert!(!should_exit(
-                &mut tracked,
+        fn exits_only_for_the_current_followed_player() {
+            assert!(is_followed_player(
                 Some("org.example.Player"),
-                false
+                "org.example.Player"
             ));
-            assert!(!should_exit(&mut tracked, Some("org.example.Player"), true));
-            assert!(should_exit(&mut tracked, Some("org.example.Player"), false));
-
-            assert!(!should_exit(&mut tracked, Some("org.example.Other"), false));
-            assert!(!should_exit(&mut tracked, None, false));
+            assert!(!is_followed_player(
+                Some("org.example.Player"),
+                "org.example.Other"
+            ));
+            assert!(!is_followed_player(None, "org.example.Player"));
         }
     }
 }
