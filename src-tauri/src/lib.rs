@@ -1012,17 +1012,17 @@ fn toolbar_placement_after_move(
                 tauri::PhysicalPosition::new(position.x, position.y.saturating_add(inset)),
             )
         }
-        (OverlayOrientation::Horizontal, ToolbarPlacement::Bottom)
-            if position.y
-                > work_position
-                    .y
-                    .saturating_add(inset)
-                    .saturating_add(OVERLAY_EDGE_SNAP_DISTANCE) =>
-        {
-            (
-                ToolbarPlacement::Top,
-                tauri::PhysicalPosition::new(position.x, position.y.saturating_sub(inset)),
-            )
+        (OverlayOrientation::Horizontal, ToolbarPlacement::Bottom) => {
+            let window_bottom = position.y as i64 + size.height as i64;
+            let work_bottom = work_position.y as i64 + work_size.height as i64;
+            if window_bottom >= work_bottom - OVERLAY_EDGE_SNAP_DISTANCE as i64 {
+                (
+                    ToolbarPlacement::Top,
+                    tauri::PhysicalPosition::new(position.x, position.y.saturating_sub(inset)),
+                )
+            } else {
+                (placement, position)
+            }
         }
         (OverlayOrientation::Vertical, ToolbarPlacement::Right) => {
             let window_right = position.x as i64 + size.width as i64;
@@ -1037,9 +1037,7 @@ fn toolbar_placement_after_move(
             }
         }
         (OverlayOrientation::Vertical, ToolbarPlacement::Left) => {
-            let window_right = position.x as i64 + size.width as i64;
-            let work_right = work_position.x as i64 + work_size.width as i64;
-            if window_right < work_right - inset as i64 - OVERLAY_EDGE_SNAP_DISTANCE as i64 {
+            if position.x as i64 <= work_position.x as i64 + OVERLAY_EDGE_SNAP_DISTANCE as i64 {
                 (
                     ToolbarPlacement::Right,
                     tauri::PhysicalPosition::new(position.x.saturating_add(inset), position.y),
@@ -2130,6 +2128,35 @@ mod tests {
         assert_eq!(snap_coordinate(8, 0, 100), 0);
         assert_eq!(snap_coordinate(91, 0, 100), 100);
         assert_eq!(snap_coordinate(50, 0, 100), 50);
+    }
+
+    #[test]
+    fn toolbar_placement_stays_until_opposite_edge() {
+        use OverlayOrientation::{Horizontal, Vertical};
+        use ToolbarPlacement::{Bottom, Left, Right, Top};
+
+        let point = tauri::PhysicalPosition::new;
+        let moved = |orientation, placement, x, y| {
+            toolbar_placement_after_move(
+                orientation,
+                placement,
+                point(x, y),
+                tauri::PhysicalSize::new(300, 100),
+                1.0,
+                point(100, 200),
+                tauri::PhysicalSize::new(1_200, 800),
+            )
+        };
+
+        assert_eq!(moved(Horizontal, Top, 500, 205), (Bottom, point(500, 251)),);
+        assert_eq!(
+            moved(Horizontal, Bottom, 500, 500),
+            (Bottom, point(500, 500)),
+        );
+        assert_eq!(moved(Horizontal, Bottom, 500, 890), (Top, point(500, 844)),);
+        assert_eq!(moved(Vertical, Right, 995, 500), (Left, point(947, 500)),);
+        assert_eq!(moved(Vertical, Left, 500, 500), (Left, point(500, 500)),);
+        assert_eq!(moved(Vertical, Left, 105, 500), (Right, point(153, 500)),);
     }
 
     #[test]
