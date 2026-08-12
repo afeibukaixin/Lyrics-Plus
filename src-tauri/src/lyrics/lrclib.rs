@@ -1,8 +1,9 @@
 use serde::Deserialize;
 
+use super::parse_lrc_with_options;
 use super::provider::{
     score_candidate, LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderError,
-    ProviderErrorKind, ProviderFuture, LRCLIB_DISPLAY_NAME,
+    ProviderErrorKind, ProviderFuture, ProviderSearchReport, LRCLIB_DISPLAY_NAME,
 };
 
 #[derive(Debug, Deserialize)]
@@ -31,7 +32,7 @@ impl LyricsProvider for LrcLibProvider {
         &'a self,
         client: &'a reqwest::Client,
         input: &'a LyricsSearchInput,
-    ) -> ProviderFuture<'a, Vec<LyricsSearchResult>> {
+    ) -> ProviderFuture<'a, ProviderSearchReport> {
         Box::pin(async move {
             let mut url =
                 reqwest::Url::parse("https://lrclib.net/api/search").map_err(|error| {
@@ -73,6 +74,8 @@ impl LyricsProvider for LrcLibProvider {
                     if lyrics.is_empty() {
                         return None;
                     }
+                    let (has_translation, has_word_timing, has_romanization) =
+                        capabilities(&lyrics);
                     let mut result = LyricsSearchResult {
                         id: item.id.to_string(),
                         provider_id: self.id().into(),
@@ -84,9 +87,9 @@ impl LyricsProvider for LrcLibProvider {
                             .map(|seconds| (seconds * 1000.0).round() as u64),
                         source: self.display_name().into(),
                         synced: true,
-                        has_translation: false,
-                        has_word_timing: false,
-                        has_romanization: false,
+                        has_translation,
+                        has_word_timing,
+                        has_romanization,
                         score: 0.0,
                         lyrics,
                     };
@@ -96,9 +99,28 @@ impl LyricsProvider for LrcLibProvider {
                 .collect::<Vec<_>>();
             results.sort_by(|left, right| right.score.total_cmp(&left.score));
             results.truncate(8);
-            Ok(results)
+            Ok(ProviderSearchReport::available(results))
         })
     }
+}
+
+fn capabilities(lyrics: &str) -> (bool, bool, bool) {
+    let parsed = parse_lrc_with_options(lyrics, LRCLIB_DISPLAY_NAME, false).ok();
+    let has_translation = parsed
+        .as_ref()
+        .is_some_and(|document| document.tracks.translation.is_some());
+    let has_word_timing = parsed.as_ref().is_some_and(|document| {
+        document
+            .tracks
+            .original
+            .lines
+            .iter()
+            .any(|line| line.words.as_ref().is_some_and(|words| !words.is_empty()))
+    });
+    let has_romanization = parsed
+        .as_ref()
+        .is_some_and(|document| document.tracks.romanization.is_some());
+    (has_translation, has_word_timing, has_romanization)
 }
 
 impl LrcLibProvider {
@@ -108,5 +130,31 @@ impl LrcLibProvider {
             kind,
             message: message.into(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detects_plain_synced_lyrics_capabilities() {
+        assert_eq!(capabilities("[00:01.00]Hello"), (false, false, false));
+    }
+
+    #[test]
+    fn detects_embedded_translation_and_romanization() {
+        assert_eq!(
+            capabilities("[00:01.00]今日は\n[00:01.00]今天\n[00:01.00]kyou wa"),
+            (true, false, true)
+        );
+    }
+
+    #[test]
+    fn detects_embedded_word_timing() {
+        assert_eq!(
+            capabilities("[00:01.00]<00:01.00>Hello <00:01.50>world"),
+            (false, true, false)
+        );
     }
 }

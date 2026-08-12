@@ -623,9 +623,15 @@ fn start_player_monitor(app: tauri::AppHandle) {
                 .try_state::<AppState>()
                 .map(|state| state.system_media.clone())
                 .unwrap_or_else(|| Arc::new(SystemMediaService::default()));
-            let system_media_applications = app
+            let (system_media_filter_mode, system_media_applications) = app
                 .try_state::<AppState>()
-                .map(|state| state.config.snapshot().app.system_media_applications)
+                .map(|state| {
+                    let config = state.config.snapshot();
+                    (
+                        config.app.system_media_filter_mode,
+                        config.app.system_media_applications,
+                    )
+                })
                 .unwrap_or_default();
 
             let (snapshot, next_auto_player) = tauri::async_runtime::spawn_blocking(move || {
@@ -633,6 +639,7 @@ fn start_player_monitor(app: tauri::AppHandle) {
                     selection,
                     previous_auto_player,
                     &system_media,
+                    system_media_filter_mode,
                     &system_media_applications,
                 )
             })
@@ -1794,6 +1801,7 @@ pub fn run() {
             commands::get_app_config,
             commands::set_ui_font_scale,
             commands::resolve_system_media_applications,
+            commands::set_system_media_filter_mode,
             commands::set_system_media_applications,
             commands::resolve_player_follower_application,
             commands::set_player_follower_application,

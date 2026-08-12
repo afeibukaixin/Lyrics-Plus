@@ -108,6 +108,7 @@
 .provider strong { color: #cdd0d8; font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); font-weight: var(--typography-label-weight); }
 .provider small { overflow: hidden; color: #686e7e; font-size: var(--typography-caption-size); line-height: var(--typography-caption-line-height); font-weight: var(--typography-caption-weight); text-overflow: ellipsis; white-space: nowrap; }
 .provider small[data-health="available"] { color: #67cda2; }
+.provider small[data-health="degraded"] { color: #d5aa67; }
 .provider small[data-health="unavailable"] { color: #d88795; }
 .provider .switch { width: 30px; height: 17px; }
 .provider .switch span { width: 13px; height: 13px; }

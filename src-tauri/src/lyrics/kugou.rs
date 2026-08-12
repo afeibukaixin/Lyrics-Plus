@@ -1,10 +1,12 @@
 use base64::Engine;
+use futures::future::join_all;
 use serde::Deserialize;
 
 use super::parse_lrc_with_options;
 use super::provider::{
-    score_candidate, LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderError,
-    ProviderErrorKind, ProviderFuture, KUGOU_DISPLAY_NAME,
+    collect_provider_results, score_candidate, LyricsProvider, LyricsSearchInput,
+    LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
+    KUGOU_DISPLAY_NAME,
 };
 
 #[derive(Debug, Deserialize)]
@@ -66,7 +68,7 @@ impl LyricsProvider for KugouProvider {
         &'a self,
         client: &'a reqwest::Client,
         input: &'a LyricsSearchInput,
-    ) -> ProviderFuture<'a, Vec<LyricsSearchResult>> {
+    ) -> ProviderFuture<'a, ProviderSearchReport> {
         Box::pin(async move {
             let mut url = reqwest::Url::parse("https://songsearch.kugou.com/song_search_v2")
                 .map_err(|error| {
@@ -103,70 +105,75 @@ impl LyricsProvider for KugouProvider {
             });
             songs.truncate(4);
 
-            let mut results = Vec::new();
-            for song in songs {
-                let duration_ms = song.duration.map(|duration| duration * 1000);
-                let lyric_candidates = match self
-                    .search_lyrics(
-                        client,
-                        &song.file_hash,
-                        duration_ms,
-                        song.mix_song_id.as_deref(),
-                    )
-                    .await
-                {
-                    Ok(candidates) => candidates,
-                    Err(_) => continue,
-                };
-                let Some(lyric_candidate) = lyric_candidates.into_iter().next() else {
-                    continue;
-                };
-                let lyrics = match self
-                    .download(client, &lyric_candidate.id, &lyric_candidate.accesskey)
-                    .await
-                {
-                    Ok(lyrics) => lyrics,
-                    Err(_) => continue,
-                };
-                let parsed = parse_lrc_with_options(&lyrics, self.display_name(), false).ok();
-                let has_translation = parsed
-                    .as_ref()
-                    .is_some_and(|document| document.tracks.translation.is_some());
-                let has_word_timing = parsed.as_ref().is_some_and(|document| {
-                    document
-                        .tracks
-                        .original
-                        .lines
-                        .iter()
-                        .any(|line| line.words.as_ref().is_some_and(|words| !words.is_empty()))
-                });
-                let has_romanization = parsed
-                    .as_ref()
-                    .is_some_and(|document| document.tracks.romanization.is_some());
-                let mut result = LyricsSearchResult {
-                    id: format!("{}|{}", lyric_candidate.id, lyric_candidate.accesskey),
-                    provider_id: self.id().into(),
-                    title: song.song_name,
-                    artist: song.singer_name,
-                    album: song.album_name.filter(|album| !album.is_empty()),
-                    duration_ms,
-                    source: self.display_name().into(),
-                    synced: true,
-                    has_translation,
-                    has_word_timing,
-                    has_romanization,
-                    score: 0.0,
-                    lyrics,
-                };
-                result.score = score_candidate(input, &result);
-                results.push(result);
-            }
-            Ok(results)
+            let outcomes = join_all(
+                songs
+                    .into_iter()
+                    .map(|song| self.fetch_result(client, input, song)),
+            )
+            .await;
+            collect_provider_results(outcomes)
         })
     }
 }
 
 impl KugouProvider {
+    async fn fetch_result(
+        &self,
+        client: &reqwest::Client,
+        input: &LyricsSearchInput,
+        song: KugouSong,
+    ) -> Result<Option<LyricsSearchResult>, ProviderError> {
+        let duration_ms = song.duration.map(|duration| duration * 1000);
+        let Some(lyric_candidate) = self
+            .search_lyrics(
+                client,
+                &song.file_hash,
+                duration_ms,
+                song.mix_song_id.as_deref(),
+            )
+            .await?
+            .into_iter()
+            .next()
+        else {
+            return Ok(None);
+        };
+        let lyrics = self
+            .download(client, &lyric_candidate.id, &lyric_candidate.accesskey)
+            .await?;
+        let parsed = parse_lrc_with_options(&lyrics, self.display_name(), false).ok();
+        let has_translation = parsed
+            .as_ref()
+            .is_some_and(|document| document.tracks.translation.is_some());
+        let has_word_timing = parsed.as_ref().is_some_and(|document| {
+            document
+                .tracks
+                .original
+                .lines
+                .iter()
+                .any(|line| line.words.as_ref().is_some_and(|words| !words.is_empty()))
+        });
+        let has_romanization = parsed
+            .as_ref()
+            .is_some_and(|document| document.tracks.romanization.is_some());
+        let mut result = LyricsSearchResult {
+            id: format!("{}|{}", lyric_candidate.id, lyric_candidate.accesskey),
+            provider_id: self.id().into(),
+            title: song.song_name,
+            artist: song.singer_name,
+            album: song.album_name.filter(|album| !album.is_empty()),
+            duration_ms,
+            source: self.display_name().into(),
+            synced: true,
+            has_translation,
+            has_word_timing,
+            has_romanization,
+            score: 0.0,
+            lyrics,
+        };
+        result.score = score_candidate(input, &result);
+        Ok(Some(result))
+    }
+
     async fn search_lyrics(
         &self,
         client: &reqwest::Client,
@@ -272,4 +279,72 @@ fn metadata_score(input: &LyricsSearchInput, song: &KugouSong) -> f64 {
         lyrics: String::new(),
     };
     score_candidate(input, &result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn result(id: &str) -> LyricsSearchResult {
+        LyricsSearchResult {
+            id: id.into(),
+            provider_id: "kugou".into(),
+            title: id.into(),
+            artist: "Artist".into(),
+            album: None,
+            duration_ms: None,
+            source: KUGOU_DISPLAY_NAME.into(),
+            synced: true,
+            has_translation: false,
+            has_word_timing: false,
+            has_romanization: false,
+            score: 1.0,
+            lyrics: format!("[00:01.00]{id}"),
+        }
+    }
+
+    fn failure(message: &str) -> ProviderError {
+        ProviderError {
+            provider_id: "kugou".into(),
+            kind: ProviderErrorKind::Network,
+            message: message.into(),
+        }
+    }
+
+    #[test]
+    fn preserves_song_order_after_concurrent_pipelines() {
+        let report =
+            collect_provider_results(vec![Ok(Some(result("first"))), Ok(Some(result("second")))])
+                .unwrap();
+        assert_eq!(report.results[0].id, "first");
+        assert_eq!(report.results[1].id, "second");
+    }
+
+    #[test]
+    fn partial_download_failure_is_degraded() {
+        let report = collect_provider_results(vec![
+            Err(failure("download failed")),
+            Ok(Some(result("available"))),
+        ])
+        .unwrap();
+        assert_eq!(report.results[0].id, "available");
+        assert_eq!(report.warning.as_deref(), Some("download failed"));
+    }
+
+    #[test]
+    fn all_pipeline_failures_return_the_first_error() {
+        let error = collect_provider_results(vec![
+            Err(failure("first failure")),
+            Err(failure("second failure")),
+        ])
+        .unwrap_err();
+        assert_eq!(error.message, "first failure");
+    }
+
+    #[test]
+    fn no_lyric_candidate_is_a_successful_empty_result() {
+        let report = collect_provider_results(vec![Ok(None)]).unwrap();
+        assert!(report.results.is_empty());
+        assert!(report.warning.is_none());
+    }
 }

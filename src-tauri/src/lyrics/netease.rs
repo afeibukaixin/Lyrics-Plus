@@ -1,8 +1,10 @@
+use futures::future::join_all;
 use serde::Deserialize;
 
 use super::provider::{
-    score_candidate, LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderError,
-    ProviderErrorKind, ProviderFuture, NETEASE_DISPLAY_NAME,
+    collect_provider_results, score_candidate, LyricsProvider, LyricsSearchInput,
+    LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
+    NETEASE_DISPLAY_NAME,
 };
 
 #[derive(Debug, Deserialize)]
@@ -64,7 +66,7 @@ impl LyricsProvider for NeteaseProvider {
         &'a self,
         client: &'a reqwest::Client,
         input: &'a LyricsSearchInput,
-    ) -> ProviderFuture<'a, Vec<LyricsSearchResult>> {
+    ) -> ProviderFuture<'a, ProviderSearchReport> {
         Box::pin(async move {
             let mut url = reqwest::Url::parse("https://music.163.com/api/search/get/web").map_err(
                 |error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()),
@@ -127,41 +129,48 @@ impl LyricsProvider for NeteaseProvider {
             candidates.sort_by(|left, right| right.score.total_cmp(&left.score));
             candidates.truncate(5);
 
-            let mut results = Vec::new();
-            for mut candidate in candidates {
-                if let Ok(detail) = self.fetch_detail(client, &candidate.id).await {
-                    let Some(line_lyrics) = detail.lrc.map(|value| value.lyric) else {
-                        continue;
-                    };
-                    if !has_timed_text(&line_lyrics) {
-                        continue;
-                    }
-                    let word_lyrics = detail
-                        .yrc
-                        .map(|value| value.lyric)
-                        .filter(|value| !value.trim().is_empty());
-                    let translation = detail
-                        .tlyric
-                        .map(|value| value.lyric)
-                        .filter(|value| has_timed_text(value));
-                    let romanization = detail
-                        .romalrc
-                        .map(|value| value.lyric)
-                        .filter(|value| has_timed_text(value));
-                    candidate.has_translation = translation.is_some();
-                    candidate.has_word_timing = word_lyrics.is_some();
-                    candidate.has_romanization = romanization.is_some();
-                    candidate.lyrics = merge_tracks(
-                        word_lyrics.as_deref().unwrap_or(&line_lyrics),
-                        translation.as_deref(),
-                        romanization.as_deref(),
-                    );
-                    results.push(candidate);
-                }
-            }
-            Ok(results)
+            let details = join_all(
+                candidates
+                    .iter()
+                    .map(|candidate| self.fetch_detail(client, &candidate.id)),
+            )
+            .await;
+            collect_provider_results(candidates.into_iter().zip(details).map(
+                |(candidate, detail)| detail.map(|detail| result_from_detail(candidate, detail)),
+            ))
         })
     }
+}
+
+fn result_from_detail(
+    mut candidate: LyricsSearchResult,
+    detail: LyricsEnvelope,
+) -> Option<LyricsSearchResult> {
+    let line_lyrics = detail.lrc.map(|value| value.lyric)?;
+    if !has_timed_text(&line_lyrics) {
+        return None;
+    }
+    let word_lyrics = detail
+        .yrc
+        .map(|value| value.lyric)
+        .filter(|value| !value.trim().is_empty());
+    let translation = detail
+        .tlyric
+        .map(|value| value.lyric)
+        .filter(|value| has_timed_text(value));
+    let romanization = detail
+        .romalrc
+        .map(|value| value.lyric)
+        .filter(|value| has_timed_text(value));
+    candidate.has_translation = translation.is_some();
+    candidate.has_word_timing = word_lyrics.is_some();
+    candidate.has_romanization = romanization.is_some();
+    candidate.lyrics = merge_tracks(
+        word_lyrics.as_deref().unwrap_or(&line_lyrics),
+        translation.as_deref(),
+        romanization.as_deref(),
+    );
+    Some(candidate)
 }
 
 impl NeteaseProvider {
@@ -228,9 +237,102 @@ fn merge_tracks(original: &str, translation: Option<&str>, romanization: Option<
 mod tests {
     use super::*;
 
+    fn candidate(id: &str) -> LyricsSearchResult {
+        LyricsSearchResult {
+            id: id.into(),
+            provider_id: "netease".into(),
+            title: id.into(),
+            artist: "Artist".into(),
+            album: None,
+            duration_ms: None,
+            source: NETEASE_DISPLAY_NAME.into(),
+            synced: true,
+            has_translation: false,
+            has_word_timing: false,
+            has_romanization: false,
+            score: 1.0,
+            lyrics: String::new(),
+        }
+    }
+
+    fn detail(lyrics: Option<&str>) -> LyricsEnvelope {
+        LyricsEnvelope {
+            lrc: lyrics.map(|lyric| LyricValue {
+                lyric: lyric.into(),
+            }),
+            tlyric: None,
+            yrc: None,
+            romalrc: None,
+        }
+    }
+
+    fn failure(message: &str) -> ProviderError {
+        ProviderError {
+            provider_id: "netease".into(),
+            kind: ProviderErrorKind::Network,
+            message: message.into(),
+        }
+    }
+
     #[test]
     fn ignores_timestamp_only_translation() {
         assert!(!has_timed_text("[00:01.00]\n[00:02.00]"));
         assert!(has_timed_text("[00:01.00]Hello"));
+    }
+
+    #[test]
+    fn preserves_candidate_order_when_collecting_details() {
+        let report = collect_provider_results(vec![
+            Ok(result_from_detail(
+                candidate("first"),
+                detail(Some("[00:01.00]First")),
+            )),
+            Ok(result_from_detail(
+                candidate("second"),
+                detail(Some("[00:01.00]Second")),
+            )),
+        ])
+        .unwrap();
+
+        assert_eq!(report.results[0].id, "first");
+        assert_eq!(report.results[1].id, "second");
+    }
+
+    #[test]
+    fn keeps_successful_details_when_another_request_fails() {
+        let report = collect_provider_results(vec![
+            Err(failure("temporary failure")),
+            Ok(result_from_detail(
+                candidate("available"),
+                detail(Some("[00:01.00]Available")),
+            )),
+        ])
+        .unwrap();
+
+        assert_eq!(report.results.len(), 1);
+        assert_eq!(report.results[0].id, "available");
+        assert_eq!(report.warning.as_deref(), Some("temporary failure"));
+    }
+
+    #[test]
+    fn returns_first_error_when_every_detail_request_fails() {
+        let error = collect_provider_results(vec![
+            Err(failure("first failure")),
+            Err(failure("second failure")),
+        ])
+        .unwrap_err();
+
+        assert_eq!(error.message, "first failure");
+    }
+
+    #[test]
+    fn successful_empty_detail_is_not_a_connection_error() {
+        let report = collect_provider_results(vec![Ok(result_from_detail(
+            candidate("empty"),
+            detail(None),
+        ))])
+        .unwrap();
+        assert!(report.results.is_empty());
+        assert!(report.warning.is_none());
     }
 }

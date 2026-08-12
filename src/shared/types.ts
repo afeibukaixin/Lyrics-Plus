@@ -4,6 +4,7 @@ export type { SupportedLanguage } from "./languages";
 
 export type PlayerKind = "apple_music" | "spotify" | "system";
 export type PlayerSelection = "auto" | PlayerKind;
+export type SystemMediaFilterMode = "allowlist" | "blocklist";
 export type PlaybackErrorCode =
   | "waiting"
   | "not_installed"
@@ -189,6 +190,7 @@ export type AppConfig = {
     uiFontScale: number;
     language: string;
     playerSelection: PlayerSelection;
+    systemMediaFilterMode: SystemMediaFilterMode;
     systemMediaApplications: RegisteredApplication[];
     playerFollowerApplication: RegisteredApplication | null;
     hideDockIcon: boolean;

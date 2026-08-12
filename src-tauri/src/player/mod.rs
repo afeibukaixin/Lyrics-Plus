@@ -4,7 +4,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use wait_timeout::ChildExt;
 
-use crate::config::{is_dedicated_player_bundle_id, RegisteredApplication};
+use crate::config::{is_dedicated_player_bundle_id, RegisteredApplication, SystemMediaFilterMode};
 
 pub(crate) mod automation;
 mod system;
@@ -259,27 +259,52 @@ mod tests {
     }
 
     #[test]
-    fn system_source_allowlist_only_filters_third_party_apps() {
+    fn system_source_filter_modes_handle_lists_and_unknown_sources() {
         let mut snapshot = PlaybackSnapshot {
             is_running: true,
             source_app_bundle_id: Some("org.example.Player".into()),
             ..PlaybackSnapshot::default()
         };
-        assert!(system_source_allowed(&snapshot, &[]));
+        let listed = [RegisteredApplication {
+            name: "Player".into(),
+            bundle_id: "org.example.Player".into(),
+        }];
         assert!(!system_source_allowed(
             &snapshot,
-            &[RegisteredApplication {
-                name: "Other".into(),
-                bundle_id: "org.example.Other".into(),
-            }],
+            SystemMediaFilterMode::Allowlist,
+            &[],
+        ));
+        assert!(system_source_allowed(
+            &snapshot,
+            SystemMediaFilterMode::Allowlist,
+            &listed,
+        ));
+        assert!(system_source_allowed(
+            &snapshot,
+            SystemMediaFilterMode::Blocklist,
+            &[],
+        ));
+        assert!(!system_source_allowed(
+            &snapshot,
+            SystemMediaFilterMode::Blocklist,
+            &listed,
+        ));
+        snapshot.source_app_bundle_id = None;
+        assert!(!system_source_allowed(
+            &snapshot,
+            SystemMediaFilterMode::Allowlist,
+            &[],
+        ));
+        assert!(system_source_allowed(
+            &snapshot,
+            SystemMediaFilterMode::Blocklist,
+            &[],
         ));
         snapshot.source_app_bundle_id = Some("com.apple.Music".into());
         assert!(system_source_allowed(
             &snapshot,
-            &[RegisteredApplication {
-                name: "Other".into(),
-                bundle_id: "org.example.Other".into(),
-            }],
+            SystemMediaFilterMode::Allowlist,
+            &[],
         ));
     }
 
@@ -295,20 +320,13 @@ mod tests {
             name: "Player".into(),
             bundle_id: "org.example.Player".into(),
         }];
-        assert_eq!(filter_system_source(snapshot.clone(), &[]).error_code, None);
         assert_eq!(
-            filter_system_source(snapshot.clone(), &allowed).error_code,
+            filter_system_source(snapshot.clone(), SystemMediaFilterMode::Allowlist, &allowed,)
+                .error_code,
             None
         );
         assert_eq!(
-            filter_system_source(
-                snapshot,
-                &[RegisteredApplication {
-                    name: "Other".into(),
-                    bundle_id: "org.example.Other".into(),
-                }],
-            )
-            .error_code,
+            filter_system_source(snapshot, SystemMediaFilterMode::Blocklist, &allowed,).error_code,
             Some(PlaybackErrorCode::SourceNotAllowed)
         );
 
@@ -319,7 +337,11 @@ mod tests {
                 source_app_bundle_id: Some(bundle_id.into()),
                 ..PlaybackSnapshot::default()
             };
-            assert_eq!(filter_system_source(builtin, &allowed).error_code, None);
+            assert_eq!(
+                filter_system_source(builtin, SystemMediaFilterMode::Blocklist, &allowed,)
+                    .error_code,
+                None
+            );
         }
     }
 
@@ -340,21 +362,29 @@ mod tests {
             title: Some("Track".into()),
             ..PlaybackSnapshot::default()
         };
-        let (snapshot, selected) =
-            query_auto_player(playing_system("com.apple.Music"), None, &[], |kind| {
+        let (snapshot, selected) = query_auto_player(
+            playing_system("com.apple.Music"),
+            None,
+            SystemMediaFilterMode::Allowlist,
+            &[],
+            |kind| {
                 if kind == PlayerKind::AppleMusic {
                     native_music.clone()
                 } else {
                     PlaybackSnapshot::default()
                 }
-            });
+            },
+        );
         assert_eq!(snapshot.player, Some(PlayerKind::AppleMusic));
         assert_eq!(selected, Some(PlayerKind::AppleMusic));
 
-        let (snapshot, selected) =
-            query_auto_player(playing_system("com.spotify.client"), None, &[], |_| {
-                PlaybackSnapshot::default()
-            });
+        let (snapshot, selected) = query_auto_player(
+            playing_system("com.spotify.client"),
+            None,
+            SystemMediaFilterMode::Allowlist,
+            &[],
+            |_| PlaybackSnapshot::default(),
+        );
         assert_eq!(snapshot.player, Some(PlayerKind::System));
         assert_eq!(selected, Some(PlayerKind::System));
 
@@ -365,6 +395,7 @@ mod tests {
         let (snapshot, _) = query_auto_player(
             playing_system("org.example.Browser"),
             None,
+            SystemMediaFilterMode::Allowlist,
             &allowed,
             |_| PlaybackSnapshot::default(),
         );
@@ -372,6 +403,27 @@ mod tests {
         let (snapshot, _) = query_auto_player(
             playing_system("org.example.Blocked"),
             None,
+            SystemMediaFilterMode::Allowlist,
+            &allowed,
+            |kind| {
+                if kind == PlayerKind::Spotify {
+                    PlaybackSnapshot {
+                        player: Some(kind),
+                        is_running: true,
+                        is_playing: true,
+                        ..PlaybackSnapshot::default()
+                    }
+                } else {
+                    PlaybackSnapshot::default()
+                }
+            },
+        );
+        assert_eq!(snapshot.player, Some(PlayerKind::Spotify));
+
+        let (snapshot, _) = query_auto_player(
+            playing_system("org.example.Blocked"),
+            None,
+            SystemMediaFilterMode::Allowlist,
             &allowed,
             |_| PlaybackSnapshot::default(),
         );
@@ -390,21 +442,32 @@ mod tests {
             source_app_bundle_id: Some("org.example.Player".into()),
             ..PlaybackSnapshot::default()
         };
-        let (snapshot, selected) = query_auto_player(paused, Some(PlayerKind::System), &[], |_| {
-            PlaybackSnapshot::default()
-        });
+        let allowed = [RegisteredApplication {
+            name: "Player".into(),
+            bundle_id: "org.example.Player".into(),
+        }];
+        let (snapshot, selected) = query_auto_player(
+            paused,
+            Some(PlayerKind::System),
+            SystemMediaFilterMode::Allowlist,
+            &allowed,
+            |_| PlaybackSnapshot::default(),
+        );
         assert_eq!(snapshot.title.as_deref(), Some("Paused Track"));
         assert_eq!(selected, Some(PlayerKind::System));
 
-        let (snapshot, selected) =
-            query_auto_player(PlaybackSnapshot::default(), None, &[], |kind| {
-                PlaybackSnapshot {
-                    player: Some(kind),
-                    is_running: true,
-                    is_playing: kind == PlayerKind::Spotify,
-                    ..PlaybackSnapshot::default()
-                }
-            });
+        let (snapshot, selected) = query_auto_player(
+            PlaybackSnapshot::default(),
+            None,
+            SystemMediaFilterMode::Allowlist,
+            &[],
+            |kind| PlaybackSnapshot {
+                player: Some(kind),
+                is_running: true,
+                is_playing: kind == PlayerKind::Spotify,
+                ..PlaybackSnapshot::default()
+            },
+        );
         assert_eq!(snapshot.player, Some(PlayerKind::Spotify));
         assert_eq!(selected, Some(PlayerKind::Spotify));
     }
@@ -414,18 +477,24 @@ pub fn query_selected_player(
     selection: PlayerSelection,
     previous_auto_player: Option<PlayerKind>,
     system_media: &SystemMediaService,
+    system_media_filter_mode: SystemMediaFilterMode,
     system_media_applications: &[RegisteredApplication],
 ) -> (PlaybackSnapshot, Option<PlayerKind>) {
     match selection {
         PlayerSelection::AppleMusic => (automation::snapshot(PlayerKind::AppleMusic), None),
         PlayerSelection::Spotify => (automation::snapshot(PlayerKind::Spotify), None),
         PlayerSelection::System => (
-            filter_system_source(system_media.snapshot(), system_media_applications),
+            filter_system_source(
+                system_media.snapshot(),
+                system_media_filter_mode,
+                system_media_applications,
+            ),
             None,
         ),
         PlayerSelection::Auto => query_auto_player(
             system_media.snapshot(),
             previous_auto_player,
+            system_media_filter_mode,
             system_media_applications,
             automation::snapshot,
         ),
@@ -435,6 +504,7 @@ pub fn query_selected_player(
 fn query_auto_player(
     system: PlaybackSnapshot,
     previous_auto_player: Option<PlayerKind>,
+    system_media_filter_mode: SystemMediaFilterMode,
     system_media_applications: &[RegisteredApplication],
     query: impl Fn(PlayerKind) -> PlaybackSnapshot,
 ) -> (PlaybackSnapshot, Option<PlayerKind>) {
@@ -457,21 +527,22 @@ fn query_auto_player(
                 };
             }
             _ => {
-                return (
-                    filter_system_source(system, system_media_applications),
-                    Some(PlayerKind::System),
-                )
+                let system = filter_system_source(
+                    system.clone(),
+                    system_media_filter_mode,
+                    system_media_applications,
+                );
+                if system.error_code != Some(PlaybackErrorCode::SourceNotAllowed) {
+                    return (system, Some(PlayerKind::System));
+                }
             }
         }
     }
-    let system = filter_system_source(system, system_media_applications);
-    if system.error_code == Some(PlaybackErrorCode::SourceNotAllowed) {
-        return (system, Some(PlayerKind::System));
-    }
+    let system = filter_system_source(system, system_media_filter_mode, system_media_applications);
     if previous_auto_player == Some(PlayerKind::System)
         && system.is_running
         && system.title.is_some()
-        && system_source_allowed(&system, system_media_applications)
+        && system_source_allowed(&system, system_media_filter_mode, system_media_applications)
     {
         return (system, previous_auto_player);
     }
@@ -500,6 +571,8 @@ fn query_auto_player(
         && spotify.title.is_some()
     {
         (spotify, previous_auto_player)
+    } else if system.error_code == Some(PlaybackErrorCode::SourceNotAllowed) {
+        (system, Some(PlayerKind::System))
     } else {
         (
             PlaybackSnapshot::unavailable_with_code(
@@ -514,34 +587,45 @@ fn query_auto_player(
 
 fn system_source_allowed(
     snapshot: &PlaybackSnapshot,
+    mode: SystemMediaFilterMode,
     applications: &[RegisteredApplication],
 ) -> bool {
     let Some(bundle_id) = snapshot.source_app_bundle_id.as_deref() else {
-        return applications.is_empty();
+        return mode == SystemMediaFilterMode::Blocklist;
     };
-    is_dedicated_player_bundle_id(bundle_id)
-        || applications.is_empty()
-        || applications
-            .iter()
-            .any(|application| application.bundle_id == bundle_id)
+    if is_dedicated_player_bundle_id(bundle_id) {
+        return true;
+    }
+    let listed = applications
+        .iter()
+        .any(|application| application.bundle_id == bundle_id);
+    listed == (mode == SystemMediaFilterMode::Allowlist)
 }
 
 fn filter_system_source(
     snapshot: PlaybackSnapshot,
+    mode: SystemMediaFilterMode,
     applications: &[RegisteredApplication],
 ) -> PlaybackSnapshot {
-    if !snapshot.is_running || system_source_allowed(&snapshot, applications) {
+    if !snapshot.is_running || system_source_allowed(&snapshot, mode, applications) {
         snapshot
     } else {
-        source_not_allowed(&snapshot)
+        source_not_allowed(&snapshot, mode)
     }
 }
 
-fn source_not_allowed(snapshot: &PlaybackSnapshot) -> PlaybackSnapshot {
+fn source_not_allowed(
+    snapshot: &PlaybackSnapshot,
+    mode: SystemMediaFilterMode,
+) -> PlaybackSnapshot {
     let mut unavailable = PlaybackSnapshot::unavailable_with_code(
         Some(PlayerKind::System),
         PlaybackErrorCode::SourceNotAllowed,
-        "当前系统播放应用不在允许列表中".into(),
+        match mode {
+            SystemMediaFilterMode::Allowlist => "当前系统播放应用不在允许列表中",
+            SystemMediaFilterMode::Blocklist => "当前系统播放应用在排除列表中",
+        }
+        .into(),
     );
     unavailable.source_app_name = snapshot.source_app_name.clone();
     unavailable.source_app_bundle_id = snapshot.source_app_bundle_id.clone();

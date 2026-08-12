@@ -33,6 +33,7 @@ import type {
   SearchResponse,
   SettingsResetResponse,
   SettingsSection,
+  SystemMediaFilterMode,
   RegisteredApplication,
 } from "./types";
 
@@ -148,6 +149,8 @@ export const api = {
   setUiFontScale: (scale: number) => invoke<AppConfig>("set_ui_font_scale", { scale }),
   resolveSystemMediaApplications: (paths: string[]) =>
     invoke<RegisteredApplication[]>("resolve_system_media_applications", { paths }),
+  setSystemMediaFilterMode: (mode: SystemMediaFilterMode) =>
+    invoke<AppConfig>("set_system_media_filter_mode", { mode }),
   setSystemMediaApplications: (applications: RegisteredApplication[]) =>
     invoke<AppConfig>("set_system_media_applications", { applications }),
   resolvePlayerFollowerApplication: (path: string) =>
@@ -188,7 +191,7 @@ export const api = {
 
 export function messageOf(error: unknown): string {
   if (error instanceof AppOperationError) {
-    if (["set_global_shortcuts", "set_provider_settings", "set_system_media_applications", "resolve_system_media_applications", "resolve_player_follower_application", "set_player_follower_application", "resolve_application_by_bundle_id"].includes(error.command) && error.message) return error.message;
+    if (["set_global_shortcuts", "set_provider_settings", "set_system_media_filter_mode", "set_system_media_applications", "resolve_system_media_applications", "resolve_player_follower_application", "set_player_follower_application", "resolve_application_by_bundle_id"].includes(error.command) && error.message) return error.message;
     return error.code === "config.conflict"
       ? appI18n.t("errors.configConflict")
       : appI18n.t("errors.command");

@@ -22,7 +22,7 @@ Switch freely between a transparent background, horizontal single-line, horizont
 | Players | Apple Music playback synchronization | ✅ |
 | Players | Spotify playback synchronization | ✅ |
 | Players | System Media synchronization for compatible third-party macOS media apps | ✅ |
-| Players | System Media source selection and optional third-party app allowlist | ✅ |
+| Players | System Media source selection with third-party app allowlist / blocklist | ✅ |
 | Players | Automatic song, playback state, and position updates | ✅ |
 | Lyrics discovery | Concurrent multi-provider search and candidate ranking | ✅ |
 | Lyrics discovery | Manual candidate selection and title-based re-search | ✅ |
@@ -70,7 +70,7 @@ Lyrics with word-level timing can use sweep, bounce, or full-word highlight effe
 
 Lyrics Plus reads the active player's track information and playback position to keep the main window and desktop overlay synchronized. Lyrics are retrieved independently through third-party lyrics services, so they do not depend on the player's built-in lyrics availability.
 
-In addition to the dedicated Apple Music and Spotify integrations, System Media mode can follow third-party macOS media apps that expose Now Playing metadata through the system media channel. Select **System Media** in Settings → Application and optionally add apps to the allowlist. Metadata and playback controls depend on what each media app exposes.
+In addition to the dedicated Apple Music and Spotify integrations, System Media mode can follow third-party macOS media apps that expose Now Playing metadata through the system media channel. In Settings → Application, use an allowlist to control only selected apps or a blocklist to exclude browsers and other sources. New installations default to an empty allowlist, so no third-party source is controlled until added. Metadata and playback controls depend on what each media app exposes.
 
 ## Download and First Launch
 

@@ -57,7 +57,7 @@ button[data-current="true"] .rank { background: #438b70; }
   min-height: 0; margin: 0; padding: 18px; overflow: auto; background: #0d0f15a8; color: #b9bdc8;
   font-family: var(--font-family-mono); font-size: var(--typography-body-size); line-height: var(--typography-body-line-height); font-weight: var(--typography-body-weight); white-space: pre-wrap; overflow-wrap: anywhere;
 }
-.previewFooter { padding: 12px 13px; border-top: 1px solid #ffffff0b; }
+.previewFooter { display: grid; gap: 4px; padding: 12px 13px; border-top: 1px solid #ffffff0b; }
 .previewFooter span { display: block; min-width: 0; overflow: hidden; color: #777d8d; font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); font-weight: var(--typography-label-weight); text-overflow: ellipsis; white-space: nowrap; }
 .empty { min-height: 100%; display: grid; align-content: center; justify-items: center; gap: 7px; padding: 24px; color: #6d7281; text-align: center; }
 .empty > span { width: 28px; height: 28px; color: #8c76dd; }

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import { UiIcon } from "../../components/UiIcon";
-import { defaultGlobalShortcuts, type GlobalShortcutSettings, type GlobalShortcutStatus, type LanguagePreference, type PlayerFollowerServiceState, type PlayerSelection, type RegisteredApplication } from "../../shared/types";
+import { defaultGlobalShortcuts, type GlobalShortcutSettings, type GlobalShortcutStatus, type LanguagePreference, type PlayerFollowerServiceState, type PlayerSelection, type RegisteredApplication, type SystemMediaFilterMode } from "../../shared/types";
 import { api, messageOf } from "../../shared/api";
 import { languageRegistry, supportedLanguages } from "../../shared/languages";
 import { localizedSource, playbackStatusText } from "../../features/i18n/userText";
@@ -86,6 +86,7 @@ export default function AppSettingsPage() {
     setUiFontScale,
     setLanguage,
     setGlobalShortcuts,
+    setSystemMediaFilterMode,
     setSystemMediaApplications,
     setPlayerFollowerApplication,
     setDockIconHidden,
@@ -164,7 +165,10 @@ export default function AppSettingsPage() {
     ? shortcutActions.filter((action) => !shortcutStatus[action])
     : [];
   const languagePreference = normalizeLanguagePreference(config.app.language);
-  const currentSystemApplication = playback.snapshot.isRunning && playback.snapshot.player === "system" && playback.snapshot.sourceAppBundleId
+  const systemMediaAllowlist = config.app.systemMediaFilterMode === "allowlist";
+  const currentSystemApplication = playback.snapshot.player === "system"
+    && playback.snapshot.sourceAppBundleId
+    && (playback.snapshot.isRunning || playback.snapshot.errorCode === "source_not_allowed")
     ? { name: playback.snapshot.sourceAppName ?? playback.snapshot.sourceAppBundleId, bundleId: playback.snapshot.sourceAppBundleId }
     : null;
   const canAddCurrentSystem = Boolean(currentSystemApplication)
@@ -255,8 +259,7 @@ export default function AppSettingsPage() {
   };
   const followerUnavailable = playerFollowerService === null
     || playerFollowerService === "development"
-    || playerFollowerService === "unsupported"
-    || playerFollowerService === "not_found";
+    || playerFollowerService === "unsupported";
   return (
     <>
       <SettingsHeading title={t("settings.app.title")} description={t("settings.app.description")} onReset={() => void resetSection("app")} resetting={resettingSection === "app"} confirming={confirmingReset === "app"} />
@@ -277,10 +280,9 @@ export default function AppSettingsPage() {
         <ApplicationList applications={config.app.playerFollowerApplication ? [config.app.playerFollowerApplication] : []} icons={applicationIcons} busy={savingPlayerFollower || followerUnavailable} emptyLabel={t("settings.app.playerFollowerEmpty")} removeLabel={t("common.actions.remove")} onRemove={() => void clearPlayerFollower()} />
         {playerFollowerService === "development" && <p className={styles.cardHint}>{t("settings.app.playerFollowerDevelopment")}</p>}
         {playerFollowerService === "unsupported" && <p className={styles.cardHint} data-error="true">{t("settings.app.playerFollowerUnsupported")}</p>}
-        {playerFollowerService === "not_found" && <p className={styles.cardHint} data-error="true">{t("settings.app.playerFollowerNotFound")}</p>}
-        {playerFollowerService === "not_registered" && config.app.playerFollowerApplication && (
+        {(playerFollowerService === "not_found" || playerFollowerService === "not_registered") && config.app.playerFollowerApplication && (
           <div className={styles.systemApplicationsToolbar}>
-            <p className={styles.cardHint} data-error="true">{t("settings.app.playerFollowerNotRegistered")}</p>
+            <p className={styles.cardHint} data-error="true">{t(playerFollowerService === "not_found" ? "settings.app.playerFollowerNotFound" : "settings.app.playerFollowerNotRegistered")}</p>
             <button className={styles.shortcutReset} disabled={savingPlayerFollower} onClick={() => void retryPlayerFollower()}>{t("settings.app.retryPlayerFollower")}</button>
           </div>
         )}
@@ -292,14 +294,24 @@ export default function AppSettingsPage() {
         )}
       </SettingsCard>
       <SettingsCard title={t("settings.app.systemApplications")}>
+        <SelectRow
+          label={t("settings.app.systemMediaFilterMode")}
+          description={t("settings.app.systemMediaFilterModeHint")}
+          value={config.app.systemMediaFilterMode}
+          options={[
+            ["allowlist", t("settings.app.systemMediaAllowlist")],
+            ["blocklist", t("settings.app.systemMediaBlocklist")],
+          ]}
+          onChange={(mode) => void setSystemMediaFilterMode(mode as SystemMediaFilterMode).catch((error) => setError(messageOf(error)))}
+        />
         <div className={styles.systemApplicationsToolbar}>
-          <p className={styles.cardHint}>{t("settings.app.systemApplicationsHint")}</p>
+          <p className={styles.cardHint}>{t(systemMediaAllowlist ? "settings.app.systemApplicationsAllowlistHint" : "settings.app.systemApplicationsBlocklistHint")}</p>
           <div className={styles.shortcutControls}>
-            <button className={styles.shortcutReset} disabled={savingApplications || !canAddCurrentSystem} onClick={() => void addCurrentSystemApplication()}><UiIcon name="plus" />{t("settings.app.addCurrentApplication")}</button>
-            <button className={styles.shortcutReset} disabled={savingApplications} onClick={() => void chooseSystemApplications()}><UiIcon name="plus" />{t("settings.app.chooseApplications")}</button>
+            <button className={styles.shortcutReset} disabled={savingApplications || !canAddCurrentSystem} onClick={() => void addCurrentSystemApplication()}><UiIcon name="plus" />{t(systemMediaAllowlist ? "settings.app.addAllowedApplication" : "settings.app.addBlockedApplication")}</button>
+            <button className={styles.shortcutReset} disabled={savingApplications} onClick={() => void chooseSystemApplications()}><UiIcon name="plus" />{t(systemMediaAllowlist ? "settings.app.chooseAllowedApplications" : "settings.app.chooseBlockedApplications")}</button>
           </div>
         </div>
-        <ApplicationList applications={config.app.systemMediaApplications} icons={applicationIcons} busy={savingApplications} emptyLabel={t("settings.app.systemApplicationsEmpty")} removeLabel={t("common.actions.remove")} onRemove={(bundleId) => void saveApplications(config.app.systemMediaApplications.filter((application) => application.bundleId !== bundleId))} />
+        <ApplicationList applications={config.app.systemMediaApplications} icons={applicationIcons} busy={savingApplications} emptyLabel={t(systemMediaAllowlist ? "settings.app.systemApplicationsAllowlistEmpty" : "settings.app.systemApplicationsBlocklistEmpty")} removeLabel={t("common.actions.remove")} onRemove={(bundleId) => void saveApplications(config.app.systemMediaApplications.filter((application) => application.bundleId !== bundleId))} />
       </SettingsCard>
       <SettingsCard title={t("settings.app.display")}>
         <SelectRow

@@ -16,11 +16,12 @@ use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSet
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 23;
+pub const CONFIG_SCHEMA_VERSION: u16 = 24;
 const APP_CONFIG_KEYS: &[&str] = &[
     "uiFontScale",
     "language",
     "playerSelection",
+    "systemMediaFilterMode",
     "systemMediaApplications",
     "playerFollowerApplication",
     "hideDockIcon",
@@ -46,6 +47,9 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             }
             line if line.starts_with("    \"playerSelection\":") => {
                 Some(("    ", ConfigComment::PlayerSelection))
+            }
+            line if line.starts_with("    \"systemMediaFilterMode\":") => {
+                Some(("    ", ConfigComment::SystemMediaFilterMode))
             }
             line if line.starts_with("    \"systemMediaApplications\":") => {
                 Some(("    ", ConfigComment::SystemMediaApplications))
@@ -162,6 +166,7 @@ pub struct AppPreferences {
     pub ui_font_scale: u16,
     pub language: LanguagePreference,
     pub player_selection: PlayerSelection,
+    pub system_media_filter_mode: SystemMediaFilterMode,
     pub system_media_applications: Vec<RegisteredApplication>,
     pub player_follower_application: Option<RegisteredApplication>,
     pub hide_dock_icon: bool,
@@ -176,6 +181,7 @@ impl Default for AppPreferences {
             ui_font_scale: 100,
             language: LanguagePreference::default(),
             player_selection: PlayerSelection::Auto,
+            system_media_filter_mode: SystemMediaFilterMode::Allowlist,
             system_media_applications: Vec::new(),
             player_follower_application: None,
             hide_dock_icon: false,
@@ -184,6 +190,14 @@ impl Default for AppPreferences {
             shortcuts: GlobalShortcutSettings::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SystemMediaFilterMode {
+    #[default]
+    Allowlist,
+    Blocklist,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -668,6 +682,25 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
             app.retain(|key, _| APP_CONFIG_KEYS.contains(&key.as_str()));
         }
     }
+    if version < 24 {
+        let app = user
+            .as_object_mut()
+            .expect("checked object")
+            .entry("app")
+            .or_insert_with(|| Value::Object(Default::default()))
+            .as_object_mut()
+            .ok_or_else(|| error_at_key(raw, "app", "app 必须是对象"))?;
+        let mode = if app
+            .get("systemMediaApplications")
+            .and_then(Value::as_array)
+            .is_some_and(|applications| !applications.is_empty())
+        {
+            "allowlist"
+        } else {
+            "blocklist"
+        };
+        app.insert("systemMediaFilterMode".into(), Value::from(mode));
+    }
     validate_known_fields(&user, raw)?;
     validate_field_types_and_options(&user, raw)?;
 
@@ -995,6 +1028,13 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         "/app/playerSelection",
         "playerSelection",
         &["auto", "apple_music", "spotify", "system"],
+    )?;
+    validate_string_option(
+        value,
+        raw,
+        "/app/systemMediaFilterMode",
+        "systemMediaFilterMode",
+        &["allowlist", "blocklist"],
     )?;
     for (pointer, key) in [
         ("/app/shortcuts/toggleOverlay", "toggleOverlay"),
@@ -1619,6 +1659,53 @@ mod tests {
     }
 
     #[test]
+    fn system_media_filter_mode_defaults_validates_and_round_trips() {
+        let default = parse_config_draft(r#"{"app":{}}"#).unwrap();
+        assert_eq!(
+            default.config.app.system_media_filter_mode,
+            SystemMediaFilterMode::Allowlist
+        );
+
+        let blocklist = parse_config_draft(
+            r#"{"app":{"systemMediaFilterMode":"blocklist","systemMediaApplications":[{"name":"Browser","bundleId":"org.example.Browser"}]}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            blocklist.config.app.system_media_filter_mode,
+            SystemMediaFilterMode::Blocklist
+        );
+        assert_eq!(
+            serde_json::to_value(blocklist.config)
+                .unwrap()
+                .pointer("/app/systemMediaFilterMode")
+                .and_then(Value::as_str),
+            Some("blocklist")
+        );
+        assert!(parse_config_draft(r#"{"app":{"systemMediaFilterMode":"unsupported"}}"#).is_err());
+    }
+
+    #[test]
+    fn schema_twenty_three_preserves_system_media_filter_behavior() {
+        let empty =
+            parse_config_draft(r#"{"schemaVersion":23,"app":{"systemMediaApplications":[]}}"#)
+                .unwrap();
+        assert_eq!(
+            empty.config.app.system_media_filter_mode,
+            SystemMediaFilterMode::Blocklist
+        );
+
+        let listed = parse_config_draft(
+            r#"{"schemaVersion":23,"app":{"systemMediaApplications":[{"name":"Player","bundleId":"org.example.Player"}]}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            listed.config.app.system_media_filter_mode,
+            SystemMediaFilterMode::Allowlist
+        );
+        assert_eq!(listed.config.app.system_media_applications.len(), 1);
+    }
+
+    #[test]
     fn provided_provider_arrays_are_completed_with_disabled_entries() {
         let parsed = parse_config_draft(
             r#"{
@@ -2028,7 +2115,7 @@ mod tests {
     fn current_schema_preserves_explicit_legacy_provider_order() {
         let parsed = parse_config_draft(
             r#"{
-              "schemaVersion": 23,
+              "schemaVersion": 24,
               "lyrics": { "providers": {
                 "mode": "smart",
                 "providers": [

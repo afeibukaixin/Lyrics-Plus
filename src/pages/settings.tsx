@@ -41,6 +41,7 @@ export type SettingsOutletContext = {
   setUiFontScale: ReturnType<typeof useAppConfig>["setUiFontScale"];
   setLanguage: ReturnType<typeof useAppConfig>["setLanguage"];
   setGlobalShortcuts: ReturnType<typeof useAppConfig>["setGlobalShortcuts"];
+  setSystemMediaFilterMode: ReturnType<typeof useAppConfig>["setSystemMediaFilterMode"];
   setSystemMediaApplications: ReturnType<typeof useAppConfig>["setSystemMediaApplications"];
   setPlayerFollowerApplication: ReturnType<typeof useAppConfig>["setPlayerFollowerApplication"];
   setDockIconHidden: ReturnType<typeof useAppConfig>["setDockIconHidden"];
@@ -84,6 +85,7 @@ export default function Settings() {
     setUiFontScale,
     setLanguage,
     setGlobalShortcuts,
+    setSystemMediaFilterMode,
     setSystemMediaApplications,
     setPlayerFollowerApplication,
     setDockIconHidden,
@@ -353,10 +355,11 @@ export default function Settings() {
   };
 
   const context: SettingsOutletContext = {
-      config,
-      setUiFontScale,
-      setLanguage,
+    config,
+    setUiFontScale,
+    setLanguage,
     setGlobalShortcuts,
+    setSystemMediaFilterMode,
     setSystemMediaApplications,
     setPlayerFollowerApplication,
     setDockIconHidden,

@@ -92,6 +92,49 @@ pub struct LyricsSearchResult {
     pub lyrics: String,
 }
 
+#[derive(Debug)]
+pub struct ProviderSearchReport {
+    pub results: Vec<LyricsSearchResult>,
+    pub warning: Option<String>,
+}
+
+impl ProviderSearchReport {
+    pub fn available(results: Vec<LyricsSearchResult>) -> Self {
+        Self {
+            results,
+            warning: None,
+        }
+    }
+}
+
+pub(crate) fn collect_provider_results(
+    outcomes: impl IntoIterator<Item = Result<Option<LyricsSearchResult>, ProviderError>>,
+) -> Result<ProviderSearchReport, ProviderError> {
+    let mut results = Vec::new();
+    let mut first_error = None;
+    let mut any_success = false;
+    for outcome in outcomes {
+        match outcome {
+            Ok(result) => {
+                any_success = true;
+                results.extend(result);
+            }
+            Err(error) => {
+                first_error.get_or_insert(error);
+            }
+        }
+    }
+    if !any_success {
+        if let Some(error) = first_error {
+            return Err(error);
+        }
+    }
+    Ok(ProviderSearchReport {
+        results,
+        warning: first_error.map(|error| error.message),
+    })
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderOrderMode {
@@ -182,7 +225,7 @@ pub trait LyricsProvider: Send + Sync {
         &'a self,
         client: &'a reqwest::Client,
         input: &'a LyricsSearchInput,
-    ) -> ProviderFuture<'a, Vec<LyricsSearchResult>>;
+    ) -> ProviderFuture<'a, ProviderSearchReport>;
 }
 
 pub struct ProviderRegistry {
@@ -299,10 +342,11 @@ impl ProviderRegistry {
         let mut any_success = false;
         for (provider, outcome) in outcomes {
             match outcome {
-                Ok(Ok(mut provider_results)) => {
+                Ok(Ok(mut report)) => {
                     any_success = true;
-                    self.record_status(provider, ProviderHealth::Available, None);
-                    results.append(&mut provider_results);
+                    let (health, message) = report_status(&report);
+                    self.record_status(provider, health, message);
+                    results.append(&mut report.results);
                 }
                 Ok(Err(error)) => {
                     errors.push(error.to_string());
@@ -364,9 +408,9 @@ impl ProviderRegistry {
             title_filter_keywords: Arc::default(),
         };
         match tokio::time::timeout(self.timeout, provider.search(client, &input)).await {
-            Ok(Ok(results)) => {
-                let message = Some(format!("连接正常，返回 {} 个候选", results.len()));
-                self.record_status(provider.as_ref(), ProviderHealth::Available, message);
+            Ok(Ok(report)) => {
+                let (health, message) = report_status(&report);
+                self.record_status(provider.as_ref(), health, message);
             }
             Ok(Err(error)) => self.record_status(
                 provider.as_ref(),
@@ -423,6 +467,21 @@ impl ProviderRegistry {
                 },
             );
     }
+}
+
+fn report_status(report: &ProviderSearchReport) -> (ProviderHealth, Option<String>) {
+    if let Some(warning) = &report.warning {
+        return (
+            ProviderHealth::Degraded,
+            Some(format!("部分请求失败：{warning}")),
+        );
+    }
+    let message = if report.results.is_empty() {
+        "连接正常，未找到同步歌词".into()
+    } else {
+        format!("连接正常，返回 {} 个候选", report.results.len())
+    };
+    (ProviderHealth::Available, Some(message))
 }
 
 fn provider_definitions() -> [(&'static str, &'static str); 4] {
@@ -665,6 +724,8 @@ mod tests {
         id: &'static str,
         score: f64,
         fails: bool,
+        warning: Option<&'static str>,
+        empty: bool,
     }
 
     impl LyricsProvider for MockProvider {
@@ -680,7 +741,7 @@ mod tests {
             &'a self,
             _client: &'a reqwest::Client,
             _input: &'a LyricsSearchInput,
-        ) -> ProviderFuture<'a, Vec<LyricsSearchResult>> {
+        ) -> ProviderFuture<'a, ProviderSearchReport> {
             Box::pin(async move {
                 if self.fails {
                     return Err(ProviderError {
@@ -689,11 +750,13 @@ mod tests {
                         message: "mock failure".into(),
                     });
                 }
-                Ok(vec![result(
-                    self.id,
-                    self.score,
-                    &format!("[00:01]{}", self.id),
-                )])
+                Ok(ProviderSearchReport {
+                    results: (!self.empty)
+                        .then(|| result(self.id, self.score, &format!("[00:01]{}", self.id)))
+                        .into_iter()
+                        .collect(),
+                    warning: self.warning.map(str::to_owned),
+                })
             })
         }
     }
@@ -991,15 +1054,51 @@ mod tests {
                     id: "lrclib",
                     score: 0.70,
                     fails: false,
+                    warning: None,
+                    empty: false,
                 }),
                 Box::new(MockProvider {
                     id: "netease",
                     score: 0.98,
                     fails: netease_fails,
+                    warning: None,
+                    empty: false,
                 }),
             ],
             settings: RwLock::new(settings),
             statuses: RwLock::new(statuses),
+            timeout: Duration::from_millis(100),
+        }
+    }
+
+    fn single_mock_registry(warning: Option<&'static str>, empty: bool) -> ProviderRegistry {
+        ProviderRegistry {
+            providers: vec![Box::new(MockProvider {
+                id: "lrclib",
+                score: 0.70,
+                fails: false,
+                warning,
+                empty,
+            })],
+            settings: RwLock::new(ProviderSettings {
+                mode: ProviderOrderMode::Smart,
+                auto_apply_threshold: 60,
+                providers: vec![ProviderPreference {
+                    id: "lrclib".into(),
+                    enabled: true,
+                }],
+                title_filter_keywords: default_title_filter_keywords(),
+            }),
+            statuses: RwLock::new(HashMap::from([(
+                "lrclib".into(),
+                ProviderStatus {
+                    provider_id: "lrclib".into(),
+                    name: "lrclib".into(),
+                    health: ProviderHealth::Unknown,
+                    message: None,
+                    checked_at_ms: None,
+                },
+            )])),
             timeout: Duration::from_millis(100),
         }
     }
@@ -1031,6 +1130,56 @@ mod tests {
                     .unwrap()
                     .health,
                 ProviderHealth::Unavailable
+            );
+        });
+    }
+
+    #[test]
+    fn partial_provider_failure_is_reported_as_degraded() {
+        tauri::async_runtime::block_on(async {
+            let outcome = single_mock_registry(Some("detail failed"), false)
+                .search(
+                    &reqwest::Client::new(),
+                    &LyricsSearchInput {
+                        title: "Hello".into(),
+                        artist: "Adele".into(),
+                        album: None,
+                        duration_ms: None,
+                        title_filter_keywords: Arc::default(),
+                    },
+                )
+                .await
+                .unwrap();
+            let status = &outcome.statuses[0];
+            assert_eq!(status.health, ProviderHealth::Degraded);
+            assert_eq!(
+                status.message.as_deref(),
+                Some("部分请求失败：detail failed")
+            );
+        });
+    }
+
+    #[test]
+    fn successful_empty_provider_is_available() {
+        tauri::async_runtime::block_on(async {
+            let outcome = single_mock_registry(None, true)
+                .search(
+                    &reqwest::Client::new(),
+                    &LyricsSearchInput {
+                        title: "Missing".into(),
+                        artist: "Artist".into(),
+                        album: None,
+                        duration_ms: None,
+                        title_filter_keywords: Arc::default(),
+                    },
+                )
+                .await
+                .unwrap();
+            assert!(outcome.results.is_empty());
+            assert_eq!(outcome.statuses[0].health, ProviderHealth::Available);
+            assert_eq!(
+                outcome.statuses[0].message.as_deref(),
+                Some("连接正常，未找到同步歌词")
             );
         });
     }

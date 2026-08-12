@@ -1,8 +1,10 @@
+use futures::future::join_all;
 use serde::Deserialize;
 
 use super::provider::{
-    score_candidate, LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderError,
-    ProviderErrorKind, ProviderFuture, QQMUSIC_DISPLAY_NAME,
+    collect_provider_results, score_candidate, LyricsProvider, LyricsSearchInput,
+    LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
+    QQMUSIC_DISPLAY_NAME,
 };
 
 #[derive(Debug, Deserialize)]
@@ -57,7 +59,7 @@ impl LyricsProvider for QqMusicProvider {
         &'a self,
         client: &'a reqwest::Client,
         input: &'a LyricsSearchInput,
-    ) -> ProviderFuture<'a, Vec<LyricsSearchResult>> {
+    ) -> ProviderFuture<'a, ProviderSearchReport> {
         Box::pin(async move {
             let mut url = reqwest::Url::parse("https://c.y.qq.com/soso/fcgi-bin/client_search_cp")
                 .map_err(|error| {
@@ -120,21 +122,28 @@ impl LyricsProvider for QqMusicProvider {
             candidates.sort_by(|left, right| right.score.total_cmp(&left.score));
             candidates.truncate(5);
 
-            let mut results = Vec::new();
-            for mut candidate in candidates {
-                if let Ok(detail) = self.fetch_detail(client, &candidate.id).await {
-                    let Some(original) = detail.lyric.filter(|value| has_timed_text(value)) else {
-                        continue;
-                    };
-                    let translation = detail.trans.filter(|value| has_timed_text(value));
-                    candidate.has_translation = translation.is_some();
-                    candidate.lyrics = merge_tracks(&original, translation.as_deref());
-                    results.push(candidate);
-                }
-            }
-            Ok(results)
+            let details = join_all(
+                candidates
+                    .iter()
+                    .map(|candidate| self.fetch_detail(client, &candidate.id)),
+            )
+            .await;
+            collect_provider_results(candidates.into_iter().zip(details).map(
+                |(candidate, detail)| detail.map(|detail| result_from_detail(candidate, detail)),
+            ))
         })
     }
+}
+
+fn result_from_detail(
+    mut candidate: LyricsSearchResult,
+    detail: LyricsEnvelope,
+) -> Option<LyricsSearchResult> {
+    let original = detail.lyric.filter(|value| has_timed_text(value))?;
+    let translation = detail.trans.filter(|value| has_timed_text(value));
+    candidate.has_translation = translation.is_some();
+    candidate.lyrics = merge_tracks(&original, translation.as_deref());
+    Some(candidate)
 }
 
 impl QqMusicProvider {
@@ -190,5 +199,97 @@ fn merge_tracks(original: &str, translation: Option<&str>) -> String {
     match translation {
         Some(translation) => format!("{}\n{}", original.trim(), translation.trim()),
         None => original.trim().to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn candidate(id: &str) -> LyricsSearchResult {
+        LyricsSearchResult {
+            id: id.into(),
+            provider_id: "qqmusic".into(),
+            title: id.into(),
+            artist: "Artist".into(),
+            album: None,
+            duration_ms: None,
+            source: QQMUSIC_DISPLAY_NAME.into(),
+            synced: true,
+            has_translation: false,
+            has_word_timing: false,
+            has_romanization: false,
+            score: 1.0,
+            lyrics: String::new(),
+        }
+    }
+
+    fn detail(lyrics: Option<&str>) -> LyricsEnvelope {
+        LyricsEnvelope {
+            lyric: lyrics.map(str::to_owned),
+            trans: None,
+        }
+    }
+
+    fn failure(message: &str) -> ProviderError {
+        ProviderError {
+            provider_id: "qqmusic".into(),
+            kind: ProviderErrorKind::Network,
+            message: message.into(),
+        }
+    }
+
+    #[test]
+    fn preserves_order_and_translation_capability() {
+        let mut translated = detail(Some("[00:01.00]First"));
+        translated.trans = Some("[00:01.00]第一".into());
+        let report = collect_provider_results(vec![
+            Ok(result_from_detail(candidate("first"), translated)),
+            Ok(result_from_detail(
+                candidate("second"),
+                detail(Some("[00:01.00]Second")),
+            )),
+        ])
+        .unwrap();
+
+        assert_eq!(report.results[0].id, "first");
+        assert_eq!(report.results[1].id, "second");
+        assert!(report.results[0].has_translation);
+    }
+
+    #[test]
+    fn partial_failure_is_degraded_but_keeps_results() {
+        let report = collect_provider_results(vec![
+            Err(failure("temporary failure")),
+            Ok(result_from_detail(
+                candidate("available"),
+                detail(Some("[00:01.00]Available")),
+            )),
+        ])
+        .unwrap();
+
+        assert_eq!(report.results[0].id, "available");
+        assert_eq!(report.warning.as_deref(), Some("temporary failure"));
+    }
+
+    #[test]
+    fn all_failures_return_the_first_error() {
+        let error = collect_provider_results(vec![
+            Err(failure("first failure")),
+            Err(failure("second failure")),
+        ])
+        .unwrap_err();
+        assert_eq!(error.message, "first failure");
+    }
+
+    #[test]
+    fn successful_empty_detail_is_available() {
+        let report = collect_provider_results(vec![Ok(result_from_detail(
+            candidate("empty"),
+            detail(None),
+        ))])
+        .unwrap();
+        assert!(report.results.is_empty());
+        assert!(report.warning.is_none());
     }
 }

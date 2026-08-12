@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, isTauriRuntime } from "../../shared/api";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
-import { defaultGlobalShortcuts, defaultOverlayStyle, type AppConfig, type GlobalShortcutSettings, type LanguagePreference, type RegisteredApplication } from "../../shared/types";
+import { defaultGlobalShortcuts, defaultOverlayStyle, type AppConfig, type GlobalShortcutSettings, type LanguagePreference, type RegisteredApplication, type SystemMediaFilterMode } from "../../shared/types";
 
 const defaultOverlayAppearance = (({
   horizontalMaxWidth: _horizontalMaxWidth,
@@ -16,8 +16,8 @@ const defaultTitleFilterKeywords = [
 ];
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 23,
-  app: { uiFontScale: 100, language: "system", playerSelection: "auto", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, silentStartup: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
+  schemaVersion: 24,
+  app: { uiFontScale: 100, language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, silentStartup: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
       mode: "smart",
@@ -44,6 +44,7 @@ type AppConfigContextValue = {
   setUiFontScale: (scale: number) => Promise<void>;
   setLanguage: (language: LanguagePreference) => Promise<void>;
   setGlobalShortcuts: (shortcuts: GlobalShortcutSettings) => Promise<void>;
+  setSystemMediaFilterMode: (mode: SystemMediaFilterMode) => Promise<void>;
   setSystemMediaApplications: (applications: RegisteredApplication[]) => Promise<void>;
   setPlayerFollowerApplication: (application: RegisteredApplication | null) => Promise<void>;
   setDockIconHidden: (hidden: boolean) => Promise<void>;
@@ -105,6 +106,13 @@ export function AppConfigProvider({
         return;
       }
       setConfig(await api.setGlobalShortcuts(shortcuts));
+    },
+    setSystemMediaFilterMode: async (mode) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({ ...current, app: { ...current.app, systemMediaFilterMode: mode } }));
+        return;
+      }
+      setConfig(await api.setSystemMediaFilterMode(mode));
     },
     setSystemMediaApplications: async (applications) => {
       if (!isTauriRuntime()) {

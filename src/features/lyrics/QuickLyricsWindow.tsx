@@ -154,7 +154,7 @@ export default function QuickLyricsWindow() {
                   <span className={styles.resultMeta}>
                     <strong>{result.title}</strong>
                     <small>{result.artist}{result.album ? ` · ${result.album}` : ""}{formatTime(result.durationMs) ? ` · ${formatTime(result.durationMs)}` : ""}</small>
-                    <i>{localizedSource(result.source, t)} · {result.synced ? t("common.feature.synced") : t("common.feature.plainText")}{result.hasTranslation ? ` · ${t("common.feature.translation")}` : ""}{result.hasWordTiming ? ` · ${t("common.feature.wordTiming")}` : ""}{result.hasRomanization ? ` · ${t("common.feature.romanization")}` : ""}</i>
+                    <i>{localizedSource(result.source, t)} · {result.synced ? t("common.feature.synced") : t("common.feature.plainText")} · {result.hasTranslation ? t("common.feature.hasTranslation") : t("quickLyrics.sourceNoTranslation")}{result.hasWordTiming ? ` · ${t("common.feature.wordTiming")}` : ""}{result.hasRomanization ? ` · ${t("common.feature.romanization")}` : ""}</i>
                   </span>
                   <b>{Math.round(result.score * 100)}%</b>
                 </button>
@@ -180,6 +180,7 @@ export default function QuickLyricsWindow() {
               <pre>{selected.lyrics}</pre>
               <footer className={styles.previewFooter}>
                 <span>{applyingKey === selectedKey ? t("quickLyrics.applying") : notice ?? (isCurrent(selected) ? t("quickLyrics.inUse") : t("quickLyrics.clickToApply"))}</span>
+                {!selected.hasTranslation && <span>{t("quickLyrics.translationUnavailable")}</span>}
               </footer>
             </>
           ) : (
