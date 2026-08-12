@@ -109,6 +109,9 @@ export default function App() {
             <span>{(playback.snapshot.player === "system" ? t("home.systemMedia") : playback.snapshot.player === "apple_music" ? "Apple Music" : playback.snapshot.player === "spotify" ? "Spotify" : t("home.nowPlaying")).toUpperCase()}</span>
             <h1>{currentTitle}</h1>
             <p>{currentArtist}{playback.snapshot.album ? ` · ${playback.snapshot.album}` : ""}</p>
+            {artwork.source === "itunes" && artwork.sourceLink && (
+              <a className={styles.artworkSource} href={artwork.sourceLink} target="_blank" rel="noreferrer">{t("home.artworkCourtesy")}</a>
+            )}
           </div>
           <div className={styles.transport}>
             <button aria-label={t("home.previous")} onClick={() => void playback.action("previous")}><UiIcon name="skipBackFill" /></button>

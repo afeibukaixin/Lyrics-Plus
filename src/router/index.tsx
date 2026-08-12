@@ -6,6 +6,7 @@ import Library from "../pages/library";
 import Settings from "../pages/settings";
 import OverlaySettingsPage from "../pages/settings/OverlaySettingsPage";
 import LyricsSettingsPage from "../pages/settings/LyricsSettingsPage";
+import ArtworkSettingsPage from "../pages/settings/ArtworkSettingsPage";
 import AppSettingsPage from "../pages/settings/AppSettingsPage";
 import DebugSettingsPage from "../pages/settings/DebugSettingsPage";
 import ConfigSettingsPage from "../pages/settings/ConfigSettingsPage";
@@ -35,6 +36,7 @@ const router = createHashRouter([
           { index: true, element: <Navigate to="overlay" replace /> },
           { path: "overlay", element: <OverlaySettingsPage /> },
           { path: "lyrics", element: <LyricsSettingsPage /> },
+          { path: "artwork", element: <ArtworkSettingsPage /> },
           { path: "app", element: <AppSettingsPage /> },
           { path: "debug", element: <DebugSettingsPage /> },
           { path: "config", element: <ConfigSettingsPage /> },

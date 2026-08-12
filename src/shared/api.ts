@@ -5,6 +5,10 @@ export { isTauriRuntime } from "./tauriEvent";
 import type {
   AppConfig,
   ArtworkAsset,
+  ArtworkCacheStatus,
+  ArtworkProviderStatus,
+  ArtworkSettings,
+  ArtworkSettingsView,
   ConfigExport,
   ConfigDraftValidation,
   ConfigEditorData,
@@ -69,8 +73,18 @@ export const api = {
   acceptLegalNotice: () => invoke<void>("accept_legal_notice"),
   quitApplication: () => invoke<void>("quit_application"),
   getPlayback: () => invoke<PlaybackSnapshot>("get_playback_snapshot"),
-  getTrackArtwork: (player: PlayerKind, trackId: string) =>
-    invoke<ArtworkAsset | null>("get_track_artwork", { player, trackId }),
+  getTrackArtwork: (player: PlayerKind, trackId: string, allowNetwork: boolean, itunesCountry: string) =>
+    invoke<ArtworkAsset | null>("get_track_artwork", { player, trackId, allowNetwork, itunesCountry }),
+  getArtworkSettings: () => invoke<ArtworkSettingsView>("get_artwork_settings"),
+  setArtworkSettings: (settings: ArtworkSettings) =>
+    invoke<ArtworkSettingsView>("set_artwork_settings", { settings }),
+  testArtworkProvider: (providerId: string, itunesCountry: string) =>
+    invoke<ArtworkProviderStatus>("test_artwork_provider", { providerId, itunesCountry }),
+  getArtworkCacheStatus: () => invoke<ArtworkCacheStatus>("get_artwork_cache_status"),
+  setArtworkCacheDirectory: (path: string) =>
+    invoke<ArtworkCacheStatus>("set_artwork_cache_directory", { path }),
+  openArtworkCacheDirectory: () => invoke<void>("open_artwork_cache_directory"),
+  clearArtworkCache: () => invoke<ArtworkCacheStatus>("clear_artwork_cache"),
   getPlayerSelection: () => invoke<PlayerSelection>("get_player_selection"),
   setPlayerSelection: (selection: PlayerSelection) =>
     invoke<void>("set_player_selection", { selection }),
@@ -194,7 +208,7 @@ export const api = {
 
 export function messageOf(error: unknown): string {
   if (error instanceof AppOperationError) {
-    if (["set_global_shortcuts", "set_provider_settings", "set_system_media_filter_mode", "set_system_media_applications", "resolve_system_media_applications", "resolve_player_follower_application", "set_player_follower_application", "resolve_application_by_bundle_id"].includes(error.command) && error.message) return error.message;
+    if (["set_global_shortcuts", "set_provider_settings", "set_artwork_settings", "set_system_media_filter_mode", "set_system_media_applications", "resolve_system_media_applications", "resolve_player_follower_application", "set_player_follower_application", "resolve_application_by_bundle_id"].includes(error.command) && error.message) return error.message;
     return error.code === "config.conflict"
       ? appI18n.t("errors.configConflict")
       : appI18n.t("errors.command");

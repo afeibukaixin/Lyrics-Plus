@@ -16,8 +16,9 @@ const defaultTitleFilterKeywords = [
 ];
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 24,
+  schemaVersion: 27,
   app: { uiFontScale: 100, language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, silentStartup: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
+  artwork: { networkFallback: false, itunesStorefront: "auto", alwaysNetworkApplications: [], providers: [{ id: "cover_art_archive", enabled: true }, { id: "itunes", enabled: true }] },
   lyrics: {
     providers: {
       mode: "smart",

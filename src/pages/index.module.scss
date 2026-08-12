@@ -43,6 +43,7 @@
 .trackMeta > span { color: #8f7de0; font-size: var(--typography-caption-size); line-height: var(--typography-caption-line-height); font-weight: var(--typography-caption-weight); letter-spacing: .18em; }
 .trackMeta h1 { margin: 6px 0 5px; overflow: hidden; color: #f4f2fa; font-size: clamp(1.25rem, 2.6vw, 1.65rem); line-height: var(--typography-display-line-height); font-weight: var(--typography-display-weight); letter-spacing: -.04em; text-overflow: ellipsis; white-space: nowrap; }
 .trackMeta p { margin: 0; overflow: hidden; color: #858a9a; font-size: var(--typography-body-size); line-height: var(--typography-body-line-height); font-weight: var(--typography-body-weight); text-overflow: ellipsis; white-space: nowrap; }
+.artworkSource { display: inline-block; margin-top: 5px; color: #777d8d; font-size: var(--typography-caption-size); }
 .transport { display: flex; align-items: center; justify-content: center; gap: 13px; margin-top: 17px; }
 .transport button { width: 36px; height: 36px; border-radius: 50%; color: #959aa8; }
 .transport button > span { width: 20px; height: 20px; margin: auto; }

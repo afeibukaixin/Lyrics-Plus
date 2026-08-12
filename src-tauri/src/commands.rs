@@ -9,7 +9,11 @@ use tauri::{Emitter, Manager, State};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_opener::OpenerExt;
 
-use crate::artwork::{player_name, ArtworkAsset, ArtworkService};
+use crate::artwork::{
+    normalize_settings as normalize_artwork_settings, player_name, validate_itunes_country,
+    ArtworkAsset, ArtworkCacheStatus, ArtworkProviderStatus, ArtworkService, ArtworkSettings,
+    ArtworkSettingsView, CACHE_DIRECTORY_PREFERENCE,
+};
 use crate::config::{
     normalize_player_follower_application, normalize_system_media_applications,
     validate_config_draft, AppConfig, ConfigDraftValidation, ConfigEditorData, ConfigStore,
@@ -298,6 +302,7 @@ pub struct SearchResponse {
 pub enum SettingsSection {
     Overlay,
     Lyrics,
+    Artwork,
     App,
 }
 
@@ -307,6 +312,7 @@ pub struct SettingsResetResponse {
     pub overlay_settings: OverlaySettings,
     pub overlay_style: OverlayStyleSettings,
     pub provider_view: ProviderSettingsView,
+    pub artwork_view: ArtworkSettingsView,
     pub player_selection: PlayerSelection,
     pub ui_font_scale: u16,
 }
@@ -347,8 +353,11 @@ pub fn get_playback_snapshot(state: State<'_, AppState>) -> PlaybackSnapshot {
 pub async fn get_track_artwork(
     player: PlayerKind,
     track_id: String,
+    allow_network: bool,
+    itunes_country: String,
     state: State<'_, AppState>,
 ) -> Result<Option<ArtworkAsset>, String> {
+    validate_itunes_country(&itunes_country)?;
     let snapshot = state
         .last_snapshot
         .read()
@@ -358,18 +367,21 @@ pub async fn get_track_artwork(
         return Ok(None);
     }
 
-    let result = if player == PlayerKind::System {
-        match state.system_media.artwork(&track_id) {
-            Some(image) => state
-                .artwork
-                .store_system_artwork(&track_id, image)
-                .await
-                .map(Some),
-            None => Ok(None),
-        }
-    } else {
-        state.artwork.resolve(&snapshot, &state.http).await
-    };
+    let settings = state.config.snapshot().artwork;
+    let system_image = (player == PlayerKind::System)
+        .then(|| state.system_media.artwork(&track_id))
+        .flatten();
+    let result = state
+        .artwork
+        .resolve(
+            &snapshot,
+            &state.http,
+            &settings,
+            system_image,
+            allow_network,
+            &itunes_country,
+        )
+        .await;
 
     match result {
         Ok(asset) => Ok(asset),
@@ -381,6 +393,85 @@ pub async fn get_track_artwork(
             Ok(None)
         }
     }
+}
+
+#[tauri::command]
+pub fn get_artwork_settings(state: State<'_, AppState>) -> ArtworkSettingsView {
+    ArtworkSettingsView::new(state.config.snapshot().artwork)
+}
+
+#[tauri::command]
+pub fn set_artwork_settings(
+    app: tauri::AppHandle,
+    mut settings: ArtworkSettings,
+    state: State<'_, AppState>,
+) -> Result<ArtworkSettingsView, String> {
+    normalize_artwork_settings(&mut settings)?;
+    let saved = state.config.update(|config| config.artwork = settings)?;
+    app.emit("config://changed", &saved)
+        .map_err(|error| error.to_string())?;
+    Ok(ArtworkSettingsView::new(saved.artwork))
+}
+
+#[tauri::command]
+pub async fn test_artwork_provider(
+    provider_id: String,
+    itunes_country: String,
+    state: State<'_, AppState>,
+) -> Result<ArtworkProviderStatus, String> {
+    let settings = state.config.snapshot().artwork;
+    let itunes_country = settings
+        .itunes_storefront
+        .effective_country(validate_itunes_country(&itunes_country)?)?;
+    Ok(state
+        .artwork
+        .test_provider(&state.http, &provider_id, itunes_country)
+        .await)
+}
+
+#[tauri::command]
+pub fn get_artwork_cache_status(state: State<'_, AppState>) -> Result<ArtworkCacheStatus, String> {
+    state.artwork.cache_status()
+}
+
+#[tauri::command]
+pub async fn set_artwork_cache_directory(
+    app: tauri::AppHandle,
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<ArtworkCacheStatus, String> {
+    let path = PathBuf::from(path);
+    let old = state.artwork.cache_directory();
+    app.asset_protocol_scope()
+        .allow_directory(&path, true)
+        .map_err(|error| format!("允许读取封面目录失败：{error}"))?;
+    let status = state.artwork.set_directory(path.clone()).await?;
+    if let Err(error) = state
+        .storage
+        .set_preference(CACHE_DIRECTORY_PREFERENCE, &path.to_string_lossy())
+    {
+        let _ = state.artwork.set_directory(old).await;
+        return Err(error);
+    }
+    Ok(status)
+}
+
+#[tauri::command]
+pub fn open_artwork_cache_directory(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    app.opener()
+        .open_path(
+            state.artwork.cache_directory().to_string_lossy(),
+            None::<&str>,
+        )
+        .map_err(|error| format!("打开封面目录失败：{error}"))
+}
+
+#[tauri::command]
+pub async fn clear_artwork_cache(state: State<'_, AppState>) -> Result<ArtworkCacheStatus, String> {
+    state.artwork.clear().await
 }
 
 #[tauri::command]
@@ -1897,6 +1988,11 @@ pub fn reset_settings_section(
                 .config
                 .update(|config| config.lyrics.providers = view.settings)?;
         }
+        SettingsSection::Artwork => {
+            state
+                .config
+                .update(|config| config.artwork = ArtworkSettings::default())?;
+        }
         SettingsSection::App => {
             update_player_selection(&app, PlayerSelection::Auto)?;
             update_dock_icon_hidden(&app, false)?;
@@ -1926,6 +2022,7 @@ pub fn reset_settings_section(
             .unwrap_or_else(|error| error.into_inner())
             .clone(),
         provider_view: state.providers.settings_view(),
+        artwork_view: ArtworkSettingsView::new(configured.artwork.clone()),
         player_selection: *state
             .selection
             .read()

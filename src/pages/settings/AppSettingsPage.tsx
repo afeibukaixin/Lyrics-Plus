@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import { UiIcon } from "../../components/UiIcon";
-import { defaultGlobalShortcuts, type GlobalShortcutSettings, type GlobalShortcutStatus, type LanguagePreference, type PlayerFollowerServiceState, type PlayerSelection, type RegisteredApplication, type SystemMediaFilterMode } from "../../shared/types";
+import { defaultGlobalShortcuts, type GlobalShortcutSettings, type GlobalShortcutStatus, type LanguagePreference, type PlayerFollowerServiceState, type PlayerSelection, type SystemMediaFilterMode } from "../../shared/types";
 import { api, messageOf } from "../../shared/api";
 import { languageRegistry, supportedLanguages } from "../../shared/languages";
 import { localizedSource, playbackStatusText } from "../../features/i18n/userText";
 import { normalizeLanguagePreference } from "../../features/i18n/i18n";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
-import { RangeRow, SelectRow, SettingsCard, SettingsHeading, ToggleRow } from "./components";
+import { ApplicationList, RangeRow, SelectRow, SettingsCard, SettingsHeading, ToggleRow } from "./components";
 
 const playerOptions: PlayerSelection[] = ["auto", "apple_music", "spotify", "system"];
 const languageOptions = supportedLanguages.map((code) => ({ code, label: languageRegistry[code].nativeLabel }));
@@ -48,36 +48,6 @@ function shortcutFromEvent(event: React.KeyboardEvent<HTMLButtonElement>) {
   ].filter((value): value is string => Boolean(value));
   if (modifiers.length === 0 || !event.code || event.code === "Unidentified") return null;
   return [...modifiers, event.code].join("+");
-}
-
-function ApplicationList({ applications, icons, busy, emptyLabel, removeLabel, onRemove }: {
-  applications: RegisteredApplication[];
-  icons: Record<string, string>;
-  busy: boolean;
-  emptyLabel: string;
-  removeLabel: string;
-  onRemove: (bundleId: string) => void;
-}) {
-  if (applications.length === 0) return <p className={styles.applicationEmpty}>{emptyLabel}</p>;
-  return (
-    <div className={styles.applicationList}>
-      {applications.map((application) => {
-        return <div className={styles.applicationItem} key={application.bundleId} title={application.bundleId}>
-          {icons[application.bundleId]
-            ? <img alt="" src={icons[application.bundleId]} />
-            : <span className={styles.applicationIconFallback}><UiIcon name="musicNote" /></span>}
-          <strong>{application.name}</strong>
-          <button
-            aria-label={`${removeLabel} ${application.name}`}
-            className={styles.applicationRemove}
-            disabled={busy}
-            title={removeLabel}
-            onClick={() => onRemove(application.bundleId)}
-          ><UiIcon name="close" /></button>
-        </div>;
-      })}
-    </div>
-  );
 }
 
 export default function AppSettingsPage() {

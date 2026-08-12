@@ -299,6 +299,7 @@ export default function Settings() {
     const names: Record<SettingsSection, string> = {
       overlay: t("settings.shell.nav.overlay"),
       lyrics: t("settings.shell.nav.lyrics"),
+      artwork: t("settings.shell.nav.artwork"),
       app: t("settings.shell.nav.app"),
     };
     if (confirmingReset !== target) {
@@ -407,6 +408,7 @@ export default function Settings() {
         <nav className={styles.sidebar} aria-label={t("settings.shell.navigation")}>
           <NavLink to="/settings/overlay"><UiIcon name="monitor" /><div><strong>{t("settings.shell.nav.overlay")}</strong><small>{t("settings.shell.nav.overlayHint")}</small></div></NavLink>
           <NavLink to="/settings/lyrics"><UiIcon name="musicNotes" /><div><strong>{t("settings.shell.nav.lyrics")}</strong><small>{t("settings.shell.nav.lyricsHint")}</small></div></NavLink>
+          <NavLink to="/settings/artwork"><UiIcon name="checkerboard" /><div><strong>{t("settings.shell.nav.artwork")}</strong><small>{t("settings.shell.nav.artworkHint")}</small></div></NavLink>
           <NavLink to="/settings/app"><UiIcon name="gear" /><div><strong>{t("settings.shell.nav.app")}</strong><small>{t("settings.shell.nav.appHint")}</small></div></NavLink>
           <NavLink to="/settings/debug"><UiIcon name="bug" /><div><strong>{t("settings.shell.nav.debug")}</strong><small>{t("settings.shell.nav.debugHint")}</small></div></NavLink>
           <NavLink to="/settings/config"><UiIcon name="bracketsCurly" /><div><strong>{t("settings.shell.nav.config")}</strong><small>{t("settings.shell.nav.configHint")}</small></div></NavLink>

@@ -8,6 +8,7 @@ mod player;
 mod player_lifecycle;
 mod storage;
 
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
@@ -1835,8 +1836,26 @@ pub fn run() {
             let storage = storage::Storage::new(app.handle())?;
             let notice_accepted = legal_notice_accepted(&storage).unwrap_or(false);
             let app_dir = app.path().app_data_dir()?;
-            let artwork =
-                artwork::ArtworkService::new(app.path().app_cache_dir()?.join("artworks"))?;
+            let default_artwork_dir = app.path().app_cache_dir()?.join("artworks");
+            let preferred_artwork_dir = storage
+                .get_preference(artwork::CACHE_DIRECTORY_PREFERENCE)
+                .unwrap_or(None)
+                .map(PathBuf::from);
+            let artwork = match preferred_artwork_dir {
+                Some(path) => match artwork::ArtworkService::new(path) {
+                    Ok(service) => service,
+                    Err(error) => {
+                        let service = artwork::ArtworkService::new(default_artwork_dir)?;
+                        service.set_warning(Some(format!(
+                            "保存的封面目录不可用，已临时使用默认目录：{error}"
+                        )));
+                        service
+                    }
+                },
+                None => artwork::ArtworkService::new(default_artwork_dir)?,
+            };
+            app.asset_protocol_scope()
+                .allow_directory(artwork.cache_directory(), true)?;
             let (config, migrated) = ConfigStore::load(&app_dir, &storage)
                 .map_err(|error| std::io::Error::other(error))?;
             let config = Arc::new(config);
@@ -1992,6 +2011,13 @@ pub fn run() {
             commands::quit_application,
             commands::get_playback_snapshot,
             commands::get_track_artwork,
+            commands::get_artwork_settings,
+            commands::set_artwork_settings,
+            commands::test_artwork_provider,
+            commands::get_artwork_cache_status,
+            commands::set_artwork_cache_directory,
+            commands::open_artwork_cache_directory,
+            commands::clear_artwork_cache,
             commands::get_player_selection,
             commands::set_player_selection,
             commands::player_action,

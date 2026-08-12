@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { UiIcon } from "../../components/UiIcon";
+import type { RegisteredApplication } from "../../shared/types";
 import styles from "../settings.module.scss";
 
 const colorChoices = [
@@ -15,6 +17,26 @@ export function SettingsHeading({ title, description, onReset, resetting = false
 
 export function SettingsCard({ title, trailing, children }: { title: string; trailing?: React.ReactNode; children: React.ReactNode }) {
   return <section className={styles.card}><header><h3>{title}</h3>{trailing}</header>{children}</section>;
+}
+
+export function ApplicationList({ applications, icons, busy, emptyLabel, removeLabel, onRemove }: {
+  applications: RegisteredApplication[];
+  icons: Record<string, string>;
+  busy: boolean;
+  emptyLabel: string;
+  removeLabel: string;
+  onRemove: (bundleId: string) => void;
+}) {
+  if (applications.length === 0) return <p className={styles.applicationEmpty}>{emptyLabel}</p>;
+  return <div className={styles.applicationList}>{applications.map((application) => (
+    <div className={styles.applicationItem} key={application.bundleId} title={application.bundleId}>
+      {icons[application.bundleId]
+        ? <img alt="" src={icons[application.bundleId]} />
+        : <span className={styles.applicationIconFallback}><UiIcon name="musicNote" /></span>}
+      <strong>{application.name}</strong>
+      <button aria-label={`${removeLabel} ${application.name}`} className={styles.applicationRemove} disabled={busy} title={removeLabel} onClick={() => onRemove(application.bundleId)}><UiIcon name="close" /></button>
+    </div>
+  ))}</div>;
 }
 
 export function ToggleRow({ label, description, value, disabled = false, onChange }: { label: string; description?: string; value: boolean; disabled?: boolean; onChange: (value: boolean) => void | Promise<unknown> }) {

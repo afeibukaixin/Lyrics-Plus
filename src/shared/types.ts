@@ -82,6 +82,30 @@ export type ArtworkAsset = {
   player: PlayerKind;
   trackId: string;
   filePath: string;
+  source: "player" | "cover_art_archive" | "itunes";
+  sourceLink: string | null;
+};
+
+export type ArtworkProviderPreference = { id: "cover_art_archive" | "itunes"; enabled: boolean };
+export type ItunesStorefront = "auto" | "CN" | "TW" | "HK" | "US";
+export type ArtworkSettings = {
+  networkFallback: boolean;
+  itunesStorefront: ItunesStorefront;
+  alwaysNetworkApplications: RegisteredApplication[];
+  providers: ArtworkProviderPreference[];
+};
+export type ArtworkProviderStatus = {
+  providerId: string;
+  name: string;
+  available: boolean;
+  message: string | null;
+};
+export type ArtworkSettingsView = { settings: ArtworkSettings; statuses: ArtworkProviderStatus[] };
+export type ArtworkCacheStatus = {
+  directory: string;
+  fileCount: number;
+  totalBytes: number;
+  warning: string | null;
 };
 
 export type LyricsLine = {
@@ -170,7 +194,7 @@ export type ProviderSettingsView = {
   statuses: ProviderStatus[];
 };
 
-export type SettingsSection = "overlay" | "lyrics" | "app";
+export type SettingsSection = "overlay" | "lyrics" | "artwork" | "app";
 export type LanguagePreference = "system" | SupportedLanguage;
 export type NativeLanguage = "zh-CN" | "en-US";
 
@@ -178,6 +202,7 @@ export type SettingsResetResponse = {
   overlaySettings: OverlaySettings;
   overlayStyle: OverlayStyle;
   providerView: ProviderSettingsView;
+  artworkView: ArtworkSettingsView;
   playerSelection: PlayerSelection;
   uiFontScale: number;
 };
@@ -198,6 +223,7 @@ export type AppConfig = {
     autoCheckUpdates: boolean;
     shortcuts: GlobalShortcutSettings;
   };
+  artwork: ArtworkSettings;
   lyrics: {
     providers: ProviderSettings;
   };
