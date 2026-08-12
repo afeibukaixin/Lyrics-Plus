@@ -17,6 +17,15 @@ type ArtworkState = {
 
 let cachedArtwork: ArtworkState | null = null;
 
+function preloadArtwork(url: string) {
+  return new Promise<void>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error("artwork decode failed"));
+    image.src = url;
+  });
+}
+
 export function invalidateArtworkCache() {
   cachedArtwork = null;
 }
@@ -38,35 +47,78 @@ export function useArtwork(snapshot: PlaybackSnapshot) {
       setArtwork(cachedArtwork);
       return;
     }
-    setArtwork(null);
-    if (!isTauriRuntime() || !player || !trackId || !cacheKey) return;
+    if (!isTauriRuntime() || !player || !trackId || !cacheKey) {
+      setArtwork(null);
+      return;
+    }
     cachedArtwork = null;
-    setArtwork({ key: cacheKey, url: null, loaded: false, loading: true, source: null, sourceLink: null });
+    setArtwork((current) => current?.url
+      ? current
+      : { key: cacheKey, url: null, loaded: false, loading: true, source: null, sourceLink: null });
 
     let current = true;
-    let retry: ReturnType<typeof setTimeout> | undefined;
-    let attempts = 0;
-    const load = () => {
-      attempts += 1;
-      void api.getTrackArtwork(player, trackId, player !== "system" || attempts >= 5, itunesCountry).then((asset) => {
-        if (!current) return;
-        if (!asset || asset.player !== player || asset.trackId !== trackId) {
-          if (player === "system" && attempts < 5) retry = setTimeout(load, 1_000);
-          else setArtwork(null);
-          return;
-        }
-        const next = { key: cacheKey, url: convertFileSrc(asset.filePath), loaded: false, loading: true, source: asset.source, sourceLink: asset.sourceLink };
-        cachedArtwork = next;
-        setArtwork(next);
-      }).catch(() => {
-        if (current) setArtwork(null);
-      });
+    let hasNewArtwork = false;
+    const sleep = (delay: number) => new Promise<void>((resolve) => setTimeout(resolve, delay));
+    const placeholderTimer = setTimeout(() => {
+      if (!current || hasNewArtwork) return;
+      setArtwork({ key: cacheKey, url: null, loaded: false, loading: true, source: null, sourceLink: null });
+    }, 1_200);
+    const show = async (asset: Awaited<ReturnType<typeof api.getTrackArtwork>>) => {
+      if (!asset || asset.player !== player || asset.trackId !== trackId) return false;
+      const url = convertFileSrc(asset.filePath);
+      try {
+        await preloadArtwork(url);
+      } catch {
+        return false;
+      }
+      if (!current) return false;
+      const next = { key: cacheKey, url, loaded: true, loading: false, source: asset.source, sourceLink: asset.sourceLink };
+      hasNewArtwork = true;
+      cachedArtwork = next;
+      setArtwork(next);
+      return true;
     };
-    load();
+    const load = async (allowNetwork: boolean) => {
+      try {
+        return await show(await api.getTrackArtwork(player, trackId, allowNetwork, itunesCountry));
+      } catch {
+        return false;
+      }
+    };
+    const finishMissing = () => {
+      if (!current || hasNewArtwork) return;
+      setArtwork({ key: cacheKey, url: null, loaded: false, loading: false, source: null, sourceLink: null });
+    };
+
+    if (player === "system") {
+      void load(false);
+      void (async () => {
+        await sleep(300);
+        if (current && !hasNewArtwork) await load(false);
+      })();
+      void (async () => {
+        await sleep(900);
+        if (current && !await load(true)) finishMissing();
+      })();
+    } else {
+      void (async () => {
+        const finalDelay = sleep(1_200);
+        const directAttempts = await Promise.all([
+          load(false),
+          (async () => {
+            await sleep(400);
+            return current && !hasNewArtwork ? load(false) : false;
+          })(),
+        ]);
+        await finalDelay;
+        if (!current || directAttempts.some(Boolean) || hasNewArtwork) return;
+        if (!await load(true)) finishMissing();
+      })();
+    }
 
     return () => {
       current = false;
-      if (retry) clearTimeout(retry);
+      clearTimeout(placeholderTimer);
     };
   }, [cacheKey, player, trackId, itunesCountry]);
 
@@ -91,8 +143,8 @@ export function useArtwork(snapshot: PlaybackSnapshot) {
     url: artwork?.url ?? null,
     loaded: artwork?.loaded ?? false,
     loading: artwork?.loading ?? false,
-    source: artwork?.source ?? null,
-    sourceLink: artwork?.sourceLink ?? null,
+    source: artwork?.key === cacheKey ? artwork.source : null,
+    sourceLink: artwork?.key === cacheKey ? artwork.sourceLink : null,
     markLoaded,
     markFailed,
   };

@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex, OnceLock, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use futures::future::join_all;
@@ -135,7 +135,7 @@ pub(crate) fn collect_provider_results(
     })
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderOrderMode {
     #[default]
@@ -143,14 +143,14 @@ pub enum ProviderOrderMode {
     Strict,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderPreference {
     pub id: String,
     pub enabled: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ProviderSettings {
     pub mode: ProviderOrderMode,
@@ -212,10 +212,34 @@ pub struct ProviderSettingsView {
     pub statuses: Vec<ProviderStatus>,
 }
 
+#[derive(Clone)]
 pub struct ProviderSearchOutcome {
     pub results: Vec<LyricsSearchResult>,
     pub statuses: Vec<ProviderStatus>,
     pub auto_apply_threshold: u8,
+}
+
+type SearchFlight = tokio::sync::OnceCell<Result<ProviderSearchOutcome, String>>;
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct SearchKey {
+    title: String,
+    artist: String,
+    album: Option<String>,
+    duration_ms: Option<u64>,
+    settings: ProviderSettings,
+}
+
+impl SearchKey {
+    fn new(input: &LyricsSearchInput, settings: ProviderSettings) -> Self {
+        Self {
+            title: input.title.trim().into(),
+            artist: input.artist.trim().into(),
+            album: input.album.as_deref().map(str::trim).map(str::to_owned),
+            duration_ms: input.duration_ms,
+            settings,
+        }
+    }
 }
 
 pub trait LyricsProvider: Send + Sync {
@@ -232,6 +256,7 @@ pub struct ProviderRegistry {
     providers: Vec<Box<dyn LyricsProvider>>,
     settings: RwLock<ProviderSettings>,
     statuses: RwLock<HashMap<String, ProviderStatus>>,
+    in_flight: Mutex<HashMap<SearchKey, Weak<SearchFlight>>>,
     timeout: Duration,
 }
 
@@ -268,6 +293,7 @@ impl ProviderRegistry {
             providers,
             settings: RwLock::new(settings),
             statuses: RwLock::new(statuses),
+            in_flight: Mutex::new(HashMap::new()),
             timeout: Duration::from_secs(8),
         }
     }
@@ -305,6 +331,33 @@ impl ProviderRegistry {
             .read()
             .unwrap_or_else(|error| error.into_inner())
             .clone();
+        let key = SearchKey::new(input, settings.clone());
+        let flight = {
+            let mut in_flight = self
+                .in_flight
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            in_flight.retain(|_, flight| flight.strong_count() > 0);
+            if let Some(flight) = in_flight.get(&key).and_then(Weak::upgrade) {
+                flight
+            } else {
+                let flight = Arc::new(SearchFlight::new());
+                in_flight.insert(key, Arc::downgrade(&flight));
+                flight
+            }
+        };
+        flight
+            .get_or_init(|| self.search_once(client, input, settings))
+            .await
+            .clone()
+    }
+
+    async fn search_once(
+        &self,
+        client: &reqwest::Client,
+        input: &LyricsSearchInput,
+        settings: ProviderSettings,
+    ) -> Result<ProviderSearchOutcome, String> {
         let priority = settings
             .providers
             .iter()
@@ -360,7 +413,6 @@ impl ProviderRegistry {
             }
         }
 
-        deduplicate(&mut results);
         results.sort_by(|left, right| match settings.mode {
             ProviderOrderMode::Strict => priority
                 .get(left.provider_id.as_str())
@@ -378,6 +430,7 @@ impl ProviderRegistry {
                 }
             }
         });
+        deduplicate(&mut results);
         results.truncate(24);
         if !any_success && !errors.is_empty() {
             Err(errors.join("；"))
@@ -713,6 +766,7 @@ pub fn can_auto_apply(results: &[LyricsSearchResult], threshold_percent: u8) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
     fn defaults_to_all_providers_enabled() {
@@ -726,6 +780,9 @@ mod tests {
         fails: bool,
         warning: Option<&'static str>,
         empty: bool,
+        lyrics: &'static str,
+        calls: Option<Arc<AtomicUsize>>,
+        delay: Duration,
     }
 
     impl LyricsProvider for MockProvider {
@@ -743,6 +800,12 @@ mod tests {
             _input: &'a LyricsSearchInput,
         ) -> ProviderFuture<'a, ProviderSearchReport> {
             Box::pin(async move {
+                if let Some(calls) = &self.calls {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                }
+                if !self.delay.is_zero() {
+                    tokio::time::sleep(self.delay).await;
+                }
                 if self.fails {
                     return Err(ProviderError {
                         provider_id: self.id.into(),
@@ -752,7 +815,7 @@ mod tests {
                 }
                 Ok(ProviderSearchReport {
                     results: (!self.empty)
-                        .then(|| result(self.id, self.score, &format!("[00:01]{}", self.id)))
+                        .then(|| result(self.id, self.score, self.lyrics))
                         .into_iter()
                         .collect(),
                     warning: self.warning.map(str::to_owned),
@@ -1056,6 +1119,9 @@ mod tests {
                     fails: false,
                     warning: None,
                     empty: false,
+                    lyrics: "[00:01]Same",
+                    calls: None,
+                    delay: Duration::ZERO,
                 }),
                 Box::new(MockProvider {
                     id: "netease",
@@ -1063,10 +1129,14 @@ mod tests {
                     fails: netease_fails,
                     warning: None,
                     empty: false,
+                    lyrics: "[00:01]Same",
+                    calls: None,
+                    delay: Duration::ZERO,
                 }),
             ],
             settings: RwLock::new(settings),
             statuses: RwLock::new(statuses),
+            in_flight: Mutex::new(HashMap::new()),
             timeout: Duration::from_millis(100),
         }
     }
@@ -1079,6 +1149,9 @@ mod tests {
                 fails: false,
                 warning,
                 empty,
+                lyrics: "[00:01]lrclib",
+                calls: None,
+                delay: Duration::ZERO,
             })],
             settings: RwLock::new(ProviderSettings {
                 mode: ProviderOrderMode::Smart,
@@ -1099,6 +1172,41 @@ mod tests {
                     checked_at_ms: None,
                 },
             )])),
+            in_flight: Mutex::new(HashMap::new()),
+            timeout: Duration::from_millis(100),
+        }
+    }
+
+    fn counting_registry(calls: Arc<AtomicUsize>) -> ProviderRegistry {
+        ProviderRegistry {
+            providers: vec![Box::new(MockProvider {
+                id: "lrclib",
+                score: 0.90,
+                fails: false,
+                warning: None,
+                empty: false,
+                lyrics: "[00:01]Hello",
+                calls: Some(calls),
+                delay: Duration::from_millis(20),
+            })],
+            settings: RwLock::new(ProviderSettings {
+                providers: vec![ProviderPreference {
+                    id: "lrclib".into(),
+                    enabled: true,
+                }],
+                ..ProviderSettings::default()
+            }),
+            statuses: RwLock::new(HashMap::from([(
+                "lrclib".into(),
+                ProviderStatus {
+                    provider_id: "lrclib".into(),
+                    name: "lrclib".into(),
+                    health: ProviderHealth::Unknown,
+                    message: None,
+                    checked_at_ms: None,
+                },
+            )])),
+            in_flight: Mutex::new(HashMap::new()),
             timeout: Duration::from_millis(100),
         }
     }
@@ -1199,12 +1307,48 @@ mod tests {
                 .search(&client, &input)
                 .await
                 .unwrap();
+            assert_eq!(strict.results.len(), 1);
             assert_eq!(strict.results[0].provider_id, "lrclib");
             let smart = mock_registry(ProviderOrderMode::Smart, false)
                 .search(&client, &input)
                 .await
                 .unwrap();
+            assert_eq!(smart.results.len(), 1);
             assert_eq!(smart.results[0].provider_id, "netease");
+        });
+    }
+
+    #[test]
+    fn concurrent_identical_searches_share_only_in_flight_work() {
+        tauri::async_runtime::block_on(async {
+            let calls = Arc::new(AtomicUsize::new(0));
+            let registry = counting_registry(calls.clone());
+            let client = reqwest::Client::new();
+            let input = LyricsSearchInput {
+                title: "Hello".into(),
+                artist: "Adele".into(),
+                album: None,
+                duration_ms: None,
+                title_filter_keywords: Arc::default(),
+            };
+
+            let (first, second) = tokio::join!(
+                registry.search(&client, &input),
+                registry.search(&client, &input),
+            );
+            assert_eq!(calls.load(Ordering::SeqCst), 1);
+            assert_eq!(first.unwrap().results[0].id, second.unwrap().results[0].id);
+
+            registry.search(&client, &input).await.unwrap();
+            assert_eq!(calls.load(Ordering::SeqCst), 2);
+
+            let mut different = input.clone();
+            different.title = "World".into();
+            let _ = tokio::join!(
+                registry.search(&client, &input),
+                registry.search(&client, &different),
+            );
+            assert_eq!(calls.load(Ordering::SeqCst), 4);
         });
     }
 

@@ -2387,7 +2387,7 @@ mod tests {
                 work_position,
                 work_size,
             ),
-            (ToolbarPlacement::Top, tauri::PhysicalPosition::new(300, 38),),
+            (placement, tauri::PhysicalPosition::new(300, 84)),
         );
 
         let vertical_size = tauri::PhysicalSize::new(380, 1240);
@@ -2412,10 +2412,7 @@ mod tests {
                 tauri::PhysicalPosition::new(0, 0),
                 tauri::PhysicalSize::new(1920, 2160),
             ),
-            (
-                ToolbarPlacement::Right,
-                tauri::PhysicalPosition::new(1527, 100),
-            ),
+            (placement, tauri::PhysicalPosition::new(1431, 100)),
         );
     }
 

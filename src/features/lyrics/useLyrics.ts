@@ -44,6 +44,7 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, autoSe
   const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
   const attempted = useRef(new Set<string>());
+  const searchGeneration = useRef(0);
   const activeTrackKey = useRef(trackKey);
   const documentRef = useRef<LyricsDocument | null>(null);
   const documentTrackKey = useRef<string | null>(null);
@@ -89,7 +90,7 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, autoSe
       if (activeTrackKey.current === trackKey) updateDocument(saved, trackKey);
       return saved;
     } catch (saveError) {
-      setError(messageOf(saveError));
+      if (activeTrackKey.current === trackKey) setError(messageOf(saveError));
       return null;
     }
   }, [snapshot.artist, snapshot.title, trackKey, updateDocument]);
@@ -105,10 +106,14 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, autoSe
       durationMs: snapshot.durationMs,
     };
     if (!input.title.trim() || !input.artist.trim()) return;
+    const generation = ++searchGeneration.current;
+    const key = trackKey;
+    const isCurrent = () => searchGeneration.current === generation && activeTrackKey.current === key;
     setSearching(true);
     setError(null);
     try {
       const response = await api.searchLyrics(input);
+      if (!isCurrent()) return;
       setResults(response.results);
       setProviderStatuses(response.providerStatuses);
       if (allowAutoApply && response.autoApply && response.results[0]) {
@@ -117,17 +122,20 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, autoSe
         setError(t("settings.lyrics.noResults"));
       }
     } catch (searchError) {
-      setError(messageOf(searchError));
+      if (isCurrent()) setError(messageOf(searchError));
     } finally {
-      setSearching(false);
+      if (isCurrent()) setSearching(false);
     }
-  }, [applyResult, snapshot.album, snapshot.artist, snapshot.durationMs, snapshot.title, t]);
+  }, [applyResult, snapshot.album, snapshot.artist, snapshot.durationMs, snapshot.title, t, trackKey]);
 
   useEffect(() => {
+    const generation = ++searchGeneration.current;
+    setSearching(false);
     setError(null);
     setResults([]);
     updateDocument(null);
     void load().then((cached) => {
+      if (searchGeneration.current !== generation) return;
       if (autoSearch && trackKey && !cached && !attempted.current.has(trackKey)) {
         attempted.current.add(trackKey);
         void search(true);

@@ -2,11 +2,14 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex as StdMutex, OnceLock, RwLock};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Mutex as StdMutex, OnceLock, RwLock,
+};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use image::codecs::jpeg::JpegEncoder;
-use image::{DynamicImage, GenericImageView, ImageReader};
+use image::{DynamicImage, ImageReader};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use strsim::normalized_levenshtein;
@@ -23,9 +26,10 @@ use crate::player::{PlaybackSnapshot, PlayerKind};
 
 pub const CACHE_DIRECTORY_PREFERENCE: &str = "artwork.cache_directory";
 const MAX_SOURCE_BYTES: usize = 10 * 1024 * 1024;
-const MAX_ARTWORK_DIMENSION: u32 = 384;
-const MIN_CLEAR_DIMENSION: u32 = 256;
-const JPEG_QUALITY: u8 = 85;
+const CACHE_FORMAT_VERSION: u8 = 2;
+const MAX_ARTWORK_DIMENSION: u32 = 768;
+const MIN_CLEAR_DIMENSION: u32 = 512;
+const JPEG_QUALITY: u8 = 90;
 const MAX_CACHE_FILES: usize = 200;
 const MISSING_ARTWORK_TTL: Duration = Duration::from_secs(5 * 60);
 const NETWORK_MISSING_TTL_SECS: u64 = 24 * 60 * 60;
@@ -185,6 +189,7 @@ pub struct ArtworkAsset {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 struct CacheIndex {
+    format_version: u8,
     tracks: HashMap<String, CacheReference>,
     albums: HashMap<String, String>,
     network_ids: HashMap<String, String>,
@@ -239,10 +244,27 @@ struct ArtworkSource {
     network_id: Option<String>,
 }
 
+struct PreparedArtworkSource {
+    bytes: Vec<u8>,
+    width: u32,
+    height: u32,
+    source: String,
+    source_link: Option<String>,
+    network_id: Option<String>,
+}
+
+struct CachedArtwork {
+    asset: ArtworkAsset,
+    low_quality: bool,
+    min_dimension: u32,
+}
+
 pub struct ArtworkService {
     cache_dir: RwLock<PathBuf>,
     warning: RwLock<Option<String>>,
     operation_lock: Mutex<()>,
+    network_lock: Mutex<()>,
+    generation: AtomicU64,
     missing_artwork: Mutex<MissingArtworkCache>,
     last_itunes_request: Mutex<Option<Instant>>,
 }
@@ -254,6 +276,8 @@ impl ArtworkService {
             cache_dir: RwLock::new(cache_dir),
             warning: RwLock::new(None),
             operation_lock: Mutex::new(()),
+            network_lock: Mutex::new(()),
+            generation: AtomicU64::new(0),
             missing_artwork: Mutex::new(MissingArtworkCache::default()),
             last_itunes_request: Mutex::new(None),
         })
@@ -281,6 +305,7 @@ impl ArtworkService {
             .cache_dir
             .write()
             .unwrap_or_else(|error| error.into_inner()) = path;
+        self.generation.fetch_add(1, Ordering::SeqCst);
         self.set_warning(None);
         self.cache_status()
     }
@@ -312,17 +337,8 @@ impl ArtworkService {
     pub async fn clear(&self) -> Result<ArtworkCacheStatus, String> {
         let _guard = self.operation_lock.lock().await;
         let directory = self.cache_directory();
-        let blobs = directory.join("blobs");
-        if blobs.exists() {
-            fs::remove_dir_all(&blobs).map_err(|error| format!("清空封面缓存失败：{error}"))?;
-        }
-        fs::create_dir_all(&blobs).map_err(|error| format!("重建封面缓存失败：{error}"))?;
-        for name in ["index.json", ".index.tmp"] {
-            let path = directory.join(name);
-            if path.exists() {
-                fs::remove_file(path).map_err(|error| format!("清空封面索引失败：{error}"))?;
-            }
-        }
+        self.generation.fetch_add(1, Ordering::SeqCst);
+        reset_managed_cache(&directory)?;
         self.cache_status()
     }
 
@@ -345,10 +361,9 @@ impl ArtworkService {
             return Ok(None);
         }
 
-        let _guard = self.operation_lock.lock().await;
-        let directory = self.cache_directory();
-        let mut index = load_index(&directory);
+        let generation = self.generation.load(Ordering::SeqCst);
         let track_key = format!("{}:{track_id}", player_name(player));
+        let album_key = album_key(snapshot);
         let force_network = settings.network_fallback
             && player == PlayerKind::System
             && snapshot
@@ -360,114 +375,231 @@ impl ArtworkService {
                         .iter()
                         .any(|application| application.bundle_id == bundle_id)
                 });
-        let cached = cached_asset(&directory, &mut index, player, track_id, &track_key);
-        if cached
-            .as_ref()
-            .is_some_and(|(asset, low)| !low && (!force_network || asset.source != "player"))
-        {
+
+        let mut fallback = {
+            let _guard = self.operation_lock.lock().await;
+            let directory = self.cache_directory();
+            let mut index = load_index(&directory)?;
+            let cached = cached_asset(&directory, &mut index, player, track_id, &track_key);
             save_index(&directory, &index)?;
-            return Ok(cached.map(|(asset, _)| asset));
+            if let Some(cached) = cached.as_ref() {
+                let ready = player != PlayerKind::System
+                    || !allow_network
+                    || (!cached.low_quality && (cached.asset.source != "player" || !force_network));
+                if ready {
+                    return Ok(Some(cached.asset.clone()));
+                }
+            }
+            cached
+        };
+
+        let refresh_player = fallback.is_none()
+            || (player == PlayerKind::System
+                && allow_network
+                && fallback.as_ref().is_some_and(|cached| {
+                    cached.low_quality || (force_network && cached.asset.source == "player")
+                }));
+        if refresh_player {
+            let player_source = match self
+                .player_source(snapshot, http, system_image, &track_key, allow_network)
+                .await
+            {
+                Ok(Some(source)) => match prepare_source(source) {
+                    Ok(source) => Some(source),
+                    Err(error) if allow_network => {
+                        log::warn!("播放器返回了无效封面，继续后台补全：{error}");
+                        None
+                    }
+                    Err(error) => return Err(error),
+                },
+                Ok(None) => None,
+                Err(error) if allow_network => {
+                    log::warn!("读取播放器封面失败，继续后台补全：{error}");
+                    None
+                }
+                Err(error) => return Err(error),
+            };
+            if let Some(source) = player_source {
+                let source_min = source.width.min(source.height);
+                if self.generation.load(Ordering::SeqCst) != generation {
+                    return Ok(None);
+                }
+                let _guard = self.operation_lock.lock().await;
+                if self.generation.load(Ordering::SeqCst) != generation {
+                    return Ok(None);
+                }
+                let directory = self.cache_directory();
+                let mut index = load_index(&directory)?;
+                let current = cached_asset(&directory, &mut index, player, track_id, &track_key);
+                let should_store = current.as_ref().is_none_or(|cached| {
+                    player == PlayerKind::System
+                        && source_min > cached.min_dimension
+                        && (cached.asset.source == "player" || cached.low_quality)
+                });
+                fallback = Some(if should_store {
+                    store_source(&directory, &mut index, player, track_id, snapshot, source)?
+                } else {
+                    current.expect("cached artwork checked")
+                });
+                prune_cache(&directory, &mut index, MAX_CACHE_FILES);
+                save_index(&directory, &index)?;
+            }
         }
 
-        if cached.is_some() && (!settings.network_fallback || !allow_network) {
-            save_index(&directory, &index)?;
-            if player == PlayerKind::System && !allow_network {
+        if fallback.is_none() {
+            let _guard = self.operation_lock.lock().await;
+            if self.generation.load(Ordering::SeqCst) != generation {
                 return Ok(None);
             }
-            return Ok(cached.map(|(asset, _)| asset));
-        }
-
-        let mut fallback = cached.map(|(asset, _)| asset);
-        if fallback.is_none() {
-            if let Some(source) = self
-                .player_source(snapshot, http, system_image, &track_key)
-                .await?
-            {
-                let (width, height) = image_dimensions(&source.bytes)?;
-                let low_quality = width.min(height) < MIN_CLEAR_DIMENSION;
-                let asset = store_source(
-                    &directory,
-                    &mut index,
-                    player,
-                    track_id,
-                    snapshot,
-                    source,
-                    low_quality,
-                )?;
-                if (!low_quality && !force_network) || !settings.network_fallback || !allow_network
+            let directory = self.cache_directory();
+            let mut index = load_index(&directory)?;
+            let album_hash = album_key
+                .as_ref()
+                .and_then(|key| index.albums.get(key))
+                .cloned();
+            if let Some(hash) = album_hash {
+                if let Some((asset, min_dimension)) =
+                    blob_asset(&directory, &mut index, player, track_id, hash.clone())
                 {
-                    prune_cache(&directory, &mut index, MAX_CACHE_FILES);
+                    let low_quality = min_dimension < MIN_CLEAR_DIMENSION;
+                    index
+                        .tracks
+                        .insert(track_key.clone(), CacheReference { hash, low_quality });
+                    fallback = Some(CachedArtwork {
+                        asset,
+                        low_quality,
+                        min_dimension,
+                    });
                     save_index(&directory, &index)?;
-                    if player == PlayerKind::System
-                        && !allow_network
-                        && (low_quality || force_network)
-                    {
-                        return Ok(None);
-                    }
-                    return Ok(Some(asset));
                 }
-                fallback = Some(asset);
             }
         }
 
-        let album_key = album_key(snapshot);
-        let album_hash = album_key
-            .as_ref()
-            .and_then(|key| index.albums.get(key))
-            .cloned();
-        if let Some(asset) =
-            album_hash.and_then(|hash| blob_asset(&directory, &mut index, player, track_id, hash))
-        {
-            let hash = hash_from_path(&asset.file_path).unwrap_or_default();
-            index.tracks.insert(
-                track_key.clone(),
-                CacheReference {
-                    hash,
-                    low_quality: false,
-                },
-            );
-            if !force_network || asset.source != "player" {
-                save_index(&directory, &index)?;
-                return Ok(Some(asset));
+        if let Some(cached) = fallback.as_ref() {
+            let ready = player != PlayerKind::System
+                || !settings.network_fallback
+                || !allow_network
+                || (!cached.low_quality && (cached.asset.source != "player" || !force_network));
+            if ready {
+                return Ok(Some(cached.asset.clone()));
             }
-            fallback.get_or_insert(asset);
         }
-
         if !settings.network_fallback || !allow_network {
-            save_index(&directory, &index)?;
-            return Ok(fallback);
+            return Ok(fallback.map(|cached| cached.asset));
+        }
+        if !has_network_metadata(snapshot) {
+            return Ok(fallback.map(|cached| cached.asset));
         }
 
         let missing_key =
             network_missing_key(itunes_country, album_key.as_deref().unwrap_or(&track_key));
-        if index
-            .missing
-            .get(&missing_key)
-            .is_some_and(|at| now_secs().saturating_sub(*at) < NETWORK_MISSING_TTL_SECS)
         {
-            return Ok(fallback);
+            let _guard = self.operation_lock.lock().await;
+            let directory = self.cache_directory();
+            let index = load_index(&directory)?;
+            if missing_is_recent(&index, &missing_key) {
+                return Ok(fallback.map(|cached| cached.asset));
+            }
+        }
+
+        let _network_guard = self.network_lock.lock().await;
+        if self.generation.load(Ordering::SeqCst) != generation {
+            return Ok(None);
+        }
+        {
+            let _guard = self.operation_lock.lock().await;
+            let directory = self.cache_directory();
+            let mut index = load_index(&directory)?;
+            if let Some(current) =
+                cached_asset(&directory, &mut index, player, track_id, &track_key)
+            {
+                let ready = player != PlayerKind::System
+                    || (!current.low_quality
+                        && (current.asset.source != "player" || !force_network));
+                if ready {
+                    save_index(&directory, &index)?;
+                    return Ok(Some(current.asset));
+                }
+                if fallback
+                    .as_ref()
+                    .is_none_or(|cached| current.min_dimension > cached.min_dimension)
+                {
+                    fallback = Some(current);
+                }
+            }
+            if missing_is_recent(&index, &missing_key) {
+                return Ok(fallback.map(|cached| cached.asset));
+            }
         }
 
         let mut temporary_error = false;
+        let mut queried = false;
+        let mut all_enabled_queried = true;
+        let mut found_candidate = false;
         for provider in settings
             .providers
             .iter()
             .filter(|provider| provider.enabled)
         {
             let result = match provider.id.as_str() {
-                "cover_art_archive" => search_cover_art_archive(http, snapshot).await,
-                "itunes" => self.search_itunes(http, snapshot, itunes_country).await,
+                "cover_art_archive" if has_album_metadata(snapshot) => {
+                    queried = true;
+                    search_cover_art_archive(http, snapshot).await
+                }
+                "cover_art_archive" => {
+                    all_enabled_queried = false;
+                    continue;
+                }
+                "itunes" => {
+                    queried = true;
+                    self.search_itunes(http, snapshot, itunes_country).await
+                }
                 _ => continue,
             };
             match result {
                 Ok(Some(source)) => {
-                    let asset = store_source(
-                        &directory, &mut index, player, track_id, snapshot, source, false,
-                    )?;
+                    found_candidate = true;
+                    let source = match prepare_source(source) {
+                        Ok(source) => source,
+                        Err(error) => {
+                            temporary_error = true;
+                            log::warn!("封面来源 {} 返回了无效图片：{error}", provider.id);
+                            continue;
+                        }
+                    };
+                    let source_min = source.width.min(source.height);
+                    if fallback
+                        .as_ref()
+                        .is_some_and(|cached| source_min <= cached.min_dimension)
+                    {
+                        continue;
+                    }
+                    if self.generation.load(Ordering::SeqCst) != generation {
+                        return Ok(None);
+                    }
+                    let _guard = self.operation_lock.lock().await;
+                    if self.generation.load(Ordering::SeqCst) != generation {
+                        return Ok(None);
+                    }
+                    let directory = self.cache_directory();
+                    let mut index = load_index(&directory)?;
+                    let current =
+                        cached_asset(&directory, &mut index, player, track_id, &track_key);
+                    if let Some(current) = current {
+                        if (player != PlayerKind::System && current.asset.source == "player")
+                            || current.min_dimension >= source_min
+                        {
+                            fallback = Some(current);
+                            save_index(&directory, &index)?;
+                            continue;
+                        }
+                    }
+                    let stored =
+                        store_source(&directory, &mut index, player, track_id, snapshot, source)?;
                     index.missing.remove(&missing_key);
                     prune_cache(&directory, &mut index, MAX_CACHE_FILES);
                     save_index(&directory, &index)?;
-                    return Ok(Some(asset));
+                    return Ok(Some(stored.asset));
                 }
                 Ok(None) => {}
                 Err(error) => {
@@ -476,11 +608,17 @@ impl ArtworkService {
                 }
             }
         }
-        if !temporary_error {
+        if queried && all_enabled_queried && !temporary_error && !found_candidate {
+            let _guard = self.operation_lock.lock().await;
+            if self.generation.load(Ordering::SeqCst) != generation {
+                return Ok(None);
+            }
+            let directory = self.cache_directory();
+            let mut index = load_index(&directory)?;
             index.missing.insert(missing_key, now_secs());
             save_index(&directory, &index)?;
         }
-        Ok(fallback)
+        Ok(fallback.map(|cached| cached.asset))
     }
 
     async fn player_source(
@@ -489,6 +627,7 @@ impl ArtworkService {
         http: &reqwest::Client,
         system_image: Option<DynamicImage>,
         track_key: &str,
+        record_missing: bool,
     ) -> Result<Option<ArtworkSource>, String> {
         let title = snapshot.title.clone().unwrap_or_default();
         let artist = snapshot.artist.clone().unwrap_or_default();
@@ -514,11 +653,12 @@ impl ArtworkService {
                 }
             }
             PlayerKind::AppleMusic => {
-                if self
-                    .missing_artwork
-                    .lock()
-                    .await
-                    .contains_recent(track_key, Instant::now())
+                if record_missing
+                    && self
+                        .missing_artwork
+                        .lock()
+                        .await
+                        .contains_recent(track_key, Instant::now())
                 {
                     return Ok(None);
                 }
@@ -530,10 +670,12 @@ impl ArtworkService {
                 })
                 .await
                 .map_err(|error| format!("Apple Music 封面任务失败：{error}"))??;
-                self.missing_artwork
-                    .lock()
-                    .await
-                    .record(track_key, result, Instant::now());
+                if result == AppleMusicArtworkExport::Exported || record_missing {
+                    self.missing_artwork
+                        .lock()
+                        .await
+                        .record(track_key, result, Instant::now());
+                }
                 if result != AppleMusicArtworkExport::Exported {
                     let _ = fs::remove_file(raw_path);
                     return Ok(None);
@@ -666,11 +808,19 @@ fn verify_writable(directory: &Path) -> Result<(), String> {
     fs::remove_file(path).map_err(|error| format!("清理目录写入测试失败：{error}"))
 }
 
-fn load_index(directory: &Path) -> CacheIndex {
-    fs::read(directory.join("index.json"))
+fn load_index(directory: &Path) -> Result<CacheIndex, String> {
+    let mut index: CacheIndex = fs::read(directory.join("index.json"))
         .ok()
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    if index.format_version != CACHE_FORMAT_VERSION {
+        reset_managed_cache(directory)?;
+        index = CacheIndex {
+            format_version: CACHE_FORMAT_VERSION,
+            ..Default::default()
+        };
+    }
+    Ok(index)
 }
 
 fn save_index(directory: &Path, index: &CacheIndex) -> Result<(), String> {
@@ -683,16 +833,36 @@ fn save_index(directory: &Path, index: &CacheIndex) -> Result<(), String> {
     )
 }
 
+fn reset_managed_cache(directory: &Path) -> Result<(), String> {
+    let blobs = directory.join("blobs");
+    if blobs.exists() {
+        fs::remove_dir_all(&blobs).map_err(|error| format!("清空封面缓存失败：{error}"))?;
+    }
+    fs::create_dir_all(&blobs).map_err(|error| format!("重建封面缓存失败：{error}"))?;
+    for name in ["index.json", ".index.tmp"] {
+        let path = directory.join(name);
+        if path.exists() {
+            fs::remove_file(path).map_err(|error| format!("清空封面索引失败：{error}"))?;
+        }
+    }
+    Ok(())
+}
+
 fn cached_asset(
     directory: &Path,
     index: &mut CacheIndex,
     player: PlayerKind,
     track_id: &str,
     track_key: &str,
-) -> Option<(ArtworkAsset, bool)> {
+) -> Option<CachedArtwork> {
     let reference = index.tracks.get(track_key)?.clone();
-    blob_asset(directory, index, player, track_id, reference.hash)
-        .map(|asset| (asset, reference.low_quality))
+    blob_asset(directory, index, player, track_id, reference.hash).map(|(asset, min_dimension)| {
+        CachedArtwork {
+            asset,
+            low_quality: reference.low_quality,
+            min_dimension,
+        }
+    })
 }
 
 fn blob_asset(
@@ -701,7 +871,7 @@ fn blob_asset(
     player: PlayerKind,
     track_id: &str,
     hash: String,
-) -> Option<ArtworkAsset> {
+) -> Option<(ArtworkAsset, u32)> {
     let path = directory.join("blobs").join(format!("{hash}.jpg"));
     if !is_nonempty_file(&path) {
         index.blobs.remove(&hash);
@@ -709,13 +879,16 @@ fn blob_asset(
     }
     let metadata = index.blobs.get_mut(&hash)?;
     metadata.last_accessed = now_secs();
-    Some(ArtworkAsset {
-        player,
-        track_id: track_id.into(),
-        file_path: path.to_string_lossy().into_owned(),
-        source: metadata.source.clone(),
-        source_link: metadata.source_link.clone(),
-    })
+    Some((
+        ArtworkAsset {
+            player,
+            track_id: track_id.into(),
+            file_path: path.to_string_lossy().into_owned(),
+            source: metadata.source.clone(),
+            source_link: metadata.source_link.clone(),
+        },
+        metadata.width.min(metadata.height),
+    ))
 }
 
 fn store_source(
@@ -724,21 +897,28 @@ fn store_source(
     player: PlayerKind,
     track_id: &str,
     snapshot: &PlaybackSnapshot,
-    source: ArtworkSource,
-    low_quality: bool,
-) -> Result<ArtworkAsset, String> {
-    let (width, height) = image_dimensions(&source.bytes)?;
-    let normalized = normalize_image(&source.bytes)?;
-    let hash = hex_digest(&normalized);
+    source: PreparedArtworkSource,
+) -> Result<CachedArtwork, String> {
+    let PreparedArtworkSource {
+        bytes,
+        width,
+        height,
+        source,
+        source_link,
+        network_id,
+    } = source;
+    let low_quality = width.min(height) < MIN_CLEAR_DIMENSION;
+    let hash = hex_digest(&bytes);
     let path = directory.join("blobs").join(format!("{hash}.jpg"));
     if !is_nonempty_file(&path) {
-        write_atomically(&path, &directory.join(format!(".{hash}.tmp")), &normalized)?;
+        write_atomically(&path, &directory.join(format!(".{hash}.tmp")), &bytes)?;
     }
+    index.format_version = CACHE_FORMAT_VERSION;
     index.blobs.insert(
         hash.clone(),
         BlobMetadata {
-            source: source.source.clone(),
-            source_link: source.source_link.clone(),
+            source: source.clone(),
+            source_link: source_link.clone(),
             width,
             height,
             last_accessed: now_secs(),
@@ -755,16 +935,20 @@ fn store_source(
         if let Some(key) = album_key(snapshot) {
             index.albums.insert(key, hash.clone());
         }
-        if let Some(id) = source.network_id {
+        if let Some(id) = network_id {
             index.network_ids.insert(id, hash.clone());
         }
     }
-    Ok(ArtworkAsset {
-        player,
-        track_id: track_id.into(),
-        file_path: path.to_string_lossy().into_owned(),
-        source: source.source,
-        source_link: source.source_link,
+    Ok(CachedArtwork {
+        asset: ArtworkAsset {
+            player,
+            track_id: track_id.into(),
+            file_path: path.to_string_lossy().into_owned(),
+            source,
+            source_link,
+        },
+        low_quality,
+        min_dimension: width.min(height),
     })
 }
 
@@ -808,6 +992,31 @@ fn album_key(snapshot: &PlaybackSnapshot) -> Option<String> {
 
 fn network_missing_key(itunes_country: &str, identity: &str) -> String {
     format!("{NETWORK_MATCH_VERSION}:{itunes_country}:{identity}")
+}
+
+fn has_network_metadata(snapshot: &PlaybackSnapshot) -> bool {
+    snapshot
+        .title
+        .as_deref()
+        .is_some_and(|value| !value.trim().is_empty())
+        && snapshot
+            .artist
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty())
+}
+
+fn has_album_metadata(snapshot: &PlaybackSnapshot) -> bool {
+    snapshot
+        .album
+        .as_deref()
+        .is_some_and(|value| !value.trim().is_empty())
+}
+
+fn missing_is_recent(index: &CacheIndex, key: &str) -> bool {
+    index
+        .missing
+        .get(key)
+        .is_some_and(|timestamp| now_secs().saturating_sub(*timestamp) < NETWORK_MISSING_TTL_SECS)
 }
 
 fn normalize_text(value: &str) -> String {
@@ -965,10 +1174,6 @@ fn artist_similarity(expected: &str, actual: &str) -> f64 {
         .fold(0.0, f64::max)
 }
 
-fn hash_from_path(path: &str) -> Option<String> {
-    Path::new(path).file_stem()?.to_str().map(str::to_owned)
-}
-
 fn source(bytes: Vec<u8>, name: &str, source_link: Option<String>) -> ArtworkSource {
     ArtworkSource {
         bytes,
@@ -1035,7 +1240,7 @@ async fn search_cover_art_archive(
         return Ok(None);
     };
     let url = format!(
-        "https://coverartarchive.org/release-group/{}/front-500",
+        "https://coverartarchive.org/release-group/{}/front-1200",
         group.id
     );
     let bytes = match download_artwork(http, &url).await {
@@ -1172,11 +1377,6 @@ async fn download_artwork(http: &reqwest::Client, url: &str) -> Result<Vec<u8>, 
     Ok(bytes.to_vec())
 }
 
-fn image_dimensions(source: &[u8]) -> Result<(u32, u32), String> {
-    let image = decode_image(source)?;
-    Ok(image.dimensions())
-}
-
 fn decode_image(source: &[u8]) -> Result<DynamicImage, String> {
     if source.is_empty() || source.len() > MAX_SOURCE_BYTES {
         return Err("封面内容为空或超过 10 MB".into());
@@ -1188,7 +1388,19 @@ fn decode_image(source: &[u8]) -> Result<DynamicImage, String> {
         .map_err(|error| format!("无法解码封面：{error}"))
 }
 
-fn normalize_image(source: &[u8]) -> Result<Vec<u8>, String> {
+fn prepare_source(source: ArtworkSource) -> Result<PreparedArtworkSource, String> {
+    let (bytes, width, height) = normalize_image(&source.bytes)?;
+    Ok(PreparedArtworkSource {
+        bytes,
+        width,
+        height,
+        source: source.source,
+        source_link: source.source_link,
+        network_id: source.network_id,
+    })
+}
+
+fn normalize_image(source: &[u8]) -> Result<(Vec<u8>, u32, u32), String> {
     normalize_dynamic_image(decode_image(source)?)
 }
 
@@ -1200,15 +1412,20 @@ fn dynamic_image_bytes(image: DynamicImage) -> Result<Vec<u8>, String> {
     Ok(bytes.into_inner())
 }
 
-fn normalize_dynamic_image(image: DynamicImage) -> Result<Vec<u8>, String> {
-    let image = image
-        .thumbnail(MAX_ARTWORK_DIMENSION, MAX_ARTWORK_DIMENSION)
+fn normalize_dynamic_image(image: DynamicImage) -> Result<(Vec<u8>, u32, u32), String> {
+    let image =
+        if image.width() > MAX_ARTWORK_DIMENSION || image.height() > MAX_ARTWORK_DIMENSION {
+            image.thumbnail(MAX_ARTWORK_DIMENSION, MAX_ARTWORK_DIMENSION)
+        } else {
+            image
+        }
         .to_rgb8();
+    let (width, height) = image.dimensions();
     let mut output = Vec::new();
     JpegEncoder::new_with_quality(&mut output, JPEG_QUALITY)
         .encode_image(&image)
         .map_err(|error| format!("无法编码封面：{error}"))?;
-    Ok(output)
+    Ok((output, width, height))
 }
 
 fn hex_digest(bytes: &[u8]) -> String {
@@ -1274,19 +1491,36 @@ mod tests {
                 PlayerKind::Spotify,
                 track,
                 &snapshot,
-                source(sample_png(900, 600), "player", None),
-                false,
+                prepare_source(source(sample_png(900, 600), "player", None)).unwrap(),
             )
             .unwrap();
         }
         assert_eq!(index.blobs.len(), 1);
         assert_eq!(fs::read_dir(directory.join("blobs")).unwrap().count(), 1);
+        let metadata = index.blobs.values().next().unwrap();
+        assert_eq!((metadata.width, metadata.height), (768, 512));
     }
 
     #[test]
-    fn detects_low_resolution_before_normalizing() {
-        assert!(image_dimensions(&sample_png(200, 400)).unwrap().0 < MIN_CLEAR_DIMENSION);
-        assert_eq!(image_dimensions(&sample_png(900, 600)).unwrap(), (900, 600));
+    fn normalizes_to_768_without_upscaling() {
+        assert_eq!(normalize_image(&sample_png(1200, 1200)).unwrap().1, 768);
+        assert_eq!(normalize_image(&sample_png(640, 640)).unwrap().1, 640);
+        assert_eq!(normalize_image(&sample_png(128, 128)).unwrap().1, 128);
+    }
+
+    #[test]
+    fn old_cache_format_removes_only_managed_files() {
+        let root = tempdir().unwrap();
+        initialize_directory(root.path()).unwrap();
+        fs::write(root.path().join("blobs/old.jpg"), b"old").unwrap();
+        fs::write(root.path().join("keep.txt"), b"keep").unwrap();
+        save_index(root.path(), &CacheIndex::default()).unwrap();
+
+        let index = load_index(root.path()).unwrap();
+
+        assert_eq!(index.format_version, CACHE_FORMAT_VERSION);
+        assert!(!root.path().join("blobs/old.jpg").exists());
+        assert!(root.path().join("keep.txt").exists());
     }
 
     #[tokio::test]
@@ -1301,7 +1535,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn system_low_resolution_waits_until_network_attempt() {
+    async fn system_low_resolution_is_returned_immediately() {
         let root = tempdir().unwrap();
         let service = ArtworkService::new(root.path().to_path_buf()).unwrap();
         let snapshot = PlaybackSnapshot {
@@ -1323,7 +1557,7 @@ mod tests {
             )
             .await
             .unwrap()
-            .is_none());
+            .is_some());
         assert!(service
             .resolve(
                 &snapshot,
@@ -1339,7 +1573,46 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn selected_system_app_waits_then_falls_back_to_clear_player_artwork() {
+    async fn system_low_resolution_is_replaced_by_newer_player_image() {
+        let root = tempdir().unwrap();
+        let service = ArtworkService::new(root.path().to_path_buf()).unwrap();
+        let snapshot = PlaybackSnapshot {
+            player: Some(PlayerKind::System),
+            track_id: Some("upgraded-track".into()),
+            ..PlaybackSnapshot::default()
+        };
+        let settings = ArtworkSettings::default();
+        service
+            .resolve(
+                &snapshot,
+                &reqwest::Client::new(),
+                &settings,
+                Some(DynamicImage::new_rgb8(128, 128)),
+                false,
+                "US",
+            )
+            .await
+            .unwrap();
+
+        let asset = service
+            .resolve(
+                &snapshot,
+                &reqwest::Client::new(),
+                &settings,
+                Some(DynamicImage::new_rgb8(512, 512)),
+                true,
+                "US",
+            )
+            .await
+            .unwrap()
+            .unwrap();
+
+        let image = image::open(asset.file_path).unwrap();
+        assert_eq!((image.width(), image.height()), (512, 512));
+    }
+
+    #[tokio::test]
+    async fn selected_system_app_shows_player_artwork_before_network_fallback() {
         let root = tempdir().unwrap();
         let service = ArtworkService::new(root.path().to_path_buf()).unwrap();
         let snapshot = PlaybackSnapshot {
@@ -1371,7 +1644,7 @@ mod tests {
             )
             .await
             .unwrap()
-            .is_none());
+            .is_some());
         let fallback = service
             .resolve(
                 &snapshot,
