@@ -1,6 +1,8 @@
 .overlay {
   --lyric-size: 30px;
   --surface-top-inset: 46px;
+  --surface-bottom-inset: 0px;
+  --surface-left-inset: 0px;
   --surface-right-inset: 0px;
   width: 100vw; height: 100vh; position: relative; overflow: hidden;
   opacity: var(--overlay-opacity); -webkit-user-select: none; user-select: none;
@@ -9,7 +11,8 @@
   background: transparent;
 }
 .surface {
-  position: absolute; inset: var(--surface-top-inset) var(--surface-right-inset) 0 0;
+  position: absolute;
+  inset: var(--surface-top-inset) var(--surface-right-inset) var(--surface-bottom-inset) var(--surface-left-inset);
   z-index: 0; display: grid; place-items: center; padding: 22px 26px;
   border-radius: 18px; pointer-events: none;
   transition: backdrop-filter .16s ease, -webkit-backdrop-filter .16s ease;
@@ -17,23 +20,29 @@
 .surface::before {
   content: ""; position: absolute; inset: 0; z-index: 0; border-radius: inherit;
   opacity: var(--background-opacity);
-  background: var(--solid-color); box-shadow: 0 14px 42px rgba(0,0,0,.28);
+  background: var(--solid-color); box-shadow: none;
   transition: opacity .16s ease, background .16s ease, box-shadow .16s ease;
 }
 .overlay[data-interactive="true"] { cursor: grab; }
 .overlay[data-interactive="true"]:active { cursor: grabbing; }
 .overlay[data-orientation="vertical"] { --surface-top-inset: 0px; --surface-right-inset: 48px; }
+.overlay:not([data-orientation="vertical"])[data-toolbar-placement="bottom"] {
+  --surface-top-inset: 0px; --surface-bottom-inset: 46px;
+}
+.overlay[data-orientation="vertical"][data-toolbar-placement="left"] {
+  --surface-left-inset: 48px; --surface-right-inset: 0px;
+}
 .overlay[data-orientation="vertical"] .surface { padding: 26px 24px; }
 .overlay[data-background-mode="transparent"] .surface::before {
   opacity: 0; background: rgba(16,17,23,.22); box-shadow: none;
   transition: opacity .16s ease, box-shadow .16s ease;
 }
 .overlay[data-background="glass"] .surface::before {
-  box-shadow: inset 0 1px rgba(255,255,255,.1), 0 18px 50px rgba(0,0,0,.35);
+  box-shadow: inset 0 1px rgba(255,255,255,.1);
 }
 .overlay[data-background-mode="transparent"][data-interactive="true"][data-hover="true"] .surface::before {
   opacity: 1;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 14px 42px rgba(0,0,0,.2);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
 }
 
 .lines {
@@ -142,7 +151,7 @@
 }
 .resizeHandle:hover::after, .resizeHandle[data-active="true"]::after { opacity: .9; }
 .resizeHandle[data-edge="left"], .resizeHandle[data-edge="right"] {
-  top: var(--surface-top-inset); bottom: 0; width: 20px; cursor: ew-resize;
+  top: var(--surface-top-inset); bottom: var(--surface-bottom-inset); width: 20px; cursor: ew-resize;
 }
 .resizeHandle[data-edge="left"] { left: 0; }
 .resizeHandle[data-edge="right"] { right: 0; }
@@ -152,7 +161,7 @@
 .resizeHandle[data-edge="left"]::after { left: 3px; }
 .resizeHandle[data-edge="right"]::after { right: 3px; }
 .resizeHandle[data-edge="top"], .resizeHandle[data-edge="bottom"] {
-  right: calc(var(--surface-right-inset) + 8px); left: 8px; height: 20px; cursor: ns-resize;
+  right: calc(var(--surface-right-inset) + 8px); left: calc(var(--surface-left-inset) + 8px); height: 20px; cursor: ns-resize;
 }
 .resizeHandle[data-edge="top"] { top: 0; }
 .resizeHandle[data-edge="bottom"] { bottom: 0; }
@@ -172,9 +181,12 @@
   position: absolute; top: 6px; left: 50%; z-index: 10; max-width: calc(100% - 6px); height: 34px;
   display: flex; align-items: center; gap: 3px; padding: 3px 5px; overflow-x: auto; overflow-y: hidden;
   border: 1px solid rgba(255,255,255,.12); border-radius: 9px; background: rgba(13,14,19,.88);
-  box-shadow: 0 8px 24px rgba(0,0,0,.38); opacity: 0; pointer-events: none;
+  opacity: 0; pointer-events: none;
   transform: translate(-50%, -5px); transition: opacity .16s, transform .16s; backdrop-filter: blur(14px);
   cursor: default;
+}
+.overlay:not([data-orientation="vertical"])[data-toolbar-placement="bottom"] .toolbar {
+  top: auto; bottom: 6px; transform: translate(-50%, 5px);
 }
 .overlay[data-hover="true"] .toolbar,
 .toolbar:focus-within { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
@@ -182,6 +194,9 @@
   top: 50%; right: 6px; left: auto; width: 36px; height: auto; max-width: none; max-height: calc(100% - 12px);
   flex-direction: column; padding: 5px 3px; overflow-x: hidden; overflow-y: auto;
   transform: translate(5px, -50%);
+}
+.overlay[data-orientation="vertical"][data-toolbar-placement="left"] .toolbar {
+  right: auto; left: 6px; transform: translate(-5px, -50%);
 }
 .overlay[data-orientation="vertical"][data-hover="true"] .toolbar,
 .overlay[data-orientation="vertical"] .toolbar:focus-within { transform: translate(0, -50%); }

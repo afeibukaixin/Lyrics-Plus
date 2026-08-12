@@ -34,6 +34,7 @@ import type {
   SettingsResetResponse,
   SettingsSection,
   SystemMediaFilterMode,
+  ToolbarPlacement,
   RegisteredApplication,
 } from "./types";
 
@@ -133,6 +134,8 @@ export const api = {
   getOverlaySettings: () => invoke<OverlaySettings>("get_overlay_settings"),
   setOverlayLocked: (locked: boolean) => invoke<void>("set_overlay_locked", { locked }),
   getOverlayStyle: () => invoke<OverlayStyle>("get_overlay_style"),
+  getOverlayToolbarPlacement: () =>
+    invoke<ToolbarPlacement>("get_overlay_toolbar_placement"),
   setOverlayStyle: (style: OverlayStyle) =>
     invoke<OverlayStyle>("set_overlay_style", { style }),
   nudgeOverlay: (dx: number, dy: number) => invoke<void>("nudge_overlay", { dx, dy }),

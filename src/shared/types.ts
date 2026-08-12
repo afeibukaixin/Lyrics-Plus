@@ -316,6 +316,8 @@ export type OverlayStyle = {
   verticalMaxHeight: number | null;
 };
 
+export type ToolbarPlacement = "top" | "bottom" | "left" | "right";
+
 export function secondaryDisplayFlags(mode: OverlayStyle["secondaryDisplay"]) {
   return {
     translation: mode === "translation" || mode === "translation_romanization",

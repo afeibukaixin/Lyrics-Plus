@@ -16,6 +16,7 @@ import {
   type OverlayResizeEdge,
   type OverlaySettings,
   type OverlayStyle,
+  type ToolbarPlacement,
 } from "../../shared/types";
 import { useLyrics } from "../lyrics/useLyrics";
 import { usePlayback } from "../player/usePlayback";
@@ -40,7 +41,6 @@ const MARQUEE_SPEED_PX_PER_SECOND = 35;
 const DEFAULT_MARQUEE_DURATION_SECONDS = 4;
 const MIN_MARQUEE_DURATION_SECONDS = 0.1;
 const MARQUEE_EDGE_INSET = 16;
-
 type MarqueeMetric = {
   overflowing: boolean;
   distance: number;
@@ -191,6 +191,7 @@ export default function Overlay() {
   const [activeResizeEdge, setActiveResizeEdge] = useState<OverlayResizeEdge | null>(null);
   const [overlayHovered, setOverlayHovered] = useState(false);
   const [unlockFeedback, setUnlockFeedback] = useState(false);
+  const [toolbarSide, setToolbarSide] = useState<ToolbarPlacement>("top");
   const [toolbarMinimums, setToolbarMinimums] = useState({
     horizontal: MIN_HORIZONTAL_WIDTH,
     vertical: MIN_VERTICAL_HEIGHT,
@@ -230,6 +231,7 @@ export default function Overlay() {
       setStyle(saved);
     });
     void api.getOverlaySettings().then(setSettings);
+    void api.getOverlayToolbarPlacement().then(setToolbarSide);
     const cleanupStyleListener = createTauriListenerCleanup(listen<OverlayStyle>("overlay://style", ({ payload }) => {
       clearResizeState();
       styleRef.current = payload;
@@ -243,6 +245,9 @@ export default function Overlay() {
     const cleanupHoverListener = createTauriListenerCleanup(listen<boolean>("overlay://hover", ({ payload }) => {
       setOverlayHovered(payload);
     }));
+    const cleanupToolbarPlacementListener = createTauriListenerCleanup(
+      listen<ToolbarPlacement>("overlay://toolbar-placement", ({ payload }) => setToolbarSide(payload)),
+    );
     const cleanupUnlockFeedbackListener = createTauriListenerCleanup(listen("overlay://unlock-feedback", () => {
       if (unlockFeedbackTimer.current !== null) clearTimeout(unlockFeedbackTimer.current);
       setUnlockFeedback(true);
@@ -256,6 +261,7 @@ export default function Overlay() {
       cleanupStyleListener();
       cleanupSettingsListener();
       cleanupHoverListener();
+      cleanupToolbarPlacementListener();
       cleanupUnlockFeedbackListener();
     };
   }, [clearResizeState]);
@@ -783,6 +789,7 @@ export default function Overlay() {
       data-interactive={!settings.locked}
       data-layout={style.layout}
       data-orientation={style.orientation}
+      data-toolbar-placement={toolbarSide}
       data-long-text={style.longText}
       data-constrained={constrained}
       data-hover={overlayHovered || unlockFeedback}

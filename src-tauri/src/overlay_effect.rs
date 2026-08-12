@@ -1,6 +1,6 @@
-use crate::commands::{
-    OverlayBackground, OverlayBackgroundMode, OverlayOrientation, OverlayStyleSettings,
-};
+use crate::commands::{AppState, OverlayBackground, OverlayBackgroundMode, OverlayStyleSettings};
+use crate::ToolbarPlacement;
+use tauri::Manager;
 
 pub(crate) const HORIZONTAL_OVERLAY_SURFACE_INSET: f64 = 46.0;
 pub(crate) const VERTICAL_OVERLAY_SURFACE_INSET: f64 = 48.0;
@@ -14,15 +14,27 @@ struct SurfaceFrame {
     height: f64,
 }
 
-fn overlay_surface_frame(width: f64, height: f64, orientation: OverlayOrientation) -> SurfaceFrame {
-    match orientation {
-        OverlayOrientation::Horizontal => SurfaceFrame {
+fn overlay_surface_frame(width: f64, height: f64, placement: ToolbarPlacement) -> SurfaceFrame {
+    match placement {
+        ToolbarPlacement::Top => SurfaceFrame {
             x: 0.0,
             y: 0.0,
             width: width.max(0.0),
             height: (height - HORIZONTAL_OVERLAY_SURFACE_INSET).max(0.0),
         },
-        OverlayOrientation::Vertical => SurfaceFrame {
+        ToolbarPlacement::Bottom => SurfaceFrame {
+            x: 0.0,
+            y: HORIZONTAL_OVERLAY_SURFACE_INSET.min(height.max(0.0)),
+            width: width.max(0.0),
+            height: (height - HORIZONTAL_OVERLAY_SURFACE_INSET).max(0.0),
+        },
+        ToolbarPlacement::Left => SurfaceFrame {
+            x: VERTICAL_OVERLAY_SURFACE_INSET.min(width.max(0.0)),
+            y: 0.0,
+            width: (width - VERTICAL_OVERLAY_SURFACE_INSET).max(0.0),
+            height: height.max(0.0),
+        },
+        ToolbarPlacement::Right => SurfaceFrame {
             x: 0.0,
             y: 0.0,
             width: (width - VERTICAL_OVERLAY_SURFACE_INSET).max(0.0),
@@ -46,10 +58,22 @@ pub(crate) fn sync_overlay_vibrancy(window: &tauri::WebviewWindow, style: &Overl
     {
         let target = window.clone();
         let orientation = style.orientation;
+        let placement = window
+            .app_handle()
+            .try_state::<AppState>()
+            .map(|state| {
+                state
+                    .overlay_placement
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner())
+                    .toolbar_placement
+                    .normalized(orientation)
+            })
+            .unwrap_or_else(|| ToolbarPlacement::for_orientation(orientation));
         let enabled = vibrancy_enabled(style);
         let strength = vibrancy_strength(style.background_blur);
         if let Err(error) = window.run_on_main_thread(move || {
-            if let Err(error) = sync_macos_vibrancy(&target, orientation, enabled, strength) {
+            if let Err(error) = sync_macos_vibrancy(&target, placement, enabled, strength) {
                 log::warn!("Failed to sync the native overlay vibrancy effect: {error}");
             }
         }) {
@@ -64,7 +88,7 @@ pub(crate) fn sync_overlay_vibrancy(window: &tauri::WebviewWindow, style: &Overl
 #[cfg(target_os = "macos")]
 fn sync_macos_vibrancy(
     window: &tauri::WebviewWindow,
-    orientation: OverlayOrientation,
+    placement: ToolbarPlacement,
     enabled: bool,
     strength: f64,
 ) -> Result<(), String> {
@@ -97,7 +121,7 @@ fn sync_macos_vibrancy(
     }
 
     let bounds = root.bounds();
-    let frame = overlay_surface_frame(bounds.size.width, bounds.size.height, orientation);
+    let frame = overlay_surface_frame(bounds.size.width, bounds.size.height, placement);
     let frame = NSRect::new(
         NSPoint::new(frame.x, frame.y),
         NSSize::new(frame.width, frame.height),
@@ -135,7 +159,7 @@ mod tests {
     #[test]
     fn horizontal_surface_frame_reserves_top_controls() {
         assert_eq!(
-            overlay_surface_frame(760.0, 156.0, OverlayOrientation::Horizontal),
+            overlay_surface_frame(760.0, 156.0, ToolbarPlacement::Top),
             SurfaceFrame {
                 x: 0.0,
                 y: 0.0,
@@ -146,9 +170,35 @@ mod tests {
     }
 
     #[test]
+    fn horizontal_surface_frame_reserves_bottom_controls() {
+        assert_eq!(
+            overlay_surface_frame(760.0, 156.0, ToolbarPlacement::Bottom),
+            SurfaceFrame {
+                x: 0.0,
+                y: 46.0,
+                width: 760.0,
+                height: 110.0,
+            }
+        );
+    }
+
+    #[test]
+    fn vertical_surface_frame_reserves_left_controls() {
+        assert_eq!(
+            overlay_surface_frame(190.0, 620.0, ToolbarPlacement::Left),
+            SurfaceFrame {
+                x: 48.0,
+                y: 0.0,
+                width: 142.0,
+                height: 620.0,
+            }
+        );
+    }
+
+    #[test]
     fn vertical_surface_frame_reserves_right_controls() {
         assert_eq!(
-            overlay_surface_frame(190.0, 620.0, OverlayOrientation::Vertical),
+            overlay_surface_frame(190.0, 620.0, ToolbarPlacement::Right),
             SurfaceFrame {
                 x: 0.0,
                 y: 0.0,

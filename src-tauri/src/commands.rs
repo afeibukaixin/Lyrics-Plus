@@ -822,6 +822,15 @@ pub fn get_overlay_style(state: State<'_, AppState>) -> OverlayStyleSettings {
         .clone()
 }
 
+#[tauri::command]
+pub fn get_overlay_toolbar_placement(state: State<'_, AppState>) -> crate::ToolbarPlacement {
+    state
+        .overlay_placement
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .toolbar_placement
+}
+
 fn persist_overlay_style_for_current_monitor(
     app: &tauri::AppHandle,
     state: &AppState,
@@ -862,10 +871,18 @@ pub fn set_overlay_style(
     state: State<'_, AppState>,
 ) -> Result<OverlayStyleSettings, String> {
     let style = style.normalized();
+    let previous_orientation = state
+        .overlay_style
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .orientation;
     *state
         .overlay_style
         .write()
         .unwrap_or_else(|error| error.into_inner()) = style.clone();
+    if previous_orientation != style.orientation {
+        crate::reset_overlay_toolbar_placement(&app, style.orientation);
+    }
     persist_overlay_style_for_current_monitor(&app, &state, &style)?;
     crate::sync_unlock_handle(&app);
     Ok(style)

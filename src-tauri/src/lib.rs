@@ -696,6 +696,33 @@ pub(crate) fn monitor_id(monitor: &tauri::Monitor) -> String {
     })
 }
 
+#[derive(Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolbarPlacement {
+    #[default]
+    Top,
+    Bottom,
+    Left,
+    Right,
+}
+
+impl ToolbarPlacement {
+    fn for_orientation(orientation: OverlayOrientation) -> Self {
+        match orientation {
+            OverlayOrientation::Horizontal => Self::Top,
+            OverlayOrientation::Vertical => Self::Right,
+        }
+    }
+
+    fn normalized(self, orientation: OverlayOrientation) -> Self {
+        match (orientation, self) {
+            (OverlayOrientation::Horizontal, Self::Top | Self::Bottom)
+            | (OverlayOrientation::Vertical, Self::Left | Self::Right) => self,
+            _ => Self::for_orientation(orientation),
+        }
+    }
+}
+
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StoredBounds {
@@ -715,6 +742,8 @@ struct StoredBounds {
     relative_x: Option<f64>,
     #[serde(default)]
     relative_y: Option<f64>,
+    #[serde(default)]
+    toolbar_placement: Option<ToolbarPlacement>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -737,6 +766,7 @@ const PROGRAMMATIC_MOVE_SUPPRESSION: Duration = Duration::from_secs(2);
 pub(crate) struct OverlayPlacementState {
     preferred_monitor: Option<String>,
     topology: Vec<MonitorTopologyEntry>,
+    pub(crate) toolbar_placement: ToolbarPlacement,
     expected_programmatic_position: Option<tauri::PhysicalPosition<i32>>,
     programmatic_move_started_at: Option<Instant>,
 }
@@ -950,10 +980,151 @@ pub(crate) fn move_overlay_to_primary(app: &tauri::AppHandle, window: &tauri::We
 }
 
 const UNLOCK_HANDLE_BACKGROUND_GAP: f64 = 6.0;
+const OVERLAY_EDGE_SNAP_DISTANCE: i32 = 12;
 const OVERLAY_POINTER_MONITOR_INTERVAL: Duration = Duration::from_millis(50);
 const UNLOCK_HANDLE_HIDE_DELAY: Duration = Duration::from_millis(200);
 const UNLOCK_HANDLE_HOVER_EVENT: &str = "unlock-handle://hover";
 const OVERLAY_HOVER_EVENT: &str = "overlay://hover";
+const OVERLAY_TOOLBAR_PLACEMENT_EVENT: &str = "overlay://toolbar-placement";
+
+fn toolbar_placement_after_move(
+    orientation: OverlayOrientation,
+    placement: ToolbarPlacement,
+    position: tauri::PhysicalPosition<i32>,
+    size: tauri::PhysicalSize<u32>,
+    scale: f64,
+    work_position: tauri::PhysicalPosition<i32>,
+    work_size: tauri::PhysicalSize<u32>,
+) -> (ToolbarPlacement, tauri::PhysicalPosition<i32>) {
+    let placement = placement.normalized(orientation);
+    let inset = (match orientation {
+        OverlayOrientation::Horizontal => HORIZONTAL_OVERLAY_SURFACE_INSET,
+        OverlayOrientation::Vertical => VERTICAL_OVERLAY_SURFACE_INSET,
+    } * scale)
+        .round() as i32;
+    match (orientation, placement) {
+        (OverlayOrientation::Horizontal, ToolbarPlacement::Top)
+            if position.y <= work_position.y.saturating_add(OVERLAY_EDGE_SNAP_DISTANCE) =>
+        {
+            (
+                ToolbarPlacement::Bottom,
+                tauri::PhysicalPosition::new(position.x, position.y.saturating_add(inset)),
+            )
+        }
+        (OverlayOrientation::Horizontal, ToolbarPlacement::Bottom)
+            if position.y
+                > work_position
+                    .y
+                    .saturating_add(inset)
+                    .saturating_add(OVERLAY_EDGE_SNAP_DISTANCE) =>
+        {
+            (
+                ToolbarPlacement::Top,
+                tauri::PhysicalPosition::new(position.x, position.y.saturating_sub(inset)),
+            )
+        }
+        (OverlayOrientation::Vertical, ToolbarPlacement::Right) => {
+            let window_right = position.x as i64 + size.width as i64;
+            let work_right = work_position.x as i64 + work_size.width as i64;
+            if window_right >= work_right - OVERLAY_EDGE_SNAP_DISTANCE as i64 {
+                (
+                    ToolbarPlacement::Left,
+                    tauri::PhysicalPosition::new(position.x.saturating_sub(inset), position.y),
+                )
+            } else {
+                (placement, position)
+            }
+        }
+        (OverlayOrientation::Vertical, ToolbarPlacement::Left) => {
+            let window_right = position.x as i64 + size.width as i64;
+            let work_right = work_position.x as i64 + work_size.width as i64;
+            if window_right < work_right - inset as i64 - OVERLAY_EDGE_SNAP_DISTANCE as i64 {
+                (
+                    ToolbarPlacement::Right,
+                    tauri::PhysicalPosition::new(position.x.saturating_add(inset), position.y),
+                )
+            } else {
+                (placement, position)
+            }
+        }
+        _ => (placement, position),
+    }
+}
+
+fn set_overlay_toolbar_placement(app: &tauri::AppHandle, placement: ToolbarPlacement) {
+    let Some(state) = app.try_state::<AppState>() else {
+        return;
+    };
+    let changed = {
+        let mut overlay_placement = state
+            .overlay_placement
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if overlay_placement.toolbar_placement == placement {
+            false
+        } else {
+            overlay_placement.toolbar_placement = placement;
+            true
+        }
+    };
+    if changed {
+        let _ = app.emit(OVERLAY_TOOLBAR_PLACEMENT_EVENT, placement);
+        if let Some(window) = app.get_webview_window("lyrics-overlay") {
+            let style = state
+                .overlay_style
+                .read()
+                .unwrap_or_else(|error| error.into_inner())
+                .clone();
+            sync_overlay_vibrancy(&window, &style);
+        }
+    }
+}
+
+pub(crate) fn reset_overlay_toolbar_placement(
+    app: &tauri::AppHandle,
+    orientation: OverlayOrientation,
+) {
+    set_overlay_toolbar_placement(app, ToolbarPlacement::for_orientation(orientation));
+}
+
+fn adjust_overlay_toolbar_for_move(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+    position: tauri::PhysicalPosition<i32>,
+) -> tauri::PhysicalPosition<i32> {
+    let (Ok(Some(monitor)), Ok(size)) = (window.current_monitor(), window.outer_size()) else {
+        return position;
+    };
+    let state = app.state::<AppState>();
+    let orientation = state
+        .overlay_style
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .orientation;
+    let placement = state
+        .overlay_placement
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .toolbar_placement;
+    let scale = monitor.scale_factor();
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    let work_area = monitor.work_area();
+    let (next_placement, next_position) = toolbar_placement_after_move(
+        orientation,
+        placement,
+        position,
+        size,
+        scale,
+        work_area.position,
+        work_area.size,
+    );
+    set_overlay_toolbar_placement(app, next_placement);
+    next_position
+}
 
 #[cfg(target_os = "macos")]
 pub(crate) fn primary_mouse_button_pressed() -> bool {
@@ -998,7 +1169,7 @@ fn stable_overlay_hover(previous: Option<bool>, sampled: bool, mouse_pressed: bo
 }
 
 fn unlock_handle_position(
-    orientation: OverlayOrientation,
+    placement: ToolbarPlacement,
     overlay_position: tauri::PhysicalPosition<i32>,
     overlay_size: tauri::PhysicalSize<u32>,
     handle_size: tauri::PhysicalSize<u32>,
@@ -1007,8 +1178,8 @@ fn unlock_handle_position(
 ) -> tauri::PhysicalPosition<i32> {
     let available_width = overlay_size.width.saturating_sub(handle_size.width);
     let available_height = overlay_size.height.saturating_sub(handle_size.height);
-    match orientation {
-        OverlayOrientation::Horizontal => tauri::PhysicalPosition::new(
+    match placement {
+        ToolbarPlacement::Top => tauri::PhysicalPosition::new(
             overlay_position
                 .x
                 .saturating_add((available_width / 2) as i32),
@@ -1019,7 +1190,30 @@ fn unlock_handle_position(
                     .min(available_height) as i32,
             ),
         ),
-        OverlayOrientation::Vertical => tauri::PhysicalPosition::new(
+        ToolbarPlacement::Bottom => tauri::PhysicalPosition::new(
+            overlay_position
+                .x
+                .saturating_add((available_width / 2) as i32),
+            overlay_position.y.saturating_add(
+                overlay_size
+                    .height
+                    .saturating_sub(surface_inset)
+                    .saturating_add(background_gap)
+                    .min(available_height) as i32,
+            ),
+        ),
+        ToolbarPlacement::Left => tauri::PhysicalPosition::new(
+            overlay_position.x.saturating_add(
+                surface_inset
+                    .saturating_sub(background_gap)
+                    .saturating_sub(handle_size.width)
+                    .min(available_width) as i32,
+            ),
+            overlay_position
+                .y
+                .saturating_add((available_height / 2) as i32),
+        ),
+        ToolbarPlacement::Right => tauri::PhysicalPosition::new(
             overlay_position.x.saturating_add(
                 overlay_size
                     .width
@@ -1056,6 +1250,12 @@ fn position_unlock_handle(app: &tauri::AppHandle) {
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .orientation;
+    let placement = state
+        .overlay_placement
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .toolbar_placement
+        .normalized(orientation);
     let scale = overlay.scale_factor().unwrap_or(1.0);
     let scale = if scale.is_finite() && scale > 0.0 {
         scale
@@ -1069,7 +1269,7 @@ fn position_unlock_handle(app: &tauri::AppHandle) {
         .round() as u32;
     let background_gap = (UNLOCK_HANDLE_BACKGROUND_GAP * scale).round() as u32;
     let _ = handle.set_position(unlock_handle_position(
-        orientation,
+        placement,
         position,
         size,
         handle_size,
@@ -1357,6 +1557,7 @@ fn stored_bounds(
     position: tauri::PhysicalPosition<i32>,
     window_size: tauri::PhysicalSize<u32>,
     monitor: &tauri::Monitor,
+    toolbar_placement: ToolbarPlacement,
 ) -> StoredBounds {
     let work_area = monitor.work_area();
     StoredBounds {
@@ -1379,6 +1580,7 @@ fn stored_bounds(
             work_area.size.height,
             window_size.height,
         )),
+        toolbar_placement: Some(toolbar_placement),
     }
 }
 
@@ -1412,7 +1614,12 @@ fn persist_overlay_state_at(
     let Ok(window_size) = window.outer_size() else {
         return;
     };
-    let bounds = stored_bounds(position, window_size, &monitor);
+    let toolbar_placement = state
+        .overlay_placement
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .toolbar_placement;
+    let bounds = stored_bounds(position, window_size, &monitor, toolbar_placement);
     if let Ok(raw) = serde_json::to_string(&bounds) {
         let _ = state.storage.set_preference("overlay.last_monitor", &id);
         let _ = state
@@ -1480,6 +1687,18 @@ fn apply_stored_overlay_position(
         work_area.size,
         window_size,
         monitor.scale_factor(),
+    );
+    let orientation = state
+        .overlay_style
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .orientation;
+    set_overlay_toolbar_placement(
+        app,
+        bounds
+            .toolbar_placement
+            .unwrap_or_else(|| ToolbarPlacement::for_orientation(orientation))
+            .normalized(orientation),
     );
     set_overlay_position(app, window, position);
     true
@@ -1654,6 +1873,8 @@ pub fn run() {
             let mut overlay_style = configured.overlay.appearance.clone().into_style();
             overlay_style.horizontal_max_width = geometry.horizontal_max_width;
             overlay_style.vertical_max_height = geometry.vertical_max_height;
+            let initial_toolbar_placement =
+                ToolbarPlacement::for_orientation(overlay_style.orientation);
             app.manage(AppState {
                 runtime_started: Mutex::new(false),
                 selection: Arc::new(RwLock::new(selection)),
@@ -1663,6 +1884,7 @@ pub fn run() {
                 overlay_monitor: Arc::new(RwLock::new(last_overlay_monitor.clone())),
                 overlay_placement: Arc::new(Mutex::new(OverlayPlacementState {
                     preferred_monitor: last_overlay_monitor,
+                    toolbar_placement: initial_toolbar_placement,
                     ..OverlayPlacementState::default()
                 })),
                 last_snapshot: Arc::new(RwLock::new(player::PlaybackSnapshot::empty())),
@@ -1736,12 +1958,14 @@ pub fn run() {
                             return;
                         }
                         let snapped = snapped_position(&overlay, *position);
-                        if snapped != *position {
-                            set_overlay_position(window.app_handle(), &overlay, snapped);
-                            persist_overlay_state_at(window.app_handle(), &overlay, snapped);
+                        let adjusted =
+                            adjust_overlay_toolbar_for_move(window.app_handle(), &overlay, snapped);
+                        if adjusted != *position {
+                            set_overlay_position(window.app_handle(), &overlay, adjusted);
+                            persist_overlay_state_at(window.app_handle(), &overlay, adjusted);
                             return;
                         }
-                        persist_overlay_state_at(window.app_handle(), &overlay, *position);
+                        persist_overlay_state_at(window.app_handle(), &overlay, adjusted);
                     }
                 }
                 if matches!(event, tauri::WindowEvent::Resized(_)) {
@@ -1791,6 +2015,7 @@ pub fn run() {
             commands::get_overlay_settings,
             commands::set_overlay_locked,
             commands::get_overlay_style,
+            commands::get_overlay_toolbar_placement,
             commands::set_overlay_style,
             commands::nudge_overlay,
             commands::reset_overlay_bounds,
@@ -1896,6 +2121,7 @@ mod tests {
         assert_eq!((bounds.x, bounds.y), (12, 34));
         assert_eq!(bounds.relative_x, None);
         assert_eq!(bounds.work_width, None);
+        assert_eq!(bounds.toolbar_placement, None);
     }
 
     #[test]
@@ -2013,7 +2239,7 @@ mod tests {
         let handle_size = tauri::PhysicalSize::new(28, 28);
         assert_eq!(
             unlock_handle_position(
-                OverlayOrientation::Horizontal,
+                ToolbarPlacement::Top,
                 overlay_position,
                 overlay_size,
                 handle_size,
@@ -2021,6 +2247,17 @@ mod tests {
                 6,
             ),
             tauri::PhysicalPosition::new(466, 212),
+        );
+        assert_eq!(
+            unlock_handle_position(
+                ToolbarPlacement::Bottom,
+                overlay_position,
+                overlay_size,
+                handle_size,
+                46,
+                6,
+            ),
+            tauri::PhysicalPosition::new(466, 316),
         );
     }
 
@@ -2031,7 +2268,7 @@ mod tests {
         let handle_size = tauri::PhysicalSize::new(28, 28);
         assert_eq!(
             unlock_handle_position(
-                OverlayOrientation::Vertical,
+                ToolbarPlacement::Right,
                 overlay_position,
                 overlay_size,
                 handle_size,
@@ -2039,6 +2276,87 @@ mod tests {
                 6,
             ),
             tauri::PhysicalPosition::new(248, 496),
+        );
+        assert_eq!(
+            unlock_handle_position(
+                ToolbarPlacement::Left,
+                overlay_position,
+                overlay_size,
+                handle_size,
+                48,
+                6,
+            ),
+            tauri::PhysicalPosition::new(114, 496),
+        );
+    }
+
+    #[test]
+    fn toolbar_flip_compensates_position_and_uses_hysteresis() {
+        let work_position = tauri::PhysicalPosition::new(0, 25);
+        let work_size = tauri::PhysicalSize::new(1920, 1055);
+        let horizontal_size = tauri::PhysicalSize::new(760, 156);
+        let (placement, position) = toolbar_placement_after_move(
+            OverlayOrientation::Horizontal,
+            ToolbarPlacement::Top,
+            tauri::PhysicalPosition::new(300, 25),
+            horizontal_size,
+            1.0,
+            work_position,
+            work_size,
+        );
+        assert_eq!(placement, ToolbarPlacement::Bottom);
+        assert_eq!(position, tauri::PhysicalPosition::new(300, 71));
+        assert_eq!(
+            toolbar_placement_after_move(
+                OverlayOrientation::Horizontal,
+                placement,
+                position,
+                horizontal_size,
+                1.0,
+                work_position,
+                work_size,
+            ),
+            (placement, position),
+        );
+        assert_eq!(
+            toolbar_placement_after_move(
+                OverlayOrientation::Horizontal,
+                placement,
+                tauri::PhysicalPosition::new(300, 84),
+                horizontal_size,
+                1.0,
+                work_position,
+                work_size,
+            ),
+            (ToolbarPlacement::Top, tauri::PhysicalPosition::new(300, 38),),
+        );
+
+        let vertical_size = tauri::PhysicalSize::new(380, 1240);
+        let (placement, position) = toolbar_placement_after_move(
+            OverlayOrientation::Vertical,
+            ToolbarPlacement::Right,
+            tauri::PhysicalPosition::new(1540, 100),
+            vertical_size,
+            2.0,
+            tauri::PhysicalPosition::new(0, 0),
+            tauri::PhysicalSize::new(1920, 2160),
+        );
+        assert_eq!(placement, ToolbarPlacement::Left);
+        assert_eq!(position, tauri::PhysicalPosition::new(1444, 100));
+        assert_eq!(
+            toolbar_placement_after_move(
+                OverlayOrientation::Vertical,
+                placement,
+                tauri::PhysicalPosition::new(1431, 100),
+                vertical_size,
+                2.0,
+                tauri::PhysicalPosition::new(0, 0),
+                tauri::PhysicalSize::new(1920, 2160),
+            ),
+            (
+                ToolbarPlacement::Right,
+                tauri::PhysicalPosition::new(1527, 100),
+            ),
         );
     }
 
