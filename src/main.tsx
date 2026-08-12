@@ -15,6 +15,7 @@ import "virtual:uno.css";
 import "./styles.scss";
 
 const view = new URLSearchParams(window.location.search).get("view");
+const updatePreview = import.meta.env.DEV && new URLSearchParams(window.location.search).get("update-preview") === "1";
 const windowType = view === "overlay" || view === "unlock-handle" || view === "quick-lyrics"
   ? view
   : "main";
@@ -25,6 +26,8 @@ const content = view === "overlay" ? (
   <UnlockHandle />
 ) : view === "quick-lyrics" ? (
   <DebugLogProvider><QuickLyricsWindow /></DebugLogProvider>
+) : updatePreview ? (
+  <DebugLogProvider><UpdateProvider><RouterProvider router={router} /></UpdateProvider></DebugLogProvider>
 ) : (
   <DebugLogProvider><LegalNoticeGate><UpdateProvider><RouterProvider router={router} /></UpdateProvider></LegalNoticeGate></DebugLogProvider>
 );

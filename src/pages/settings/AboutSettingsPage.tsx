@@ -17,7 +17,7 @@ const links = [
 export default function AboutSettingsPage() {
   const { config, setAutoCheckUpdates } = useAppConfig();
   const { setError } = useSettingsContext();
-  const { availableVersion, checkForUpdates, currentVersion, error, status } = useUpdates();
+  const { availableVersion, checkForUpdates, currentVersion, error, restartToUpdate, status } = useUpdates();
   const { t } = useTranslation();
   const busy = status === "checking" || status === "downloading" || status === "installing";
 
@@ -42,12 +42,16 @@ export default function AboutSettingsPage() {
           onChange={(enabled) => setAutoCheckUpdates(enabled).catch((value) => setError(messageOf(value)))}
         />
         <div className={styles.buttonRow}>
-          <button disabled={busy} onClick={() => void checkForUpdates()}>
-            {status === "checking" ? t("settings.about.checking") : t("settings.about.checkNow")}
-          </button>
+          {status === "ready" ? (
+            <button onClick={() => void restartToUpdate()}>{t("settings.about.restartNow")}</button>
+          ) : (
+            <button disabled={busy} onClick={() => void checkForUpdates()}>
+              {status === "checking" ? t("settings.about.checking") : t("settings.about.checkNow")}
+            </button>
+          )}
         </div>
         {status !== "idle" && (
-          <p className={styles.cardHint} data-error={status === "error"} role={status === "error" ? "alert" : undefined}>
+          <p className={styles.cardHint} data-error={Boolean(error) || status === "error"} role={error || status === "error" ? "alert" : undefined}>
             {error ?? t(`settings.about.status.${status}`, { version: availableVersion ?? "" })}
           </p>
         )}
