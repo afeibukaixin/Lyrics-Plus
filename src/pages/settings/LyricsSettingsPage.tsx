@@ -8,7 +8,7 @@ import { api, messageOf } from "../../shared/api";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
 import { RangeRow, SettingsCard, SettingsHeading } from "./components";
-import { UiIcon } from "../../components/UiIcon";
+import { GripVertical, X } from "lucide-react";
 
 function healthLabel(status: ProviderStatus | undefined, t: TFunction) {
   return t(`settings.lyrics.health.${status?.health ?? "unknown"}`);
@@ -90,7 +90,7 @@ export default function LyricsSettingsPage() {
       <summary>{t("settings.lyrics.advanced")}</summary>
       <SettingsCard title={t("settings.lyrics.titleFilters")}>
         <p className={styles.cardHint}>{t("settings.lyrics.titleFiltersHint")}</p>
-        <div className={styles.titleFilters}>{providerView?.settings.titleFilterKeywords.length ? providerView.settings.titleFilterKeywords.map((keyword, index) => <div className={styles.titleFilter} key={`${keyword}-${index}`}><span>{keyword}</span><button type="button" disabled={savingTitleFilters} onClick={() => void removeTitleFilter(index)}><UiIcon name="close" /></button></div>) : <p>{t("settings.lyrics.titleFiltersEmpty")}</p>}</div>
+        <div className={styles.titleFilters}>{providerView?.settings.titleFilterKeywords.length ? providerView.settings.titleFilterKeywords.map((keyword, index) => <div className={styles.titleFilter} key={`${keyword}-${index}`}><span>{keyword}</span><button type="button" disabled={savingTitleFilters} onClick={() => void removeTitleFilter(index)}><X /></button></div>) : <p>{t("settings.lyrics.titleFiltersEmpty")}</p>}</div>
         <form className={styles.titleFilterForm} onSubmit={(event) => void addTitleFilter(event)}><input placeholder={t("settings.lyrics.titleFilterPlaceholder")} value={titleFilterDraft} onChange={(event) => setTitleFilterDraft(event.target.value)} /><button disabled={!providerView || !titleFilterDraft.trim() || savingTitleFilters}>{t("settings.lyrics.addTitleFilter")}</button></form>
       </SettingsCard>
       <SettingsCard title={t("settings.lyrics.providerPriority")} trailing={providerView && <div className={styles.shortcutControls}><button className={styles.cardHeaderButton} disabled={!providerView.settings.providers.length || testingProvider !== null} onClick={() => void testProviders(providerView.settings.providers.map((provider) => provider.id))}>{testingProvider === "*" ? t("common.actions.testing") : t("common.actions.testAll")}</button><select disabled={savingProviderOrder} value={providerView.settings.mode} onChange={(event) => void saveProviderSettings({ ...providerView.settings, mode: event.target.value as ProviderSettings["mode"] })}><option value="strict">{t("settings.lyrics.strict")}</option><option value="smart">{t("settings.lyrics.smart")}</option></select></div>}>
@@ -98,7 +98,7 @@ export default function LyricsSettingsPage() {
         <div className={styles.providers} data-dragging={Boolean(providerDrag)}>{providerView?.settings.providers.map((provider, index) => {
           const status = providerView.statuses.find((item) => item.providerId === provider.id);
           return <div className={styles.provider} data-dragging={providerDrag?.providerId === provider.id} key={provider.id} ref={(element) => { if (element) providerRows.current.set(provider.id, element); else providerRows.current.delete(provider.id); }} style={{ transform: providerDragTransform(index) }}>
-            <button type="button" className={styles.dragHandle} disabled={savingProviderOrder} onPointerDown={(event) => beginProviderDrag(provider.id, index, event)} onPointerMove={continueProviderDrag} onPointerUp={finishProviderDrag} onPointerCancel={() => setProviderDrag(null)} onLostPointerCapture={() => setProviderDrag(null)}><UiIcon name="drag" /></button>
+            <button type="button" className={styles.dragHandle} disabled={savingProviderOrder} onPointerDown={(event) => beginProviderDrag(provider.id, index, event)} onPointerMove={continueProviderDrag} onPointerUp={finishProviderDrag} onPointerCancel={() => setProviderDrag(null)} onLostPointerCapture={() => setProviderDrag(null)}><GripVertical /></button>
             <b>#{index + 1}</b><div><strong>{status?.name ?? provider.id}</strong><small data-health={status?.health ?? "unknown"}>{healthLabel(status, t)}</small></div>
             <button aria-pressed={provider.enabled} className={styles.switch} data-on={provider.enabled} onClick={() => toggleProvider(provider.id)}><span /></button>
             <button disabled={testingProvider !== null} onClick={() => void testProviders([provider.id])}>{testingProvider === provider.id || testingProvider === "*" ? t("common.actions.testing") : t("common.actions.test")}</button>

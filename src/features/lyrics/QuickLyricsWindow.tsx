@@ -5,7 +5,7 @@ import { useLyrics } from "./useLyrics";
 import { usePlayback } from "../player/usePlayback";
 import type { LyricsSearchResult } from "../../shared/types";
 import styles from "./QuickLyricsWindow.module.scss";
-import { UiIcon } from "../../components/UiIcon";
+import { FileText, LoaderCircle, Music2, Search } from "lucide-react";
 
 function formatTime(value: number | null | undefined) {
   if (value == null) return null;
@@ -119,7 +119,7 @@ export default function QuickLyricsWindow() {
       </header>
 
       <form className={styles.search} onSubmit={(event) => { event.preventDefault(); void searchByTitle(); }}>
-        <UiIcon name="search" />
+        <Search />
         <input
           aria-label={t("quickLyrics.searchLabel")}
           autoComplete="off"
@@ -162,7 +162,7 @@ export default function QuickLyricsWindow() {
             })}
             {lyrics.results.length === 0 && (
               <div className={styles.empty}>
-                {lyrics.searching ? <UiIcon name="spinner" spin /> : <UiIcon name="musicNotes" />}
+                {lyrics.searching ? <LoaderCircle className="animate-spin" /> : <Music2 />}
                 <strong>{lyrics.searching ? t("quickLyrics.searchingCandidates") : t("quickLyrics.noCandidates")}</strong>
                 <p>{lyrics.error ?? t("quickLyrics.autoSearchHint")}</p>
               </div>
@@ -184,7 +184,7 @@ export default function QuickLyricsWindow() {
               </footer>
             </>
           ) : (
-            <div className={styles.empty}><UiIcon name="fileText" /><strong>{t("quickLyrics.selectCandidate")}</strong><p>{t("quickLyrics.rawHint")}</p></div>
+            <div className={styles.empty}><FileText /><strong>{t("quickLyrics.selectCandidate")}</strong><p>{t("quickLyrics.rawHint")}</p></div>
           )}
         </aside>
       </section>

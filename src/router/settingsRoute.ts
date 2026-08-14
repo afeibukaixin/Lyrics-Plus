@@ -1,5 +1,5 @@
 const STORAGE_KEY = "lyrics-plus.last-settings-section";
-const PRIMARY_SECTIONS = new Set(["style", "display", "lyrics", "player", "about"]);
+const PRIMARY_SECTIONS = new Set(["style", "display", "lyrics", "player", "application", "about"]);
 
 export function lastSettingsSection() {
   try {

@@ -32,6 +32,7 @@ const router = createHashRouter([
           { path: "display", element: <DisplaySettingsPage /> },
           { path: "lyrics", element: <LyricsSettingsPage /> },
           { path: "player", element: <AppSettingsPage /> },
+          { path: "application", element: <AppSettingsPage /> },
           { path: "debug", element: <DebugSettingsPage /> },
           { path: "config", element: <ConfigSettingsPage /> },
           { path: "about", element: <AboutSettingsPage /> },

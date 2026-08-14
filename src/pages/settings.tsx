@@ -10,7 +10,10 @@ import {
 import { listen } from "@tauri-apps/api/event";
 import { NavLink, Outlet, useLocation, useOutletContext } from "react-router";
 import { useTranslation } from "react-i18next";
-import { UiIcon } from "../components/UiIcon";
+import { Bug, FileJson, Info, MonitorUp, Moon, Music2, Palette, Settings2, SlidersHorizontal, Sun, TriangleAlert, X } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../components/ui/alert-dialog";
+import { Button } from "../components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { useLyrics } from "../features/lyrics/useLyrics";
 import { usePlayback } from "../features/player/usePlayback";
 import { useAppConfig } from "../features/config/AppConfigProvider";
@@ -40,6 +43,7 @@ type ProviderDragState = {
 export type SettingsOutletContext = {
   config: ReturnType<typeof useAppConfig>["config"];
   setUiFontScale: ReturnType<typeof useAppConfig>["setUiFontScale"];
+  setTheme: ReturnType<typeof useAppConfig>["setTheme"];
   setLanguage: ReturnType<typeof useAppConfig>["setLanguage"];
   setGlobalShortcuts: ReturnType<typeof useAppConfig>["setGlobalShortcuts"];
   setSystemMediaFilterMode: ReturnType<typeof useAppConfig>["setSystemMediaFilterMode"];
@@ -85,6 +89,7 @@ export default function Settings() {
   const {
     config,
     setUiFontScale,
+    setTheme,
     setLanguage,
     setGlobalShortcuts,
     setSystemMediaFilterMode,
@@ -98,7 +103,6 @@ export default function Settings() {
   const playback = usePlayback();
   const lyrics = useLyrics(playback.snapshot, playback.positionMs, false);
   const fileInput = useRef<HTMLInputElement>(null);
-  const resetConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const providerRows = useRef(new Map<string, HTMLDivElement>());
   const [overlaySettings, setOverlaySettings] = useState<OverlaySettings>({ visible: true, locked: false });
   const [style, setStyle] = useState<OverlayStyle>(defaultOverlayStyle);
@@ -129,10 +133,6 @@ export default function Settings() {
       cleanupSettingsListener();
       cleanupStyleListener();
     };
-  }, []);
-
-  useEffect(() => () => {
-    if (resetConfirmTimer.current !== null) clearTimeout(resetConfirmTimer.current);
   }, []);
 
   useEffect(() => {
@@ -300,6 +300,12 @@ export default function Settings() {
   };
 
   const resetSection = async (target: SettingsSection) => {
+    setConfirmingReset(target);
+  };
+
+  const confirmResetSection = async () => {
+    const target = confirmingReset;
+    if (!target) return;
     const names: Record<SettingsSection, string> = {
       style: t("settings.shell.nav.style"),
       display: t("settings.shell.nav.display"),
@@ -307,18 +313,6 @@ export default function Settings() {
       player: t("settings.shell.nav.player"),
       about: t("settings.shell.nav.about"),
     };
-    if (confirmingReset !== target) {
-      if (resetConfirmTimer.current !== null) clearTimeout(resetConfirmTimer.current);
-      setConfirmingReset(target);
-      setNotice(t("settings.shell.resetConfirm", { section: names[target] }));
-      resetConfirmTimer.current = setTimeout(() => {
-        resetConfirmTimer.current = null;
-        setConfirmingReset(null);
-      }, 4000);
-      return;
-    }
-    if (resetConfirmTimer.current !== null) clearTimeout(resetConfirmTimer.current);
-    resetConfirmTimer.current = null;
     setConfirmingReset(null);
     setResettingSection(target);
     setError(null);
@@ -363,6 +357,7 @@ export default function Settings() {
   const context: SettingsOutletContext = {
     config,
     setUiFontScale,
+    setTheme,
     setLanguage,
     setGlobalShortcuts,
     setSystemMediaFilterMode,
@@ -402,24 +397,43 @@ export default function Settings() {
     syncAppliedConfig,
   };
 
+  const themeOrder = ["dark", "light", "system"] as const;
+  const themeIndex = themeOrder.indexOf(config.app.theme);
+  const nextTheme = themeOrder[(themeIndex + 1) % themeOrder.length];
+  const ThemeIcon = config.app.theme === "dark" ? Moon : config.app.theme === "light" ? Sun : MonitorUp;
+  const playerHasWarning = Boolean(playback.snapshot.errorCode)
+    && !["waiting", "no_unique_player"].includes(playback.snapshot.errorCode ?? "");
+
   return (
     <main className={styles.shell}>
       <header className={styles.header}>
         <div><span>Lyrics Plus</span><h1>{t("settings.shell.title")}</h1></div>
+        <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={t(`settings.theme.${config.app.theme}`)} onClick={() => void setTheme(nextTheme).catch((value) => setError(messageOf(value)))}><ThemeIcon className="size-4" /></Button></TooltipTrigger><TooltipContent>{t("settings.theme.switch", { current: t(`settings.theme.${config.app.theme}`), next: t(`settings.theme.${nextTheme}`) })}</TooltipContent></Tooltip>
       </header>
 
       <div className={styles.settingsLayout}>
         <nav className={styles.sidebar} aria-label={t("settings.shell.navigation")}>
-          <NavLink to="/settings/style"><UiIcon name="selectionBackground" /><div><strong>{t("settings.shell.nav.style")}</strong><small>{t("settings.shell.nav.styleHint")}</small></div></NavLink>
-          <NavLink to="/settings/display"><UiIcon name="monitor" /><div><strong>{t("settings.shell.nav.display")}</strong><small>{t("settings.shell.nav.displayHint")}</small></div></NavLink>
-          <NavLink to="/settings/lyrics"><UiIcon name="musicNotes" /><div><strong>{t("settings.shell.nav.lyrics")}</strong><small>{t("settings.shell.nav.lyricsHint")}</small></div></NavLink>
-          <NavLink to="/settings/player"><UiIcon name="gear" /><div><strong>{t("settings.shell.nav.player")}</strong><small>{t("settings.shell.nav.playerHint")}</small></div></NavLink>
-          <NavLink to="/settings/about"><UiIcon name="info" /><div><strong>{t("settings.shell.nav.about")}</strong><small>{t("settings.shell.nav.aboutHint")}</small></div></NavLink>
+          <NavLink to="/settings/style"><Palette /><div><strong>{t("settings.shell.nav.style")}</strong><small>{t("settings.shell.nav.styleHint")}</small></div></NavLink>
+          <NavLink to="/settings/display"><SlidersHorizontal /><div><strong>{t("settings.shell.nav.display")}</strong><small>{t("settings.shell.nav.displayHint")}</small></div></NavLink>
+          <NavLink to="/settings/lyrics"><Music2 /><div><strong>{t("settings.shell.nav.lyrics")}</strong><small>{t("settings.shell.nav.lyricsHint")}</small></div></NavLink>
+          <NavLink to="/settings/player"><MonitorUp /><div><strong>{t("settings.shell.nav.player")}</strong><small>{t("settings.shell.nav.playerHint")}</small></div>{playerHasWarning && <TriangleAlert className={styles.navWarning} />}</NavLink>
+          <NavLink to="/settings/application"><Settings2 /><div><strong>{t("settings.shell.nav.application")}</strong><small>{t("settings.shell.nav.applicationHint")}</small></div></NavLink>
+          <NavLink to="/settings/about"><Info /><div><strong>{t("settings.shell.nav.about")}</strong><small>{t("settings.shell.nav.aboutHint")}</small></div></NavLink>
+          <div className={styles.advancedNav}><span>{t("settings.shell.advanced")}</span>
+            <NavLink to="/settings/debug"><Bug /><strong>{t("settings.shell.nav.debug")}</strong></NavLink>
+            <NavLink to="/settings/config"><FileJson /><strong>{t("settings.shell.nav.config")}</strong></NavLink>
+          </div>
         </nav>
 
         <div className={styles.content}><Outlet context={context} /></div>
       </div>
-      {(error || notice) && <div className={styles.toast} data-error={Boolean(error)}>{error ?? notice}<button aria-label={t("settings.shell.closeToast")} onClick={() => { setError(null); setNotice(null); }}><UiIcon name="close" /></button></div>}
+      {(error || notice) && <div className={styles.toast} data-error={Boolean(error)}>{error ?? notice}<button aria-label={t("settings.shell.closeToast")} onClick={() => { setError(null); setNotice(null); }}><X /></button></div>}
+      <AlertDialog open={confirmingReset !== null} onOpenChange={(open) => { if (!open && !resettingSection) setConfirmingReset(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>{t("settings.shell.resetTitle")}</AlertDialogTitle><AlertDialogDescription>{t("settings.shell.resetConfirm")}</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>{t("common.actions.cancel")}</AlertDialogCancel><AlertDialogAction disabled={resettingSection !== null} onClick={() => void confirmResetSection()}>{t("common.actions.resetDefault")}</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 }

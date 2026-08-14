@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useTranslation } from "react-i18next";
-import { UiIcon } from "../../components/UiIcon";
+import { LockOpen } from "lucide-react";
 import { api } from "../../shared/api";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
 import styles from "./UnlockHandle.module.scss";
@@ -36,7 +36,7 @@ export default function UnlockHandle() {
         }
       }}
     >
-      <UiIcon name="lockOpen" />
+      <LockOpen aria-hidden="true" />
     </button>
   );
 }

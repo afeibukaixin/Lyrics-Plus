@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useTranslation } from "react-i18next";
-import { UiIcon } from "../../components/UiIcon";
+import { Plus } from "lucide-react";
 import { defaultGlobalShortcuts, type GlobalShortcutSettings, type GlobalShortcutStatus, type LanguagePreference, type PlayerFollowerServiceState, type PlayerSelection, type SystemMediaFilterMode } from "../../shared/types";
 import { api, messageOf } from "../../shared/api";
 import { languageRegistry, supportedLanguages } from "../../shared/languages";
@@ -225,8 +225,8 @@ export default function AppSettingsPage() {
       <div className={styles.systemApplicationsToolbar}>
         <p className={styles.cardHint}>{t(systemMediaAllowlist ? "settings.app.systemApplicationsAllowlistHint" : "settings.app.systemApplicationsBlocklistHint")}</p>
         <div className={styles.shortcutControls}>
-          <button className={styles.shortcutReset} disabled={savingApplications || !canAddCurrentSystemApplication} onClick={() => void addCurrentSystemApplication()}><UiIcon name="plus" />{t(systemMediaAllowlist ? "settings.app.addAllowedApplication" : "settings.app.addBlockedApplication")}</button>
-          <button className={styles.shortcutReset} disabled={savingApplications} onClick={() => void chooseSystemApplications()}><UiIcon name="plus" />{t(systemMediaAllowlist ? "settings.app.chooseAllowedApplications" : "settings.app.chooseBlockedApplications")}</button>
+          <button className={styles.shortcutReset} disabled={savingApplications || !canAddCurrentSystemApplication} onClick={() => void addCurrentSystemApplication()}><Plus />{t(systemMediaAllowlist ? "settings.app.addAllowedApplication" : "settings.app.addBlockedApplication")}</button>
+          <button className={styles.shortcutReset} disabled={savingApplications} onClick={() => void chooseSystemApplications()}><Plus />{t(systemMediaAllowlist ? "settings.app.chooseAllowedApplications" : "settings.app.chooseBlockedApplications")}</button>
         </div>
       </div>
       <ApplicationList
@@ -241,7 +241,7 @@ export default function AppSettingsPage() {
     <SettingsCard title={t("settings.app.playerFollower")}>
       <div className={styles.systemApplicationsToolbar}>
         <p className={styles.cardHint}>{t("settings.app.playerFollowerHint")}</p>
-        <button className={styles.shortcutReset} disabled={savingFollower || followerUnavailable} onClick={() => void chooseFollower()}><UiIcon name="plus" />{t("settings.app.choosePlayerFollower")}</button>
+        <button className={styles.shortcutReset} disabled={savingFollower || followerUnavailable} onClick={() => void chooseFollower()}><Plus />{t("settings.app.choosePlayerFollower")}</button>
       </div>
       <ApplicationList applications={config.app.playerFollowerApplication ? [config.app.playerFollowerApplication] : []} icons={applicationIcons} busy={savingFollower || followerUnavailable} emptyLabel={t("settings.app.playerFollowerEmpty")} removeLabel={t("common.actions.remove")} onRemove={() => void clearFollower()} />
       {followerStatus === "development" && <p className={styles.cardHint}>{t("settings.app.playerFollowerDevelopment")}</p>}

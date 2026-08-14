@@ -102,15 +102,16 @@ export const zhTW = {
   },
   settings: {
     shell: {
-      title: "設定", navigation: "設定分類", closeToast: "關閉",
+      title: "設定", navigation: "設定分類", closeToast: "關閉", advanced: "進階工具", resetTitle: "恢復分類預設設定",
       nav: {
         style: "樣式", styleHint: "外觀、版面與預覽", display: "顯示與互動", displayHint: "浮動視窗狀態與位置",
-        lyrics: "歌詞", lyricsHint: "來源、關聯與目錄", player: "播放器與啟動", playerHint: "跟隨、啟動與快速鍵", debug: "偵錯紀錄", debugHint: "即時紀錄與篩選",
+        lyrics: "歌詞", lyricsHint: "來源、關聯與目錄", player: "播放器", playerHint: "監聽來源與狀態", application: "應用程式", applicationHint: "主題、語言與啟動", debug: "偵錯紀錄", debugHint: "即時紀錄與篩選",
         config: "設定檔", configHint: "JSONC 編輯與分享", about: "關於與更新", aboutHint: "版本、更新與專案連結",
       },
-      resetConfirm: "再次點擊「恢復預設值」以確認重設{{section}}；歌詞庫和歌曲連結不會刪除。",
+      resetConfirm: "將恢復此分類的預設設定。歌詞庫和歌曲連結不會刪除。",
       resetDone: "{{section}}已恢復預設值。", positionReset: "桌面歌詞位置已重設。",
     },
+    theme: { dark: "深色", light: "淺色", system: "跟隨系統", switch: "目前：{{current}}；切換為：{{next}}" },
     common: {
       colorSelect: "選擇{{label}}", presetColors: "{{label}}預設顏色", colorValue: "{{label}}顏色值",
       colorPlaceholder: "#ffffff 或 rgba(255,255,255,.8)", capabilitiesHint: "連結歌詞後會顯示翻譯、羅馬拼音和逐字時間軸的可用狀態",

@@ -102,15 +102,16 @@ export const enUS = {
   },
   settings: {
     shell: {
-      title: "Settings", navigation: "Settings categories", closeToast: "Close",
+      title: "Settings", navigation: "Settings categories", closeToast: "Close", advanced: "Advanced tools", resetTitle: "Restore category defaults",
       nav: {
         style: "Style", styleHint: "Appearance, layout, and preview", display: "Display & Interaction", displayHint: "Window state and position",
-        lyrics: "Lyrics", lyricsHint: "Sources, links, and folder", player: "Player & Startup", playerHint: "Following, startup, and shortcuts", debug: "Debug Logs", debugHint: "Live logs and filters",
+        lyrics: "Lyrics", lyricsHint: "Sources, links, and folder", player: "Player", playerHint: "Source and listening status", application: "Application", applicationHint: "Theme, language, and startup", debug: "Debug Logs", debugHint: "Live logs and filters",
         config: "Configuration", configHint: "Edit and share JSONC", about: "About & Updates", aboutHint: "Version, updates, and project links",
       },
-      resetConfirm: "Click “Restore defaults” again to reset {{section}}. The lyrics library and track links will not be deleted.",
+      resetConfirm: "This category will be restored to its defaults. The lyrics library and track links will not be deleted.",
       resetDone: "Defaults restored for {{section}}.", positionReset: "Desktop lyrics position reset.",
     },
+    theme: { dark: "Dark", light: "Light", system: "System", switch: "Current: {{current}}; switch to: {{next}}" },
     common: {
       colorSelect: "Choose {{label}}", presetColors: "{{label}} presets", colorValue: "{{label}} value",
       colorPlaceholder: "#ffffff or rgba(255,255,255,.8)", capabilitiesHint: "Link lyrics to see whether translation, romanization, and word timing are available",

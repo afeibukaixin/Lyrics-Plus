@@ -100,15 +100,16 @@ export const zhCN = {
   },
   settings: {
     shell: {
-      title: "设置", navigation: "设置分类", closeToast: "关闭",
+      title: "设置", navigation: "设置分类", closeToast: "关闭", advanced: "高级工具", resetTitle: "恢复分类默认设置",
       nav: {
         style: "样式", styleHint: "外观、排版与预览", display: "显示与交互", displayHint: "浮窗状态与位置",
-        lyrics: "歌词", lyricsHint: "来源、关联与目录", player: "播放器与启动", playerHint: "跟随、启动与快捷键", debug: "调试日志", debugHint: "实时日志与筛选",
+        lyrics: "歌词", lyricsHint: "来源、关联与目录", player: "播放器", playerHint: "监听来源与状态", application: "应用", applicationHint: "主题、语言与启动", debug: "调试日志", debugHint: "实时日志与筛选",
         config: "配置", configHint: "JSONC 编辑与分享", about: "关于与更新", aboutHint: "版本、更新与项目链接",
       },
-      resetConfirm: "再次点击“恢复默认”以确认恢复{{section}}；歌词库和歌曲关联不会删除。",
+      resetConfirm: "将恢复此分类的默认设置。歌词库和歌曲关联不会删除。",
       resetDone: "{{section}}已恢复默认。", positionReset: "桌面歌词位置已复位。",
     },
+    theme: { dark: "深色", light: "浅色", system: "跟随系统", switch: "当前：{{current}}；切换为：{{next}}" },
     common: {
       colorSelect: "选择{{label}}", presetColors: "{{label}}预设颜色", colorValue: "{{label}}颜色值",
       colorPlaceholder: "#ffffff 或 rgba(255,255,255,.8)", capabilitiesHint: "关联歌词后会显示翻译、音译和逐字时间轴的可用状态",

@@ -3,7 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { useTranslation } from "react-i18next";
-import { UiIcon } from "../../components/UiIcon";
+import { LoaderCircle } from "lucide-react";
 import { isTauriRuntime } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
 import { useAppConfig } from "../config/AppConfigProvider";
@@ -245,7 +245,7 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
         {(status === "downloading" || status === "installing") && (
           <section className={styles.progress} aria-live="polite">
             <div>
-              <span><UiIcon name="spinner" spin />{t(`settings.about.status.${status}`, { version: availableVersion ?? "" })}</span>
+              <span><LoaderCircle className="animate-spin" />{t(`settings.about.status.${status}`, { version: availableVersion ?? "" })}</span>
               <strong>{percentage === null ? "" : `${percentage}%`}</strong>
             </div>
             <progress
