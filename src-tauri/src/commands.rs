@@ -1454,10 +1454,11 @@ fn resolve_registered_application(path: &Path) -> Result<RegisteredApplication, 
     if !path.is_dir() || path.extension().and_then(|value| value.to_str()) != Some("app") {
         return Err(format!("不是有效的 .app：{}", path.display()));
     }
-    let plist = path.join("Contents/Info.plist");
-    if !plist.is_file() {
-        return Err(format!("应用缺少 Info.plist：{}", path.display()));
-    }
+    let plist = ["Contents/Info.plist", "WrappedBundle/Info.plist"]
+        .into_iter()
+        .map(|relative_path| path.join(relative_path))
+        .find(|candidate| candidate.is_file())
+        .ok_or_else(|| format!("应用缺少 Info.plist：{}", path.display()))?;
     let bundle_id = plist_string(&plist, "CFBundleIdentifier")
         .ok_or_else(|| format!("应用缺少 Bundle ID：{}", path.display()))?;
     let name = plist_string(&plist, "CFBundleDisplayName")

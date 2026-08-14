@@ -16,6 +16,8 @@ use super::{
     PlayerKind,
 };
 
+mod compat;
+
 const SYSTEM_MEDIA_SEEK_SCRIPT: &str = r#"
 ObjC.import('Foundation');
 function run(argv) {
@@ -343,9 +345,24 @@ fn timed_info(mut info: NowPlayingInfo) -> Option<TimedInfo> {
     })
 }
 
+fn normalized_system_metadata(info: &NowPlayingInfo) -> compat::TrackMetadata {
+    compat::normalize(
+        info.bundle_id.as_deref(),
+        compat::TrackMetadata::new(info.title.clone(), info.artist.clone()),
+    )
+}
+
 fn system_track_id(info: &NowPlayingInfo) -> Option<String> {
-    let title = info.title.as_deref()?;
-    let artist = info.artist.as_deref().unwrap_or_default();
+    let metadata = normalized_system_metadata(info);
+    system_track_id_from_metadata(info, &metadata)
+}
+
+fn system_track_id_from_metadata(
+    info: &NowPlayingInfo,
+    metadata: &compat::TrackMetadata,
+) -> Option<String> {
+    let title = metadata.title.as_deref()?;
+    let artist = metadata.artist.as_deref().unwrap_or_default();
     Some(format!(
         "system:{}|{}|{}|{}",
         normalized_track_component(info.bundle_id.as_deref().unwrap_or_default()),
@@ -357,6 +374,8 @@ fn system_track_id(info: &NowPlayingInfo) -> Option<String> {
 
 fn snapshot_from_info(timed: &TimedInfo) -> PlaybackSnapshot {
     let info = &timed.info;
+    let metadata = normalized_system_metadata(info);
+    let track_id = system_track_id_from_metadata(info, &metadata);
     let duration_ms = milliseconds(info.duration);
     let elapsed = info.elapsed_time.map(|elapsed| {
         if info.is_playing == Some(true) {
@@ -374,9 +393,9 @@ fn snapshot_from_info(timed: &TimedInfo) -> PlaybackSnapshot {
         player: Some(PlayerKind::System),
         is_running: true,
         is_playing: info.is_playing.unwrap_or(false),
-        track_id: system_track_id(info),
-        title: info.title.clone(),
-        artist: info.artist.clone(),
+        track_id,
+        title: metadata.title,
+        artist: metadata.artist,
         album: info.album.clone(),
         source_app_name: info.bundle_name.clone(),
         source_app_bundle_id: info.bundle_id.clone(),

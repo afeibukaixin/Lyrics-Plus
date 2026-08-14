@@ -50,6 +50,9 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, autoSe
   const documentTrackKey = useRef<string | null>(null);
   const pendingOffsetWrites = useRef(new Map<string, PendingOffsetWrite>());
   const offsetWriteQueue = useRef<Promise<void>>(Promise.resolve());
+  const searchRef = useRef<
+    ((allowAutoApply?: boolean, override?: LyricsSearchInput) => Promise<void>) | null
+  >(null);
   activeTrackKey.current = trackKey;
 
   const updateDocument = useCallback((next: LyricsDocument | null, key: string | null = activeTrackKey.current) => {
@@ -127,6 +130,7 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, autoSe
       if (isCurrent()) setSearching(false);
     }
   }, [applyResult, snapshot.album, snapshot.artist, snapshot.durationMs, snapshot.title, t, trackKey]);
+  searchRef.current = search;
 
   useEffect(() => {
     const generation = ++searchGeneration.current;
@@ -134,14 +138,15 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, autoSe
     setError(null);
     setResults([]);
     updateDocument(null);
-    void load().then((cached) => {
+    if (!trackKey) return;
+    void loadTrack(trackKey).then((cached) => {
       if (searchGeneration.current !== generation) return;
       if (autoSearch && trackKey && !cached && !attempted.current.has(trackKey)) {
         attempted.current.add(trackKey);
-        void search(true);
+        void searchRef.current?.(true);
       }
     });
-  }, [autoSearch, load, search, trackKey, updateDocument]);
+  }, [autoSearch, loadTrack, trackKey, updateDocument]);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
