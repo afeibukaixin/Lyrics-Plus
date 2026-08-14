@@ -157,7 +157,7 @@ export const zhCN = {
       strict: "严格优先级", smart: "智能排序", smartHint: "智能排序会在分数差距较大时覆盖手动顺序。",
       strictHint: "搜索结果按下列优先级排列；拖动左侧把手可调整并立即保存。", dragProvider: "拖动{{provider}}调整优先级",
       onlineProviderNotice: "启用在线歌词源会向相应的第三方服务发送歌曲匹配信息，请确认你的使用符合相关服务条款。",
-      directory: "歌词目录", advanced: "高级歌词设置",
+      directory: "歌词目录", advanced: "高级歌词设置", rescan: "重新扫描", restartScan: "重新开始扫描", scanDiscovering: "正在发现歌词文件…", scanDiscovered: "已发现 {{discovered}} 个，跳过 {{skipped}} 个", scanIndexing: "正在索引 {{processed}} / {{total}}", scanLiveStats: "新增 {{added}} · 更新 {{updated}} · 未变化 {{unchanged}} · 失败 {{failed}}", scanCompleted: "扫描完成", scanSummary: "新增 {{added}} · 更新 {{updated}} · 未变化 {{unchanged}} · 移除 {{removed}} · 跳过 {{skipped}} · 失败 {{failed}}", scanFailed: "扫描失败",
       health: { unknown: "尚未测试", available: "可用", degraded: "部分可用", unavailable: "不可用" },
       healthHint: { unknown: "尚未测试连接", available: "连接正常", degraded: "部分功能可用", unavailable: "连接不可用" },
       noResults: "已启用的歌词源暂时没有找到同步歌词",

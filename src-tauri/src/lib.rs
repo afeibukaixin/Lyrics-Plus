@@ -1982,6 +1982,7 @@ pub fn run() {
             commands::set_lyrics_offset,
             commands::remove_lyrics_association,
             commands::get_library_scan_status,
+            commands::rescan_lyrics_library,
             commands::set_lyrics_directory,
             commands::open_lyrics_directory,
             commands::set_overlay_visible,

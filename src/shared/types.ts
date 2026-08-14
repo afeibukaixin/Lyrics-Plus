@@ -252,6 +252,12 @@ export type LibraryScanStatus = {
   processed: number;
   total: number | null;
   skipped: number;
+  added: number;
+  updated: number;
+  unchanged: number;
+  removed: number;
+  failed: number;
+  firstFailure: string | null;
   error: string | null;
 };
 

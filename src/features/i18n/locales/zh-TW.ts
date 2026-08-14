@@ -153,7 +153,7 @@ export const zhTW = {
       strict: "嚴格優先順序", smart: "智慧排序", smartHint: "分數差距較大時，智慧排序可能會覆蓋手動順序。",
       strictHint: "搜尋結果會依照下列優先順序排列；拖曳左側控制點即可調整並立即儲存。", dragProvider: "拖曳{{provider}}以調整優先順序",
       onlineProviderNotice: "啟用線上歌詞來源會向相應的第三方服務傳送歌曲比對資訊，請確認你的使用符合相關服務條款。",
-      directory: "歌詞目錄", advanced: "進階歌詞設定",
+      directory: "歌詞目錄", advanced: "進階歌詞設定", rescan: "重新掃描", restartScan: "重新開始掃描", scanDiscovering: "正在探索歌詞檔案…", scanDiscovered: "已發現 {{discovered}} 個，略過 {{skipped}} 個", scanIndexing: "正在建立索引 {{processed}} / {{total}}", scanLiveStats: "新增 {{added}} · 更新 {{updated}} · 未變更 {{unchanged}} · 失敗 {{failed}}", scanCompleted: "掃描完成", scanSummary: "新增 {{added}} · 更新 {{updated}} · 未變更 {{unchanged}} · 移除 {{removed}} · 略過 {{skipped}} · 失敗 {{failed}}", scanFailed: "掃描失敗",
       health: { unknown: "尚未測試", available: "可用", degraded: "部分可用", unavailable: "無法使用" },
       healthHint: { unknown: "尚未測試連線", available: "連線正常", degraded: "部分功能可用", unavailable: "無法連線" },
       noResults: "已啟用的歌詞來源目前找不到同步歌詞",

@@ -576,6 +576,11 @@ pub fn get_library_scan_status(state: State<'_, AppState>) -> LibraryScanStatus 
 }
 
 #[tauri::command]
+pub fn rescan_lyrics_library(app: tauri::AppHandle) -> LibraryScanStatus {
+    start_library_scan(&app)
+}
+
+#[tauri::command]
 pub fn set_lyrics_directory(
     app: tauri::AppHandle,
     path: String,

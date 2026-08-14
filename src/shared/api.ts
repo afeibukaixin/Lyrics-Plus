@@ -72,6 +72,7 @@ export const api = {
   getCachedLyrics: (trackKey: string) =>
     invoke<LyricsDocument | null>("get_cached_lyrics", { trackKey }),
   getLibraryScanStatus: () => invoke<LibraryScanStatus>("get_library_scan_status"),
+  rescanLyricsLibrary: () => invoke<LibraryScanStatus>("rescan_lyrics_library"),
   setLyricsDirectory: (path: string) =>
     invoke<LibraryScanStatus>("set_lyrics_directory", { path }),
   openLyricsDirectory: () => invoke<void>("open_lyrics_directory"),

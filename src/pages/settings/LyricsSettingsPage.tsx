@@ -1,15 +1,18 @@
-import type { ProviderSettings, ProviderStatus } from "../../shared/types";
+import type { LibraryScanStatus, ProviderSettings, ProviderStatus } from "../../shared/types";
 import type { TFunction } from "i18next";
 import { useEffect, useState, type FormEvent } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useTranslation } from "react-i18next";
+import { listen } from "@tauri-apps/api/event";
 import { localizedSource } from "../../features/i18n/userText";
-import { api, messageOf } from "../../shared/api";
+import { api, isTauriRuntime, messageOf } from "../../shared/api";
+import { createTauriListenerCleanup } from "../../shared/tauriEvent";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
 import { RangeRow, SettingsCard, SettingsHeading } from "./components";
 import { GripVertical, X } from "lucide-react";
 import { Button } from "../../components/ui/button";
+import { Progress } from "../../components/ui/progress";
 
 const defaultTitleFilterKeywords = [
   "feat", "ft", "featuring", "主题曲", "片头曲", "片尾曲",
@@ -25,6 +28,7 @@ export default function LyricsSettingsPage() {
   const [titleFilterDraft, setTitleFilterDraft] = useState("");
   const [savingTitleFilters, setSavingTitleFilters] = useState(false);
   const [libraryDir, setLibraryDir] = useState<string | null>(null);
+  const [scanStatus, setScanStatus] = useState<LibraryScanStatus | null>(null);
   const [changingDirectory, setChangingDirectory] = useState(false);
   const {
     playback, lyrics, fileInput, providerRows, providerView, testingProvider,
@@ -45,7 +49,16 @@ export default function LyricsSettingsPage() {
           : null;
 
   useEffect(() => {
-    void api.getLibraryScanStatus().then((status) => setLibraryDir(status.libraryDir)).catch((error) => setError(messageOf(error)));
+    if (!isTauriRuntime()) return;
+    const acceptStatus = (status: LibraryScanStatus) => {
+      setScanStatus((current) => !current || status.scanId >= current.scanId ? status : current);
+      setLibraryDir(status.libraryDir);
+    };
+    const cleanup = createTauriListenerCleanup(
+      listen<LibraryScanStatus>("lyrics://library-scan-progress", ({ payload }) => acceptStatus(payload)),
+    );
+    void api.getLibraryScanStatus().then(acceptStatus).catch((error) => setError(messageOf(error)));
+    return cleanup;
   }, [setError]);
 
   const addTitleFilter = async (event: FormEvent) => {
@@ -72,12 +85,27 @@ export default function LyricsSettingsPage() {
     try {
       const status = await api.setLyricsDirectory(selected);
       setLibraryDir(status.libraryDir);
+      setScanStatus(status);
     } catch (error) {
       setError(messageOf(error));
     } finally {
       setChangingDirectory(false);
     }
   };
+
+  const rescanLibrary = async () => {
+    setError(null);
+    try {
+      setScanStatus(await api.rescanLyricsLibrary());
+    } catch (error) {
+      setError(messageOf(error));
+    }
+  };
+
+  const scanActive = scanStatus?.phase === "discovering" || scanStatus?.phase === "indexing";
+  const scanProgress = scanStatus?.phase === "indexing" && scanStatus.total
+    ? Math.round(scanStatus.processed / scanStatus.total * 100)
+    : 0;
 
   return <>
     <SettingsHeading title={t("settings.lyrics.title")} description={t("settings.lyrics.description")} onReset={() => void resetSection("lyrics")} resetting={resettingSection === "lyrics"} confirming={confirmingReset === "lyrics"} />
@@ -97,9 +125,16 @@ export default function LyricsSettingsPage() {
     </SettingsCard>
     <SettingsCard title={t("settings.lyrics.directory")}>
       <p className={styles.directoryPath}>{libraryDir ?? t("library.loadingDirectory")}</p>
+      {scanStatus && <div className={styles.scanStatus} data-phase={scanStatus.phase}>
+        {scanStatus.phase === "discovering" && <><Progress className="animate-pulse" value={100} /><strong>{t("settings.lyrics.scanDiscovering")}</strong><span>{t("settings.lyrics.scanDiscovered", { discovered: scanStatus.discovered, skipped: scanStatus.skipped })}</span></>}
+        {scanStatus.phase === "indexing" && <><Progress value={scanProgress} /><strong>{t("settings.lyrics.scanIndexing", { processed: scanStatus.processed, total: scanStatus.total ?? 0 })}</strong><span>{t("settings.lyrics.scanLiveStats", scanStatus)}</span></>}
+        {scanStatus.phase === "completed" && <><strong>{t("settings.lyrics.scanCompleted")}</strong><span>{t("settings.lyrics.scanSummary", scanStatus)}</span>{scanStatus.firstFailure && <small>{scanStatus.firstFailure}</small>}</>}
+        {scanStatus.phase === "failed" && <><strong>{t("settings.lyrics.scanFailed")}</strong><span role="alert">{scanStatus.error}</span></>}
+      </div>}
       <div className={styles.buttonRow}>
         <button disabled={!libraryDir} onClick={() => void api.openLyricsDirectory().catch((error) => setError(messageOf(error)))}>{t("library.openFolder")}</button>
         <button disabled={changingDirectory} onClick={() => void changeDirectory()}>{changingDirectory ? t("library.changing") : t("library.changeFolder")}</button>
+        <button disabled={!libraryDir} onClick={() => void rescanLibrary()}>{scanActive ? t("settings.lyrics.restartScan") : t("settings.lyrics.rescan")}</button>
       </div>
     </SettingsCard>
     <div className={styles.advancedSection}>

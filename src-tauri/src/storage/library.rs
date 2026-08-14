@@ -36,6 +36,12 @@ pub struct LibraryScanStatus {
     pub processed: u64,
     pub total: Option<u64>,
     pub skipped: u64,
+    pub added: u64,
+    pub updated: u64,
+    pub unchanged: u64,
+    pub removed: u64,
+    pub failed: u64,
+    pub first_failure: Option<String>,
     pub error: Option<String>,
 }
 
@@ -56,6 +62,12 @@ impl LibraryScanCoordinator {
                 processed: 0,
                 total: None,
                 skipped: 0,
+                added: 0,
+                updated: 0,
+                unchanged: 0,
+                removed: 0,
+                failed: 0,
+                first_failure: None,
                 error: None,
             }),
         }
@@ -71,6 +83,12 @@ impl LibraryScanCoordinator {
             processed: 0,
             total: None,
             skipped: 0,
+            added: 0,
+            updated: 0,
+            unchanged: 0,
+            removed: 0,
+            failed: 0,
+            first_failure: None,
             error: None,
         };
         *self
@@ -246,18 +264,30 @@ impl Storage {
             let transaction = connection
                 .transaction()
                 .map_err(|error| format!("开始歌词索引事务失败：{error}"))?;
-            let mut batch_skipped = 0_u64;
+            let mut batch_added = 0_u64;
+            let mut batch_updated = 0_u64;
+            let mut batch_unchanged = 0_u64;
+            let mut batch_failed = 0_u64;
+            let mut first_failure = None;
             for path in batch {
                 let path_string = path.to_string_lossy().into_owned();
                 seen.insert(path_string.clone());
-                if index_file_if_changed(&transaction, path).is_err() {
-                    batch_skipped += 1;
-                    transaction
-                        .execute(
-                            "DELETE FROM lyric_files WHERE content_path=?1",
-                            params![path_string],
-                        )
-                        .map_err(|error| format!("清理不可用歌词索引失败：{error}"))?;
+                match index_file_if_changed(&transaction, path) {
+                    Ok(IndexOutcome::Added) => batch_added += 1,
+                    Ok(IndexOutcome::Updated) => batch_updated += 1,
+                    Ok(IndexOutcome::Unchanged) => batch_unchanged += 1,
+                    Err(error) => {
+                        batch_failed += 1;
+                        if first_failure.is_none() {
+                            first_failure = Some(format!("{}：{error}", path.display()));
+                        }
+                        transaction
+                            .execute(
+                                "DELETE FROM lyric_files WHERE content_path=?1",
+                                params![path_string],
+                            )
+                            .map_err(|error| format!("清理不可用歌词索引失败：{error}"))?;
+                    }
                 }
             }
             transaction
@@ -265,7 +295,13 @@ impl Storage {
                 .map_err(|error| format!("提交歌词索引失败：{error}"))?;
             let Some(status) = self.scanner.update(scan_id, |status| {
                 status.processed += batch.len() as u64;
-                status.skipped += batch_skipped;
+                status.added += batch_added;
+                status.updated += batch_updated;
+                status.unchanged += batch_unchanged;
+                status.failed += batch_failed;
+                if status.first_failure.is_none() {
+                    status.first_failure = first_failure;
+                }
             }) else {
                 return Ok(false);
             };
@@ -276,7 +312,14 @@ impl Storage {
             return Ok(false);
         }
         if discovery_skipped == 0 {
-            cleanup_missing_files(&mut connection, &root, &seen)?;
+            let removed = cleanup_missing_files(&mut connection, &root, &seen)?;
+            let Some(status) = self
+                .scanner
+                .update(scan_id, |status| status.removed = removed)
+            else {
+                return Ok(false);
+            };
+            publish(&status);
         }
         let Some(status) = self.scanner.update(scan_id, |status| {
             status.phase = LibraryScanPhase::Completed;
@@ -364,7 +407,16 @@ fn push_discovered_file(output: &mut Vec<PathBuf>, path: PathBuf) -> Result<(), 
     Ok(())
 }
 
-fn index_file_if_changed(connection: &Transaction<'_>, path: &Path) -> Result<bool, String> {
+enum IndexOutcome {
+    Added,
+    Updated,
+    Unchanged,
+}
+
+fn index_file_if_changed(
+    connection: &Transaction<'_>,
+    path: &Path,
+) -> Result<IndexOutcome, String> {
     let file_metadata = fs::metadata(path).map_err(|error| format!("读取歌词文件失败：{error}"))?;
     if file_metadata.len() > MAX_LYRIC_FILE_SIZE {
         return Err("歌词文件超过 5 MB，已跳过".into());
@@ -379,7 +431,7 @@ fn index_file_if_changed(connection: &Transaction<'_>, path: &Path) -> Result<bo
         .optional()
         .map_err(|error| format!("读取歌词索引状态失败：{error}"))?;
     if modified_at_ms.is_some() && existing == Some((file_metadata.len() as i64, modified_at_ms)) {
-        return Ok(false);
+        return Ok(IndexOutcome::Unchanged);
     }
     let raw = read_lyric(path)?;
     let metadata = lyric_metadata(path, &raw, "本地文件");
@@ -426,14 +478,18 @@ fn index_file_if_changed(connection: &Transaction<'_>, path: &Path) -> Result<bo
             ],
         )
         .map_err(|error| format!("更新歌词索引失败：{error}"))?;
-    Ok(true)
+    Ok(if existing.is_some() {
+        IndexOutcome::Updated
+    } else {
+        IndexOutcome::Added
+    })
 }
 
 fn cleanup_missing_files(
     connection: &mut Connection,
     root: &Path,
     seen: &HashSet<String>,
-) -> Result<(), String> {
+) -> Result<u64, String> {
     let prefix = directory_prefix(root);
     let mut statement = connection
         .prepare(
@@ -454,6 +510,7 @@ fn cleanup_missing_files(
     let transaction = connection
         .transaction()
         .map_err(|error| format!("开始清理索引事务失败：{error}"))?;
+    let removed = missing.len() as u64;
     for path in missing {
         transaction
             .execute(
@@ -470,7 +527,8 @@ fn cleanup_missing_files(
     }
     transaction
         .commit()
-        .map_err(|error| format!("提交索引清理失败：{error}"))
+        .map_err(|error| format!("提交索引清理失败：{error}"))?;
+    Ok(removed)
 }
 
 fn directory_prefix(root: &Path) -> String {

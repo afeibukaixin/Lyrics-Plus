@@ -78,6 +78,11 @@
 .buttonLink { padding: 7px 9px; border: 1px solid #ffffff11; border-radius: 8px; background: #ffffff07; color: #afb4c1; font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); font-weight: var(--typography-label-weight); text-decoration: none; }
 .buttonLink:hover { border-color: #9277f455; color: #c8bbff; }
 .directoryPath { margin: 0; padding: 13px 14px 4px; color: #8f95a4; overflow-wrap: anywhere; font-family: var(--font-family-mono); font-size: var(--typography-caption-size); line-height: var(--typography-caption-line-height); }
+.scanStatus { display: grid; gap: 6px; margin: 10px 14px 4px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--muted); color: var(--muted-foreground); }
+.scanStatus strong { color: var(--foreground); font-size: var(--typography-body-sm-size); }
+.scanStatus span, .scanStatus small { font-size: var(--typography-caption-size); line-height: 1.5; overflow-wrap: anywhere; }
+.scanStatus[data-phase="failed"] { border-color: color-mix(in srgb, var(--destructive) 40%, var(--border)); }
+.scanStatus[data-phase="failed"] strong, .scanStatus[data-phase="failed"] span { color: var(--destructive); }
 .advancedSection { margin: 14px 0 0; }
 .advancedSection > summary { margin-bottom: 12px; padding: 11px 14px; border: 1px solid #ffffff0d; border-radius: 11px; background: #ffffff04; color: #858b9a; cursor: pointer; font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); font-weight: var(--typography-label-weight); }
 .advancedSection[open] > summary { border-color: #9277f444; color: #b7a9ec; }

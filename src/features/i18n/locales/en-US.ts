@@ -159,7 +159,7 @@ export const enUS = {
       strict: "Strict priority", smart: "Smart sorting", smartHint: "Smart sorting can override manual order when score differences are substantial.",
       strictHint: "Results follow the priority below. Drag the handle to reorder and save immediately.", dragProvider: "Drag {{provider}} to change priority",
       onlineProviderNotice: "Enabling an online lyrics source sends track-matching information to the relevant third-party service. Make sure your use complies with its terms.",
-      directory: "Lyrics folder", advanced: "Advanced lyrics settings",
+      directory: "Lyrics folder", advanced: "Advanced lyrics settings", rescan: "Rescan", restartScan: "Restart scan", scanDiscovering: "Discovering lyric files…", scanDiscovered: "{{discovered}} discovered, {{skipped}} skipped", scanIndexing: "Indexing {{processed}} / {{total}}", scanLiveStats: "{{added}} added · {{updated}} updated · {{unchanged}} unchanged · {{failed}} failed", scanCompleted: "Scan complete", scanSummary: "{{added}} added · {{updated}} updated · {{unchanged}} unchanged · {{removed}} removed · {{skipped}} skipped · {{failed}} failed", scanFailed: "Scan failed",
       health: { unknown: "Not tested", available: "Available", degraded: "Partially available", unavailable: "Unavailable" },
       healthHint: { unknown: "Connection not tested", available: "Connection is healthy", degraded: "Some features are available", unavailable: "Connection unavailable" },
       noResults: "Enabled providers did not find synchronized lyrics",
