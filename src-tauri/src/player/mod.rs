@@ -631,17 +631,3 @@ fn source_not_allowed(
     unavailable.source_app_bundle_id = snapshot.source_app_bundle_id.clone();
     unavailable
 }
-
-pub fn perform_action(
-    kind: PlayerKind,
-    system_media: &SystemMediaService,
-    action: &str,
-    position_ms: Option<u64>,
-) -> Result<(), String> {
-    match kind {
-        PlayerKind::System => system_media.perform_action(action, position_ms),
-        PlayerKind::AppleMusic | PlayerKind::Spotify => {
-            automation::perform_action(kind, action, position_ms)
-        }
-    }
-}

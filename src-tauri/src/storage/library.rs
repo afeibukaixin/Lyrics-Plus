@@ -9,41 +9,12 @@ use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use serde::Serialize;
 
 use super::{content_hash, ensure_column, Storage};
-use crate::lyrics::{parse_lrc_with_options, LyricsDocument};
+use crate::lyrics::parse_lrc_with_options;
 
 const MAX_LYRIC_FILE_SIZE: u64 = 5 * 1024 * 1024;
 const MAX_LYRIC_FILES: usize = 50_000;
 const INDEX_BATCH_SIZE: usize = 200;
 pub(super) const LIBRARY_DIRECTORY_PREFERENCE: &str = "lyrics.library_directory";
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LibraryEntry {
-    pub path: String,
-    pub file_name: String,
-    pub title: String,
-    pub artist: String,
-    pub source: String,
-    pub format: String,
-    pub duration_ms: Option<u64>,
-    pub file_size: u64,
-    pub modified_at_ms: Option<u64>,
-    pub duplicate_count: u64,
-    pub association_count: u64,
-    pub has_translation: bool,
-    pub has_word_timing: bool,
-    pub has_romanization: bool,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LibraryPage {
-    pub library_dir: String,
-    pub entries: Vec<LibraryEntry>,
-    pub total_count: u64,
-    pub offset: u32,
-    pub limit: u32,
-}
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -140,14 +111,6 @@ impl LibraryScanCoordinator {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LibraryPreview {
-    pub entry: LibraryEntry,
-    pub raw: String,
-    pub document: Option<LyricsDocument>,
-}
-
 pub(super) fn initialize_schema(connection: &Connection) -> rusqlite::Result<()> {
     connection.execute(
         "CREATE INDEX IF NOT EXISTS lyric_files_content_hash ON lyric_files(content_hash)",
@@ -201,34 +164,6 @@ pub(super) fn initialize_schema(connection: &Connection) -> rusqlite::Result<()>
 }
 
 impl Storage {
-    pub fn library_page(
-        &self,
-        query: Option<&str>,
-        offset: u32,
-        limit: u32,
-    ) -> Result<LibraryPage, String> {
-        let library_dir = self.library_directory();
-        let limit = limit.clamp(1, 200);
-        let connection = self
-            .connection
-            .lock()
-            .unwrap_or_else(|error| error.into_inner());
-        let (entries, total_count) = list_entries(
-            &connection,
-            &library_dir,
-            query.unwrap_or_default(),
-            offset,
-            limit,
-        )?;
-        Ok(LibraryPage {
-            library_dir: library_dir.to_string_lossy().into_owned(),
-            entries,
-            total_count,
-            offset,
-            limit,
-        })
-    }
-
     pub fn set_library_directory(&self, path: &str) -> Result<PathBuf, String> {
         let path = canonical_directory(path)?;
         let metadata =
@@ -360,142 +295,12 @@ impl Storage {
         })
     }
 
-    pub fn preview_library_entry(&self, path: &str) -> Result<LibraryPreview, String> {
-        let library_dir = self.library_directory();
-        if !same_path_or_child(&library_dir, Path::new(path)) {
-            return Err("歌词文件未被当前目录索引".into());
-        }
-        let connection = self
-            .connection
-            .lock()
-            .unwrap_or_else(|error| error.into_inner());
-        let entry = get_entry(&connection, &library_dir, path)?
-            .ok_or_else(|| "歌词文件未被当前目录索引".to_string())?;
-        drop(connection);
-        let raw = read_lyric(Path::new(&entry.path))?;
-        let document = parse_lrc_with_options(&raw, &entry.source, true).ok();
-        Ok(LibraryPreview {
-            entry,
-            raw,
-            document,
-        })
-    }
-
     pub fn library_directory(&self) -> PathBuf {
         self.library_dir
             .read()
             .unwrap_or_else(|error| error.into_inner())
             .clone()
     }
-}
-
-fn list_entries(
-    connection: &Connection,
-    library_dir: &Path,
-    query: &str,
-    offset: u32,
-    limit: u32,
-) -> Result<(Vec<LibraryEntry>, u64), String> {
-    let prefix = directory_prefix(library_dir);
-    let query = query.trim().to_lowercase();
-    let search_pattern = format!("%{}%", escape_like(&query));
-    let total_count = connection
-        .query_row(
-            "SELECT COUNT(*) FROM lyric_files
-             WHERE managed=1 AND folder_id IS NULL
-               AND substr(content_path, 1, length(?1))=?1
-               AND (?2='' OR lower(title) LIKE ?3 ESCAPE '\\'
-                          OR lower(artist) LIKE ?3 ESCAPE '\\')",
-            params![prefix, query, search_pattern],
-            |row| row.get::<_, i64>(0),
-        )
-        .map_err(|error| format!("统计歌词库失败：{error}"))?
-        .max(0) as u64;
-    let mut statement = connection
-        .prepare(
-            "WITH library AS (
-               SELECT content_path, title, artist, source, original_format,
-                      file_size, modified_at_ms, duration_ms,
-                      has_translation, has_word_timing, has_romanization,
-                      COUNT(*) OVER (PARTITION BY content_hash) AS duplicate_count,
-                      (SELECT COUNT(*) FROM lyric_associations associations
-                       WHERE associations.content_path=lyric_files.content_path) AS association_count
-               FROM lyric_files
-               WHERE managed=1 AND folder_id IS NULL
-                 AND substr(content_path, 1, length(?1))=?1
-             )
-             SELECT content_path, title, artist, source, original_format,
-                    file_size, modified_at_ms, duration_ms,
-                    has_translation, has_word_timing, has_romanization,
-                    duplicate_count, association_count
-             FROM library
-             WHERE (?2='' OR lower(title) LIKE ?3 ESCAPE '\\'
-                        OR lower(artist) LIKE ?3 ESCAPE '\\')
-             ORDER BY modified_at_ms DESC, title ASC
-             LIMIT ?4 OFFSET ?5",
-        )
-        .map_err(|error| format!("读取歌词库失败：{error}"))?;
-    let entries = statement
-        .query_map(
-            params![prefix, query, search_pattern, limit, offset],
-            library_entry_from_row,
-        )
-        .map_err(|error| format!("查询歌词库失败：{error}"))?
-        .collect::<rusqlite::Result<Vec<_>>>()
-        .map_err(|error| format!("解析歌词库失败：{error}"))?;
-    Ok((entries, total_count))
-}
-
-fn library_entry_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryEntry> {
-    let path: String = row.get(0)?;
-    Ok(LibraryEntry {
-        file_name: Path::new(&path)
-            .file_name()
-            .and_then(|value| value.to_str())
-            .unwrap_or_default()
-            .to_string(),
-        path,
-        title: row.get(1)?,
-        artist: row.get(2)?,
-        source: row.get(3)?,
-        format: row.get(4)?,
-        file_size: row.get::<_, i64>(5)?.max(0) as u64,
-        modified_at_ms: row
-            .get::<_, Option<i64>>(6)?
-            .map(|value| value.max(0) as u64),
-        duration_ms: row
-            .get::<_, Option<i64>>(7)?
-            .map(|value| value.max(0) as u64),
-        has_translation: row.get::<_, i64>(8)? != 0,
-        has_word_timing: row.get::<_, i64>(9)? != 0,
-        has_romanization: row.get::<_, i64>(10)? != 0,
-        duplicate_count: row.get::<_, i64>(11)?.max(1) as u64,
-        association_count: row.get::<_, i64>(12)?.max(0) as u64,
-    })
-}
-
-fn get_entry(
-    connection: &Connection,
-    library_dir: &Path,
-    path: &str,
-) -> Result<Option<LibraryEntry>, String> {
-    let prefix = directory_prefix(library_dir);
-    connection
-        .query_row(
-            "SELECT content_path, title, artist, source, original_format,
-                    file_size, modified_at_ms, duration_ms,
-                    has_translation, has_word_timing, has_romanization,
-                    (SELECT COUNT(*) FROM lyric_files duplicates
-                     WHERE duplicates.content_hash=lyric_files.content_hash
-                       AND substr(duplicates.content_path, 1, length(?2))=?2),
-                    (SELECT COUNT(*) FROM lyric_associations associations
-                     WHERE associations.content_path=lyric_files.content_path)
-             FROM lyric_files WHERE content_path=?1 AND managed=1 AND folder_id IS NULL",
-            params![path, prefix],
-            library_entry_from_row,
-        )
-        .optional()
-        .map_err(|error| format!("读取歌词条目失败：{error}"))
 }
 
 fn collect_lyric_files(
@@ -676,17 +481,6 @@ fn directory_prefix(root: &Path) -> String {
     prefix
 }
 
-fn escape_like(value: &str) -> String {
-    value
-        .replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_")
-}
-
-fn same_path_or_child(root: &Path, path: &Path) -> bool {
-    path.canonicalize().is_ok_and(|path| path.starts_with(root))
-}
-
 struct ParsedMetadata {
     title: String,
     artist: String,
@@ -816,82 +610,11 @@ fn modified_ms(metadata: &fs::Metadata) -> Option<u64> {
 mod tests {
     use super::*;
     use crate::storage::tests::test_dirs;
-    use crate::storage::{SaveKind, SaveRequest};
 
     fn scan(storage: &Storage) -> LibraryScanStatus {
         let status = storage.begin_library_scan();
         assert!(storage.run_library_scan(status.scan_id, |_| {}).unwrap());
         storage.library_scan_status()
-    }
-
-    #[test]
-    fn scan_detects_duplicates_and_parses_readable_names() {
-        let (app_dir, library_dir) = test_dirs("duplicates");
-        fs::create_dir_all(&library_dir).unwrap();
-        let raw = "[00:01]Line";
-        fs::write(library_dir.join("Artist - Song.lrc"), raw).unwrap();
-        fs::write(library_dir.join("Artist - Song copy.lrc"), raw).unwrap();
-        let storage = Storage::open(app_dir.clone(), library_dir.clone()).unwrap();
-        scan(&storage);
-        let page = storage.library_page(None, 0, 100).unwrap();
-        assert_eq!(page.entries.len(), 2);
-        assert!(page.entries.iter().all(|entry| entry.duplicate_count == 2));
-        assert!(page.entries.iter().any(|entry| entry.title == "Song"));
-        let _ = fs::remove_dir_all(app_dir.parent().unwrap());
-    }
-
-    #[test]
-    fn changing_directory_preserves_old_files_and_associations() {
-        let (app_dir, old_dir) = test_dirs("switch-library");
-        let new_dir = app_dir.parent().unwrap().join("New Library");
-        fs::create_dir_all(&new_dir).unwrap();
-        let storage = Storage::open(app_dir.clone(), old_dir.clone()).unwrap();
-        storage
-            .save(SaveRequest {
-                track_key: "spotify:old",
-                title: "Old Song",
-                artist: "Artist",
-                source: "Test",
-                raw: "[00:01]Old line",
-                provider_id: None,
-                provider_item_id: None,
-                kind: SaveKind::Automatic,
-            })
-            .unwrap();
-        let old_path = storage.library_page(None, 0, 100).unwrap().entries[0]
-            .path
-            .clone();
-
-        storage
-            .set_library_directory(&new_dir.to_string_lossy())
-            .unwrap();
-        assert!(storage
-            .library_page(None, 0, 100)
-            .unwrap()
-            .entries
-            .is_empty());
-        assert!(Path::new(&old_path).exists());
-        assert!(storage.load("spotify:old").unwrap().is_some());
-        scan(&storage);
-        assert!(storage.load("spotify:old").unwrap().is_some());
-
-        storage
-            .save(SaveRequest {
-                track_key: "spotify:new",
-                title: "New Song",
-                artist: "Artist",
-                source: "Test",
-                raw: "[00:01]New line",
-                provider_id: None,
-                provider_item_id: None,
-                kind: SaveKind::Automatic,
-            })
-            .unwrap();
-        let canonical_new_dir = new_dir.canonicalize().unwrap();
-        assert!(storage.library_page(None, 0, 100).unwrap().entries[0]
-            .path
-            .starts_with(&canonical_new_dir.to_string_lossy().to_string()));
-        let _ = fs::remove_dir_all(app_dir.parent().unwrap());
     }
 
     #[test]
@@ -913,130 +636,6 @@ mod tests {
             reopened.library_directory(),
             new_dir.canonicalize().unwrap()
         );
-        let _ = fs::remove_dir_all(app_dir.parent().unwrap());
-    }
-
-    #[test]
-    fn scan_skips_unchanged_files_and_reindexes_changed_files() {
-        let (app_dir, library_dir) = test_dirs("incremental-scan");
-        fs::create_dir_all(&library_dir).unwrap();
-        let lyric = library_dir.join("Artist - Song.lrc");
-        fs::write(&lyric, "[ti:Original]\n[00:01]Line").unwrap();
-        let storage = Storage::open(app_dir.clone(), library_dir.clone()).unwrap();
-        scan(&storage);
-        let lyric = PathBuf::from(
-            storage.library_page(None, 0, 100).unwrap().entries[0]
-                .path
-                .clone(),
-        );
-
-        storage
-            .connection
-            .lock()
-            .unwrap()
-            .execute(
-                "UPDATE lyric_files SET title='Unchanged sentinel' WHERE content_path=?1",
-                params![lyric.to_string_lossy()],
-            )
-            .unwrap();
-        scan(&storage);
-        assert_eq!(
-            storage.library_page(None, 0, 100).unwrap().entries[0].title,
-            "Unchanged sentinel"
-        );
-
-        fs::write(
-            &lyric,
-            "[ti:Changed title with different size]\n[00:01]Line",
-        )
-        .unwrap();
-        scan(&storage);
-        assert_eq!(
-            storage.library_page(None, 0, 100).unwrap().entries[0].title,
-            "Changed title with different size"
-        );
-        let _ = fs::remove_dir_all(app_dir.parent().unwrap());
-    }
-
-    #[test]
-    fn library_page_filters_paginates_and_counts_associations() {
-        let (app_dir, library_dir) = test_dirs("library-page");
-        fs::create_dir_all(&library_dir).unwrap();
-        fs::write(library_dir.join("Artist - Alpha Song.lrc"), "[00:01]Same").unwrap();
-        fs::write(library_dir.join("Artist - Beta Song.lrc"), "[00:01]Same").unwrap();
-        fs::write(
-            library_dir.join("Artist - 100%_Real.lrc"),
-            "[00:02]Different",
-        )
-        .unwrap();
-        let storage = Storage::open(app_dir.clone(), library_dir.clone()).unwrap();
-        scan(&storage);
-        let alpha = storage.library_page(Some("Alpha"), 0, 100).unwrap().entries[0]
-            .path
-            .clone();
-        storage
-            .connection
-            .lock()
-            .unwrap()
-            .execute(
-                "INSERT INTO lyric_associations
-                   (track_key, title, artist, source, content_path, offset_ms)
-                 VALUES ('track', 'Alpha Song', 'Artist', 'Test', ?1, 0)",
-                params![alpha],
-            )
-            .unwrap();
-
-        let first_page = storage.library_page(Some("Song"), 0, 1).unwrap();
-        let second_page = storage.library_page(Some("Song"), 1, 1).unwrap();
-        assert_eq!(first_page.total_count, 2);
-        assert_eq!(first_page.entries.len(), 1);
-        assert_eq!(second_page.entries.len(), 1);
-        assert_ne!(first_page.entries[0].path, second_page.entries[0].path);
-        assert_eq!(
-            storage.library_page(Some("Alpha"), 0, 100).unwrap().entries[0].association_count,
-            1
-        );
-        assert!(storage
-            .library_page(Some("%_"), 0, 100)
-            .unwrap()
-            .entries
-            .iter()
-            .any(|entry| entry.title == "100%_Real"));
-        assert!(first_page.entries[0].duplicate_count == 2);
-
-        let other_dir = app_dir.parent().unwrap().join("Other %_ Library");
-        fs::create_dir_all(&other_dir).unwrap();
-        fs::write(other_dir.join("Other - Only.lrc"), "[00:01]Other").unwrap();
-        storage
-            .set_library_directory(&other_dir.to_string_lossy())
-            .unwrap();
-        scan(&storage);
-        assert_eq!(storage.library_page(None, 0, 100).unwrap().total_count, 1);
-        storage
-            .set_library_directory(&library_dir.to_string_lossy())
-            .unwrap();
-        assert_eq!(storage.library_page(None, 0, 100).unwrap().total_count, 3);
-        let _ = fs::remove_dir_all(app_dir.parent().unwrap());
-    }
-
-    #[test]
-    fn scan_skips_bad_files_and_cleans_missing_indexes() {
-        let (app_dir, library_dir) = test_dirs("skip-and-clean");
-        fs::create_dir_all(&library_dir).unwrap();
-        let valid = library_dir.join("Artist - Valid.lrc");
-        fs::write(&valid, "[00:01]Valid").unwrap();
-        let oversized = fs::File::create(library_dir.join("Artist - Oversized.lrc")).unwrap();
-        oversized.set_len(MAX_LYRIC_FILE_SIZE + 1).unwrap();
-        let storage = Storage::open(app_dir.clone(), library_dir).unwrap();
-
-        let status = scan(&storage);
-        assert_eq!(status.phase, LibraryScanPhase::Completed);
-        assert_eq!(status.skipped, 1);
-        assert_eq!(storage.library_page(None, 0, 100).unwrap().total_count, 1);
-
-        fs::remove_file(valid).unwrap();
-        scan(&storage);
-        assert_eq!(storage.library_page(None, 0, 100).unwrap().total_count, 0);
         let _ = fs::remove_dir_all(app_dir.parent().unwrap());
     }
 
@@ -1075,7 +674,6 @@ mod tests {
             })
             .unwrap());
         assert_eq!(processed, vec![200, 201]);
-        assert_eq!(storage.library_page(None, 0, 200).unwrap().total_count, 201);
         let _ = fs::remove_dir_all(app_dir.parent().unwrap());
     }
 

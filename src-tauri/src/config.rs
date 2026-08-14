@@ -677,6 +677,9 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
             &format!("配置文件版本 {version} 高于当前支持的版本 {CONFIG_SCHEMA_VERSION}"),
         ));
     }
+    user.as_object_mut()
+        .expect("checked object")
+        .remove("artwork");
     if version < CONFIG_SCHEMA_VERSION {
         if let Some(app) = user.get_mut("app").and_then(Value::as_object_mut) {
             app.retain(|key, _| APP_CONFIG_KEYS.contains(&key.as_str()));
@@ -862,7 +865,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
     check_keys(
         value,
         raw,
-        &["schemaVersion", "app", "artwork", "lyrics", "overlay"],
+        &["schemaVersion", "app", "lyrics", "overlay"],
     )?;
     if let Some(app) = value.get("app") {
         check_keys(app, raw, APP_CONFIG_KEYS)?;

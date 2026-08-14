@@ -69,22 +69,12 @@ export function usePlayback() {
     api.setPlayerSelection(next).catch((error) => setCommandError(messageOf(error)));
   };
 
-  const action = async (name: "play_pause" | "next" | "previous" | "seek", value?: number) => {
-    setCommandError(null);
-    try {
-      await api.playerAction(name, value);
-    } catch (error) {
-      setCommandError(messageOf(error));
-    }
-  };
-
   return {
     snapshot,
     positionMs,
     selection,
     setSelection,
     syncSelection: setSelectionState,
-    action,
     commandError,
   };
 }

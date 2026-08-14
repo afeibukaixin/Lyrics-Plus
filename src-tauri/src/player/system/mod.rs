@@ -17,27 +17,6 @@ use super::{
 
 mod compat;
 
-const SYSTEM_MEDIA_SEEK_SCRIPT: &str = r#"
-ObjC.import('Foundation');
-function run(argv) {
-  const target = Number(argv[0]);
-  const framework = $.NSBundle.bundleWithPath('/System/Library/PrivateFrameworks/MediaRemote.framework/');
-  if (!framework.load) return 'framework_unavailable';
-  const Controller = $.NSClassFromString('MRNowPlayingController');
-  const Request = $.NSClassFromString('MRNowPlayingRequest');
-  if (!Controller || !Request) return 'controller_unavailable';
-  const controller = Controller.localRouteController;
-  const options = $.NSMutableDictionary.dictionary;
-  options.setObjectForKey($(target), $('kMRMediaRemoteOptionPlaybackPosition'));
-  controller.sendCommandOptionsCompletion(24, options, null);
-  $.NSThread.sleepForTimeInterval(0.2);
-  const item = Request.localNowPlayingItem;
-  if (!item || !item.metadata) return 'media_unavailable';
-  const actual = Number(item.metadata.calculatedPlaybackPosition);
-  return Number.isFinite(actual) && Math.abs(actual - target) < 2 ? 'ok' : `position:${actual}`;
-}
-"#;
-
 pub struct SystemMediaService {
     player: OnceLock<Result<AdapterClient, String>>,
 }
@@ -143,63 +122,6 @@ impl SystemMediaService {
         })
     }
 
-    pub fn perform_action(&self, action: &str, position_ms: Option<u64>) -> Result<(), String> {
-        let client = self.player()?;
-        if client
-            .latest
-            .read()
-            .unwrap_or_else(|error| error.into_inner())
-            .is_none()
-        {
-            return Err("当前没有可控制的系统媒体".into());
-        }
-        let seek_position_ms = position_ms.map(|position| {
-            let duration_ms = client
-                .latest
-                .read()
-                .unwrap_or_else(|error| error.into_inner())
-                .as_ref()
-                .and_then(|timed| milliseconds(timed.info.duration));
-            duration_ms
-                .map(|duration| position.min(duration))
-                .unwrap_or(position)
-        });
-        let arguments = match action {
-            "play_pause" => vec!["send".to_string(), "2".to_string()],
-            "next" => vec!["send".to_string(), "4".to_string()],
-            "previous" => vec!["send".to_string(), "5".to_string()],
-            "seek" => vec![
-                "seek".to_string(),
-                seek_position_ms
-                    .ok_or_else(|| "缺少跳转位置".to_string())?
-                    .saturating_mul(1000)
-                    .to_string(),
-            ],
-            _ => return Err("未知播放器操作".into()),
-        };
-        let output = run_adapter(&client.script_path, &client.framework_path, arguments)?;
-        if output.status.success() {
-            if action == "seek" {
-                update_elapsed_time(
-                    &client.latest,
-                    seek_position_ms.expect("seek position checked"),
-                );
-            }
-            Ok(())
-        } else if action == "seek" {
-            let position = seek_position_ms.expect("seek position checked");
-            seek_with_system_controller(position)?;
-            update_elapsed_time(&client.latest, position);
-            Ok(())
-        } else {
-            let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            Err(if detail.is_empty() {
-                "系统媒体命令未被当前应用接受".into()
-            } else {
-                detail
-            })
-        }
-    }
 }
 
 fn refresh_elapsed(client: &AdapterClient) {
@@ -243,32 +165,6 @@ fn sync_elapsed_from_adapter(latest: &RwLock<Option<TimedInfo>>, output: &[u8]) 
         timed.received_at = Instant::now();
     }
     same_track
-}
-
-fn seek_with_system_controller(position_ms: u64) -> Result<(), String> {
-    let mut command = Command::new("/usr/bin/osascript");
-    command
-        .args(["-l", "JavaScript", "-e", SYSTEM_MEDIA_SEEK_SCRIPT, "--"])
-        .arg(format!("{:.3}", position_ms as f64 / 1000.0));
-    let output = run_with_timeout(command, Duration::from_secs(3))?;
-    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if output.status.success() && result == "ok" {
-        Ok(())
-    } else {
-        let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        Err(if detail.is_empty() { result } else { detail })
-    }
-}
-
-fn update_elapsed_time(latest: &RwLock<Option<TimedInfo>>, position_ms: u64) {
-    if let Some(timed) = latest
-        .write()
-        .unwrap_or_else(|error| error.into_inner())
-        .as_mut()
-    {
-        timed.info.elapsed_time = Some(position_ms as f64 / 1000.0);
-        timed.received_at = Instant::now();
-    }
 }
 
 fn run_adapter(
@@ -426,20 +322,6 @@ mod tests {
         assert_eq!(snapshot.duration_ms, Some(123_456));
         assert_eq!(snapshot.source_app_name.as_deref(), Some("Example Player"));
         assert!(snapshot.can_seek);
-    }
-
-    #[test]
-    fn seek_updates_the_cached_timeline_origin() {
-        let latest = RwLock::new(Some(TimedInfo {
-            info: info(),
-            received_at: Instant::now(),
-        }));
-        update_elapsed_time(&latest, 45_678);
-        let timed = latest.read().unwrap();
-        let snapshot = snapshot_from_info(timed.as_ref().unwrap());
-        assert!(snapshot
-            .position_ms
-            .is_some_and(|position| (45_678..45_700).contains(&position)));
     }
 
     #[test]

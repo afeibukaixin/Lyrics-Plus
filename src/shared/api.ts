@@ -68,8 +68,6 @@ export const api = {
   getPlayerSelection: () => invoke<PlayerSelection>("get_player_selection"),
   setPlayerSelection: (selection: PlayerSelection) =>
     invoke<void>("set_player_selection", { selection }),
-  playerAction: (action: "play_pause" | "next" | "previous" | "seek", positionMs?: number) =>
-    invoke<void>("player_action", { action, positionMs }),
   getCachedLyrics: (trackKey: string) =>
     invoke<LyricsDocument | null>("get_cached_lyrics", { trackKey }),
   getLibraryScanStatus: () => invoke<LibraryScanStatus>("get_library_scan_status"),

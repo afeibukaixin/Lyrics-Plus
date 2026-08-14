@@ -179,35 +179,6 @@ impl AutomationSession<'_> {
         self.object(self.app, CURRENT_TRACK)
     }
 
-    pub(super) fn command(
-        &self,
-        action: &str,
-        position_ms: Option<u64>,
-    ) -> Result<(), AutomationError> {
-        self.delegate.reset();
-        match action {
-            "play_pause" => unsafe {
-                let _: () = msg_send![self.app, playpause];
-            },
-            "next" => unsafe {
-                let _: () = msg_send![self.app, nextTrack];
-            },
-            "previous" => unsafe {
-                let _: () = msg_send![self.app, previousTrack];
-            },
-            "seek" => {
-                let seconds =
-                    position_ms.ok_or_else(|| AutomationError::unavailable("缺少跳转位置"))? as f64
-                        / 1000.0;
-                let property = unsafe { self.app.propertyWithCode(PLAYER_POSITION) };
-                let value = NSNumber::numberWithDouble(seconds);
-                unsafe { property.setTo(Some(&value)) };
-                return self.finish(&property);
-            }
-            _ => return Err(AutomationError::unavailable("未知播放器操作")),
-        }
-        self.finish(self.app)
-    }
 }
 
 pub(super) fn with_application<T>(
@@ -247,18 +218,6 @@ pub(crate) fn snapshot(kind: PlayerKind) -> PlaybackSnapshot {
         PlayerKind::AppleMusic => apple_music::snapshot(),
         PlayerKind::Spotify => spotify::snapshot(),
         PlayerKind::System => unreachable!("system playback uses SystemMediaService"),
-    }
-}
-
-pub(crate) fn perform_action(
-    kind: PlayerKind,
-    action: &str,
-    position_ms: Option<u64>,
-) -> Result<(), String> {
-    match kind {
-        PlayerKind::AppleMusic => apple_music::perform_action(action, position_ms),
-        PlayerKind::Spotify => spotify::perform_action(action, position_ms),
-        PlayerKind::System => Err("系统播放器操作必须通过系统媒体服务执行".into()),
     }
 }
 
@@ -316,17 +275,6 @@ fn query(
             error.user_message(),
         )
     })
-}
-
-fn perform_action_for_app(
-    bundle_id: &str,
-    action: &str,
-    position_ms: Option<u64>,
-) -> Result<(), String> {
-    with_application(bundle_id, REQUEST_TIMEOUT_TICKS, |session| {
-        session.command(action, position_ms)
-    })
-    .map_err(|error| error.user_message())
 }
 
 fn value_as_string(value: &AnyObject) -> Option<String> {

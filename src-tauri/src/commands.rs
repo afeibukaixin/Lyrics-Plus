@@ -22,8 +22,7 @@ use crate::lyrics::provider::{
 };
 use crate::lyrics::LyricsDocument;
 use crate::player::{
-    perform_action, run_with_timeout, PlaybackSnapshot, PlayerKind, PlayerSelection,
-    SystemMediaService,
+    run_with_timeout, PlaybackSnapshot, PlayerKind, PlayerSelection, SystemMediaService,
 };
 use crate::storage::library::LibraryScanStatus;
 use crate::storage::{SaveKind, SaveRequest, Storage};
@@ -379,35 +378,6 @@ pub fn set_player_selection(
     selection: PlayerSelection,
 ) -> Result<(), String> {
     update_player_selection(&app, selection)
-}
-
-#[tauri::command]
-pub async fn player_action(
-    action: String,
-    position_ms: Option<u64>,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
-    let snapshot = state
-        .last_snapshot
-        .read()
-        .unwrap_or_else(|error| error.into_inner())
-        .clone();
-    let player = controllable_player(&snapshot)?;
-    let system_media = state.system_media.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        perform_action(player, &system_media, &action, position_ms)
-    })
-    .await
-    .map_err(|error| error.to_string())?
-}
-
-fn controllable_player(snapshot: &PlaybackSnapshot) -> Result<PlayerKind, String> {
-    if !snapshot.is_running || snapshot.error_code.is_some() {
-        return Err("当前没有可控制的播放器".into());
-    }
-    snapshot
-        .player
-        .ok_or_else(|| "当前没有可控制的播放器".to_string())
 }
 
 #[tauri::command]
@@ -1903,23 +1873,6 @@ pub fn reset_settings_section(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn filtered_system_source_cannot_receive_player_actions() {
-        let filtered = PlaybackSnapshot::unavailable_with_code(
-            Some(PlayerKind::System),
-            crate::player::PlaybackErrorCode::SourceNotAllowed,
-            "filtered".into(),
-        );
-        assert!(controllable_player(&filtered).is_err());
-
-        let available = PlaybackSnapshot {
-            player: Some(PlayerKind::System),
-            is_running: true,
-            ..PlaybackSnapshot::default()
-        };
-        assert_eq!(controllable_player(&available).unwrap(), PlayerKind::System);
-    }
 
     #[test]
     fn overlay_style_deserializes_old_saved_shape_with_defaults() {

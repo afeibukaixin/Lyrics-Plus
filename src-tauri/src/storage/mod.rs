@@ -601,7 +601,6 @@ fn migrate_legacy_files(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashSet;
 
     pub(super) fn test_dirs(name: &str) -> (PathBuf, PathBuf) {
         let root = std::env::temp_dir().join(format!(
@@ -715,17 +714,6 @@ mod tests {
             let document = reopened.load(track_key).unwrap().unwrap();
             assert_eq!(document.metadata.source, expected_name);
         }
-
-        let library_sources = reopened
-            .library_page(None, 0, 200)
-            .unwrap()
-            .entries
-            .into_iter()
-            .map(|entry| entry.source)
-            .collect::<HashSet<_>>();
-        assert!(library_sources.contains(NETEASE_DISPLAY_NAME));
-        assert!(library_sources.contains(QQMUSIC_DISPLAY_NAME));
-        assert!(library_sources.contains(KUGOU_DISPLAY_NAME));
 
         let connection = reopened.connection.lock().unwrap();
         let legacy_history_count: i64 = connection

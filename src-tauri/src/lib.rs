@@ -1972,7 +1972,6 @@ pub fn run() {
             commands::get_playback_snapshot,
             commands::get_player_selection,
             commands::set_player_selection,
-            commands::player_action,
             commands::search_lyrics,
             commands::get_provider_settings,
             commands::set_provider_settings,
