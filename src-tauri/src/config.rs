@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri_plugin_global_shortcut::Shortcut;
 
-use crate::artwork::{normalize_settings as normalize_artwork_settings, ArtworkSettings};
 use crate::commands::{
     KaraokeStyle, LongTextMode, OverlayAlignment, OverlayBackground, OverlayBackgroundMode,
     OverlayLayout, OverlayOrientation, OverlayStyleSettings, SecondaryDisplayMode,
@@ -17,7 +16,7 @@ use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSet
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 27;
+pub const CONFIG_SCHEMA_VERSION: u16 = 28;
 const APP_CONFIG_KEYS: &[&str] = &[
     "uiFontScale",
     "language",
@@ -146,7 +145,6 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
 pub struct AppConfig {
     pub schema_version: u16,
     pub app: AppPreferences,
-    pub artwork: ArtworkSettings,
     pub lyrics: LyricsPreferences,
     pub overlay: OverlayPreferences,
 }
@@ -156,7 +154,6 @@ impl Default for AppConfig {
         Self {
             schema_version: CONFIG_SCHEMA_VERSION,
             app: AppPreferences::default(),
-            artwork: ArtworkSettings::default(),
             lyrics: LyricsPreferences::default(),
             overlay: OverlayPreferences::default(),
         }
@@ -471,7 +468,6 @@ impl AppConfig {
         self.app.player_follower_application =
             normalize_player_follower_application(self.app.player_follower_application)?;
         self.app.shortcuts.parsed()?;
-        normalize_artwork_settings(&mut self.artwork)?;
         let normalized_style = self.overlay.appearance.clone().into_style();
         for (name, color) in color_fields(&normalized_style) {
             if !is_supported_color(color) {
@@ -883,31 +879,6 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
             }
         }
     }
-    if let Some(artwork) = value.get("artwork") {
-        check_keys(
-            artwork,
-            raw,
-            &[
-                "networkFallback",
-                "itunesStorefront",
-                "alwaysNetworkApplications",
-                "providers",
-            ],
-        )?;
-        if let Some(applications) = artwork
-            .get("alwaysNetworkApplications")
-            .and_then(Value::as_array)
-        {
-            for application in applications {
-                check_keys(application, raw, &["name", "bundleId"])?;
-            }
-        }
-        if let Some(items) = artwork.get("providers").and_then(Value::as_array) {
-            for item in items {
-                check_keys(item, raw, &["id", "enabled"])?;
-            }
-        }
-    }
     if let Some(lyrics) = value.get("lyrics") {
         check_keys(lyrics, raw, &["providers"])?;
         if let Some(providers) = lyrics.get("providers") {
@@ -971,7 +942,6 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
     for (pointer, key) in [
         ("/app", "app"),
         ("/app/shortcuts", "shortcuts"),
-        ("/artwork", "artwork"),
         ("/lyrics", "lyrics"),
         ("/lyrics/providers", "providers"),
         ("/overlay", "overlay"),
@@ -1023,50 +993,10 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             }
         }
     }
-    if let Some(applications) = value.pointer("/artwork/alwaysNetworkApplications") {
-        let Some(applications) = applications.as_array() else {
-            return Err(error_at_key(
-                raw,
-                "alwaysNetworkApplications",
-                "alwaysNetworkApplications 必须是数组",
-            ));
-        };
-        for application in applications {
-            let Some(application) = application.as_object() else {
-                return Err(error_at_key(
-                    raw,
-                    "alwaysNetworkApplications",
-                    "强制网络封面应用必须是对象",
-                ));
-            };
-            for key in ["name", "bundleId"] {
-                if !application.get(key).is_some_and(Value::is_string) {
-                    return Err(error_at_key(raw, key, &format!("{key} 必须是字符串")));
-                }
-            }
-        }
-    }
-    if let Some(storefront) = value.pointer("/artwork/itunesStorefront") {
-        let Some(storefront) = storefront.as_str() else {
-            return Err(error_at_key(
-                raw,
-                "itunesStorefront",
-                "itunesStorefront 必须是字符串",
-            ));
-        };
-        if !["auto", "CN", "TW", "HK", "US"].contains(&storefront) {
-            return Err(error_at_key(
-                raw,
-                "itunesStorefront",
-                "itunesStorefront 必须是 auto、CN、TW、HK 或 US",
-            ));
-        }
-    }
     for (pointer, key) in [
         ("/app/hideDockIcon", "hideDockIcon"),
         ("/app/silentStartup", "silentStartup"),
         ("/app/autoCheckUpdates", "autoCheckUpdates"),
-        ("/artwork/networkFallback", "networkFallback"),
         ("/overlay/visible", "visible"),
         ("/overlay/locked", "locked"),
         ("/overlay/hideWhenNotPlaying", "hideWhenNotPlaying"),
@@ -1218,26 +1148,6 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             }
         }
     }
-    if let Some(providers) = value.pointer("/artwork/providers") {
-        let items = providers
-            .as_array()
-            .ok_or_else(|| error_at_key(raw, "providers", "封面源 providers 必须是数组"))?;
-        for item in items {
-            let Some(item) = item.as_object() else {
-                return Err(error_at_key(raw, "providers", "每个封面源必须是对象"));
-            };
-            if !item.get("id").is_some_and(Value::is_string)
-                || !item.get("enabled").is_some_and(Value::is_boolean)
-            {
-                return Err(error_at_key(
-                    raw,
-                    "providers",
-                    "封面源必须包含字符串 id 和布尔 enabled",
-                ));
-            }
-        }
-    }
-
     for key in [
         "activeColor",
         "inactiveColor",
@@ -2233,75 +2143,6 @@ mod tests {
                 .map(|provider| provider.id.as_str())
                 .collect::<Vec<_>>(),
             vec!["netease", "qqmusic", "kugou", "lrclib"]
-        );
-    }
-
-    #[test]
-    fn schema_twenty_four_adds_disabled_artwork_fallback() {
-        let parsed = parse_config_draft(r#"{"schemaVersion":24}"#).unwrap();
-        assert!(parsed.migrated);
-        assert!(!parsed.config.artwork.network_fallback);
-        assert_eq!(
-            parsed
-                .config
-                .artwork
-                .providers
-                .iter()
-                .map(|provider| provider.id.as_str())
-                .collect::<Vec<_>>(),
-            vec!["cover_art_archive", "itunes"]
-        );
-    }
-
-    #[test]
-    fn schema_twenty_five_adds_empty_always_network_applications() {
-        let parsed = parse_config_draft(r#"{"schemaVersion":25}"#).unwrap();
-        assert!(parsed.migrated);
-        assert!(parsed.config.artwork.always_network_applications.is_empty());
-    }
-
-    #[test]
-    fn schema_twenty_six_adds_auto_itunes_storefront() {
-        let parsed = parse_config_draft(r#"{"schemaVersion":26}"#).unwrap();
-        assert!(parsed.migrated);
-        assert_eq!(
-            parsed.config.artwork.itunes_storefront,
-            crate::artwork::ItunesStorefront::Auto
-        );
-    }
-
-    #[test]
-    fn artwork_applications_validate_deduplicate_and_reject_dedicated_players() {
-        let parsed = parse_config_draft(
-            r#"{
-              "schemaVersion": 27,
-              "artwork": { "alwaysNetworkApplications": [
-                { "name": "Example", "bundleId": "com.example.music" },
-                { "name": "Duplicate", "bundleId": "com.example.music" }
-              ] }
-            }"#,
-        )
-        .unwrap();
-        assert_eq!(parsed.config.artwork.always_network_applications.len(), 1);
-
-        assert!(parse_config_draft(
-            r#"{
-              "schemaVersion": 27,
-              "artwork": { "alwaysNetworkApplications": [
-                { "name": "Spotify", "bundleId": "com.spotify.client" }
-              ] }
-            }"#,
-        )
-        .is_err());
-        assert!(
-            !validate_config_draft(
-                r#"{"schemaVersion":27,"artwork":{"alwaysNetworkApplications":[{}]}}"#,
-            )
-            .valid
-        );
-        assert!(
-            !validate_config_draft(r#"{"schemaVersion":27,"artwork":{"itunesStorefront":"JP"}}"#,)
-                .valid
         );
     }
 

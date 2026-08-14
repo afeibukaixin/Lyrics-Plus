@@ -9,11 +9,6 @@ use tauri::{Emitter, Manager, State};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_opener::OpenerExt;
 
-use crate::artwork::{
-    normalize_settings as normalize_artwork_settings, player_name, validate_itunes_country,
-    ArtworkAsset, ArtworkCacheStatus, ArtworkProviderStatus, ArtworkService, ArtworkSettings,
-    ArtworkSettingsView, CACHE_DIRECTORY_PREFERENCE,
-};
 use crate::config::{
     normalize_player_follower_application, normalize_system_media_applications,
     validate_config_draft, AppConfig, ConfigDraftValidation, ConfigEditorData, ConfigStore,
@@ -30,7 +25,7 @@ use crate::player::{
     perform_action, run_with_timeout, PlaybackSnapshot, PlayerKind, PlayerSelection,
     SystemMediaService,
 };
-use crate::storage::library::{LibraryPage, LibraryPreview, LibraryScanStatus};
+use crate::storage::library::LibraryScanStatus;
 use crate::storage::{SaveKind, SaveRequest, Storage};
 
 pub struct AppState {
@@ -45,7 +40,6 @@ pub struct AppState {
     pub storage: Arc<Storage>,
     pub config: Arc<ConfigStore>,
     pub providers: Arc<ProviderRegistry>,
-    pub artwork: Arc<ArtworkService>,
     pub system_media: Arc<SystemMediaService>,
     pub http: reqwest::Client,
 }
@@ -300,10 +294,11 @@ pub struct SearchResponse {
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SettingsSection {
-    Overlay,
+    Style,
+    Display,
     Lyrics,
-    Artwork,
-    App,
+    Player,
+    About,
 }
 
 #[derive(Debug, Serialize)]
@@ -312,7 +307,6 @@ pub struct SettingsResetResponse {
     pub overlay_settings: OverlaySettings,
     pub overlay_style: OverlayStyleSettings,
     pub provider_view: ProviderSettingsView,
-    pub artwork_view: ArtworkSettingsView,
     pub player_selection: PlayerSelection,
     pub ui_font_scale: u16,
 }
@@ -347,131 +341,6 @@ pub fn get_playback_snapshot(state: State<'_, AppState>) -> PlaybackSnapshot {
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .clone()
-}
-
-#[tauri::command]
-pub async fn get_track_artwork(
-    player: PlayerKind,
-    track_id: String,
-    allow_network: bool,
-    itunes_country: String,
-    state: State<'_, AppState>,
-) -> Result<Option<ArtworkAsset>, String> {
-    validate_itunes_country(&itunes_country)?;
-    let snapshot = state
-        .last_snapshot
-        .read()
-        .unwrap_or_else(|error| error.into_inner())
-        .clone();
-    if !snapshot.matches_track(player, &track_id) {
-        return Ok(None);
-    }
-
-    let settings = state.config.snapshot().artwork;
-    let system_image = (player == PlayerKind::System)
-        .then(|| state.system_media.artwork(&track_id))
-        .flatten();
-    let result = state
-        .artwork
-        .resolve(
-            &snapshot,
-            &state.http,
-            &settings,
-            system_image,
-            allow_network,
-            &itunes_country,
-        )
-        .await;
-
-    match result {
-        Ok(asset) => Ok(asset),
-        Err(error) => {
-            log::warn!(
-                "Failed to resolve track artwork: player={}: {error}",
-                player_name(player)
-            );
-            Ok(None)
-        }
-    }
-}
-
-#[tauri::command]
-pub fn get_artwork_settings(state: State<'_, AppState>) -> ArtworkSettingsView {
-    ArtworkSettingsView::new(state.config.snapshot().artwork)
-}
-
-#[tauri::command]
-pub fn set_artwork_settings(
-    app: tauri::AppHandle,
-    mut settings: ArtworkSettings,
-    state: State<'_, AppState>,
-) -> Result<ArtworkSettingsView, String> {
-    normalize_artwork_settings(&mut settings)?;
-    let saved = state.config.update(|config| config.artwork = settings)?;
-    app.emit("config://changed", &saved)
-        .map_err(|error| error.to_string())?;
-    Ok(ArtworkSettingsView::new(saved.artwork))
-}
-
-#[tauri::command]
-pub async fn test_artwork_provider(
-    provider_id: String,
-    itunes_country: String,
-    state: State<'_, AppState>,
-) -> Result<ArtworkProviderStatus, String> {
-    let settings = state.config.snapshot().artwork;
-    let itunes_country = settings
-        .itunes_storefront
-        .effective_country(validate_itunes_country(&itunes_country)?)?;
-    Ok(state
-        .artwork
-        .test_provider(&state.http, &provider_id, itunes_country)
-        .await)
-}
-
-#[tauri::command]
-pub fn get_artwork_cache_status(state: State<'_, AppState>) -> Result<ArtworkCacheStatus, String> {
-    state.artwork.cache_status()
-}
-
-#[tauri::command]
-pub async fn set_artwork_cache_directory(
-    app: tauri::AppHandle,
-    path: String,
-    state: State<'_, AppState>,
-) -> Result<ArtworkCacheStatus, String> {
-    let path = PathBuf::from(path);
-    let old = state.artwork.cache_directory();
-    app.asset_protocol_scope()
-        .allow_directory(&path, true)
-        .map_err(|error| format!("允许读取封面目录失败：{error}"))?;
-    let status = state.artwork.set_directory(path.clone()).await?;
-    if let Err(error) = state
-        .storage
-        .set_preference(CACHE_DIRECTORY_PREFERENCE, &path.to_string_lossy())
-    {
-        let _ = state.artwork.set_directory(old).await;
-        return Err(error);
-    }
-    Ok(status)
-}
-
-#[tauri::command]
-pub fn open_artwork_cache_directory(
-    app: tauri::AppHandle,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
-    app.opener()
-        .open_path(
-            state.artwork.cache_directory().to_string_lossy(),
-            None::<&str>,
-        )
-        .map_err(|error| format!("打开封面目录失败：{error}"))
-}
-
-#[tauri::command]
-pub async fn clear_artwork_cache(state: State<'_, AppState>) -> Result<ArtworkCacheStatus, String> {
-    state.artwork.clear().await
 }
 
 #[tauri::command]
@@ -731,18 +600,6 @@ pub(crate) fn start_library_scan(app: &tauri::AppHandle) -> LibraryScanStatus {
 }
 
 #[tauri::command]
-pub fn get_library_page(
-    query: Option<String>,
-    offset: Option<u32>,
-    limit: Option<u32>,
-    state: State<'_, AppState>,
-) -> Result<LibraryPage, String> {
-    state
-        .storage
-        .library_page(query.as_deref(), offset.unwrap_or(0), limit.unwrap_or(100))
-}
-
-#[tauri::command]
 pub fn get_library_scan_status(state: State<'_, AppState>) -> LibraryScanStatus {
     state.storage.library_scan_status()
 }
@@ -758,19 +615,6 @@ pub fn set_lyrics_directory(
 }
 
 #[tauri::command]
-pub fn rescan_lyrics_library(app: tauri::AppHandle) -> LibraryScanStatus {
-    start_library_scan(&app)
-}
-
-#[tauri::command]
-pub fn preview_library_entry(
-    path: String,
-    state: State<'_, AppState>,
-) -> Result<LibraryPreview, String> {
-    state.storage.preview_library_entry(&path)
-}
-
-#[tauri::command]
 pub fn open_lyrics_directory(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -781,18 +625,6 @@ pub fn open_lyrics_directory(
             None::<&str>,
         )
         .map_err(|error| format!("打开歌词目录失败：{error}"))
-}
-
-#[tauri::command]
-pub fn reveal_library_entry(
-    app: tauri::AppHandle,
-    path: String,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
-    let preview = state.storage.preview_library_entry(&path)?;
-    app.opener()
-        .reveal_item_in_dir(preview.entry.path)
-        .map_err(|error| format!("在文件管理器中显示歌词失败：{error}"))
 }
 
 pub fn update_overlay_visible(app: &tauri::AppHandle, visible: bool) -> Result<(), String> {
@@ -1382,9 +1214,8 @@ pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Re
 }
 
 #[tauri::command]
-pub fn show_main_window(app: tauri::AppHandle, page: Option<String>) -> Result<(), String> {
-    let route = (page.as_deref() == Some("settings")).then_some("#/settings");
-    crate::show_main_window_at(&app, route)
+pub fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    crate::show_main_window_centered(&app)
 }
 
 #[tauri::command]
@@ -1929,10 +1760,37 @@ pub fn reset_settings_section(
 ) -> Result<SettingsResetResponse, String> {
     let mut player_follower_error = None;
     match section {
-        SettingsSection::Overlay => {
+        SettingsSection::Style => {
             state
                 .storage
                 .remove_preferences_with_prefix("overlay.style.")?;
+
+            let geometry = {
+                let current = state
+                    .overlay_style
+                    .read()
+                    .unwrap_or_else(|error| error.into_inner());
+                (current.horizontal_max_width, current.vertical_max_height)
+            };
+            let mut style = OverlayStyleSettings::default();
+            style.horizontal_max_width = geometry.0;
+            style.vertical_max_height = geometry.1;
+            *state
+                .overlay_style
+                .write()
+                .unwrap_or_else(|error| error.into_inner()) = style.clone();
+            state.config.update(|config| {
+                config.overlay.appearance = OverlayAppearance::default();
+            })?;
+
+            if let Some(window) = app.get_webview_window("lyrics-overlay") {
+                crate::sync_overlay_vibrancy(&window, &style);
+                crate::reset_overlay_toolbar_placement(&app, style.orientation);
+            }
+            app.emit("overlay://style", &style)
+                .map_err(|error| error.to_string())?;
+        }
+        SettingsSection::Display => {
             state
                 .storage
                 .remove_preferences_with_prefix("overlay.position.")?;
@@ -1944,7 +1802,16 @@ pub fn reset_settings_section(
             state.storage.remove_preference("overlay.locked")?;
             state.storage.remove_preference("overlay.passthrough")?;
 
-            let style = OverlayStyleSettings::default();
+            let style = {
+                let mut current = state
+                    .overlay_style
+                    .read()
+                    .unwrap_or_else(|error| error.into_inner())
+                    .clone();
+                current.horizontal_max_width = None;
+                current.vertical_max_height = None;
+                current
+            };
             *state
                 .overlay_style
                 .write()
@@ -1963,7 +1830,9 @@ pub fn reset_settings_section(
                 .write()
                 .unwrap_or_else(|error| error.into_inner()) = OverlaySettings::default();
             state.config.update(|config| {
-                config.overlay = crate::config::OverlayPreferences::default();
+                config.overlay.visible = true;
+                config.overlay.locked = false;
+                config.overlay.hide_when_not_playing = false;
             })?;
 
             let window = app
@@ -1990,24 +1859,23 @@ pub fn reset_settings_section(
                 .config
                 .update(|config| config.lyrics.providers = view.settings)?;
         }
-        SettingsSection::Artwork => {
-            state
-                .config
-                .update(|config| config.artwork = ArtworkSettings::default())?;
-        }
-        SettingsSection::App => {
+        SettingsSection::Player => {
             update_player_selection(&app, PlayerSelection::Auto)?;
             update_dock_icon_hidden(&app, false)?;
             update_global_shortcuts(&app, GlobalShortcutSettings::default())?;
             let config = state.config.update(|config| {
                 config.app.ui_font_scale = 100;
                 config.app.silent_startup = false;
-                config.app.auto_check_updates = true;
                 config.app.system_media_filter_mode = SystemMediaFilterMode::Allowlist;
                 config.app.system_media_applications.clear();
                 config.app.player_follower_application = None;
             })?;
             player_follower_error = crate::player_lifecycle::sync_service(&app, &config.app).err();
+        }
+        SettingsSection::About => {
+            state
+                .config
+                .update(|config| config.app.auto_check_updates = true)?;
         }
     }
 
@@ -2024,7 +1892,6 @@ pub fn reset_settings_section(
             .unwrap_or_else(|error| error.into_inner())
             .clone(),
         provider_view: state.providers.settings_view(),
-        artwork_view: ArtworkSettingsView::new(configured.artwork.clone()),
         player_selection: *state
             .selection
             .read()

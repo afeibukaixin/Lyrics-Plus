@@ -29,7 +29,6 @@ Failed to scan the lyrics library: {error}
 | 快速歌词窗口 | `quick lyrics window` |
 | 托盘菜单 | `tray` |
 | 歌词库扫描 | `lyrics library scan` |
-| 封面 | `artwork` |
 | 鼠标跟踪 | `mouse tracking` |
 | 原生磨砂效果 | `native overlay vibrancy effect` |
 

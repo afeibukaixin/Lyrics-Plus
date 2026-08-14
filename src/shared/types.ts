@@ -78,36 +78,6 @@ export type PlaybackSnapshot = {
   error: string | null;
 };
 
-export type ArtworkAsset = {
-  player: PlayerKind;
-  trackId: string;
-  filePath: string;
-  source: "player" | "cover_art_archive" | "itunes";
-  sourceLink: string | null;
-};
-
-export type ArtworkProviderPreference = { id: "cover_art_archive" | "itunes"; enabled: boolean };
-export type ItunesStorefront = "auto" | "CN" | "TW" | "HK" | "US";
-export type ArtworkSettings = {
-  networkFallback: boolean;
-  itunesStorefront: ItunesStorefront;
-  alwaysNetworkApplications: RegisteredApplication[];
-  providers: ArtworkProviderPreference[];
-};
-export type ArtworkProviderStatus = {
-  providerId: string;
-  name: string;
-  available: boolean;
-  message: string | null;
-};
-export type ArtworkSettingsView = { settings: ArtworkSettings; statuses: ArtworkProviderStatus[] };
-export type ArtworkCacheStatus = {
-  directory: string;
-  fileCount: number;
-  totalBytes: number;
-  warning: string | null;
-};
-
 export type LyricsLine = {
   startMs: number;
   endMs: number | null;
@@ -194,7 +164,7 @@ export type ProviderSettingsView = {
   statuses: ProviderStatus[];
 };
 
-export type SettingsSection = "overlay" | "lyrics" | "artwork" | "app";
+export type SettingsSection = "style" | "display" | "lyrics" | "player" | "about";
 export type LanguagePreference = "system" | SupportedLanguage;
 export type NativeLanguage = "zh-CN" | "en-US";
 
@@ -202,7 +172,6 @@ export type SettingsResetResponse = {
   overlaySettings: OverlaySettings;
   overlayStyle: OverlayStyle;
   providerView: ProviderSettingsView;
-  artworkView: ArtworkSettingsView;
   playerSelection: PlayerSelection;
   uiFontScale: number;
 };
@@ -223,7 +192,6 @@ export type AppConfig = {
     autoCheckUpdates: boolean;
     shortcuts: GlobalShortcutSettings;
   };
-  artwork: ArtworkSettings;
   lyrics: {
     providers: ProviderSettings;
   };
@@ -267,31 +235,6 @@ export type LyricsSearchInput = {
   durationMs: number | null;
 };
 
-export type LibraryEntry = {
-  path: string;
-  fileName: string;
-  title: string;
-  artist: string;
-  source: string;
-  format: string;
-  durationMs: number | null;
-  fileSize: number;
-  modifiedAtMs: number | null;
-  duplicateCount: number;
-  associationCount: number;
-  hasTranslation: boolean;
-  hasWordTiming: boolean;
-  hasRomanization: boolean;
-};
-
-export type LibraryPage = {
-  libraryDir: string;
-  entries: LibraryEntry[];
-  totalCount: number;
-  offset: number;
-  limit: number;
-};
-
 export type LibraryScanPhase =
   | "idle"
   | "discovering"
@@ -308,12 +251,6 @@ export type LibraryScanStatus = {
   total: number | null;
   skipped: number;
   error: string | null;
-};
-
-export type LibraryPreview = {
-  entry: LibraryEntry;
-  raw: string;
-  document: LyricsDocument | null;
 };
 
 export type OverlayStyle = {

@@ -1,4 +1,3 @@
-mod artwork;
 mod commands;
 mod config;
 mod language;
@@ -8,7 +7,6 @@ mod player;
 mod player_lifecycle;
 mod storage;
 
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
@@ -19,7 +17,7 @@ pub(crate) use overlay_effect::sync_overlay_vibrancy;
 use overlay_effect::{HORIZONTAL_OVERLAY_SURFACE_INSET, VERTICAL_OVERLAY_SURFACE_INSET};
 use player::{query_selected_player, PlayerSelection, SystemMediaService};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
-use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
@@ -527,21 +525,7 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     tray_builder
         .tooltip("Lyrics Plus")
         .menu(&menu)
-        .show_menu_on_left_click(false)
-        .on_tray_icon_event(|tray, event| {
-            if matches!(
-                event,
-                TrayIconEvent::Click {
-                    button: MouseButton::Left,
-                    button_state: MouseButtonState::Up,
-                    ..
-                }
-            ) {
-                if let Err(error) = show_main_window_centered(tray.app_handle()) {
-                    log::warn!("Failed to show the main window from the tray: {error}");
-                }
-            }
-        })
+        .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "toggle-overlay" => {
                 let visible = app
@@ -558,7 +542,7 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                 }
             }
             "settings" => {
-                if let Err(error) = show_main_window_at(app, Some("#/settings")) {
+                if let Err(error) = show_main_window_centered(app) {
                     log::warn!("Failed to open settings from the tray: {error}");
                 }
             }
@@ -925,7 +909,7 @@ fn center_main_window_on_cursor(
 }
 
 pub(crate) fn show_main_window_centered(app: &tauri::AppHandle) -> Result<(), String> {
-    show_main_window_at(app, None)
+    show_main_window_at(app, Some("#/settings"))
 }
 
 fn should_show_main_window(notice_accepted: bool, silent_startup: bool) -> bool {
@@ -1837,26 +1821,6 @@ pub fn run() {
             let storage = storage::Storage::new(app.handle())?;
             let notice_accepted = legal_notice_accepted(&storage).unwrap_or(false);
             let app_dir = app.path().app_data_dir()?;
-            let default_artwork_dir = app.path().app_cache_dir()?.join("artworks");
-            let preferred_artwork_dir = storage
-                .get_preference(artwork::CACHE_DIRECTORY_PREFERENCE)
-                .unwrap_or(None)
-                .map(PathBuf::from);
-            let artwork = match preferred_artwork_dir {
-                Some(path) => match artwork::ArtworkService::new(path) {
-                    Ok(service) => service,
-                    Err(error) => {
-                        let service = artwork::ArtworkService::new(default_artwork_dir)?;
-                        service.set_warning(Some(format!(
-                            "保存的封面目录不可用，已临时使用默认目录：{error}"
-                        )));
-                        service
-                    }
-                },
-                None => artwork::ArtworkService::new(default_artwork_dir)?,
-            };
-            app.asset_protocol_scope()
-                .allow_directory(artwork.cache_directory(), true)?;
             let (config, migrated) = ConfigStore::load(&app_dir, &storage)
                 .map_err(|error| std::io::Error::other(error))?;
             let config = Arc::new(config);
@@ -1911,7 +1875,6 @@ pub fn run() {
                 storage: Arc::new(storage),
                 config,
                 providers: Arc::new(lyrics::provider::ProviderRegistry::new(provider_settings)),
-                artwork: Arc::new(artwork),
                 system_media: Arc::new(SystemMediaService::default()),
                 http: reqwest::Client::builder()
                     .user_agent(concat!(
@@ -1963,13 +1926,6 @@ pub fn run() {
                         return;
                     }
                     api.prevent_close();
-                    if let Some(main_window) = window.app_handle().get_webview_window("main") {
-                        if let Err(error) = main_window.eval("window.location.hash = '#/'") {
-                            log::warn!(
-                                "Failed to reset the main window route before hiding it: {error}"
-                            );
-                        }
-                    }
                     let _ = window.hide();
                 }
             }
@@ -2014,14 +1970,6 @@ pub fn run() {
             commands::accept_legal_notice,
             commands::quit_application,
             commands::get_playback_snapshot,
-            commands::get_track_artwork,
-            commands::get_artwork_settings,
-            commands::set_artwork_settings,
-            commands::test_artwork_provider,
-            commands::get_artwork_cache_status,
-            commands::set_artwork_cache_directory,
-            commands::open_artwork_cache_directory,
-            commands::clear_artwork_cache,
             commands::get_player_selection,
             commands::set_player_selection,
             commands::player_action,
@@ -2034,13 +1982,9 @@ pub fn run() {
             commands::import_lyrics,
             commands::set_lyrics_offset,
             commands::remove_lyrics_association,
-            commands::get_library_page,
             commands::get_library_scan_status,
             commands::set_lyrics_directory,
-            commands::rescan_lyrics_library,
-            commands::preview_library_entry,
             commands::open_lyrics_directory,
-            commands::reveal_library_entry,
             commands::set_overlay_visible,
             commands::get_overlay_settings,
             commands::set_overlay_locked,

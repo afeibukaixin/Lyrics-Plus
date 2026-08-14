@@ -14,11 +14,6 @@ use super::{ensure_track_id, now_ms, PlaybackErrorCode, PlaybackSnapshot, Player
 mod apple_music;
 mod spotify;
 
-pub(crate) use apple_music::{
-    export_artwork as export_apple_music_artwork, ArtworkExport as AppleMusicArtworkExport,
-};
-pub(crate) use spotify::artwork_url as spotify_artwork_url;
-
 const PLAYER_STATE: AEKeyword = u32::from_be_bytes(*b"pPlS");
 const CURRENT_TRACK: AEKeyword = u32::from_be_bytes(*b"pTrk");
 const PLAYER_POSITION: AEKeyword = u32::from_be_bytes(*b"pPos");
@@ -29,7 +24,6 @@ const DURATION: AEKeyword = u32::from_be_bytes(*b"pDur");
 const PLAYING: u32 = u32::from_be_bytes(*b"kPSP");
 const STOPPED: u32 = u32::from_be_bytes(*b"kPSS");
 const REQUEST_TIMEOUT_TICKS: i64 = 3 * 60;
-pub(super) const ARTWORK_TIMEOUT_TICKS: i64 = 4 * 60;
 
 #[derive(Debug, Clone)]
 pub(super) struct AutomationError {
@@ -183,24 +177,6 @@ impl AutomationSession<'_> {
 
     pub(super) fn current_track(&self) -> Result<Option<Retained<SBObject>>, AutomationError> {
         self.object(self.app, CURRENT_TRACK)
-    }
-
-    pub(super) fn first_element(
-        &self,
-        object: &SBObject,
-        code: AEKeyword,
-    ) -> Result<Option<Retained<SBObject>>, AutomationError> {
-        self.delegate.reset();
-        let elements = unsafe { object.elementArrayWithCode(code) };
-        let value = elements.firstObject();
-        self.finish(self.app)?;
-        value
-            .map(|value| {
-                value
-                    .downcast::<SBObject>()
-                    .map_err(|_| AutomationError::unavailable("播放器返回了无效对象"))
-            })
-            .transpose()
     }
 
     pub(super) fn command(

@@ -32,15 +32,10 @@ export const languageRegistry = {
 } as const;
 
 export type SupportedLanguage = keyof typeof languageRegistry;
-export type ItunesCountry = "CN" | "TW" | "HK" | "US";
 
 export const supportedLanguages = Object.keys(languageRegistry) as SupportedLanguage[];
 
 export function matchSupportedLanguage(language: string): SupportedLanguage | null {
   const normalized = language.trim().replace(/_/g, "-").toLowerCase();
   return supportedLanguages.find((code) => languageRegistry[code].matches(normalized)) ?? null;
-}
-
-export function itunesCountryForLanguage(language: SupportedLanguage): ItunesCountry {
-  return language === "zh-CN" ? "CN" : language === "zh-TW" ? "TW" : language === "zh-HK" ? "HK" : "US";
 }

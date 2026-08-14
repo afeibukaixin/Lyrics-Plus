@@ -932,7 +932,7 @@ export default function Overlay() {
               onClick={() => toggleSupportingTrack("romanization")}
             >{t("overlay.toolbar.romanizationGlyph")}</button>
             <button aria-label={t("overlay.toolbar.hide")} title={t("overlay.toolbar.hide")} onClick={() => void api.setOverlayVisible(false)}><UiIcon name="eyeSlash" /></button>
-            <button aria-label={t("overlay.toolbar.openSettings")} title={t("overlay.toolbar.openSettings")} onClick={() => void api.showMainWindow("settings")}><UiIcon name="gear" /></button>
+            <button aria-label={t("overlay.toolbar.openSettings")} title={t("overlay.toolbar.openSettings")} onClick={() => void api.showMainWindow()}><UiIcon name="gear" /></button>
           </div>
         </>
       )}

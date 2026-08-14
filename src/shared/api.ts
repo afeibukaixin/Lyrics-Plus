@@ -4,11 +4,6 @@ import { reportFrontendError } from "./debugLog";
 export { isTauriRuntime } from "./tauriEvent";
 import type {
   AppConfig,
-  ArtworkAsset,
-  ArtworkCacheStatus,
-  ArtworkProviderStatus,
-  ArtworkSettings,
-  ArtworkSettingsView,
   ConfigExport,
   ConfigDraftValidation,
   ConfigEditorData,
@@ -18,8 +13,6 @@ import type {
   LegalNoticeStatus,
   NativeLanguage,
   LyricsDocument,
-  LibraryPage,
-  LibraryPreview,
   LibraryScanStatus,
   LyricsSearchInput,
   LyricsSearchResult,
@@ -29,7 +22,6 @@ import type {
   OverlayStyle,
   PlaybackSnapshot,
   PlayerFollowerServiceState,
-  PlayerKind,
   PlayerSelection,
   ProviderSettings,
   ProviderSettingsView,
@@ -73,18 +65,6 @@ export const api = {
   acceptLegalNotice: () => invoke<void>("accept_legal_notice"),
   quitApplication: () => invoke<void>("quit_application"),
   getPlayback: () => invoke<PlaybackSnapshot>("get_playback_snapshot"),
-  getTrackArtwork: (player: PlayerKind, trackId: string, allowNetwork: boolean, itunesCountry: string) =>
-    invoke<ArtworkAsset | null>("get_track_artwork", { player, trackId, allowNetwork, itunesCountry }),
-  getArtworkSettings: () => invoke<ArtworkSettingsView>("get_artwork_settings"),
-  setArtworkSettings: (settings: ArtworkSettings) =>
-    invoke<ArtworkSettingsView>("set_artwork_settings", { settings }),
-  testArtworkProvider: (providerId: string, itunesCountry: string) =>
-    invoke<ArtworkProviderStatus>("test_artwork_provider", { providerId, itunesCountry }),
-  getArtworkCacheStatus: () => invoke<ArtworkCacheStatus>("get_artwork_cache_status"),
-  setArtworkCacheDirectory: (path: string) =>
-    invoke<ArtworkCacheStatus>("set_artwork_cache_directory", { path }),
-  openArtworkCacheDirectory: () => invoke<void>("open_artwork_cache_directory"),
-  clearArtworkCache: () => invoke<ArtworkCacheStatus>("clear_artwork_cache"),
   getPlayerSelection: () => invoke<PlayerSelection>("get_player_selection"),
   setPlayerSelection: (selection: PlayerSelection) =>
     invoke<void>("set_player_selection", { selection }),
@@ -92,16 +72,10 @@ export const api = {
     invoke<void>("player_action", { action, positionMs }),
   getCachedLyrics: (trackKey: string) =>
     invoke<LyricsDocument | null>("get_cached_lyrics", { trackKey }),
-  getLibraryPage: (query = "", offset = 0, limit = 100) =>
-    invoke<LibraryPage>("get_library_page", { query, offset, limit }),
   getLibraryScanStatus: () => invoke<LibraryScanStatus>("get_library_scan_status"),
   setLyricsDirectory: (path: string) =>
     invoke<LibraryScanStatus>("set_lyrics_directory", { path }),
-  rescanLyricsLibrary: () => invoke<LibraryScanStatus>("rescan_lyrics_library"),
-  previewLibraryEntry: (path: string) =>
-    invoke<LibraryPreview>("preview_library_entry", { path }),
   openLyricsDirectory: () => invoke<void>("open_lyrics_directory"),
-  revealLibraryEntry: (path: string) => invoke<void>("reveal_library_entry", { path }),
   searchLyrics: (input: LyricsSearchInput) => invoke<SearchResponse>("search_lyrics", { input }),
   getProviderSettings: () => invoke<ProviderSettingsView>("get_provider_settings"),
   setProviderSettings: (settings: ProviderSettings) =>
@@ -158,7 +132,7 @@ export const api = {
     invoke<OverlayResizeBounds>("resize_overlay_edge", { edge, mainSize, minimumMainSize }),
   fitOverlayContent: (width: number, height: number) =>
     invoke<boolean>("fit_overlay_content", { width, height }),
-  showMainWindow: (page?: "settings") => invoke<void>("show_main_window", { page: page ?? null }),
+  showMainWindow: () => invoke<void>("show_main_window"),
   showQuickLyricsWindow: () => invoke<void>("show_quick_lyrics_window"),
   resetSettingsSection: (section: SettingsSection) =>
     invoke<SettingsResetResponse>("reset_settings_section", { section }),
@@ -208,7 +182,7 @@ export const api = {
 
 export function messageOf(error: unknown): string {
   if (error instanceof AppOperationError) {
-    if (["set_global_shortcuts", "set_provider_settings", "set_artwork_settings", "set_system_media_filter_mode", "set_system_media_applications", "resolve_system_media_applications", "resolve_player_follower_application", "set_player_follower_application", "resolve_application_by_bundle_id"].includes(error.command) && error.message) return error.message;
+    if (["set_global_shortcuts", "set_provider_settings", "set_system_media_filter_mode", "set_system_media_applications", "resolve_system_media_applications", "resolve_player_follower_application", "set_player_follower_application", "resolve_application_by_bundle_id"].includes(error.command) && error.message) return error.message;
     return error.code === "config.conflict"
       ? appI18n.t("errors.configConflict")
       : appI18n.t("errors.command");

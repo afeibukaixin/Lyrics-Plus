@@ -8,7 +8,7 @@ import {
   type SetStateAction,
 } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { Link, NavLink, Outlet, useOutletContext } from "react-router";
+import { NavLink, Outlet, useLocation, useOutletContext } from "react-router";
 import { useTranslation } from "react-i18next";
 import { UiIcon } from "../components/UiIcon";
 import { useLyrics } from "../features/lyrics/useLyrics";
@@ -25,6 +25,7 @@ import {
   type SettingsSection,
 } from "../shared/types";
 import styles from "./settings.module.scss";
+import { rememberSettingsPath } from "../router/settingsRoute";
 
 type ProviderDragState = {
   providerId: string;
@@ -80,6 +81,7 @@ export type SettingsOutletContext = {
 
 export default function Settings() {
   const { t } = useTranslation();
+  const location = useLocation();
   const {
     config,
     setUiFontScale,
@@ -108,6 +110,8 @@ export default function Settings() {
   const [savingProviderOrder, setSavingProviderOrder] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => rememberSettingsPath(location.pathname), [location.pathname]);
 
   useEffect(() => {
     document.documentElement.dataset.window = "main";
@@ -297,10 +301,11 @@ export default function Settings() {
 
   const resetSection = async (target: SettingsSection) => {
     const names: Record<SettingsSection, string> = {
-      overlay: t("settings.shell.nav.overlay"),
+      style: t("settings.shell.nav.style"),
+      display: t("settings.shell.nav.display"),
       lyrics: t("settings.shell.nav.lyrics"),
-      artwork: t("settings.shell.nav.artwork"),
-      app: t("settings.shell.nav.app"),
+      player: t("settings.shell.nav.player"),
+      about: t("settings.shell.nav.about"),
     };
     if (confirmingReset !== target) {
       if (resetConfirmTimer.current !== null) clearTimeout(resetConfirmTimer.current);
@@ -400,18 +405,15 @@ export default function Settings() {
   return (
     <main className={styles.shell}>
       <header className={styles.header}>
-        <div><Link to="/">{t("settings.shell.backHome")}</Link><h1>{t("settings.shell.title")}</h1></div>
-        <Link className={styles.libraryLink} to="/library">{t("settings.shell.library")}</Link>
+        <div><span>Lyrics Plus</span><h1>{t("settings.shell.title")}</h1></div>
       </header>
 
       <div className={styles.settingsLayout}>
         <nav className={styles.sidebar} aria-label={t("settings.shell.navigation")}>
-          <NavLink to="/settings/overlay"><UiIcon name="monitor" /><div><strong>{t("settings.shell.nav.overlay")}</strong><small>{t("settings.shell.nav.overlayHint")}</small></div></NavLink>
+          <NavLink to="/settings/style"><UiIcon name="selectionBackground" /><div><strong>{t("settings.shell.nav.style")}</strong><small>{t("settings.shell.nav.styleHint")}</small></div></NavLink>
+          <NavLink to="/settings/display"><UiIcon name="monitor" /><div><strong>{t("settings.shell.nav.display")}</strong><small>{t("settings.shell.nav.displayHint")}</small></div></NavLink>
           <NavLink to="/settings/lyrics"><UiIcon name="musicNotes" /><div><strong>{t("settings.shell.nav.lyrics")}</strong><small>{t("settings.shell.nav.lyricsHint")}</small></div></NavLink>
-          <NavLink to="/settings/artwork"><UiIcon name="checkerboard" /><div><strong>{t("settings.shell.nav.artwork")}</strong><small>{t("settings.shell.nav.artworkHint")}</small></div></NavLink>
-          <NavLink to="/settings/app"><UiIcon name="gear" /><div><strong>{t("settings.shell.nav.app")}</strong><small>{t("settings.shell.nav.appHint")}</small></div></NavLink>
-          <NavLink to="/settings/debug"><UiIcon name="bug" /><div><strong>{t("settings.shell.nav.debug")}</strong><small>{t("settings.shell.nav.debugHint")}</small></div></NavLink>
-          <NavLink to="/settings/config"><UiIcon name="bracketsCurly" /><div><strong>{t("settings.shell.nav.config")}</strong><small>{t("settings.shell.nav.configHint")}</small></div></NavLink>
+          <NavLink to="/settings/player"><UiIcon name="gear" /><div><strong>{t("settings.shell.nav.player")}</strong><small>{t("settings.shell.nav.playerHint")}</small></div></NavLink>
           <NavLink to="/settings/about"><UiIcon name="info" /><div><strong>{t("settings.shell.nav.about")}</strong><small>{t("settings.shell.nav.aboutHint")}</small></div></NavLink>
         </nav>
 

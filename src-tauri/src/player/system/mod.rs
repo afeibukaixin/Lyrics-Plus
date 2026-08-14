@@ -7,7 +7,6 @@ use std::sync::{
 };
 use std::time::{Duration, Instant, SystemTime};
 
-use image::DynamicImage;
 use media_remote::{NowPlayingInfo, NowPlayingPerl, Subscription};
 use serde_json::Value;
 
@@ -142,18 +141,6 @@ impl SystemMediaService {
                 "未检测到系统正在播放的媒体".into(),
             )
         })
-    }
-
-    pub fn artwork(&self, track_id: &str) -> Option<DynamicImage> {
-        let player = self.player().ok()?;
-        let info = player
-            .latest
-            .read()
-            .unwrap_or_else(|error| error.into_inner())
-            .clone()?;
-        (system_track_id(&info.info).as_deref() == Some(track_id))
-            .then(|| info.info.album_cover.clone())
-            .flatten()
     }
 
     pub fn perform_action(&self, action: &str, position_ms: Option<u64>) -> Result<(), String> {

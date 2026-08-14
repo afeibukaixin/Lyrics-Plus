@@ -18,7 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2.11.5", features = ["protocol-asset", "tray-icon", "macos-private-api"] }
+tauri = { version = "2.11.5", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-global-shortcut = "2"
@@ -32,7 +32,6 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 log = "0.4"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
-sha2 = "0.10"
 strsim = "0.11"
 tokio = { version = "1", features = ["macros", "sync", "time"] }
 wait-timeout = "0.2"
@@ -45,9 +44,9 @@ block2 = "0.6"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["NSBitmapImageRep", "NSEvent", "NSGraphics", "NSGraphicsContext", "NSImage", "NSImageRep", "NSResponder", "NSRunningApplication", "NSUserInterfaceItemIdentification", "NSView", "NSVisualEffectView", "NSWindow", "NSWorkspace", "libc", "objc2-core-graphics", "objc2-quartz-core"] }
 objc2-core-services = { version = "0.3", default-features = false, features = ["AE", "AEDataModel"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["block2", "NSArray", "NSAppleEventDescriptor", "NSBundle", "NSData", "NSDictionary", "NSEnumerator", "NSError", "NSGeometry", "NSNotification", "NSOperation", "NSString", "NSURL", "NSValue"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["block2", "NSArray", "NSAppleEventDescriptor", "NSBundle", "NSDictionary", "NSEnumerator", "NSError", "NSGeometry", "NSNotification", "NSOperation", "NSString", "NSURL", "NSValue"] }
 objc2-quartz-core = { version = "0.3", default-features = false, features = ["CALayer", "objc2-core-foundation"] }
-objc2-scripting-bridge = { version = "0.3", default-features = false, features = ["std", "SBApplication", "SBElementArray", "SBObject", "libc", "objc2-core-services"] }
+objc2-scripting-bridge = { version = "0.3", default-features = false, features = ["std", "SBApplication", "SBObject", "libc", "objc2-core-services"] }
 objc2-service-management = { version = "0.3", default-features = false, features = ["std", "block2", "objc2", "objc2-foundation", "SMAppService"] }
 media-remote = "=0.3.7"
 

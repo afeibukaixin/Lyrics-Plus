@@ -18,12 +18,11 @@ Choose transparent, horizontal or vertical, single-line or dual-line layouts. Ad
 
 ## Current Features
 
-- **Players:** Apple Music, Spotify, and compatible System Media apps; playback controls, source filtering, player-follow launch, and silent startup.
+- **Players:** Apple Music, Spotify, and compatible System Media apps; source filtering, player-follow launch, and silent startup.
 - **Lyrics:** concurrent LRCLIB, Kugou, QQMusic, and Netease search; candidate ranking, provider controls, title filtering, and Simplified/Traditional Chinese matching.
 - **Content:** synchronized LRC, translations, romanization, word-level timing, local import, offline library, and timing offset adjustment.
 - **Desktop:** always-on-top overlay across Spaces and displays, with move, resize, lock, click-through, and position reset.
-- **Artwork:** player artwork first, optional Cover Art Archive and iTunes lookup, storefront selection, higher-quality replacement, and managed cache.
-- **Application:** menu bar controls, global shortcuts, quick lyrics switching, JSONC configuration, live debug logs, four UI languages, and opt-in updates.
+- **Application:** a settings-only main window, menu bar controls, global shortcuts, quick lyrics switching, JSONC configuration, live debug logs, four UI languages, and opt-in updates.
 
 ## Download
 
@@ -68,9 +67,9 @@ pnpm tauri build
 
 ## Network Access and Copyright
 
-When online lyrics or artwork lookup is enabled, matching metadata such as title, artist, album, and duration is sent to the selected third-party services. Their content, availability, licensing, and data practices are outside this project's control.
+When an online lyrics source is enabled, matching metadata such as title, artist, album, and duration is sent to the selected third-party services. Their content, availability, licensing, and data practices are outside this project's control.
 
-Lyrics and artwork remain the property of their respective rights holders. Lyrics Plus only searches, parses, caches, imports, and displays content; it is not affiliated with Apple Music, Spotify, any lyrics provider, or any rights holder. The software is provided as is under the MIT License.
+Lyrics remain the property of their respective rights holders. Lyrics Plus only searches, parses, caches, imports, and displays them; it is not affiliated with Apple Music, Spotify, any lyrics provider, or any rights holder. The software is provided as is under the MIT License.
 
 ## Acknowledgements
 

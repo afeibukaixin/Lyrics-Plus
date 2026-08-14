@@ -33,7 +33,10 @@ export function ApplicationList({ applications, icons, busy, emptyLabel, removeL
       {icons[application.bundleId]
         ? <img alt="" src={icons[application.bundleId]} />
         : <span className={styles.applicationIconFallback}><UiIcon name="musicNote" /></span>}
-      <strong>{application.name}</strong>
+      <div className={styles.applicationDetails}>
+        <strong>{application.name}</strong>
+        <small>{application.bundleId}</small>
+      </div>
       <button aria-label={`${removeLabel} ${application.name}`} className={styles.applicationRemove} disabled={busy} title={removeLabel} onClick={() => onRemove(application.bundleId)}><UiIcon name="close" /></button>
     </div>
   ))}</div>;
