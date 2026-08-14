@@ -10,8 +10,10 @@ import { DebugLogProvider } from "./features/debug/DebugLogProvider";
 import { AppI18nProvider } from "./features/i18n/I18nProvider";
 import { LegalNoticeGate } from "./features/legal/LegalNoticeGate";
 import { UpdateProvider } from "./features/update/UpdateProvider";
+import { TooltipProvider } from "./components/ui/tooltip";
+import { Toaster } from "./components/ui/sonner";
 
-import "virtual:uno.css";
+import "./tailwind.css";
 import "./styles.scss";
 
 const view = new URLSearchParams(window.location.search).get("view");
@@ -35,7 +37,7 @@ const content = view === "overlay" ? (
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <AppConfigProvider windowType={windowType}>
-      <AppI18nProvider>{content}</AppI18nProvider>
+      <AppI18nProvider><TooltipProvider delayDuration={400}>{content}<Toaster /></TooltipProvider></AppI18nProvider>
     </AppConfigProvider>
   </React.StrictMode>
 );

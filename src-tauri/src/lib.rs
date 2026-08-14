@@ -1998,6 +1998,7 @@ pub fn run() {
             commands::show_quick_lyrics_window,
             commands::get_app_config,
             commands::set_ui_font_scale,
+            commands::set_theme,
             commands::resolve_system_media_applications,
             commands::set_system_media_filter_mode,
             commands::set_system_media_applications,

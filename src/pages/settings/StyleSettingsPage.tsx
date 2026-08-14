@@ -90,7 +90,7 @@ export default function StyleSettingsPage() {
             <RangeRow label={t("settings.overlay.backgroundOpacity")} value={style.backgroundOpacity} min={0} max={1} step={0.05} suffix="%" displayValue={Math.round(style.backgroundOpacity * 100)} onChange={(backgroundOpacity) => void updateStyle({ backgroundOpacity })} />
             <ColorRow label={t("settings.overlay.backgroundColor")} value={style.solidColor} onChange={(solidColor) => void updateStyle({ solidColor })} />
             <ToggleRow label={t("settings.overlay.glass")} value={style.background === "glass"} onChange={(enabled) => updateStyle({ background: enabled ? "glass" : "solid" })} />
-            {style.background === "glass" && <RangeRow label={t("settings.overlay.blur")} value={style.backgroundBlur} min={0} max={40} onChange={(backgroundBlur) => void updateStyle({ backgroundBlur })} />}
+            {style.background === "glass" && <RangeRow label={t("settings.overlay.blur")} value={style.backgroundBlur} min={0} max={40} suffix="%" onChange={(backgroundBlur) => void updateStyle({ backgroundBlur })} />}
           </>}
           <SelectRow label={t("settings.overlay.longLyrics")} value={style.longText} onChange={(longText) => void updateStyle({ longText: longText as OverlayStyle["longText"] })} options={[["shrink", t("settings.overlay.shrink")], ["wrap", t("settings.overlay.wrap")], ["marquee", t("settings.overlay.marquee")]]} />
           <SelectRow label={t("settings.overlay.alignment")} disabled={!alignmentAvailable} value={alignmentAvailable ? style.alignment : "center"} onChange={(alignment) => void updateStyle({ alignment: alignment as OverlayStyle["alignment"] })} options={[["center", t("settings.overlay.centered")], ["distributed", t("settings.overlay.distributed")]]} />

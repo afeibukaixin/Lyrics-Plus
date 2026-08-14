@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, isTauriRuntime } from "../../shared/api";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
-import { defaultGlobalShortcuts, defaultOverlayStyle, type AppConfig, type GlobalShortcutSettings, type LanguagePreference, type RegisteredApplication, type SystemMediaFilterMode } from "../../shared/types";
+import { defaultGlobalShortcuts, defaultOverlayStyle, type AppConfig, type GlobalShortcutSettings, type LanguagePreference, type RegisteredApplication, type SystemMediaFilterMode, type ThemePreference } from "../../shared/types";
 
 const defaultOverlayAppearance = (({
   horizontalMaxWidth: _horizontalMaxWidth,
@@ -16,8 +16,8 @@ const defaultTitleFilterKeywords = [
 ];
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 28,
-  app: { uiFontScale: 100, language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, silentStartup: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
+  schemaVersion: 29,
+  app: { theme: "dark", uiFontScale: 100, language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, silentStartup: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
       mode: "smart",
@@ -42,6 +42,7 @@ const defaultConfig: AppConfig = {
 type AppConfigContextValue = {
   config: AppConfig;
   setUiFontScale: (scale: number) => Promise<void>;
+  setTheme: (theme: ThemePreference) => Promise<void>;
   setLanguage: (language: LanguagePreference) => Promise<void>;
   setGlobalShortcuts: (shortcuts: GlobalShortcutSettings) => Promise<void>;
   setSystemMediaFilterMode: (mode: SystemMediaFilterMode) => Promise<void>;
@@ -80,8 +81,24 @@ export function AppConfigProvider({
   }, [windowType]);
 
   useEffect(() => {
-    document.documentElement.style.fontSize = `${19.2 * config.app.uiFontScale / 100}px`;
+    document.documentElement.style.setProperty("--ui-font-scale", String(config.app.uiFontScale / 100));
   }, [config.app.uiFontScale]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => {
+      const resolved = config.app.theme === "system"
+        ? (media.matches ? "dark" : "light")
+        : config.app.theme;
+      document.documentElement.dataset.theme = config.app.theme;
+      document.documentElement.dataset.resolvedTheme = resolved;
+      document.documentElement.classList.toggle("dark", resolved === "dark");
+      document.documentElement.style.colorScheme = resolved;
+    };
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, [config.app.theme]);
 
   const value = useMemo<AppConfigContextValue>(() => ({
     config,
@@ -92,6 +109,13 @@ export function AppConfigProvider({
         return;
       }
       setConfig(await api.setUiFontScale(scale));
+    },
+    setTheme: async (theme) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({ ...current, app: { ...current.app, theme } }));
+        return;
+      }
+      setConfig(await api.setTheme(theme));
     },
     setLanguage: async (language) => {
       if (!isTauriRuntime()) {

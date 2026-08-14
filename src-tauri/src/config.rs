@@ -16,8 +16,9 @@ use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSet
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 28;
+pub const CONFIG_SCHEMA_VERSION: u16 = 29;
 const APP_CONFIG_KEYS: &[&str] = &[
+    "theme",
     "uiFontScale",
     "language",
     "playerSelection",
@@ -42,6 +43,7 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             line if line.starts_with("    \"uiFontScale\":") => {
                 Some(("    ", ConfigComment::UiFontScale))
             }
+            line if line.starts_with("    \"theme\":") => Some(("    ", ConfigComment::Theme)),
             line if line.starts_with("    \"language\":") => {
                 Some(("    ", ConfigComment::Language))
             }
@@ -163,6 +165,7 @@ impl Default for AppConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AppPreferences {
+    pub theme: ThemePreference,
     pub ui_font_scale: u16,
     pub language: LanguagePreference,
     pub player_selection: PlayerSelection,
@@ -178,6 +181,7 @@ pub struct AppPreferences {
 impl Default for AppPreferences {
     fn default() -> Self {
         Self {
+            theme: ThemePreference::Dark,
             ui_font_scale: 100,
             language: LanguagePreference::default(),
             player_selection: PlayerSelection::Auto,
@@ -190,6 +194,15 @@ impl Default for AppPreferences {
             shortcuts: GlobalShortcutSettings::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ThemePreference {
+    System,
+    Light,
+    #[default]
+    Dark,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -862,11 +875,7 @@ fn sanitize_jsonc(raw: &str) -> Result<String, ConfigDraftError> {
 }
 
 fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftError> {
-    check_keys(
-        value,
-        raw,
-        &["schemaVersion", "app", "lyrics", "overlay"],
-    )?;
+    check_keys(value, raw, &["schemaVersion", "app", "lyrics", "overlay"])?;
     if let Some(app) = value.get("app") {
         check_keys(app, raw, APP_CONFIG_KEYS)?;
         if let Some(shortcuts) = app.get("shortcuts") {
@@ -1029,6 +1038,13 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         }
     }
     validate_language_preference(value, raw)?;
+    validate_string_option(
+        value,
+        raw,
+        "/app/theme",
+        "theme",
+        &["system", "light", "dark"],
+    )?;
     validate_string_option(
         value,
         raw,

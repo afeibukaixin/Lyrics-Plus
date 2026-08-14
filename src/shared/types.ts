@@ -166,6 +166,7 @@ export type ProviderSettingsView = {
 
 export type SettingsSection = "style" | "display" | "lyrics" | "player" | "about";
 export type LanguagePreference = "system" | SupportedLanguage;
+export type ThemePreference = "system" | "light" | "dark";
 export type NativeLanguage = "zh-CN" | "en-US";
 
 export type SettingsResetResponse = {
@@ -181,6 +182,7 @@ export type OverlayAppearance = Omit<OverlayStyle, "horizontalMaxWidth" | "verti
 export type AppConfig = {
   schemaVersion: number;
   app: {
+    theme: ThemePreference;
     uiFontScale: number;
     language: string;
     playerSelection: PlayerSelection;

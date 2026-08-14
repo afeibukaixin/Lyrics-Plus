@@ -13,7 +13,7 @@ use crate::config::{
     normalize_player_follower_application, normalize_system_media_applications,
     validate_config_draft, AppConfig, ConfigDraftValidation, ConfigEditorData, ConfigStore,
     GlobalShortcutSettings, LanguagePreference, OverlayAppearance, RegisteredApplication,
-    SystemMediaFilterMode,
+    SystemMediaFilterMode, ThemePreference,
 };
 use crate::language::UiLanguage;
 use crate::lyrics::provider::{
@@ -1233,6 +1233,18 @@ pub fn set_ui_font_scale(
     let config = state
         .config
         .update(|config| config.app.ui_font_scale = scale)?;
+    app.emit("config://changed", &config)
+        .map_err(|error| error.to_string())?;
+    Ok(config)
+}
+
+#[tauri::command]
+pub fn set_theme(
+    app: tauri::AppHandle,
+    theme: ThemePreference,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let config = state.config.update(|config| config.app.theme = theme)?;
     app.emit("config://changed", &config)
         .map_err(|error| error.to_string())?;
     Ok(config)

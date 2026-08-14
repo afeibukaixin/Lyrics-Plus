@@ -30,6 +30,7 @@ import type {
   SettingsResetResponse,
   SettingsSection,
   SystemMediaFilterMode,
+  ThemePreference,
   ToolbarPlacement,
   RegisteredApplication,
 } from "./types";
@@ -136,6 +137,7 @@ export const api = {
     invoke<SettingsResetResponse>("reset_settings_section", { section }),
   getAppConfig: () => invoke<AppConfig>("get_app_config"),
   setUiFontScale: (scale: number) => invoke<AppConfig>("set_ui_font_scale", { scale }),
+  setTheme: (theme: ThemePreference) => invoke<AppConfig>("set_theme", { theme }),
   resolveSystemMediaApplications: (paths: string[]) =>
     invoke<RegisteredApplication[]>("resolve_system_media_applications", { paths }),
   setSystemMediaFilterMode: (mode: SystemMediaFilterMode) =>

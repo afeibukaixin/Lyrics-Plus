@@ -23,6 +23,7 @@ pub struct NativeLabels {
 pub enum ConfigComment {
     SchemaVersion,
     UiFontScale,
+    Theme,
     Language,
     PlayerSelection,
     SystemMediaFilterMode,
@@ -81,6 +82,7 @@ impl UiLanguage {
         match (self, comment) {
             (Self::ZhCn, ConfigComment::SchemaVersion) => "配置结构版本，通常由 Lyrics Plus 管理。",
             (Self::ZhCn, ConfigComment::UiFontScale) => "界面文字缩放：80–150，步进为 10%。",
+            (Self::ZhCn, ConfigComment::Theme) => "应用主题：dark、light 或 system。",
             (Self::ZhCn, ConfigComment::Language) => "界面语言：system 或 BCP 47 语言标签，例如 zh-CN、zh-TW、en-US。",
             (Self::ZhCn, ConfigComment::PlayerSelection) => "播放器选择：auto、apple_music、spotify 或 system。",
             (Self::ZhCn, ConfigComment::SystemMediaFilterMode) => "系统媒体第三方应用筛选：allowlist 仅允许列表，blocklist 排除列表。",
@@ -111,6 +113,7 @@ impl UiLanguage {
             (Self::ZhCn, ConfigComment::SecondaryFontScale) => "下一句、翻译和音译文字的缩放比例：0.35–1.0。",
             (Self::EnUs, ConfigComment::SchemaVersion) => "Configuration schema version. Usually managed by Lyrics Plus.",
             (Self::EnUs, ConfigComment::UiFontScale) => "Interface text scale: 80–150 in 10% increments.",
+            (Self::EnUs, ConfigComment::Theme) => "Application theme: dark, light, or system.",
             (Self::EnUs, ConfigComment::Language) => "Interface language: system or a BCP 47 language tag, such as zh-CN, zh-TW, or en-US.",
             (Self::EnUs, ConfigComment::PlayerSelection) => "Player selection: auto, apple_music, spotify, or system.",
             (Self::EnUs, ConfigComment::SystemMediaFilterMode) => "System Media filtering for third-party apps: allowlist permits listed apps; blocklist excludes them.",

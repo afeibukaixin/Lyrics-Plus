@@ -1,0 +1,84 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+:root {
+  --background: #f7f8fa;
+  --foreground: #17191f;
+  --card: #ffffff;
+  --card-foreground: #17191f;
+  --popover: #ffffff;
+  --popover-foreground: #17191f;
+  --primary: #007aff;
+  --primary-foreground: #ffffff;
+  --secondary: #eef0f4;
+  --secondary-foreground: #252830;
+  --muted: #eef0f4;
+  --muted-foreground: #676c78;
+  --accent: #e8f2ff;
+  --accent-foreground: #0059b8;
+  --destructive: #dc2626;
+  --success: #22a06b;
+  --warning: #d97706;
+  --border: #dfe2e8;
+  --input: #d4d8e0;
+  --ring: #007aff;
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: #0c0e13;
+  --foreground: #f1f3f7;
+  --card: #13161d;
+  --card-foreground: #f1f3f7;
+  --popover: #181b23;
+  --popover-foreground: #f1f3f7;
+  --primary: #0a84ff;
+  --primary-foreground: #ffffff;
+  --secondary: #20242d;
+  --secondary-foreground: #eef1f6;
+  --muted: #1b1e26;
+  --muted-foreground: #9ca3af;
+  --accent: #192b42;
+  --accent-foreground: #8cc5ff;
+  --destructive: #ef4444;
+  --success: #32d583;
+  --warning: #f5a524;
+  --border: #292d37;
+  --input: #343945;
+  --ring: #0a84ff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
