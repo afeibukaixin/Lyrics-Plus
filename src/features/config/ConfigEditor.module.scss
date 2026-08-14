@@ -34,3 +34,17 @@
   .columns { grid-template-columns: 1fr; grid-template-rows: minmax(260px, 1fr) minmax(260px, 1fr); }
   .toolbar > span { width: 100%; margin-left: 0; text-align: left; }
 }
+
+:global(html:not(.dark)) {
+  .header p, .toolbar > span, .panel > header span { color: var(--muted-foreground); }
+  .actions button, .toolbar button { border-color: var(--border); background: var(--secondary); color: var(--secondary-foreground); }
+  .actions button:hover:not(:disabled), .toolbar button:hover { border-color: var(--primary); color: var(--foreground); }
+  .actions button[data-primary="true"] { border-color: var(--primary); background: var(--primary); color: var(--primary-foreground); }
+  .toolbar, .panel > header { border-color: var(--border); background: var(--card); }
+  .panel { border-color: var(--border); background: color-mix(in srgb, var(--background) 82%, var(--card)); }
+  .panel .codeFrame > pre:not(.lineNumbers), .panel textarea { color: var(--foreground); }
+  .panel pre, .panel .lineNumbers { color: var(--muted-foreground); }
+  .panel .lineNumbers { border-color: var(--border); }
+  .panel textarea { caret-color: var(--primary); }
+  .panel textarea:focus { box-shadow: inset 0 0 0 1px var(--ring); }
+}

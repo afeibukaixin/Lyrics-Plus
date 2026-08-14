@@ -14,6 +14,7 @@ import { Bug, FileJson, Info, MonitorUp, Moon, Music2, Palette, Settings2, Slide
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../components/ui/alert-dialog";
 import { Button } from "../components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
+import { toast } from "sonner";
 import { useLyrics } from "../features/lyrics/useLyrics";
 import { usePlayback } from "../features/player/usePlayback";
 import { useAppConfig } from "../features/config/AppConfigProvider";
@@ -137,8 +138,8 @@ export default function Settings() {
 
   useEffect(() => {
     if (!notice) return;
-    const timer = setTimeout(() => setNotice(null), 3200);
-    return () => clearTimeout(timer);
+    toast.success(notice);
+    setNotice(null);
   }, [notice]);
 
   useEffect(() => {
@@ -156,12 +157,14 @@ export default function Settings() {
   }, [lyrics.providerStatuses]);
 
   const updateStyle = async (patch: Partial<OverlayStyle>) => {
+    const previous = style;
     const next = { ...style, ...patch };
     setStyle(next);
     try {
       setStyle(await api.setOverlayStyle(next));
       return true;
     } catch (value) {
+      setStyle(previous);
       setError(messageOf(value));
       return false;
     }
@@ -427,9 +430,8 @@ export default function Settings() {
           </div>
         </nav>
 
-        <div className={styles.content}><Outlet context={context} /></div>
+        <div className={styles.content}>{error && <div className={styles.inlineError} role="alert"><span>{error}</span><button aria-label={t("settings.shell.closeToast")} onClick={() => setError(null)}><X /></button></div>}<Outlet context={context} /></div>
       </div>
-      {(error || notice) && <div className={styles.toast} data-error={Boolean(error)}>{error ?? notice}<button aria-label={t("settings.shell.closeToast")} onClick={() => { setError(null); setNotice(null); }}><X /></button></div>}
       <AlertDialog open={confirmingReset !== null} onOpenChange={(open) => { if (!open && !resettingSection) setConfirmingReset(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>{t("settings.shell.resetTitle")}</AlertDialogTitle><AlertDialogDescription>{t("settings.shell.resetConfirm")}</AlertDialogDescription></AlertDialogHeader>

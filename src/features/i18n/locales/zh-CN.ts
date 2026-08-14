@@ -3,7 +3,7 @@ export const zhCN = {
     language: { system: "跟随系统" },
     actions: {
       apply: "应用", clear: "清除", close: "关闭", test: "测试", testAll: "一键测试全部", testing: "测试中",
-      reset: "重置", resetDefault: "恢复默认", resetting: "恢复中…", confirmAgain: "再次点击确认",
+      reset: "重置", resetDefault: "恢复默认", resetting: "恢复中…",
       search: "搜索", searching: "搜索中…", reload: "重新载入", open: "打开", save: "保存", cancel: "取消", remove: "移除",
     },
     feature: {
@@ -172,8 +172,8 @@ export const zhCN = {
       textEffects: "文字与效果", fontSize: "字号", opacity: "透明度", activeColor: "高亮颜色", inactiveColor: "未唱颜色",
       karaoke: "卡拉 OK 效果", karaokeSweep: "逐词扫光", karaokeBounce: "逐词弹跳", karaokeHighlight: "纯高亮",
       backgroundLayout: "背景与排版", backgroundMode: "背景模式", solid: "纯色", transparent: "透明", backgroundOpacity: "背景透明度",
-      backgroundColor: "背景颜色", glass: "毛玻璃", glassHint: "独立模糊背景；透明度为 0% 时仍然生效", blur: "磨砂强度",
-      lyricLayout: "歌词布局", textDirection: "文字方向", alignment: "歌词对齐", centered: "居中", distributed: "主副分居",
+      backgroundColor: "背景颜色", glass: "毛玻璃", glassHint: "独立模糊背景；透明度为 0% 时仍然生效", blur: "磨砂强度", requiresVisibleBackground: "仅在显示背景时可用", requiresGlassBackground: "仅在显示毛玻璃背景时可用",
+      lyricLayout: "歌词布局", textDirection: "文字方向", alignment: "歌词对齐", centered: "居中", distributed: "主副分居", requiresDoubleLayout: "仅双排歌词支持主副分居", requiresTranslation: "开启翻译后可调整", requiresRomanization: "开启音译后可调整",
       alignmentVertical: "主副分居会将右侧主歌词靠上、左侧副歌词靠下", alignmentHorizontal: "主副分居会将主歌词靠左、副歌词靠右", alignmentFixed: "当前布局固定居中",
       longLyrics: "长歌词", shrink: "智能缩放", wrap: "自动换行", marquee: "超出时滚动", secondary: "副歌词、翻译与音译",
       secondarySize: "副歌词字号", showTranslation: "显示翻译", translationSize: "翻译字号", translationColor: "翻译颜色",

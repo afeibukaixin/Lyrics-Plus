@@ -243,3 +243,10 @@
   .active[data-marquee="true"] > span, .next[data-marquee="true"] > span { animation: none; }
   .karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] { animation: none; }
 }
+
+:global(html:not(.dark)) {
+  .toolbar { border-color: rgb(0 0 0 / 14%); background: rgb(255 255 255 / 88%); box-shadow: 0 7px 24px rgb(0 0 0 / 18%); }
+  .toolbar button { color: rgb(20 24 32 / 72%); }
+  .toolbar button:hover:not(:disabled), .toolbar button[data-on="true"] { background: rgb(0 122 255 / 12%); color: #006be0; }
+  .offsetControl { border-color: rgb(0 0 0 / 10%); background: rgb(0 0 0 / 4%); }
+}

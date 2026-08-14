@@ -5,7 +5,7 @@ export const enUS = {
     language: { system: "Use system language" },
     actions: {
       apply: "Apply", clear: "Clear", close: "Close", test: "Test", testAll: "Test all", testing: "Testing",
-      reset: "Reset", resetDefault: "Restore defaults", resetting: "Restoring…", confirmAgain: "Click again to confirm",
+      reset: "Reset", resetDefault: "Restore defaults", resetting: "Restoring…",
       search: "Search", searching: "Searching…", reload: "Reload", open: "Open", save: "Save", cancel: "Cancel", remove: "Remove",
     },
     feature: {
@@ -174,8 +174,8 @@ export const enUS = {
       textEffects: "Text & Effects", fontSize: "Font size", opacity: "Opacity", activeColor: "Highlight color", inactiveColor: "Unplayed color",
       karaoke: "Karaoke effect", karaokeSweep: "Word sweep", karaokeBounce: "Word bounce", karaokeHighlight: "Highlight only",
       backgroundLayout: "Background & Layout", backgroundMode: "Background mode", solid: "Solid", transparent: "Transparent", backgroundOpacity: "Background opacity",
-      backgroundColor: "Background color", glass: "Glass blur", glassHint: "Blur the background independently; it remains active at 0% opacity", blur: "Blur strength",
-      lyricLayout: "Lyrics layout", textDirection: "Text direction", alignment: "Lyrics alignment", centered: "Centered", distributed: "Split primary/secondary",
+      backgroundColor: "Background color", glass: "Glass blur", glassHint: "Blur the background independently; it remains active at 0% opacity", blur: "Blur strength", requiresVisibleBackground: "Available when the background is visible", requiresGlassBackground: "Available with a visible glass background",
+      lyricLayout: "Lyrics layout", textDirection: "Text direction", alignment: "Lyrics alignment", centered: "Centered", distributed: "Split primary/secondary", requiresDoubleLayout: "Primary/secondary splitting requires double-line lyrics", requiresTranslation: "Enable translation to adjust this", requiresRomanization: "Enable romanization to adjust this",
       alignmentVertical: "Primary lyrics align toward the upper right and secondary lyrics toward the lower left", alignmentHorizontal: "Primary lyrics align left and secondary lyrics right", alignmentFixed: "This layout is always centered",
       longLyrics: "Long lyrics", shrink: "Smart scaling", wrap: "Wrap", marquee: "Scroll when overflowing", secondary: "Secondary Lyrics, Translation & Romanization",
       secondarySize: "Secondary lyrics size", showTranslation: "Show translation", translationSize: "Translation size", translationColor: "Translation color",

@@ -91,7 +91,7 @@
 .progress { display: grid; gap: 8px; padding: 16px 24px 0; }
 .progress > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #aeb3c1; font-size: var(--typography-label-size); }
 .progress span { display: inline-flex; align-items: center; gap: 7px; }
-.progress span > span { width: 14px; height: 14px; color: #a98fff; }
+.progress span > svg { width: 14px; height: 14px; color: var(--primary); }
 .progress strong { color: #c9bcff; font-variant-numeric: tabular-nums; }
 .progress progress { width: 100%; height: 6px; overflow: hidden; appearance: none; border: 0; border-radius: 99px; background: #303441; }
 .progress progress::-webkit-progress-bar { background: #303441; }
@@ -119,4 +119,14 @@
 
 @media (prefers-reduced-motion: reduce) {
   .dialog[open], .progress progress:indeterminate { animation: none; }
+}
+
+:global(html:not(.dark)) {
+  .dialog { color: var(--foreground); background: var(--background); border-color: var(--border); box-shadow: 0 28px 90px rgb(0 0 0 / 24%); }
+  .heading > span, .versionRow strong, .progress strong { color: var(--primary); }
+  .heading p, .versionRow span, .versionRow b, .notes div { color: var(--muted-foreground); }
+  .icon, .versionRow, .notes { border-color: var(--border); background: var(--card); }
+  .notes h2 { border-color: var(--border); color: var(--foreground); }
+  .secondary { border-color: var(--border); background: var(--secondary); color: var(--secondary-foreground); }
+  .primary { background: var(--primary); color: var(--primary-foreground); box-shadow: none; }
 }

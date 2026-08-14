@@ -5,4 +5,7 @@
   backdrop-filter: blur(10px); transition: opacity .16s, background .16s, color .16s;
 }
 .handle[data-hover="true"], .handle:focus-visible { background: rgba(24,24,32,.9); color: #fff; opacity: 1; }
-.handle > span { width: 14px; height: 14px; }
+.handle > svg { width: 14px; height: 14px; }
+
+:global(html:not(.dark)) .handle { border-color: rgb(0 0 0 / 14%); background: rgb(255 255 255 / 72%); color: rgb(0 0 0 / 45%); }
+:global(html:not(.dark)) .handle[data-hover="true"], :global(html:not(.dark)) .handle:focus-visible { background: rgb(255 255 255 / 94%); color: #006be0; }

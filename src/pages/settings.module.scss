@@ -194,7 +194,29 @@
 .toast[data-error="true"] { border-color: #ff879626; background: #332129; color: #ffc2cb; }
 .toast button { color: inherit; }
 .toast button > svg { width: 14px; height: 14px; }
+.inlineError { position: sticky; z-index: 4; top: -12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -12px 0 16px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--destructive) 40%, var(--border)); border-radius: 9px; background: color-mix(in srgb, var(--destructive) 9%, var(--background)); color: var(--destructive); box-shadow: 0 8px 24px rgb(0 0 0 / 12%); }
+.inlineError button { flex: none; color: inherit; }
+.inlineError svg { width: 15px; height: 15px; }
 
 @media (prefers-reduced-motion: reduce) {
   .provider { transition: none; }
+}
+
+:global(html:not(.dark)) {
+  .settingsHeading > button, .buttonRow button, .offsetRow button, .provider > button:last-child, .cardHeaderButton,
+  .colorValueForm button, .titleFilterForm button, .shortcutRecorder, .shortcutReset, .buttonLink {
+    border-color: var(--border); background: var(--secondary); color: var(--secondary-foreground);
+  }
+  .card select, .settingRow select, .colorValueForm input, .titleFilterForm input, .shortcutRow kbd, .shortcutRecorder {
+    border-color: var(--border); background: var(--background); color: var(--foreground);
+  }
+  .settingRow, .colorPanel, .titleFilterForm, .applicationList, .shortcutRow, .debugLogToolbar { border-color: var(--border); }
+  .cardHint, .directoryPath, .currentTrack small, .offsetRow, .colorPresetStatus { color: var(--muted-foreground); }
+  .colorPresetButton, .titleFilter, .provider, .applicationItem { border-color: var(--border); background: var(--background); color: var(--foreground); }
+  .colorPresetButton:hover, .colorPresetButton[data-active="true"] { border-color: var(--primary); background: var(--accent); color: var(--accent-foreground); }
+  .provider strong, .applicationDetails strong, .currentTrack strong { color: var(--foreground); }
+  .debugLogViewport { background: #f2f4f7; }
+  .debugLogEntry { border-color: var(--border); }
+  .debugLogEntry code { color: #30343b; }
+  .toast { box-shadow: 0 14px 34px rgb(0 0 0 / 18%); }
 }

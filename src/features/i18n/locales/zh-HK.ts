@@ -5,7 +5,7 @@ export const zhHK = {
     language: { system: "跟隨系統" },
     actions: {
       apply: "套用", clear: "清除", close: "關閉", test: "測試", testAll: "一鍵測試全部", testing: "測試中",
-      reset: "重設", resetDefault: "還原預設值", resetting: "還原中…", confirmAgain: "再次按一下以確認",
+      reset: "重設", resetDefault: "還原預設值", resetting: "還原中…",
       search: "搜尋", searching: "搜尋中…", reload: "重新載入", open: "開啟", save: "儲存", cancel: "取消", remove: "移除",
     },
     feature: {
@@ -168,8 +168,8 @@ export const zhHK = {
       textEffects: "文字與效果", fontSize: "字體大小", opacity: "透明度", activeColor: "醒目提示顏色", inactiveColor: "未播放顏色",
       karaoke: "卡拉 OK 效果", karaokeSweep: "逐字掃光", karaokeBounce: "逐字彈跳", karaokeHighlight: "僅醒目提示",
       backgroundLayout: "背景與版面", backgroundMode: "背景模式", solid: "純色", transparent: "透明", backgroundOpacity: "背景透明度",
-      backgroundColor: "背景顏色", glass: "毛玻璃", glassHint: "獨立模糊背景；透明度為 0% 時仍然有效", blur: "模糊強度",
-      lyricLayout: "歌詞版面", textDirection: "文字方向", alignment: "歌詞對齊", centered: "置中", distributed: "主副分列",
+      backgroundColor: "背景顏色", glass: "毛玻璃", glassHint: "獨立模糊背景；透明度為 0% 時仍然有效", blur: "模糊強度", requiresVisibleBackground: "僅在顯示背景時可用", requiresGlassBackground: "僅在顯示毛玻璃背景時可用",
+      lyricLayout: "歌詞版面", textDirection: "文字方向", alignment: "歌詞對齊", centered: "置中", distributed: "主副分列", requiresDoubleLayout: "僅雙排歌詞支援主副分列", requiresTranslation: "開啟翻譯後可調整", requiresRomanization: "開啟音譯後可調整",
       alignmentVertical: "主副分列會將右側主歌詞靠上、左側副歌詞靠下", alignmentHorizontal: "主副分列會將主歌詞靠左、副歌詞靠右", alignmentFixed: "目前版面固定置中",
       longLyrics: "長歌詞", shrink: "智能縮放", wrap: "自動換行", marquee: "超出時捲動", secondary: "副歌詞、翻譯與羅馬拼音",
       secondarySize: "副歌詞字體大小", showTranslation: "顯示翻譯", translationSize: "翻譯字體大小", translationColor: "翻譯顏色",

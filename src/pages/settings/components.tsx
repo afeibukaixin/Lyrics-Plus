@@ -52,11 +52,11 @@ export function ToggleRow({ label, description, value, disabled = false, onChang
   return <div className={styles.settingRow}><div><strong>{label}</strong>{description && <small>{description}</small>}</div><Switch aria-label={label} checked={value} disabled={disabled} onCheckedChange={(checked) => void onChange(checked)} /></div>;
 }
 
-export function RangeRow({ label, value, min, max, step = 1, suffix, displayValue, disabled = false, onChange }: { label: string; value: number; min: number; max: number; step?: number; suffix: string; displayValue?: number; disabled?: boolean; onChange: (value: number) => void }) {
-  return <div className={styles.settingRow}><strong>{label}</strong><div className={styles.rangeControl}><Slider aria-label={label} disabled={disabled} min={min} max={max} step={step} value={[value]} onValueChange={([next]) => onChange(next)} /><b>{displayValue ?? value}{suffix}</b></div></div>;
+export function RangeRow({ label, description, value, min, max, step = 1, suffix, displayValue, disabled = false, onChange }: { label: string; description?: string; value: number; min: number; max: number; step?: number; suffix: string; displayValue?: number; disabled?: boolean; onChange: (value: number) => void }) {
+  return <div className={styles.settingRow}><div><strong>{label}</strong>{description && <small>{description}</small>}</div><div className={styles.rangeControl}><Slider aria-label={label} disabled={disabled} min={min} max={max} step={step} value={[value]} onValueChange={([next]) => onChange(next)} /><b>{displayValue ?? value}{suffix}</b></div></div>;
 }
 
-export function ColorRow({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+export function ColorRow({ label, description, value, disabled = false, onChange }: { label: string; description?: string; value: string; disabled?: boolean; onChange: (value: string) => void }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -79,18 +79,18 @@ export function ColorRow({ label, value, onChange }: { label: string; value: str
 
   return (
     <div className={`${styles.settingRow} ${styles.colorSettingRow}`}>
-      <strong>{label}</strong>
-      <button type="button" className={styles.colorTrigger} aria-expanded={open} aria-label={t("settings.common.colorSelect", { label })} onClick={() => setOpen((current) => !current)}>
+      <div><strong>{label}</strong>{description && <small>{description}</small>}</div>
+      <button type="button" className={styles.colorTrigger} aria-expanded={open} aria-label={t("settings.common.colorSelect", { label })} disabled={disabled} onClick={() => setOpen((current) => !current)}>
         <span style={{ background: value }} /><code>{value}</code>
       </button>
       {open && (
         <div className={styles.colorPanel}>
           <div className={styles.colorPalette} aria-label={t("settings.common.presetColors", { label })}>
-            {colorChoices.map((color) => <button type="button" aria-label={color} aria-pressed={color.toLowerCase() === value.toLowerCase()} key={color} onClick={() => { onChange(color); setOpen(false); }} style={{ background: color }} />)}
+            {colorChoices.map((color) => <button type="button" aria-label={color} aria-pressed={color.toLowerCase() === value.toLowerCase()} disabled={disabled} key={color} onClick={() => { onChange(color); setOpen(false); }} style={{ background: color }} />)}
           </div>
           <form className={styles.colorValueForm} onSubmit={(event) => { event.preventDefault(); applyDraft(); }}>
-            <Input aria-invalid={invalid} aria-label={t("settings.common.colorValue", { label })} placeholder={t("settings.common.colorPlaceholder")} spellCheck={false} value={draft} onChange={(event) => { setDraft(event.target.value); setInvalid(false); }} />
-            <Button type="submit" size="sm">{t("common.actions.apply")}</Button>
+            <Input aria-invalid={invalid} aria-label={t("settings.common.colorValue", { label })} disabled={disabled} placeholder={t("settings.common.colorPlaceholder")} spellCheck={false} value={draft} onChange={(event) => { setDraft(event.target.value); setInvalid(false); }} />
+            <Button type="submit" size="sm" disabled={disabled}>{t("common.actions.apply")}</Button>
           </form>
         </div>
       )}
