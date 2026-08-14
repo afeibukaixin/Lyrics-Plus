@@ -164,7 +164,7 @@ export type ProviderSettingsView = {
   statuses: ProviderStatus[];
 };
 
-export type SettingsSection = "style" | "display" | "lyrics" | "player" | "about";
+export type SettingsSection = "style" | "display" | "lyrics" | "player" | "application" | "about";
 export type LanguagePreference = "system" | SupportedLanguage;
 export type ThemePreference = "system" | "light" | "dark";
 export type NativeLanguage = "zh-CN" | "en-US";

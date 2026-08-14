@@ -101,6 +101,8 @@
 .titleFilterForm { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; padding: 10px 14px 13px; border-top: 1px solid #ffffff09; }
 .titleFilterForm input { min-width: 0; padding: 7px 8px; border: 1px solid #ffffff12; border-radius: 7px; outline: none; background: #0e1016; color: #cfd2dc; font-family: var(--font-family-mono); font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); }
 .titleFilterForm input:focus { border-color: #9277f488; }
+.titleFilterForm input[aria-invalid="true"] { border-color: var(--destructive); }
+.titleFilterForm > small { grid-column: 1 / -1; color: var(--destructive); font-size: var(--typography-caption-size); }
 .titleFilterForm button { padding: 7px 9px; border: 1px solid #ffffff12; border-radius: 7px; background: #ffffff08; color: #afb4c1; font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); font-weight: var(--typography-label-weight); }
 .providers { display: grid; gap: 5px; padding: 0 10px 11px; }
 .providers[data-dragging="true"] { user-select: none; }

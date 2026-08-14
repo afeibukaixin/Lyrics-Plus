@@ -9,6 +9,12 @@ import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
 import { RangeRow, SettingsCard, SettingsHeading } from "./components";
 import { GripVertical, X } from "lucide-react";
+import { Button } from "../../components/ui/button";
+
+const defaultTitleFilterKeywords = [
+  "feat", "ft", "featuring", "主题曲", "片头曲", "片尾曲",
+  "插曲", "电影", "电视剧", "动画", "游戏", "ost",
+];
 
 function healthLabel(status: ProviderStatus | undefined, t: TFunction) {
   return t(`settings.lyrics.health.${status?.health ?? "unknown"}`);
@@ -27,6 +33,16 @@ export default function LyricsSettingsPage() {
     setProviderDrag, providerDragTransform, toggleProvider, testProviders, handleFile,
     resetSection, setError,
   } = useSettingsContext();
+  const normalizedTitleFilterDraft = titleFilterDraft.trim();
+  const titleFilterError = !normalizedTitleFilterDraft
+    ? null
+    : normalizedTitleFilterDraft.length > 64
+      ? t("settings.lyrics.titleFilterTooLong")
+      : (providerView?.settings.titleFilterKeywords ?? []).some((keyword) => keyword.toLocaleLowerCase() === normalizedTitleFilterDraft.toLocaleLowerCase())
+        ? t("settings.lyrics.titleFilterDuplicate")
+        : (providerView?.settings.titleFilterKeywords.length ?? 0) >= 32
+          ? t("settings.lyrics.titleFilterLimit")
+          : null;
 
   useEffect(() => {
     void api.getLibraryScanStatus().then((status) => setLibraryDir(status.libraryDir)).catch((error) => setError(messageOf(error)));
@@ -34,9 +50,9 @@ export default function LyricsSettingsPage() {
 
   const addTitleFilter = async (event: FormEvent) => {
     event.preventDefault();
-    if (!providerView || !titleFilterDraft.trim() || savingTitleFilters) return;
+    if (!providerView || !normalizedTitleFilterDraft || titleFilterError || savingTitleFilters) return;
     setSavingTitleFilters(true);
-    const saved = await saveProviderSettings({ ...providerView.settings, titleFilterKeywords: [...providerView.settings.titleFilterKeywords, titleFilterDraft] });
+    const saved = await saveProviderSettings({ ...providerView.settings, titleFilterKeywords: [...providerView.settings.titleFilterKeywords, normalizedTitleFilterDraft] });
     if (saved) setTitleFilterDraft("");
     setSavingTitleFilters(false);
   };
@@ -86,12 +102,11 @@ export default function LyricsSettingsPage() {
         <button disabled={changingDirectory} onClick={() => void changeDirectory()}>{changingDirectory ? t("library.changing") : t("library.changeFolder")}</button>
       </div>
     </SettingsCard>
-    <details className={styles.advancedSection}>
-      <summary>{t("settings.lyrics.advanced")}</summary>
-      <SettingsCard title={t("settings.lyrics.titleFilters")}>
+    <div className={styles.advancedSection}>
+      <SettingsCard title={t("settings.lyrics.titleFilters")} trailing={<Button variant="ghost" size="sm" disabled={savingTitleFilters} onClick={() => void (providerView && saveProviderSettings({ ...providerView.settings, titleFilterKeywords: defaultTitleFilterKeywords }))}>{t("settings.lyrics.restoreTitleFilters")}</Button>}>
         <p className={styles.cardHint}>{t("settings.lyrics.titleFiltersHint")}</p>
         <div className={styles.titleFilters}>{providerView?.settings.titleFilterKeywords.length ? providerView.settings.titleFilterKeywords.map((keyword, index) => <div className={styles.titleFilter} key={`${keyword}-${index}`}><span>{keyword}</span><button type="button" disabled={savingTitleFilters} onClick={() => void removeTitleFilter(index)}><X /></button></div>) : <p>{t("settings.lyrics.titleFiltersEmpty")}</p>}</div>
-        <form className={styles.titleFilterForm} onSubmit={(event) => void addTitleFilter(event)}><input placeholder={t("settings.lyrics.titleFilterPlaceholder")} value={titleFilterDraft} onChange={(event) => setTitleFilterDraft(event.target.value)} /><button disabled={!providerView || !titleFilterDraft.trim() || savingTitleFilters}>{t("settings.lyrics.addTitleFilter")}</button></form>
+        <form className={styles.titleFilterForm} onSubmit={(event) => void addTitleFilter(event)}><input aria-invalid={Boolean(titleFilterError)} placeholder={t("settings.lyrics.titleFilterPlaceholder")} value={titleFilterDraft} onChange={(event) => setTitleFilterDraft(event.target.value)} /><button disabled={!providerView || !normalizedTitleFilterDraft || Boolean(titleFilterError) || savingTitleFilters}>{t("settings.lyrics.addTitleFilter")}</button>{titleFilterError && <small role="alert">{titleFilterError}</small>}</form>
       </SettingsCard>
       <SettingsCard title={t("settings.lyrics.providerPriority")} trailing={providerView && <div className={styles.shortcutControls}><button className={styles.cardHeaderButton} disabled={!providerView.settings.providers.length || testingProvider !== null} onClick={() => void testProviders(providerView.settings.providers.map((provider) => provider.id))}>{testingProvider === "*" ? t("common.actions.testing") : t("common.actions.testAll")}</button><select disabled={savingProviderOrder} value={providerView.settings.mode} onChange={(event) => void saveProviderSettings({ ...providerView.settings, mode: event.target.value as ProviderSettings["mode"] })}><option value="strict">{t("settings.lyrics.strict")}</option><option value="smart">{t("settings.lyrics.smart")}</option></select></div>}>
         <p className={styles.cardHint}>{providerView?.settings.mode === "smart" ? t("settings.lyrics.smartHint") : t("settings.lyrics.strictHint")}</p>
@@ -105,6 +120,6 @@ export default function LyricsSettingsPage() {
           </div>;
         })}</div>
       </SettingsCard>
-    </details>
+    </div>
   </>;
 }

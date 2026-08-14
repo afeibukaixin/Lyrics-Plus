@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
-import { defaultGlobalShortcuts, type GlobalShortcutSettings, type GlobalShortcutStatus, type LanguagePreference, type PlayerFollowerServiceState, type PlayerSelection, type SystemMediaFilterMode } from "../../shared/types";
+import { defaultGlobalShortcuts, type GlobalShortcutSettings, type GlobalShortcutStatus, type LanguagePreference, type PlayerFollowerServiceState, type PlayerSelection, type SystemMediaFilterMode, type ThemePreference } from "../../shared/types";
 import { api, messageOf } from "../../shared/api";
 import { languageRegistry, supportedLanguages } from "../../shared/languages";
 import { normalizeLanguagePreference } from "../../features/i18n/i18n";
@@ -42,10 +42,11 @@ function shortcutFromEvent(event: React.KeyboardEvent<HTMLButtonElement>) {
   return [...modifiers, event.code].join("+");
 }
 
-export default function AppSettingsPage() {
+export default function AppSettingsPage({ scope }: { scope: "player" | "application" }) {
   const {
     config,
     setUiFontScale,
+    setTheme,
     setLanguage,
     setGlobalShortcuts,
     setSystemMediaFilterMode,
@@ -207,7 +208,14 @@ export default function AppSettingsPage() {
   const systemMediaAllowlist = config.app.systemMediaFilterMode === "allowlist";
 
   return <>
-    <SettingsHeading title={t("settings.player.title")} description={t("settings.player.description")} onReset={() => void resetSection("player")} resetting={resettingSection === "player"} confirming={confirmingReset === "player"} />
+    <SettingsHeading
+      title={t(scope === "player" ? "settings.player.title" : "settings.app.title")}
+      description={t(scope === "player" ? "settings.player.description" : "settings.app.description")}
+      onReset={() => void resetSection(scope)}
+      resetting={resettingSection === scope}
+      confirming={confirmingReset === scope}
+    />
+    {scope === "player" && <>
     <SettingsCard title={t("settings.app.player")}>
       <SelectRow label={t("settings.app.playerMode")} description={t("settings.app.playerHint")} value={playback.selection} options={playerOptions.map((option) => [option, option === "auto" ? t("settings.app.playerAuto") : option === "apple_music" ? "Apple Music" : option === "spotify" ? "Spotify" : t("settings.app.playerSystem")])} onChange={(selection) => playback.setSelection(selection as PlayerSelection)} />
     </SettingsCard>
@@ -255,11 +263,14 @@ export default function AppSettingsPage() {
         <button className={styles.shortcutReset} onClick={() => void api.openPlayerFollowerSystemSettings().catch((error) => setError(messageOf(error)))}>{t("settings.app.openLoginItems")}</button>
       </div>}
     </SettingsCard>
+    </>}
+    {scope === "application" && <>
     <SettingsCard title={t("settings.player.startup")}>
       <ToggleRow label={t("settings.app.silentStartup")} description={t("settings.player.silentStartupHint")} value={config.app.silentStartup} onChange={(enabled) => setSilentStartup(enabled).catch((error) => setError(messageOf(error)))} />
       <ToggleRow label={t("settings.app.hideDock")} description={t("settings.app.hideDockHint")} value={config.app.hideDockIcon} onChange={(hidden) => setDockIconHidden(hidden).catch((error) => setError(messageOf(error)))} />
     </SettingsCard>
     <SettingsCard title={t("settings.app.display")}>
+      <SelectRow label={t("settings.app.themeLabel")} description={t("settings.app.themeHint")} value={config.app.theme} options={(["dark", "light", "system"] as ThemePreference[]).map((theme) => [theme, t(`settings.theme.${theme}`)])} onChange={(theme) => void setTheme(theme as ThemePreference).catch((error) => setError(messageOf(error)))} />
       <SelectRow label={t("settings.app.language.label")} description={t("settings.app.language.description")} value={normalizeLanguagePreference(config.app.language)} options={[["system", t("common.language.system")], ...languageOptions.map(({ code, label }) => [code, label] as [string, string])]} onChange={(language) => void setLanguage(language as LanguagePreference).catch((error) => setError(messageOf(error)))} />
       <RangeRow label={t("settings.app.fontScale")} value={config.app.uiFontScale} min={80} max={150} step={10} suffix="%" onChange={(scale) => void setUiFontScale(scale).catch((error) => setError(messageOf(error)))} />
     </SettingsCard>
@@ -281,5 +292,6 @@ export default function AppSettingsPage() {
       })}
       {unavailableShortcuts.length > 0 && <p className={styles.cardHint} data-error="true">{t("settings.app.shortcutUnavailable", { actions: unavailableShortcuts.map((action) => t(`settings.app.${action}`)).join(", ") })}</p>}
     </SettingsCard>
+    </>}
   </>;
 }

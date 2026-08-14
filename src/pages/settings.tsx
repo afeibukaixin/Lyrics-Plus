@@ -311,6 +311,7 @@ export default function Settings() {
       display: t("settings.shell.nav.display"),
       lyrics: t("settings.shell.nav.lyrics"),
       player: t("settings.shell.nav.player"),
+      application: t("settings.shell.nav.application"),
       about: t("settings.shell.nav.about"),
     };
     setConfirmingReset(null);

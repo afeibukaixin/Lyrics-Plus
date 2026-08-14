@@ -1,4 +1,3 @@
-import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { messageOf } from "../../shared/api";
 import { useSettingsContext } from "../settings";
@@ -30,9 +29,6 @@ export default function DisplaySettingsPage() {
     </SettingsCard>
     <SettingsCard title={t("settings.display.directControl")}>
       <p className={styles.cardHint}>{t("settings.display.directControlHint")}</p>
-    </SettingsCard>
-    <SettingsCard title={t("settings.app.shortcuts")}>
-      <div className={styles.buttonRow}><Link className={styles.buttonLink} to="/settings/player">{t("settings.display.manageShortcuts")}</Link></div>
     </SettingsCard>
   </>;
 }

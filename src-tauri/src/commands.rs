@@ -297,6 +297,7 @@ pub enum SettingsSection {
     Display,
     Lyrics,
     Player,
+    Application,
     About,
 }
 
@@ -1843,16 +1844,22 @@ pub fn reset_settings_section(
         }
         SettingsSection::Player => {
             update_player_selection(&app, PlayerSelection::Auto)?;
-            update_dock_icon_hidden(&app, false)?;
-            update_global_shortcuts(&app, GlobalShortcutSettings::default())?;
             let config = state.config.update(|config| {
-                config.app.ui_font_scale = 100;
-                config.app.silent_startup = false;
                 config.app.system_media_filter_mode = SystemMediaFilterMode::Allowlist;
                 config.app.system_media_applications.clear();
                 config.app.player_follower_application = None;
             })?;
             player_follower_error = crate::player_lifecycle::sync_service(&app, &config.app).err();
+        }
+        SettingsSection::Application => {
+            update_dock_icon_hidden(&app, false)?;
+            update_global_shortcuts(&app, GlobalShortcutSettings::default())?;
+            state.config.update(|config| {
+                config.app.theme = ThemePreference::Dark;
+                config.app.language = LanguagePreference::default();
+                config.app.ui_font_scale = 100;
+                config.app.silent_startup = false;
+            })?;
         }
         SettingsSection::About => {
             state

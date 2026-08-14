@@ -1,5 +1,4 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useAppConfig } from "../../features/config/AppConfigProvider";
 import { useUpdates } from "../../features/update/UpdateProvider";
@@ -65,13 +64,6 @@ export default function AboutSettingsPage() {
       </SettingsCard>
       <SettingsCard title={t("settings.about.license")}>
         <p className={styles.cardHint}>{t("settings.about.licenseHint")}</p>
-      </SettingsCard>
-      <SettingsCard title={t("settings.about.advancedTools")}>
-        <p className={styles.cardHint}>{t("settings.about.advancedToolsHint")}</p>
-        <div className={styles.buttonRow}>
-          <Link className={styles.buttonLink} to="/settings/debug">{t("settings.shell.nav.debug")}</Link>
-          <Link className={styles.buttonLink} to="/settings/config">{t("settings.shell.nav.config")}</Link>
-        </div>
       </SettingsCard>
     </>
   );

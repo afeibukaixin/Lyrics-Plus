@@ -82,8 +82,7 @@ export default function StyleSettingsPage() {
         <ToggleRow label={t("settings.overlay.showRomanization")} value={secondaryFlags.romanization} onChange={(romanization) => updateStyle({ secondaryDisplay: secondaryDisplayFromFlags(secondaryFlags.translation, romanization) })} />
         <SelectRow label={t("settings.overlay.karaoke")} value={style.karaokeStyle} onChange={(karaokeStyle) => void updateStyle({ karaokeStyle: karaokeStyle as OverlayStyle["karaokeStyle"] })} options={[["sweep", t("settings.overlay.karaokeSweep")], ["bounce", t("settings.overlay.karaokeBounce")], ["highlight", t("settings.overlay.karaokeHighlight")]]} />
       </SettingsCard>
-      <details className={styles.advancedSection}>
-        <summary>{t("settings.style.advanced")}</summary>
+      <div className={styles.advancedSection}>
         <SettingsCard title={t("settings.overlay.backgroundLayout")}>
           <RangeRow label={t("settings.overlay.opacity")} value={style.opacity} min={0.2} max={1} step={0.05} suffix="%" displayValue={Math.round(style.opacity * 100)} onChange={(opacity) => void updateStyle({ opacity })} />
           {style.backgroundMode === "solid" && <>
@@ -103,7 +102,7 @@ export default function StyleSettingsPage() {
           <ColorRow label={t("settings.overlay.romanizationColor")} value={style.romanizationColor} onChange={(romanizationColor) => void updateStyle({ romanizationColor })} />
           <ToggleRow label={t("settings.overlay.autoCenter")} value={style.autoCenterWithTranslationOrRomanization} onChange={(autoCenterWithTranslationOrRomanization) => updateStyle({ autoCenterWithTranslationOrRomanization })} />
         </SettingsCard>
-      </details>
+      </div>
     </>
   );
 }
