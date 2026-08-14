@@ -153,6 +153,7 @@ export const api = {
     invoke<PlayerFollowerServiceState>("get_player_follower_service_status"),
   openPlayerFollowerSystemSettings: () =>
     invoke<void>("open_player_follower_system_settings"),
+  openAutomationSystemSettings: () => invoke<void>("open_automation_system_settings"),
   getApplicationIcons: (bundleIds: string[]) =>
     invoke<Record<string, string>>("get_application_icons", { bundleIds }),
   resolveApplicationByBundleId: (bundleId: string) =>

@@ -178,7 +178,6 @@ impl AutomationSession<'_> {
     pub(super) fn current_track(&self) -> Result<Option<Retained<SBObject>>, AutomationError> {
         self.object(self.app, CURRENT_TRACK)
     }
-
 }
 
 pub(super) fn with_application<T>(
@@ -261,7 +260,6 @@ fn query(
             album: session.string(&track, ALBUM)?,
             duration_ms,
             position_ms,
-            can_seek: true,
             observed_at_ms: now_ms(),
             ..Default::default()
         };

@@ -16,7 +16,6 @@ const initialSnapshot: PlaybackSnapshot = {
   sourceAppBundleId: null,
   durationMs: null,
   positionMs: null,
-  canSeek: false,
   observedAtMs: Date.now(),
   errorCode: "waiting",
   error: null,
@@ -26,14 +25,15 @@ export function usePlayback() {
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [selection, setSelectionState] = useState<PlayerSelection>("auto");
   const [clock, setClock] = useState(Date.now());
-  const [commandError, setCommandError] = useState<string | null>(null);
+  const [configError, setConfigError] = useState<string | null>(null);
+  const [snapshotLoadError, setSnapshotLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
-    api.getPlayerSelection().then(setSelectionState).catch((error) => setCommandError(messageOf(error)));
-    api.getPlayback().then(setSnapshot).catch((error) => setCommandError(messageOf(error)));
+    api.getPlayerSelection().then((value) => { setSelectionState(value); setConfigError(null); }).catch((error) => setConfigError(messageOf(error)));
+    api.getPlayback().then((value) => { setSnapshot(value); setSnapshotLoadError(null); }).catch((error) => setSnapshotLoadError(messageOf(error)));
     const cleanupSnapshotListener = createTauriListenerCleanup(
-      listen<PlaybackSnapshot>("playback://snapshot", ({ payload }) => setSnapshot(payload)),
+      listen<PlaybackSnapshot>("playback://snapshot", ({ payload }) => { setSnapshot(payload); setSnapshotLoadError(null); }),
     );
     const cleanupSelectionListener = createTauriListenerCleanup(
       listen<PlayerSelection>("player://selection", ({ payload }) => setSelectionState(payload)),
@@ -64,9 +64,26 @@ export function usePlayback() {
     return Math.min(snapshot.durationMs ?? Number.MAX_SAFE_INTEGER, base + Math.max(0, clock - snapshot.observedAtMs));
   }, [clock, snapshot]);
 
-  const setSelection = (next: PlayerSelection) => {
+  const setSelection = async (next: PlayerSelection) => {
+    const previous = selection;
     setSelectionState(next);
-    api.setPlayerSelection(next).catch((error) => setCommandError(messageOf(error)));
+    setConfigError(null);
+    try {
+      await api.setPlayerSelection(next);
+    } catch (error) {
+      setSelectionState(previous);
+      setConfigError(messageOf(error));
+      throw error;
+    }
+  };
+
+  const refreshSnapshot = async () => {
+    setSnapshotLoadError(null);
+    try {
+      setSnapshot(await api.getPlayback());
+    } catch (error) {
+      setSnapshotLoadError(messageOf(error));
+    }
   };
 
   return {
@@ -75,6 +92,8 @@ export function usePlayback() {
     selection,
     setSelection,
     syncSelection: setSelectionState,
-    commandError,
+    configError,
+    snapshotLoadError,
+    refreshSnapshot,
   };
 }

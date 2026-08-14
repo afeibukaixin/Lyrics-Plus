@@ -121,7 +121,7 @@ export const zhCN = {
       title: "显示与交互", description: "控制桌面歌词的显示状态、鼠标穿透和位置。", directControl: "直接调整",
       directControlHint: "解锁后拖动空白区域移动歌词，拖动边缘调整横排宽度或竖排高度。", manageShortcuts: "管理全局快捷键",
     },
-    player: { title: "播放器与启动", description: "选择播放来源，并管理播放器跟随、启动方式和快捷键。", startup: "启动与菜单栏", silentStartupHint: "启动时不显示设置窗口；桌面歌词、播放器监听和菜单栏仍会运行。" },
+    player: { title: "播放器", description: "查看监听状态，并选择播放来源、系统媒体筛选和播放器跟随。", startup: "启动与菜单栏", silentStartupHint: "启动时不显示设置窗口；桌面歌词、播放器监听和菜单栏仍会运行。", idleStatus: "等待播放", attentionStatus: "播放器需要处理", openAutomationSettings: "打开自动化设置", allowSource: "添加到允许列表", removeExcludedSource: "从排除列表移除", detectAgain: "重新检测", useAuto: "切换为智能选择" },
     app: {
       title: "应用", description: "选择播放器并管理设置、菜单栏与快捷键。", player: "播放器",
       playerMode: "播放方式", playerAuto: "智能选择", playerSystem: "仅使用系统媒体", playerHint: "推荐使用智能选择；识别异常时再手动指定。", playerFollower: "跟随播放器启动和退出", playerFollowerHint: "单独选择一个播放器作为生命周期目标；播放器启动时打开 Lyrics Plus，退出时关闭 Lyrics Plus。", playerFollowerEmpty: "未启用播放器跟随", choosePlayerFollower: "选择播放器", playerFollowerPicker: "播放器应用", playerFollowerDevelopment: "开发模式下已禁用；安装后的正式应用中可用。", playerFollowerUnsupported: "当前系统不支持播放器跟随。", playerFollowerNotFound: "未检测到可用的播放器跟随 Helper。请将 Lyrics Plus 从 DMG 拖入“应用程序”文件夹，重新打开后重试。", playerFollowerNotRegistered: "播放器跟随服务尚未注册。", retryPlayerFollower: "重试", playerFollowerApproval: "后台项目已被系统停用，请在登录项设置中允许 Lyrics Plus。", openLoginItems: "打开登录项设置", systemApplications: "系统播放应用", systemApplicationsHint: "仅用于系统媒体通道；不包含 Apple Music 和 Spotify，留空则不限制第三方来源。", systemApplicationsEmpty: "尚未添加系统播放应用", addCurrentApplication: "添加当前播放应用", chooseApplications: "从访达选择应用", systemApplicationsPicker: "macOS 应用", display: "界面与语言", language: { label: "界面语言", description: "立即应用到所有窗口，并随应用配置保存。" },

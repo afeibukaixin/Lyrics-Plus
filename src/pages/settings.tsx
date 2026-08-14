@@ -402,8 +402,9 @@ export default function Settings() {
   const themeIndex = themeOrder.indexOf(config.app.theme);
   const nextTheme = themeOrder[(themeIndex + 1) % themeOrder.length];
   const ThemeIcon = config.app.theme === "dark" ? Moon : config.app.theme === "light" ? Sun : MonitorUp;
-  const playerHasWarning = Boolean(playback.snapshot.errorCode)
-    && !["waiting", "no_unique_player"].includes(playback.snapshot.errorCode ?? "");
+  const playerHasWarning = Boolean(playback.configError || playback.snapshotLoadError)
+    || (Boolean(playback.snapshot.errorCode)
+      && !["waiting", "no_unique_player"].includes(playback.snapshot.errorCode ?? ""));
 
   return (
     <main className={styles.shell}>

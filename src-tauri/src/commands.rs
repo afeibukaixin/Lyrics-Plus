@@ -1364,6 +1364,16 @@ pub fn open_player_follower_system_settings() -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn open_automation_system_settings(app: tauri::AppHandle) -> Result<(), String> {
+    app.opener()
+        .open_url(
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation",
+            None::<&str>,
+        )
+        .map_err(|error| format!("打开自动化系统设置失败：{error}"))
+}
+
+#[tauri::command]
 pub async fn get_application_icons(
     bundle_ids: Vec<String>,
 ) -> Result<HashMap<String, String>, String> {

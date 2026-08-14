@@ -121,7 +121,6 @@ impl SystemMediaService {
             )
         })
     }
-
 }
 
 fn refresh_elapsed(client: &AdapterClient) {
@@ -284,7 +283,6 @@ fn snapshot_from_info(timed: &TimedInfo) -> PlaybackSnapshot {
         source_app_bundle_id: info.bundle_id.clone(),
         duration_ms,
         position_ms,
-        can_seek: duration_ms.is_some_and(|duration| duration > 0) && position_ms.is_some(),
         observed_at_ms: now_ms(),
         error_code: None,
         error: None,
@@ -321,7 +319,6 @@ mod tests {
         assert_eq!(snapshot.position_ms, Some(12_345));
         assert_eq!(snapshot.duration_ms, Some(123_456));
         assert_eq!(snapshot.source_app_name.as_deref(), Some("Example Player"));
-        assert!(snapshot.can_seek);
     }
 
     #[test]

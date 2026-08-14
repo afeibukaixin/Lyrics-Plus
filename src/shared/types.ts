@@ -72,7 +72,6 @@ export type PlaybackSnapshot = {
   sourceAppBundleId: string | null;
   durationMs: number | null;
   positionMs: number | null;
-  canSeek: boolean;
   observedAtMs: number;
   errorCode: PlaybackErrorCode | null;
   error: string | null;

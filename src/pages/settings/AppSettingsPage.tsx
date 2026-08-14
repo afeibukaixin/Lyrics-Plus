@@ -6,6 +6,9 @@ import { defaultGlobalShortcuts, type GlobalShortcutSettings, type GlobalShortcu
 import { api, messageOf } from "../../shared/api";
 import { languageRegistry, supportedLanguages } from "../../shared/languages";
 import { normalizeLanguagePreference } from "../../features/i18n/i18n";
+import { playbackStatusText } from "../../features/i18n/userText";
+import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
+import { Button } from "../../components/ui/button";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
 import { ApplicationList, RangeRow, SelectRow, SettingsCard, SettingsHeading, ToggleRow } from "./components";
@@ -206,6 +209,18 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
   const unavailableShortcuts = shortcutStatus ? shortcutActions.filter((action) => !shortcutStatus[action]) : [];
   const followerUnavailable = followerStatus === null || followerStatus === "development" || followerStatus === "unsupported";
   const systemMediaAllowlist = config.app.systemMediaFilterMode === "allowlist";
+  const playbackStatus = playbackStatusText(playback.snapshot, t);
+  const playbackNeutral = playback.snapshot.errorCode === "waiting" || playback.snapshot.errorCode === "no_unique_player";
+
+  const resolveFilteredSource = async () => {
+    const bundleId = playback.snapshot.sourceAppBundleId;
+    if (!bundleId) return;
+    if (systemMediaAllowlist) {
+      await addCurrentSystemApplication();
+    } else {
+      await saveApplications(config.app.systemMediaApplications.filter((application) => application.bundleId !== bundleId));
+    }
+  };
 
   return <>
     <SettingsHeading
@@ -216,8 +231,20 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
       confirming={confirmingReset === scope}
     />
     {scope === "player" && <>
+    {(playbackStatus || playback.configError || playback.snapshotLoadError) && <Alert className={playbackNeutral && !playback.configError && !playback.snapshotLoadError ? "border-border" : "border-[color:color-mix(in_srgb,var(--warning)_45%,var(--border))]"}>
+      <AlertTitle>{playbackNeutral ? t("settings.player.idleStatus") : t("settings.player.attentionStatus")}</AlertTitle>
+      <AlertDescription className="grid gap-3">
+        <span>{playback.configError ?? playback.snapshotLoadError ?? playbackStatus}</span>
+        <div className="flex flex-wrap gap-2">
+          {playback.snapshot.errorCode === "automation_denied" && <Button size="sm" variant="outline" onClick={() => void api.openAutomationSystemSettings().catch((error) => setError(messageOf(error)))}>{t("settings.player.openAutomationSettings")}</Button>}
+          {playback.snapshot.errorCode === "multiple_playing" && <><Button size="sm" variant="outline" onClick={() => void playback.setSelection("apple_music").catch((error) => setError(messageOf(error)))}>Apple Music</Button><Button size="sm" variant="outline" onClick={() => void playback.setSelection("spotify").catch((error) => setError(messageOf(error)))}>Spotify</Button></>}
+          {playback.snapshot.errorCode === "source_not_allowed" && playback.snapshot.sourceAppBundleId && <Button size="sm" variant="outline" onClick={() => void resolveFilteredSource()}>{t(systemMediaAllowlist ? "settings.player.allowSource" : "settings.player.removeExcludedSource")}</Button>}
+          {["not_installed", "response_timeout", "invalid_response", "unavailable"].includes(playback.snapshot.errorCode ?? "") && <><Button size="sm" variant="outline" onClick={() => void playback.refreshSnapshot()}>{t("settings.player.detectAgain")}</Button><Button size="sm" variant="ghost" onClick={() => void playback.setSelection("auto").catch((error) => setError(messageOf(error)))}>{t("settings.player.useAuto")}</Button></>}
+        </div>
+      </AlertDescription>
+    </Alert>}
     <SettingsCard title={t("settings.app.player")}>
-      <SelectRow label={t("settings.app.playerMode")} description={t("settings.app.playerHint")} value={playback.selection} options={playerOptions.map((option) => [option, option === "auto" ? t("settings.app.playerAuto") : option === "apple_music" ? "Apple Music" : option === "spotify" ? "Spotify" : t("settings.app.playerSystem")])} onChange={(selection) => playback.setSelection(selection as PlayerSelection)} />
+      <SelectRow label={t("settings.app.playerMode")} description={t("settings.app.playerHint")} value={playback.selection} options={playerOptions.map((option) => [option, option === "auto" ? t("settings.app.playerAuto") : option === "apple_music" ? "Apple Music" : option === "spotify" ? "Spotify" : t("settings.app.playerSystem")])} onChange={(selection) => void playback.setSelection(selection as PlayerSelection).catch((error) => setError(messageOf(error)))} />
     </SettingsCard>
     <SettingsCard title={t("settings.app.systemApplications")}>
       <SelectRow
