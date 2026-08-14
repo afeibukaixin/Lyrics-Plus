@@ -1,5 +1,4 @@
 import { secondaryDisplayFlags, secondaryDisplayFromFlags, type OverlayStyle } from "../../shared/types";
-import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
@@ -35,39 +34,6 @@ function matchesColorPreset(style: OverlayStyle, preset: OverlayColorPreset) {
   return overlayColorKeys.every((key) => style[key].trim().toLowerCase() === preset.colors[key].toLowerCase());
 }
 
-function StylePreview({ style }: { style: OverlayStyle }) {
-  const { t } = useTranslation();
-  const secondary = secondaryDisplayFlags(style.secondaryDisplay);
-  const transparent = style.backgroundMode === "transparent" || style.background === "transparent";
-  const background = transparent ? "transparent" : style.solidColor;
-  return (
-    <div
-      className={styles.stylePreview}
-      data-layout={style.layout}
-      data-orientation={style.orientation}
-      style={{
-        "--preview-active": style.activeColor,
-        "--preview-inactive": style.inactiveColor,
-        "--preview-translation": style.translationColor,
-        "--preview-romanization": style.romanizationColor,
-        "--preview-font-size": `${Math.max(22, Math.min(42, style.fontSize * 0.62))}px`,
-        "--preview-opacity": style.opacity,
-        "--preview-background": background,
-        "--preview-background-opacity": transparent ? 0 : style.backgroundOpacity,
-        "--preview-blur": `${!transparent && style.background === "glass" ? style.backgroundBlur : 0}px`,
-      } as CSSProperties}
-    >
-      <div className={styles.stylePreviewBackdrop} />
-      <div className={styles.stylePreviewLyrics}>
-        <p className={styles.stylePreviewActive}>{t("settings.style.previewPrimary")}</p>
-        {style.layout === "double" && <p className={styles.stylePreviewInactive}>{t("settings.style.previewNext")}</p>}
-        {secondary.translation && <small data-kind="translation">{t("settings.style.previewTranslation")}</small>}
-        {secondary.romanization && <small data-kind="romanization">{t("settings.style.previewRomanization")}</small>}
-      </div>
-    </div>
-  );
-}
-
 export default function StyleSettingsPage() {
   const { t } = useTranslation();
   const {
@@ -94,7 +60,6 @@ export default function StyleSettingsPage() {
   return (
     <>
       <SettingsHeading title={t("settings.style.title")} description={t("settings.style.description")} onReset={() => void resetSection("style")} resetting={resettingSection === "style"} confirming={confirmingReset === "style"} />
-      <StylePreview style={style} />
       <SettingsCard title={t("settings.overlay.colors")} trailing={<span className={styles.colorPresetStatus}>{t("settings.overlay.currentColor", { name: activeColorPreset ? t(`settings.overlay.presets.${activeColorPreset.id}`) : t("settings.overlay.custom") })}</span>}>
         <div className={styles.colorPresetGrid}>
           {overlayColorPresets.map((preset) => {

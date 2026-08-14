@@ -115,7 +115,7 @@ export const zhHK = {
       colorSelect: "選擇{{label}}", presetColors: "{{label}}預設顏色", colorValue: "{{label}}顏色值",
       colorPlaceholder: "#ffffff 或 rgba(255,255,255,.8)", capabilitiesHint: "連結歌詞後會顯示翻譯、羅馬拼音和逐字時間軸的可用狀態",
     },
-    style: { title: "歌詞樣式", description: "調整桌面歌詞外觀並即時預覽。", common: "常用樣式", advanced: "進階樣式", previewPrimary: "讓歌詞自然地留在桌面", previewNext: "下一句也清晰可見", previewTranslation: "讓每一句都更容易理解", previewRomanization: "ràng gē cí zì rán de liú zài zhuō miàn" },
+    style: { title: "歌詞樣式", description: "調整桌面歌詞外觀。", common: "常用樣式", advanced: "進階樣式" },
     display: { title: "顯示與互動", description: "控制桌面歌詞的顯示、滑鼠穿透與位置。", directControl: "直接調整", directControlHint: "解鎖後拖曳空白區域移動歌詞，拖曳邊緣調整寬度或高度。", manageShortcuts: "管理全域快速鍵" },
     player: { title: "播放器與啟動", description: "選擇播放來源並管理播放器跟隨、啟動方式與快速鍵。", startup: "啟動與選單列", silentStartupHint: "啟動時不顯示設定視窗；桌面歌詞、播放器監聽與選單列仍會運作。" },
     app: {

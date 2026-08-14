@@ -114,8 +114,7 @@ export const zhCN = {
       colorPlaceholder: "#ffffff 或 rgba(255,255,255,.8)", capabilitiesHint: "关联歌词后会显示翻译、音译和逐字时间轴的可用状态",
     },
     style: {
-      title: "歌词样式", description: "调整桌面歌词的外观并实时预览效果。", common: "常用样式", advanced: "高级样式",
-      previewPrimary: "让歌词自然地留在桌面", previewNext: "下一句也清晰可见", previewTranslation: "让每一句都更容易理解", previewRomanization: "ràng gē cí zì rán de liú zài zhuō miàn",
+      title: "歌词样式", description: "调整桌面歌词的外观。", common: "常用样式", advanced: "高级样式",
     },
     display: {
       title: "显示与交互", description: "控制桌面歌词的显示状态、鼠标穿透和位置。", directControl: "直接调整",

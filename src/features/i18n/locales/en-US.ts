@@ -116,8 +116,7 @@ export const enUS = {
       colorPlaceholder: "#ffffff or rgba(255,255,255,.8)", capabilitiesHint: "Link lyrics to see whether translation, romanization, and word timing are available",
     },
     style: {
-      title: "Lyrics Style", description: "Adjust desktop lyrics and preview every change live.", common: "Common style", advanced: "Advanced style",
-      previewPrimary: "Let lyrics live naturally on your desktop", previewNext: "Keep the next line easy to read", previewTranslation: "Make every line easier to understand", previewRomanization: "let lyrics live naturally on your desktop",
+      title: "Lyrics Style", description: "Adjust the appearance of desktop lyrics.", common: "Common style", advanced: "Advanced style",
     },
     display: {
       title: "Display & Interaction", description: "Control visibility, click-through behavior, and position.", directControl: "Direct controls",
