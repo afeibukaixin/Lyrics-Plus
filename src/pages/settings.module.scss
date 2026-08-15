@@ -1,6 +1,22 @@
 .shell { height: 100vh; min-height: 0; overflow: hidden; }
 .settingsLayout { min-width: 0; min-height: 0; height: 100vh; overflow: hidden; }
 .sidebarTriggerRow { position: absolute; z-index: 2; top: 10px; left: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.updateStatusCard { width: 86px; display: grid; gap: 6px; margin-top: 4px; padding: 8px; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); background: color-mix(in srgb, var(--card) 92%, transparent); color: var(--muted-foreground); box-shadow: var(--shadow-xs); text-align: left; transition: border-color .15s, background .15s, color .15s; }
+.updateStatusCard:hover { border-color: color-mix(in srgb, var(--foreground) 24%, var(--border)); background: var(--accent); color: var(--foreground); }
+.updateStatusCard:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.updateStatusCard[data-status="ready"] { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); color: var(--primary); }
+.updateStatusCard[data-status="error"] { border-color: color-mix(in srgb, var(--destructive) 45%, var(--border)); color: var(--destructive); }
+.updateStatusTitle { min-width: 0; display: flex; align-items: center; gap: 5px; font-size: .6875rem; line-height: 1.2; white-space: nowrap; }
+.updateStatusTitle svg { width: 14px; height: 14px; flex: none; }
+.updateStatusCard[data-status="installing"] .updateStatusTitle svg { animation: update-status-spin 1s linear infinite; }
+.updateStatusTitle span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.updateStatusCard strong { color: var(--foreground); font-size: .75rem; font-variant-numeric: tabular-nums; line-height: 1; }
+.updateStatusCard small { overflow: hidden; font-size: .625rem; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.updateStatusProgress { position: relative; display: block; width: 100%; height: 3px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, currentColor 16%, transparent); }
+.updateStatusProgress i { display: block; height: 100%; border-radius: inherit; background: currentColor; transition: width .2s ease; }
+.updateStatusProgress[data-indeterminate="true"] i { width: 40%; animation: update-status-progress 1.1s ease-in-out infinite; }
+@keyframes update-status-spin { to { transform: rotate(360deg); } }
+@keyframes update-status-progress { from { transform: translateX(-110%); } to { transform: translateX(260%); } }
 .content { min-height: 0; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 48px clamp(24px, 5vw, 56px); }
 .configPage { min-height: 0; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
 
@@ -128,4 +144,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .colorPresetChevron { transition: none; }
+  .updateStatusCard[data-status="installing"] .updateStatusTitle svg, .updateStatusProgress[data-indeterminate="true"] i { animation: none; }
 }

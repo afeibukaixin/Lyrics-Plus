@@ -3,13 +3,16 @@ import { getVersion } from "@tauri-apps/api/app";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { useTranslation } from "react-i18next";
+import { X } from "lucide-react";
+import { toast } from "sonner";
 import { isTauriRuntime } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
 import { useAppConfig } from "../config/AppConfigProvider";
 import { useAppLanguage } from "../i18n/I18nProvider";
 import appIcon from "../../../src-tauri/icons/128x128.png";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { IconButton } from "@/components/ui/icon-button";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,11 +25,18 @@ type UpdateContextValue = {
   availableVersion: string | null;
   error: string | null;
   status: UpdateStatus;
+  progressPercentage: number | null;
   checkForUpdates: () => Promise<void>;
+  openUpdateDialog: () => void;
   restartToUpdate: () => Promise<void>;
 };
 
 const UpdateContext = createContext<UpdateContextValue | null>(null);
+const updatePreview = import.meta.env.DEV && new URLSearchParams(window.location.search).get("update-preview") === "1";
+
+function waitForPreviewStep(duration: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, duration));
+}
 
 function formatBytes(bytes: number, language: string) {
   const value = bytes / 1024 / 1024;
@@ -40,6 +50,8 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
   const updateRef = useRef<Update | null>(null);
   const busy = useRef(false);
   const autoChecked = useRef(false);
+  const dialogOpenRef = useRef(false);
+  const mountedRef = useRef(true);
   const [currentVersion, setCurrentVersion] = useState("—");
   const [availableVersion, setAvailableVersion] = useState<string | null>(null);
   const [releaseNotes, setReleaseNotes] = useState("");
@@ -58,12 +70,24 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!import.meta.env.DEV || new URLSearchParams(window.location.search).get("update-preview") !== "1") return;
+    if (!updatePreview) return;
     setCurrentVersion("1.1.0");
     setAvailableVersion("1.2.0");
     setReleaseNotes("• 全新的应用内更新界面\n• 显示真实下载进度与文件大小\n• 安装完成后可选择立即或稍后重启\n• 优化多语言提示与键盘操作");
     setStatus("available");
+    dialogOpenRef.current = true;
     setDialogOpen(true);
+  }, []);
+
+  useEffect(() => {
+    dialogOpenRef.current = dialogOpen;
+  }, [dialogOpen]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const releasePendingUpdate = useCallback(async () => {
@@ -102,6 +126,7 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
       setDownloadedBytes(0);
       setTotalBytes(null);
       setStatus("available");
+      dialogOpenRef.current = true;
       setDialogOpen(true);
     } catch (value) {
       reportFrontendError("Update check failed", value);
@@ -114,7 +139,7 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
 
   const installUpdate = useCallback(async () => {
     const update = updateRef.current;
-    if (!update || busy.current) return;
+    if ((!update && !updatePreview) || busy.current) return;
     busy.current = true;
     setError(null);
     setDownloadedBytes(0);
@@ -122,19 +147,33 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
     setStatus("downloading");
     let contentLength: number | null = null;
     try {
-      await update.downloadAndInstall((event) => {
-        if (event.event === "Started") {
-          contentLength = event.data.contentLength ?? null;
-          setTotalBytes(contentLength);
-        } else if (event.event === "Progress") {
-          setDownloadedBytes((current) => current + event.data.chunkLength);
-        } else {
-          if (contentLength) setDownloadedBytes(contentLength);
-          setStatus("installing");
+      if (updatePreview) {
+        contentLength = 100;
+        setTotalBytes(contentLength);
+        for (const downloaded of [8, 19, 34, 52, 71, 86, 100]) {
+          await waitForPreviewStep(420);
+          if (!mountedRef.current) return;
+          setDownloadedBytes(downloaded);
         }
-      });
+        setStatus("installing");
+        await waitForPreviewStep(1_200);
+        if (!mountedRef.current) return;
+      } else {
+        await update!.downloadAndInstall((event) => {
+          if (event.event === "Started") {
+            contentLength = event.data.contentLength ?? null;
+            setTotalBytes(contentLength);
+          } else if (event.event === "Progress") {
+            setDownloadedBytes((current) => current + event.data.chunkLength);
+          } else {
+            if (contentLength) setDownloadedBytes(contentLength);
+            setStatus("installing");
+          }
+        });
+      }
       await releasePendingUpdate();
       setStatus("ready");
+      if (!dialogOpenRef.current) toast.success(t("settings.about.updateReadyToast"));
     } catch (value) {
       reportFrontendError("Update download or installation failed", value);
       await releasePendingUpdate();
@@ -156,10 +195,15 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
   }, [t]);
 
   const dismissDialog = useCallback(() => {
-    if (status === "downloading" || status === "installing") return;
+    dialogOpenRef.current = false;
     setDialogOpen(false);
-    if (status !== "ready") void releasePendingUpdate();
+    if (!["downloading", "installing", "ready", "error"].includes(status)) void releasePendingUpdate();
   }, [releasePendingUpdate, status]);
+
+  const openUpdateDialog = useCallback(() => {
+    dialogOpenRef.current = true;
+    setDialogOpen(true);
+  }, []);
 
   const retryUpdate = useCallback(async () => {
     setDialogOpen(false);
@@ -173,18 +217,19 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
     void runCheck(false);
   }, [config.app.autoCheckUpdates, loaded, runCheck]);
 
+  const percentage = totalBytes && totalBytes > 0
+    ? Math.min(100, Math.round((downloadedBytes / totalBytes) * 100))
+    : null;
   const value = useMemo<UpdateContextValue>(() => ({
     currentVersion,
     availableVersion,
     error,
     status,
+    progressPercentage: percentage,
     checkForUpdates: () => runCheck(true),
+    openUpdateDialog,
     restartToUpdate,
-  }), [availableVersion, currentVersion, error, restartToUpdate, runCheck, status]);
-
-  const percentage = totalBytes && totalBytes > 0
-    ? Math.min(100, Math.round((downloadedBytes / totalBytes) * 100))
-    : null;
+  }), [availableVersion, currentVersion, error, openUpdateDialog, percentage, restartToUpdate, runCheck, status]);
   const title = status === "downloading"
     ? t("settings.about.downloadingTitle")
     : status === "installing"
@@ -204,13 +249,13 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
           ? t("settings.about.updateError")
           : t("settings.about.updateHint", { version: availableVersion ?? "" });
   const active = status === "downloading" || status === "installing";
-
   return (
     <UpdateContext.Provider value={value}>
       {children}
-      <Dialog open={dialogOpen} disablePointerDismissal onOpenChange={(open) => { if (!open && !active) dismissDialog(); }}>
+      <Dialog open={dialogOpen} disablePointerDismissal onOpenChange={(open) => { if (open) openUpdateDialog(); else dismissDialog(); }}>
         <DialogContent className="grid max-h-[min(640px,calc(100vh-48px))] w-[min(520px,calc(100vw-48px))] grid-rows-[auto_auto_minmax(0,1fr)_auto_auto] gap-0 overflow-hidden bg-card p-0" showClose={false}>
-        <DialogHeader className="flex flex-row items-center gap-3.5 border-b border-border px-[22px] pb-4 pt-5">
+        <DialogClose render={<IconButton className="absolute right-3 top-3 z-10 text-muted-foreground hover:text-foreground" label={t("common.actions.close")} variant="ghost" size="icon-sm" />}><X /></DialogClose>
+        <DialogHeader className="flex flex-row items-center gap-3.5 border-b border-border px-[22px] pb-4 pr-12 pt-5">
           <div className="size-12 shrink-0 rounded-xl border border-border bg-muted p-[3px]"><img className="block size-full rounded-[9px]" alt="" src={appIcon} /></div>
           <div className="min-w-0">
             <DialogTitle id="update-dialog-title">{title}</DialogTitle>

@@ -10,7 +10,7 @@ import {
 import { listen } from "@tauri-apps/api/event";
 import { NavLink, Outlet, useLocation, useOutletContext } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Bug, FileJson, Info, Monitor, MonitorUp, Moon, Music2, Palette, Settings2, SlidersHorizontal, Sun, TriangleAlert, X } from "lucide-react";
+import { Bug, CircleAlert, CircleCheck, Download, FileJson, Info, LoaderCircle, Monitor, MonitorUp, Moon, Music2, Palette, Settings2, SlidersHorizontal, Sun, TriangleAlert, X } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { IconButton } from "@/components/ui/icon-button";
@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { useLyrics } from "../features/lyrics/useLyrics";
 import { usePlayback } from "../features/player/usePlayback";
 import { useAppConfig } from "../features/config/AppConfigProvider";
+import { useUpdates } from "../features/update/UpdateProvider";
 import { api, isTauriRuntime, messageOf } from "../shared/api";
 import { createTauriListenerCleanup } from "../shared/tauriEvent";
 import {
@@ -104,6 +105,7 @@ export type SettingsOutletContext = {
 export default function Settings() {
   const { t } = useTranslation();
   const location = useLocation();
+  const { openUpdateDialog, progressPercentage, status: updateStatus } = useUpdates();
   const {
     config,
     setTheme,
@@ -434,12 +436,23 @@ export default function Settings() {
   ];
   const currentThemeIndex = themeCycle.indexOf(config.app.theme);
   const nextTheme = themeCycle[(currentThemeIndex + 1) % themeCycle.length];
-  const themeToggleLabel = t({
+  const themeToggleLabelKey = ({
     light: "settings.theme.switchToLight",
     dark: "settings.theme.switchToDark",
     system: "settings.theme.switchToSystem",
-  }[nextTheme]);
+  } as const)[nextTheme];
+  const themeToggleLabel = t(themeToggleLabelKey);
   const ThemeToggleIcon = config.app.theme === "light" ? Sun : config.app.theme === "dark" ? Moon : Monitor;
+  const updateIndicator = updateStatus === "downloading"
+    ? { icon: Download, label: t("settings.about.updateCard.downloading") }
+    : updateStatus === "installing"
+      ? { icon: LoaderCircle, label: t("settings.about.updateCard.installing") }
+      : updateStatus === "ready"
+        ? { icon: CircleCheck, label: t("settings.about.updateCard.ready") }
+        : updateStatus === "error"
+          ? { icon: CircleAlert, label: t("settings.about.updateCard.error") }
+          : null;
+  const UpdateIndicatorIcon = updateIndicator?.icon;
 
   return (
     <SidebarProvider className={styles.shell} style={{ "--sidebar-width": "11.5rem", "--sidebar-width-icon": "3.5rem" } as React.CSSProperties}>
@@ -484,6 +497,34 @@ export default function Settings() {
           <IconButton label={themeToggleLabel} tooltip={themeToggleLabel} variant="ghost" size="icon" onClick={() => void setTheme(nextTheme).catch((value) => setError(messageOf(value)))}>
             <ThemeToggleIcon />
           </IconButton>
+          {updateIndicator && UpdateIndicatorIcon && (
+            <button className={styles.updateStatusCard} data-status={updateStatus} type="button" onClick={openUpdateDialog} aria-label={`${updateIndicator.label} · ${t("settings.about.updateCard.open")}`}>
+              <span className={styles.updateStatusTitle}>
+                <UpdateIndicatorIcon aria-hidden="true" />
+                <span>{updateIndicator.label}</span>
+              </span>
+              {updateStatus === "downloading" ? (
+                <>
+                  <strong>{progressPercentage === null ? "…" : `${progressPercentage}%`}</strong>
+                  <span
+                    className={styles.updateStatusProgress}
+                    data-indeterminate={progressPercentage === null ? "true" : undefined}
+                    role="progressbar"
+                    aria-label={t("settings.about.downloadProgress")}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={progressPercentage ?? undefined}
+                  >
+                    <i style={progressPercentage === null ? undefined : { width: `${progressPercentage}%` }} />
+                  </span>
+                </>
+              ) : updateStatus === "installing" ? (
+                <span className={styles.updateStatusProgress} data-indeterminate="true" role="progressbar" aria-label={updateIndicator.label}><i /></span>
+              ) : (
+                <small>{t("settings.about.updateCard.open")}</small>
+              )}
+            </button>
+          )}
         </div>
         <div className={styles.content}>
           {error && <Alert className={styles.inlineError}><span>{error}</span><IconButton label={t("settings.shell.closeToast")} variant="ghost" size="icon-sm" onClick={() => setError(null)}><X /></IconButton></Alert>}
