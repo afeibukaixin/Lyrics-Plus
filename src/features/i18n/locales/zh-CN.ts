@@ -98,7 +98,7 @@ export const zhCN = {
   },
   settings: {
     shell: {
-      navigation: "设置分类", closeToast: "关闭", advanced: "高级工具", resetTitle: "恢复分类默认设置",
+      navigation: "设置分类", onThisPage: "本页目录", closeToast: "关闭", advanced: "高级工具", resetTitle: "恢复分类默认设置",
       nav: {
         style: "样式", display: "显示与交互", lyrics: "歌词", player: "播放器",
         application: "应用", debug: "调试日志", config: "配置", about: "关于与更新",
@@ -108,7 +108,7 @@ export const zhCN = {
     },
     theme: { dark: "深色", light: "浅色", system: "跟随系统", switchToLight: "切换为浅色主题", switchToDark: "切换为深色主题", switchToSystem: "切换为跟随系统" },
     common: {
-      colorSelect: "选择{{label}}", presetColors: "{{label}}预设颜色", colorValue: "{{label}}颜色值",
+      colorSelect: "选择{{label}}", presetColors: "{{label}}预设颜色", systemColorPicker: "打开{{label}}系统拾色器", colorValue: "{{label}}颜色值",
       colorPlaceholder: "#ffffff 或 rgba(255,255,255,.8)", capabilitiesHint: "关联歌词后会显示翻译、音译和逐字时间轴的可用状态",
     },
     style: {
@@ -166,11 +166,12 @@ export const zhCN = {
       autoHideHint: "暂停、停止或播放器不可用时隐藏；恢复播放后自动显示（需开启显示桌面歌词）",
       lock: "锁定并鼠标穿透", lockHint: "锁定后点击会穿透到下方窗口", resetPosition: "复位桌面歌词位置",
       colors: "快捷配色", currentColor: "当前：{{name}}", custom: "自定义", applyColor: "应用{{name}}配色", colorApplied: "已应用「{{name}}」配色。", showMoreColors: "更多配色", showFewerColors: "收起配色",
-      presets: { violet: "紫罗兰", ocean: "海洋蓝", mint: "薄荷青", sunset: "日落橙", sakura: "樱花粉", contrast: "黑白高对比", aurora: "极光青", indigo: "夜幕蓝", coral: "珊瑚红", lime: "青柠绿", moonlight: "月光银", neon: "霓虹紫" },
-      textEffects: "文字与效果", fontSize: "字号", opacity: "透明度", activeColor: "高亮颜色", inactiveColor: "未唱颜色",
+      presets: { lime: "青柠绿", sky: "天空蓝", aurora: "极光青", lavender: "数字薰衣草", rose: "玫瑰粉", contrast: "黑白高对比", amber: "琥珀金", emerald: "翡翠绿", indigo: "暮光靛", coral: "活力珊瑚", moonlight: "月光银", neon: "霓虹紫" },
+      textEffects: "文字与效果", fontFamily: "字体系列", fontFamilyHint: "按 CSS font-family 语法填写多个字体，系统会按顺序回退。", fontSize: "字号", fontWeight: "主歌词粗细", secondaryFontWeight: "副歌词粗细", fontWeightRegular: "常规", fontWeightMedium: "中等", fontWeightSemibold: "半粗", fontWeightBold: "粗体", fontWeightExtrabold: "特粗", lineHeight: "歌词行高", opacity: "透明度", activeColor: "高亮颜色", inactiveColor: "未唱颜色",
+      textShadowOffsetX: "阴影水平偏移", textShadowOffsetY: "阴影垂直偏移", textShadowBlur: "阴影模糊", textShadowColor: "阴影颜色", textShadowColorHint: "支持 rgba 等带透明度的 CSS 颜色。",
       karaoke: "卡拉 OK 效果", karaokeSweep: "逐词扫光", karaokeBounce: "逐词弹跳", karaokeHighlight: "纯高亮",
       backgroundLayout: "背景与排版", backgroundMode: "背景模式", solid: "纯色", transparent: "透明", backgroundOpacity: "背景透明度",
-      backgroundColor: "背景颜色", glass: "毛玻璃", glassHint: "独立模糊背景；透明度为 0% 时仍然生效", blur: "磨砂强度", requiresVisibleBackground: "仅在显示背景时可用", requiresGlassBackground: "仅在显示毛玻璃背景时可用", backgroundControlsHint: "切换为纯色背景后可调整透明度、颜色、毛玻璃和磨砂强度。", glassControlsHint: "开启毛玻璃后可调整磨砂强度。",
+      backgroundColor: "背景颜色", glass: "毛玻璃", glassHint: "独立模糊背景；透明度为 0% 时仍然生效", blur: "磨砂强度", backgroundRadius: "背景圆角", backgroundPaddingX: "水平内边距", backgroundPaddingY: "垂直内边距", requiresVisibleBackground: "仅在显示背景时可用", requiresGlassBackground: "仅在显示毛玻璃背景时可用", backgroundControlsHint: "切换为纯色背景后可调整透明度、颜色、毛玻璃和磨砂强度。", glassControlsHint: "开启毛玻璃后可调整磨砂强度。",
       lyricLayout: "歌词布局", textDirection: "文字方向", alignment: "歌词对齐", centered: "居中", distributed: "主副分居", requiresDoubleLayout: "仅双排歌词支持主副分居", requiresTranslation: "开启翻译后可调整", requiresRomanization: "开启音译后可调整",
       alignmentVertical: "主副分居会将右侧主歌词靠上、左侧副歌词靠下", alignmentHorizontal: "主副分居会将主歌词靠左、副歌词靠右", alignmentFixed: "当前布局固定居中",
       longLyrics: "长歌词", shrink: "智能缩放", wrap: "自动换行", marquee: "超出时滚动", secondary: "副歌词、翻译与音译",

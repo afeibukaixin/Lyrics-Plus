@@ -9,7 +9,7 @@ import { api, isTauriRuntime, messageOf } from "../../shared/api";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
-import { RangeRow, SettingsSection, PageHeader } from "./components";
+import { PageHeader, RangeRow, SettingsPage, SettingsSection } from "./components";
 import { GripVertical, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -112,14 +112,21 @@ export default function LyricsSettingsPage() {
   const scanProgress = scanStatus?.phase === "indexing" && scanStatus.total
     ? Math.round(scanStatus.processed / scanStatus.total * 100)
     : 0;
+  const sections = [
+    { id: "lyrics-auto-match", label: t("settings.lyrics.autoMatch") },
+    { id: "lyrics-current-track", label: t("settings.lyrics.currentTrack") },
+    { id: "lyrics-directory", label: t("settings.lyrics.directory") },
+    { id: "lyrics-title-filters", label: t("settings.lyrics.titleFilters") },
+    { id: "lyrics-provider-priority", label: t("settings.lyrics.providerPriority") },
+  ];
 
-  return <>
+  return <SettingsPage sections={sections}>
     <PageHeader title={t("settings.lyrics.title")} description={t("settings.lyrics.description")} onReset={() => void resetSection("lyrics")} resetting={resettingSection === "lyrics"} confirming={confirmingReset === "lyrics"} />
-    <SettingsSection title={t("settings.lyrics.autoMatch")}>
+    <SettingsSection id="lyrics-auto-match" title={t("settings.lyrics.autoMatch")}>
       <RangeRow label={t("settings.lyrics.threshold")} value={providerView?.settings.autoApplyThreshold ?? 60} min={0} max={100} suffix="%" onChange={(autoApplyThreshold) => { if (providerView) void saveProviderSettings({ ...providerView.settings, autoApplyThreshold }); }} />
       <p className={styles.cardHint}>{t("settings.lyrics.thresholdHint")}</p>
     </SettingsSection>
-    <SettingsSection title={t("settings.lyrics.currentTrack")}>
+    <SettingsSection id="lyrics-current-track" title={t("settings.lyrics.currentTrack")}>
       <div className={styles.currentTrack}><div><strong>{playback.snapshot.title ?? t("settings.lyrics.noTrack")}</strong><small>{playback.snapshot.artist ?? "—"}</small></div><em>{lyrics.document ? localizedSource(lyrics.document.metadata.source, t) : t("settings.lyrics.notAssociated")}</em></div>
       <div className={styles.buttonRow}>
         <Button variant="secondary" size="sm" disabled={!lyrics.trackKey} onClick={() => void api.showQuickLyricsWindow().catch((error) => setError(messageOf(error)))}>{t("settings.lyrics.manualSearch")}</Button>
@@ -129,7 +136,7 @@ export default function LyricsSettingsPage() {
       </div>
       {lyrics.document && <div className={styles.offsetRow}><span>{t("settings.lyrics.offset", { value: `${lyrics.document.offsetMs > 0 ? "+" : ""}${lyrics.document.offsetMs}` })}</span><div><Button variant="outline" size="sm" onClick={() => void lyrics.changeOffset(-100)}>−100</Button><Button variant="outline" size="sm" onClick={() => void lyrics.changeOffset(100)}>+100</Button><Button variant="outline" size="sm" onClick={() => void lyrics.setOffset(0)}>{t("common.actions.reset")}</Button></div></div>}
     </SettingsSection>
-    <SettingsSection title={t("settings.lyrics.directory")}>
+    <SettingsSection id="lyrics-directory" title={t("settings.lyrics.directory")}>
       <p className={styles.directoryPath}>{libraryDir ?? t("library.loadingDirectory")}</p>
       {scanStatus && <div className={styles.scanStatus} data-phase={scanStatus.phase}>
         {scanStatus.phase === "discovering" && <><Progress className="animate-pulse" value={100} /><strong>{t("settings.lyrics.scanDiscovering")}</strong><span>{t("settings.lyrics.scanDiscovered", { discovered: scanStatus.discovered, skipped: scanStatus.skipped })}</span></>}
@@ -143,12 +150,12 @@ export default function LyricsSettingsPage() {
         <Button variant="secondary" size="sm" disabled={!libraryDir} onClick={() => void rescanLibrary()}>{scanActive ? t("settings.lyrics.restartScan") : t("settings.lyrics.rescan")}</Button>
       </div>
     </SettingsSection>
-    <SettingsSection title={t("settings.lyrics.titleFilters")} trailing={<Button variant="ghost" size="sm" disabled={savingTitleFilters} onClick={() => void (providerView && saveProviderSettings({ ...providerView.settings, titleFilterKeywords: defaultTitleFilterKeywords }))}>{t("settings.lyrics.restoreTitleFilters")}</Button>}>
+    <SettingsSection id="lyrics-title-filters" title={t("settings.lyrics.titleFilters")} trailing={<Button variant="ghost" size="sm" disabled={savingTitleFilters} onClick={() => void (providerView && saveProviderSettings({ ...providerView.settings, titleFilterKeywords: defaultTitleFilterKeywords }))}>{t("settings.lyrics.restoreTitleFilters")}</Button>}>
       <p className={styles.cardHint}>{t("settings.lyrics.titleFiltersHint")}</p>
       <div className={styles.titleFilters}>{providerView?.settings.titleFilterKeywords.length ? providerView.settings.titleFilterKeywords.map((keyword, index) => <Badge variant="secondary" className={styles.titleFilter} key={`${keyword}-${index}`}><span>{keyword}</span><IconButton label={`${t("common.actions.remove")} ${keyword}`} variant="ghost" size="icon-sm" disabled={savingTitleFilters} onClick={() => void removeTitleFilter(index)}><X /></IconButton></Badge>) : <p>{t("settings.lyrics.titleFiltersEmpty")}</p>}</div>
       <form className={styles.titleFilterForm} onSubmit={(event) => void addTitleFilter(event)}><InputGroup><InputGroupInput aria-invalid={Boolean(titleFilterError)} placeholder={t("settings.lyrics.titleFilterPlaceholder")} value={titleFilterDraft} onChange={(event) => setTitleFilterDraft(event.target.value)} /><InputGroupAddon align="inline-end"><Button size="sm" disabled={!providerView || !normalizedTitleFilterDraft || Boolean(titleFilterError) || savingTitleFilters}>{t("settings.lyrics.addTitleFilter")}</Button></InputGroupAddon></InputGroup>{titleFilterError && <small role="alert">{titleFilterError}</small>}</form>
     </SettingsSection>
-    <SettingsSection title={t("settings.lyrics.providerPriority")} trailing={providerView && <div className={styles.shortcutControls}><Button variant="secondary" size="sm" disabled={!providerView.settings.providers.length || testingProvider !== null} onClick={() => void testProviders(providerView.settings.providers.map((provider) => provider.id))}>{testingProvider === "*" ? t("common.actions.testing") : t("common.actions.testAll")}</Button><Select disabled={savingProviderOrder} items={[{ value: "strict", label: t("settings.lyrics.strict") }, { value: "smart", label: t("settings.lyrics.smart") }]} value={providerView.settings.mode} onValueChange={(mode) => void saveProviderSettings({ ...providerView.settings, mode: mode as ProviderSettings["mode"] })}><SelectTrigger className="w-32" aria-label={t("settings.lyrics.providerPriority")}><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="strict">{t("settings.lyrics.strict")}</SelectItem><SelectItem value="smart">{t("settings.lyrics.smart")}</SelectItem></SelectGroup></SelectContent></Select></div>}>
+    <SettingsSection id="lyrics-provider-priority" title={t("settings.lyrics.providerPriority")} trailing={providerView && <div className={styles.shortcutControls}><Button variant="secondary" size="sm" disabled={!providerView.settings.providers.length || testingProvider !== null} onClick={() => void testProviders(providerView.settings.providers.map((provider) => provider.id))}>{testingProvider === "*" ? t("common.actions.testing") : t("common.actions.testAll")}</Button><Select disabled={savingProviderOrder} items={[{ value: "strict", label: t("settings.lyrics.strict") }, { value: "smart", label: t("settings.lyrics.smart") }]} value={providerView.settings.mode} onValueChange={(mode) => void saveProviderSettings({ ...providerView.settings, mode: mode as ProviderSettings["mode"] })}><SelectTrigger className="w-32" aria-label={t("settings.lyrics.providerPriority")}><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="strict">{t("settings.lyrics.strict")}</SelectItem><SelectItem value="smart">{t("settings.lyrics.smart")}</SelectItem></SelectGroup></SelectContent></Select></div>}>
       <p className={styles.cardHint}>{providerView?.settings.mode === "smart" ? t("settings.lyrics.smartHint") : t("settings.lyrics.strictHint")}</p>
       <ItemGroup className={styles.providers} data-dragging={Boolean(providerDrag)}>{providerView?.settings.providers.map((provider, index) => {
         const status = providerView.statuses.find((item) => item.providerId === provider.id);
@@ -160,5 +167,5 @@ export default function LyricsSettingsPage() {
         </Item>;
       })}</ItemGroup>
     </SettingsSection>
-  </>;
+  </SettingsPage>;
 }

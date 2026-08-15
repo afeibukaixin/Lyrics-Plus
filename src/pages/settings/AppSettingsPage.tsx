@@ -14,7 +14,7 @@ import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
-import { ApplicationList, SelectRow, SettingsSection, PageHeader, ToggleRow } from "./components";
+import { ApplicationList, PageHeader, SelectRow, SettingsPage, SettingsSection, ToggleRow } from "./components";
 
 const playerOptions: PlayerSelection[] = ["auto", "apple_music", "spotify", "system"];
 const languageOptions = supportedLanguages.map((code) => ({ code, label: languageRegistry[code].nativeLabel }));
@@ -216,8 +216,19 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
   const playbackHasActions = playback.snapshot.errorCode === "automation_denied"
     || playback.snapshot.errorCode === "multiple_playing"
     || ["not_installed", "response_timeout", "invalid_response", "unavailable"].includes(playback.snapshot.errorCode ?? "");
+  const sections = scope === "player"
+    ? [
+        { id: "player-mode", label: t("settings.app.player") },
+        { id: "player-system-applications", label: t("settings.app.systemApplications") },
+        { id: "player-follower", label: t("settings.app.playerFollower") },
+      ]
+    : [
+        { id: "application-startup", label: t("settings.player.startup") },
+        { id: "application-display", label: t("settings.app.display") },
+        { id: "application-shortcuts", label: t("settings.app.shortcuts") },
+      ];
 
-  return <>
+  return <SettingsPage sections={sections}>
     <PageHeader
       title={t(scope === "player" ? "settings.player.title" : "settings.app.title")}
       description={t(scope === "player" ? "settings.player.description" : "settings.app.description")}
@@ -239,10 +250,10 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
         {["not_installed", "response_timeout", "invalid_response", "unavailable"].includes(playback.snapshot.errorCode ?? "") && <><Button size="sm" variant="outline" onClick={() => void playback.refreshSnapshot()}>{t("settings.player.detectAgain")}</Button><Button size="sm" variant="ghost" onClick={() => void playback.setSelection("auto").catch((error) => setError(messageOf(error)))}>{t("settings.player.useAuto")}</Button></>}
       </div>}
     </Alert>}
-    <SettingsSection title={t("settings.app.player")}>
+    <SettingsSection id="player-mode" title={t("settings.app.player")}>
       <SelectRow label={t("settings.app.playerMode")} description={t("settings.app.playerHint")} value={playback.selection} options={playerOptions.map((option) => [option, option === "auto" ? t("settings.app.playerAuto") : option === "apple_music" ? "Apple Music" : option === "spotify" ? "Spotify" : t("settings.app.playerSystem")])} onChange={(selection) => void playback.setSelection(selection as PlayerSelection).catch((error) => setError(messageOf(error)))} />
     </SettingsSection>
-    <SettingsSection title={t("settings.app.systemApplications")}>
+    <SettingsSection id="player-system-applications" title={t("settings.app.systemApplications")}>
       <SelectRow
         label={t("settings.app.systemMediaFilterMode")}
         value={config.app.systemMediaFilterMode}
@@ -268,7 +279,7 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
         onRemove={(bundleId) => void saveApplications(config.app.systemMediaApplications.filter((application) => application.bundleId !== bundleId))}
       />
     </SettingsSection>
-    <SettingsSection title={t("settings.app.playerFollower")}>
+    <SettingsSection id="player-follower" title={t("settings.app.playerFollower")}>
       <div className={styles.systemApplicationsToolbar}>
         <p className={styles.cardHint}>{t("settings.app.playerFollowerHint")}</p>
         <div className={styles.shortcutControls}>
@@ -289,11 +300,11 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
     </SettingsSection>
     </>}
     {scope === "application" && <>
-    <SettingsSection title={t("settings.player.startup")}>
+    <SettingsSection id="application-startup" title={t("settings.player.startup")}>
       <ToggleRow label={t("settings.app.silentStartup")} description={t("settings.player.silentStartupHint")} value={config.app.silentStartup} onChange={(enabled) => setSilentStartup(enabled).catch((error) => setError(messageOf(error)))} />
       <ToggleRow label={t("settings.app.hideDock")} description={t("settings.app.hideDockHint")} value={config.app.hideDockIcon} onChange={(hidden) => setDockIconHidden(hidden).catch((error) => setError(messageOf(error)))} />
     </SettingsSection>
-    <SettingsSection title={t("settings.app.display")}>
+    <SettingsSection id="application-display" title={t("settings.app.display")}>
       <Field orientation="horizontal" className={styles.settingRow}>
         <FieldContent>
           <FieldTitle>{t("settings.app.themeLabel")}</FieldTitle>
@@ -307,7 +318,7 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
       </Field>
       <SelectRow label={t("settings.app.language.label")} description={t("settings.app.language.description")} value={normalizeLanguagePreference(config.app.language)} options={[["system", t("common.language.system")], ...languageOptions.map(({ code, label }) => [code, label] as [string, string])]} onChange={(language) => void setLanguage(language as LanguagePreference).catch((error) => setError(messageOf(error)))} />
     </SettingsSection>
-    <SettingsSection title={t("settings.app.shortcuts")}>
+    <SettingsSection id="application-shortcuts" title={t("settings.app.shortcuts")}>
       <div className={styles.shortcutRow}><span>{t("settings.app.openSettings")}</span><kbd>⌘ ,</kbd></div>
       {shortcutActions.map((action) => {
         const active = recording === action;
@@ -326,5 +337,5 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
       {unavailableShortcuts.length > 0 && <p className={styles.cardHint} data-error="true">{t("settings.app.shortcutUnavailable", { actions: unavailableShortcuts.map((action) => t(`settings.app.${action}`)).join(", ") })}</p>}
     </SettingsSection>
     </>}
-  </>;
+  </SettingsPage>;
 }

@@ -100,7 +100,7 @@ export const enUS = {
   },
   settings: {
     shell: {
-      navigation: "Settings categories", closeToast: "Close", advanced: "Advanced tools", resetTitle: "Restore category defaults",
+      navigation: "Settings categories", onThisPage: "On this page", closeToast: "Close", advanced: "Advanced tools", resetTitle: "Restore category defaults",
       nav: {
         style: "Style", display: "Display & Interaction", lyrics: "Lyrics", player: "Player",
         application: "Application", debug: "Debug Logs", config: "Configuration", about: "About & Updates",
@@ -110,7 +110,7 @@ export const enUS = {
     },
     theme: { dark: "Dark", light: "Light", system: "System", switchToLight: "Switch to light theme", switchToDark: "Switch to dark theme", switchToSystem: "Follow system theme" },
     common: {
-      colorSelect: "Choose {{label}}", presetColors: "{{label}} presets", colorValue: "{{label}} value",
+      colorSelect: "Choose {{label}}", presetColors: "{{label}} presets", systemColorPicker: "Open the system color picker for {{label}}", colorValue: "{{label}} value",
       colorPlaceholder: "#ffffff or rgba(255,255,255,.8)", capabilitiesHint: "Link lyrics to see whether translation, romanization, and word timing are available",
     },
     style: {
@@ -168,11 +168,12 @@ export const enUS = {
       autoHideHint: "Hide while paused, stopped, or unavailable, then show again when playback resumes (requires desktop lyrics to be enabled)",
       lock: "Lock and pass pointer events through", lockHint: "Clicks pass through to windows underneath while locked", resetPosition: "Reset desktop lyrics position",
       colors: "Color Presets", currentColor: "Current: {{name}}", custom: "Custom", applyColor: "Apply {{name}} colors", colorApplied: "Applied the “{{name}}” color preset.", showMoreColors: "More colors", showFewerColors: "Show fewer",
-      presets: { violet: "Violet", ocean: "Ocean Blue", mint: "Mint", sunset: "Sunset Orange", sakura: "Sakura Pink", contrast: "High Contrast", aurora: "Aurora", indigo: "Midnight Blue", coral: "Coral", lime: "Lime", moonlight: "Moonlight", neon: "Neon Violet" },
-      textEffects: "Text & Effects", fontSize: "Font size", opacity: "Opacity", activeColor: "Highlight color", inactiveColor: "Unplayed color",
+      presets: { lime: "Lime", sky: "Sky Blue", aurora: "Aurora Cyan", lavender: "Digital Lavender", rose: "Rose Pink", contrast: "High Contrast", amber: "Amber Gold", emerald: "Emerald", indigo: "Twilight Indigo", coral: "Vibrant Coral", moonlight: "Moonlight", neon: "Neon Violet" },
+      textEffects: "Text & Effects", fontFamily: "Font family", fontFamilyHint: "Enter a CSS font-family list; unavailable fonts fall back in order.", fontSize: "Font size", fontWeight: "Primary lyric weight", secondaryFontWeight: "Secondary lyric weight", fontWeightRegular: "Regular", fontWeightMedium: "Medium", fontWeightSemibold: "Semibold", fontWeightBold: "Bold", fontWeightExtrabold: "Extra bold", lineHeight: "Lyric line height", opacity: "Opacity", activeColor: "Highlight color", inactiveColor: "Unplayed color",
+      textShadowOffsetX: "Shadow horizontal offset", textShadowOffsetY: "Shadow vertical offset", textShadowBlur: "Shadow blur", textShadowColor: "Shadow color", textShadowColorHint: "Supports CSS colors with alpha, including rgba.",
       karaoke: "Karaoke effect", karaokeSweep: "Word sweep", karaokeBounce: "Word bounce", karaokeHighlight: "Highlight only",
       backgroundLayout: "Background & Layout", backgroundMode: "Background mode", solid: "Solid", transparent: "Transparent", backgroundOpacity: "Background opacity",
-      backgroundColor: "Background color", glass: "Glass blur", glassHint: "Blur the background independently; it remains active at 0% opacity", blur: "Blur strength", requiresVisibleBackground: "Available when the background is visible", requiresGlassBackground: "Available with a visible glass background", backgroundControlsHint: "Switch to a solid background to adjust opacity, color, glass, and blur.", glassControlsHint: "Enable glass blur to adjust blur strength.",
+      backgroundColor: "Background color", glass: "Glass blur", glassHint: "Blur the background independently; it remains active at 0% opacity", blur: "Blur strength", backgroundRadius: "Background radius", backgroundPaddingX: "Horizontal padding", backgroundPaddingY: "Vertical padding", requiresVisibleBackground: "Available when the background is visible", requiresGlassBackground: "Available with a visible glass background", backgroundControlsHint: "Switch to a solid background to adjust opacity, color, glass, and blur.", glassControlsHint: "Enable glass blur to adjust blur strength.",
       lyricLayout: "Lyrics layout", textDirection: "Text direction", alignment: "Lyrics alignment", centered: "Centered", distributed: "Split primary/secondary", requiresDoubleLayout: "Primary/secondary splitting requires double-line lyrics", requiresTranslation: "Enable translation to adjust this", requiresRomanization: "Enable romanization to adjust this",
       alignmentVertical: "Primary lyrics align toward the upper right and secondary lyrics toward the lower left", alignmentHorizontal: "Primary lyrics align left and secondary lyrics right", alignmentFixed: "This layout is always centered",
       longLyrics: "Long lyrics", shrink: "Smart scaling", wrap: "Wrap", marquee: "Scroll when overflowing", secondary: "Secondary Lyrics, Translation & Romanization",

@@ -43,7 +43,7 @@ export default function DebugSettingsPage() {
   return (
     <>
       <PageHeader title={t("settings.debug.title")} description={t("settings.debug.description")} />
-      <SettingsSection title={t("settings.debug.live")} trailing={debugLogs.enabled && <span className={styles.debugLogCount}>{debugLogs.entries.length} / 300</span>}>
+      <SettingsSection id="debug-live" title={t("settings.debug.live")} trailing={debugLogs.enabled && <span className={styles.debugLogCount}>{debugLogs.entries.length} / 300</span>}>
         <ToggleRow label={t("settings.debug.toggle")} description={t("settings.debug.toggleHint")} value={debugLogs.enabled} onChange={debugLogs.setEnabled} />
         {debugLogs.enabled ? (
           <>

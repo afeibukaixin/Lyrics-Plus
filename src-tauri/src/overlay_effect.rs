@@ -4,7 +4,6 @@ use tauri::Manager;
 
 pub(crate) const HORIZONTAL_OVERLAY_SURFACE_INSET: f64 = 46.0;
 pub(crate) const VERTICAL_OVERLAY_SURFACE_INSET: f64 = 48.0;
-const OVERLAY_SURFACE_RADIUS: f64 = 18.0;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct SurfaceFrame {
@@ -72,8 +71,9 @@ pub(crate) fn sync_overlay_vibrancy(window: &tauri::WebviewWindow, style: &Overl
             .unwrap_or_else(|| ToolbarPlacement::for_orientation(orientation));
         let enabled = vibrancy_enabled(style);
         let strength = vibrancy_strength(style.background_blur);
+        let radius = style.background_radius.clamp(0.0, 64.0);
         if let Err(error) = window.run_on_main_thread(move || {
-            if let Err(error) = sync_macos_vibrancy(&target, placement, enabled, strength) {
+            if let Err(error) = sync_macos_vibrancy(&target, placement, enabled, strength, radius) {
                 log::warn!("Failed to sync the native overlay vibrancy effect: {error}");
             }
         }) {
@@ -91,6 +91,7 @@ fn sync_macos_vibrancy(
     placement: ToolbarPlacement,
     enabled: bool,
     strength: f64,
+    radius: f64,
 ) -> Result<(), String> {
     use objc2::MainThreadMarker;
     use objc2_app_kit::{
@@ -122,6 +123,7 @@ fn sync_macos_vibrancy(
 
     let bounds = root.bounds();
     let frame = overlay_surface_frame(bounds.size.width, bounds.size.height, placement);
+    let radius = radius.min((frame.width.min(frame.height) / 2.0).max(0.0));
     let frame = NSRect::new(
         NSPoint::new(frame.x, frame.y),
         NSSize::new(frame.width, frame.height),
@@ -130,6 +132,11 @@ fn sync_macos_vibrancy(
     if let Some(view) = existing {
         view.setFrame(frame);
         view.setAlphaValue(strength);
+        view.setWantsLayer(true);
+        if let Some(layer) = view.layer() {
+            layer.setCornerRadius(radius);
+            layer.setMasksToBounds(radius > 0.0);
+        }
         return Ok(());
     }
 
@@ -143,8 +150,8 @@ fn sync_macos_vibrancy(
     );
     effect.setWantsLayer(true);
     if let Some(layer) = effect.layer() {
-        layer.setCornerRadius(OVERLAY_SURFACE_RADIUS);
-        layer.setMasksToBounds(true);
+        layer.setCornerRadius(radius);
+        layer.setMasksToBounds(radius > 0.0);
     }
     let identifier = NSString::from_str(EFFECT_VIEW_IDENTIFIER);
     effect.setIdentifier(Some(&identifier));

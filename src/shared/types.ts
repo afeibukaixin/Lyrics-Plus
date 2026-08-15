@@ -258,13 +258,22 @@ export type LibraryScanStatus = {
   error: string | null;
 };
 
+export type OverlayFontWeight = 400 | 500 | 600 | 700 | 800;
+
 export type OverlayStyle = {
+  fontFamily: string;
   fontSize: number;
+  fontWeight: OverlayFontWeight;
+  secondaryFontWeight: OverlayFontWeight;
+  lineHeight: number;
   activeColor: string;
   inactiveColor: string;
   opacity: number;
   backgroundOpacity: number;
   backgroundBlur: number;
+  backgroundRadius: number;
+  backgroundPaddingX: number;
+  backgroundPaddingY: number;
   backgroundMode: "solid" | "transparent";
   background: "glass" | "transparent" | "solid";
   solidColor: string;
@@ -280,6 +289,10 @@ export type OverlayStyle = {
   romanizationFontScale: number;
   translationColor: string;
   romanizationColor: string;
+  textShadowOffsetX: number;
+  textShadowOffsetY: number;
+  textShadowBlur: number;
+  textShadowColor: string;
   horizontalMaxWidth: number | null;
   verticalMaxHeight: number | null;
 };
@@ -301,12 +314,19 @@ export function secondaryDisplayFromFlags(translation: boolean, romanization: bo
 }
 
 export const defaultOverlayStyle: OverlayStyle = {
+  fontFamily: 'Inter, "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", Arial, sans-serif',
   fontSize: 36,
-  activeColor: "#c4b5fd",
-  inactiveColor: "#c8d2df",
+  fontWeight: 800,
+  secondaryFontWeight: 500,
+  lineHeight: 1.2,
+  activeColor: "#a3e635",
+  inactiveColor: "#ecfccb",
   opacity: 1,
   backgroundOpacity: 0.6,
   backgroundBlur: 18,
+  backgroundRadius: 18,
+  backgroundPaddingX: 26,
+  backgroundPaddingY: 22,
   backgroundMode: "solid",
   background: "glass",
   solidColor: "#171821",
@@ -320,8 +340,12 @@ export const defaultOverlayStyle: OverlayStyle = {
   secondaryFontScale: 1,
   translationFontScale: 0.8,
   romanizationFontScale: 0.8,
-  translationColor: "#cbd5e1",
-  romanizationColor: "#aab7c8",
+  translationColor: "#d9f99d",
+  romanizationColor: "#bef264",
+  textShadowOffsetX: 0,
+  textShadowOffsetY: 1,
+  textShadowBlur: 4,
+  textShadowColor: "rgba(0, 0, 0, 0.55)",
   horizontalMaxWidth: null,
   verticalMaxHeight: null,
 };

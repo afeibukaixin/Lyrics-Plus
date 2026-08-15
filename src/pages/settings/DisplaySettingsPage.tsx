@@ -22,7 +22,7 @@ export default function DisplaySettingsPage() {
 
   return <>
     <PageHeader title={t("settings.display.title")} description={t("settings.display.description")} onReset={() => void resetSection("display")} resetting={resettingSection === "display"} confirming={confirmingReset === "display"} />
-    <SettingsSection title={t("settings.overlay.state")}>
+    <SettingsSection id="display-state" title={t("settings.overlay.state")}>
       <ToggleRow label={t("settings.overlay.show")} description={t("settings.overlay.showHint")} value={overlaySettings.visible} onChange={setVisible} />
       <ToggleRow label={t("settings.overlay.autoHide")} description={t("settings.overlay.autoHideHint")} value={config.overlay.hideWhenNotPlaying} onChange={(hidden) => setOverlayHideWhenNotPlaying(hidden).catch((value) => setError(messageOf(value)))} />
       <ToggleRow

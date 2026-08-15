@@ -16,7 +16,7 @@ use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSet
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 30;
+pub const CONFIG_SCHEMA_VERSION: u16 = 31;
 const APP_CONFIG_KEYS: &[&str] = &[
     "theme",
     "language",
@@ -88,6 +88,12 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             line if line.starts_with("      \"fontSize\":") => {
                 Some(("      ", ConfigComment::FontSize))
             }
+            line if line.starts_with("      \"fontFamily\":") => {
+                Some(("      ", ConfigComment::FontFamily))
+            }
+            line if line.starts_with("      \"lineHeight\":") => {
+                Some(("      ", ConfigComment::LineHeight))
+            }
             line if line.starts_with("      \"opacity\":") => {
                 Some(("      ", ConfigComment::Opacity))
             }
@@ -96,6 +102,9 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             }
             line if line.starts_with("      \"backgroundBlur\":") => {
                 Some(("      ", ConfigComment::BackgroundBlur))
+            }
+            line if line.starts_with("      \"backgroundRadius\":") => {
+                Some(("      ", ConfigComment::BackgroundGeometry))
             }
             line if line.starts_with("      \"backgroundMode\":") => {
                 Some(("      ", ConfigComment::BackgroundMode))
@@ -123,6 +132,9 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             }
             line if line.starts_with("      \"secondaryFontScale\":") => {
                 Some(("      ", ConfigComment::SecondaryFontScale))
+            }
+            line if line.starts_with("      \"textShadowOffsetX\":") => {
+                Some(("      ", ConfigComment::TextShadow))
             }
             _ => None,
         };
@@ -368,12 +380,19 @@ impl Default for OverlayPreferences {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct OverlayAppearance {
+    pub font_family: String,
     pub font_size: u16,
+    pub font_weight: u16,
+    pub secondary_font_weight: u16,
+    pub line_height: f64,
     pub active_color: String,
     pub inactive_color: String,
     pub opacity: f64,
     pub background_opacity: f64,
     pub background_blur: f64,
+    pub background_radius: f64,
+    pub background_padding_x: f64,
+    pub background_padding_y: f64,
     pub background_mode: OverlayBackgroundMode,
     pub background: OverlayBackground,
     pub solid_color: String,
@@ -389,6 +408,10 @@ pub struct OverlayAppearance {
     pub romanization_font_scale: f64,
     pub translation_color: String,
     pub romanization_color: String,
+    pub text_shadow_offset_x: f64,
+    pub text_shadow_offset_y: f64,
+    pub text_shadow_blur: f64,
+    pub text_shadow_color: String,
 }
 
 impl Default for OverlayAppearance {
@@ -400,12 +423,19 @@ impl Default for OverlayAppearance {
 impl From<&OverlayStyleSettings> for OverlayAppearance {
     fn from(style: &OverlayStyleSettings) -> Self {
         Self {
+            font_family: style.font_family.clone(),
             font_size: style.font_size,
+            font_weight: style.font_weight,
+            secondary_font_weight: style.secondary_font_weight,
+            line_height: style.line_height,
             active_color: style.active_color.clone(),
             inactive_color: style.inactive_color.clone(),
             opacity: style.opacity,
             background_opacity: style.background_opacity,
             background_blur: style.background_blur,
+            background_radius: style.background_radius,
+            background_padding_x: style.background_padding_x,
+            background_padding_y: style.background_padding_y,
             background_mode: style.background_mode,
             background: style.background,
             solid_color: style.solid_color.clone(),
@@ -422,6 +452,10 @@ impl From<&OverlayStyleSettings> for OverlayAppearance {
             romanization_font_scale: style.romanization_font_scale,
             translation_color: style.translation_color.clone(),
             romanization_color: style.romanization_color.clone(),
+            text_shadow_offset_x: style.text_shadow_offset_x,
+            text_shadow_offset_y: style.text_shadow_offset_y,
+            text_shadow_blur: style.text_shadow_blur,
+            text_shadow_color: style.text_shadow_color.clone(),
         }
     }
 }
@@ -429,12 +463,19 @@ impl From<&OverlayStyleSettings> for OverlayAppearance {
 impl OverlayAppearance {
     pub fn into_style(self) -> OverlayStyleSettings {
         OverlayStyleSettings {
+            font_family: self.font_family,
             font_size: self.font_size,
+            font_weight: self.font_weight,
+            secondary_font_weight: self.secondary_font_weight,
+            line_height: self.line_height,
             active_color: self.active_color,
             inactive_color: self.inactive_color,
             opacity: self.opacity,
             background_opacity: self.background_opacity,
             background_blur: self.background_blur,
+            background_radius: self.background_radius,
+            background_padding_x: self.background_padding_x,
+            background_padding_y: self.background_padding_y,
             background_mode: self.background_mode,
             background: self.background,
             solid_color: self.solid_color,
@@ -453,6 +494,10 @@ impl OverlayAppearance {
             romanization_font_scale: self.romanization_font_scale,
             translation_color: self.translation_color,
             romanization_color: self.romanization_color,
+            text_shadow_offset_x: self.text_shadow_offset_x,
+            text_shadow_offset_y: self.text_shadow_offset_y,
+            text_shadow_blur: self.text_shadow_blur,
+            text_shadow_color: self.text_shadow_color,
             horizontal_max_width: None,
             vertical_max_height: None,
         }
@@ -893,12 +938,19 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                 appearance,
                 raw,
                 &[
+                    "fontFamily",
                     "fontSize",
+                    "fontWeight",
+                    "secondaryFontWeight",
+                    "lineHeight",
                     "activeColor",
                     "inactiveColor",
                     "opacity",
                     "backgroundOpacity",
                     "backgroundBlur",
+                    "backgroundRadius",
+                    "backgroundPaddingX",
+                    "backgroundPaddingY",
                     "backgroundMode",
                     "background",
                     "solidColor",
@@ -914,6 +966,10 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                     "romanizationFontScale",
                     "translationColor",
                     "romanizationColor",
+                    "textShadowOffsetX",
+                    "textShadowOffsetY",
+                    "textShadowBlur",
+                    "textShadowColor",
                 ],
             )?;
         }
@@ -999,6 +1055,11 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         ("/schemaVersion", "schemaVersion"),
         ("/lyrics/providers/autoApplyThreshold", "autoApplyThreshold"),
         ("/overlay/appearance/fontSize", "fontSize"),
+        ("/overlay/appearance/fontWeight", "fontWeight"),
+        (
+            "/overlay/appearance/secondaryFontWeight",
+            "secondaryFontWeight",
+        ),
     ] {
         if value
             .pointer(pointer)
@@ -1137,12 +1198,21 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             }
         }
     }
+    if let Some(candidate) = value.pointer("/overlay/appearance/fontFamily") {
+        let font_family = candidate
+            .as_str()
+            .ok_or_else(|| error_at_key(raw, "fontFamily", "fontFamily 必须是字符串"))?;
+        if font_family.trim().is_empty() {
+            return Err(error_at_key(raw, "fontFamily", "fontFamily 不能为空"));
+        }
+    }
     for key in [
         "activeColor",
         "inactiveColor",
         "solidColor",
         "translationColor",
         "romanizationColor",
+        "textShadowColor",
     ] {
         let pointer = format!("/overlay/appearance/{key}");
         if let Some(candidate) = value.pointer(&pointer) {
@@ -1237,6 +1307,24 @@ fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftEr
             72.0,
         ),
         (
+            "fontWeight",
+            value.pointer("/overlay/appearance/fontWeight"),
+            400.0,
+            800.0,
+        ),
+        (
+            "secondaryFontWeight",
+            value.pointer("/overlay/appearance/secondaryFontWeight"),
+            400.0,
+            800.0,
+        ),
+        (
+            "lineHeight",
+            value.pointer("/overlay/appearance/lineHeight"),
+            0.8,
+            2.0,
+        ),
+        (
             "autoApplyThreshold",
             value.pointer("/lyrics/providers/autoApplyThreshold"),
             0.0,
@@ -1257,6 +1345,42 @@ fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftEr
         (
             "backgroundBlur",
             value.pointer("/overlay/appearance/backgroundBlur"),
+            0.0,
+            40.0,
+        ),
+        (
+            "backgroundRadius",
+            value.pointer("/overlay/appearance/backgroundRadius"),
+            0.0,
+            64.0,
+        ),
+        (
+            "backgroundPaddingX",
+            value.pointer("/overlay/appearance/backgroundPaddingX"),
+            0.0,
+            64.0,
+        ),
+        (
+            "backgroundPaddingY",
+            value.pointer("/overlay/appearance/backgroundPaddingY"),
+            0.0,
+            64.0,
+        ),
+        (
+            "textShadowOffsetX",
+            value.pointer("/overlay/appearance/textShadowOffsetX"),
+            -20.0,
+            20.0,
+        ),
+        (
+            "textShadowOffsetY",
+            value.pointer("/overlay/appearance/textShadowOffsetY"),
+            -20.0,
+            20.0,
+        ),
+        (
+            "textShadowBlur",
+            value.pointer("/overlay/appearance/textShadowBlur"),
             0.0,
             40.0,
         ),
@@ -1338,13 +1462,14 @@ fn internal_draft_error(error: impl std::fmt::Display) -> ConfigDraftError {
     }
 }
 
-fn color_fields(style: &OverlayStyleSettings) -> [(&'static str, &str); 5] {
+fn color_fields(style: &OverlayStyleSettings) -> [(&'static str, &str); 6] {
     [
         ("高亮颜色", &style.active_color),
         ("未唱颜色", &style.inactive_color),
         ("背景颜色", &style.solid_color),
         ("翻译颜色", &style.translation_color),
         ("音译颜色", &style.romanization_color),
+        ("文字阴影颜色", &style.text_shadow_color),
     ]
 }
 

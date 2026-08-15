@@ -29,7 +29,7 @@ export default function AboutSettingsPage() {
   return (
     <>
       <PageHeader title={t("settings.about.title")} description={t("settings.about.description")} onReset={() => void resetSection("about")} resetting={resettingSection === "about"} confirming={confirmingReset === "about"} />
-      <SettingsSection>
+      <SettingsSection id="about-updates">
         <div className={styles.aboutHero}>
           <img alt="" src={appIcon} />
           <div><strong>Lyrics Plus</strong><span>{t("settings.about.version", { version: currentVersion })}</span></div>
@@ -55,7 +55,7 @@ export default function AboutSettingsPage() {
           </p>
         )}
       </SettingsSection>
-      <SettingsSection title={t("settings.about.project")}>
+      <SettingsSection id="about-project" title={t("settings.about.project")}>
         <div className={styles.buttonRow}>
           {links.map(([key, url]) => <Button variant="outline" size="sm" key={key} onClick={() => open(url)}>{t(`settings.about.links.${key}`)}</Button>)}
         </div>

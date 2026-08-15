@@ -100,7 +100,7 @@ export const zhHK = {
   },
   settings: {
     shell: {
-      navigation: "設定分類", closeToast: "關閉", advanced: "進階工具", resetTitle: "還原分類預設設定",
+      navigation: "設定分類", onThisPage: "本頁目錄", closeToast: "關閉", advanced: "進階工具", resetTitle: "還原分類預設設定",
       nav: {
         style: "樣式", display: "顯示與互動", lyrics: "歌詞", player: "播放器",
         application: "應用程式", debug: "偵錯紀錄", config: "設定檔", about: "關於與更新",
@@ -110,7 +110,7 @@ export const zhHK = {
     },
     theme: { dark: "深色", light: "淺色", system: "跟隨系統", switchToLight: "切換為淺色主題", switchToDark: "切換為深色主題", switchToSystem: "切換為跟隨系統" },
     common: {
-      colorSelect: "選擇{{label}}", presetColors: "{{label}}預設顏色", colorValue: "{{label}}顏色值",
+      colorSelect: "選擇{{label}}", presetColors: "{{label}}預設顏色", systemColorPicker: "開啟{{label}}系統取色器", colorValue: "{{label}}顏色值",
       colorPlaceholder: "#ffffff 或 rgba(255,255,255,.8)", capabilitiesHint: "連結歌詞後會顯示翻譯、羅馬拼音和逐字時間軸的可用狀態",
     },
     style: { title: "歌詞樣式", description: "調整桌面歌詞外觀。", common: "常用樣式", advanced: "進階樣式" },
@@ -162,11 +162,12 @@ export const zhHK = {
       autoHideHint: "暫停、停止或播放器無法使用時隱藏；恢復播放後自動顯示（需啟用顯示桌面歌詞）",
       lock: "鎖定並讓滑鼠事件穿透", lockHint: "鎖定後，按一下會穿透至下方視窗", resetPosition: "重設桌面歌詞位置",
       colors: "快速配色", currentColor: "目前：{{name}}", custom: "自訂", applyColor: "套用{{name}}配色", colorApplied: "已套用「{{name}}」配色。", showMoreColors: "更多配色", showFewerColors: "收起配色",
-      presets: { violet: "紫羅蘭", ocean: "海洋藍", mint: "薄荷青", sunset: "夕陽橘", sakura: "櫻花粉", contrast: "黑白高對比", aurora: "極光青", indigo: "夜幕藍", coral: "珊瑚紅", lime: "青檸綠", moonlight: "月光銀", neon: "霓虹紫" },
-      textEffects: "文字與效果", fontSize: "字體大小", opacity: "透明度", activeColor: "醒目提示顏色", inactiveColor: "未播放顏色",
+      presets: { lime: "青檸綠", sky: "天空藍", aurora: "極光青", lavender: "數碼薰衣草", rose: "玫瑰粉", contrast: "黑白高對比", amber: "琥珀金", emerald: "翡翠綠", indigo: "暮光靛", coral: "活力珊瑚", moonlight: "月光銀", neon: "霓虹紫" },
+      textEffects: "文字與效果", fontFamily: "字體系列", fontFamilyHint: "依 CSS font-family 語法輸入多個字體，系統會按順序回退。", fontSize: "字體大小", fontWeight: "主歌詞粗細", secondaryFontWeight: "副歌詞粗細", fontWeightRegular: "標準", fontWeightMedium: "中等", fontWeightSemibold: "半粗", fontWeightBold: "粗體", fontWeightExtrabold: "特粗", lineHeight: "歌詞行高", opacity: "透明度", activeColor: "醒目提示顏色", inactiveColor: "未播放顏色",
+      textShadowOffsetX: "陰影水平偏移", textShadowOffsetY: "陰影垂直偏移", textShadowBlur: "陰影模糊", textShadowColor: "陰影顏色", textShadowColorHint: "支援 rgba 等含透明度的 CSS 顏色。",
       karaoke: "卡拉 OK 效果", karaokeSweep: "逐字掃光", karaokeBounce: "逐字彈跳", karaokeHighlight: "僅醒目提示",
       backgroundLayout: "背景與版面", backgroundMode: "背景模式", solid: "純色", transparent: "透明", backgroundOpacity: "背景透明度",
-      backgroundColor: "背景顏色", glass: "毛玻璃", glassHint: "獨立模糊背景；透明度為 0% 時仍然有效", blur: "模糊強度", requiresVisibleBackground: "僅在顯示背景時可用", requiresGlassBackground: "僅在顯示毛玻璃背景時可用", backgroundControlsHint: "切換為純色背景後可調整透明度、顏色、毛玻璃和模糊強度。", glassControlsHint: "開啟毛玻璃後可調整模糊強度。",
+      backgroundColor: "背景顏色", glass: "毛玻璃", glassHint: "獨立模糊背景；透明度為 0% 時仍然有效", blur: "模糊強度", backgroundRadius: "背景圓角", backgroundPaddingX: "水平內距", backgroundPaddingY: "垂直內距", requiresVisibleBackground: "僅在顯示背景時可用", requiresGlassBackground: "僅在顯示毛玻璃背景時可用", backgroundControlsHint: "切換為純色背景後可調整透明度、顏色、毛玻璃和模糊強度。", glassControlsHint: "開啟毛玻璃後可調整模糊強度。",
       lyricLayout: "歌詞版面", textDirection: "文字方向", alignment: "歌詞對齊", centered: "置中", distributed: "主副分列", requiresDoubleLayout: "僅雙排歌詞支援主副分列", requiresTranslation: "開啟翻譯後可調整", requiresRomanization: "開啟音譯後可調整",
       alignmentVertical: "主副分列會將右側主歌詞靠上、左側副歌詞靠下", alignmentHorizontal: "主副分列會將主歌詞靠左、副歌詞靠右", alignmentFixed: "目前版面固定置中",
       longLyrics: "長歌詞", shrink: "智能縮放", wrap: "自動換行", marquee: "超出時捲動", secondary: "副歌詞、翻譯與羅馬拼音",

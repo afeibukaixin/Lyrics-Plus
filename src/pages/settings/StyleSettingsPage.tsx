@@ -1,10 +1,10 @@
-import { secondaryDisplayFlags, secondaryDisplayFromFlags, type OverlayStyle } from "../../shared/types";
+import { defaultOverlayStyle, secondaryDisplayFlags, secondaryDisplayFromFlags, type OverlayStyle } from "../../shared/types";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown } from "lucide-react";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
-import { ColorRow, PageHeader, RangeRow, SelectRow, SettingsSection, ToggleRow } from "./components";
+import { ColorRow, PageHeader, RangeRow, SelectRow, SettingsPage, SettingsSection, TextRow, ToggleRow } from "./components";
 import { Button } from "@/components/ui/button";
 
 type OverlayColorValues = Pick<
@@ -13,26 +13,26 @@ type OverlayColorValues = Pick<
 >;
 
 type OverlayColorPreset = {
-  id: "violet" | "ocean" | "mint" | "sunset" | "sakura" | "contrast" | "aurora" | "indigo" | "coral" | "lime" | "moonlight" | "neon";
+  id: "lime" | "sky" | "aurora" | "lavender" | "rose" | "contrast" | "amber" | "emerald" | "indigo" | "coral" | "moonlight" | "neon";
   colors: OverlayColorValues;
 };
 
 const overlayColorPresets: OverlayColorPreset[] = [
-  { id: "violet", colors: { activeColor: "#c4b5fd", inactiveColor: "#c8d2df", translationColor: "#cbd5e1", romanizationColor: "#aab7c8" } },
-  { id: "ocean", colors: { activeColor: "#38bdf8", inactiveColor: "#dbeafe", translationColor: "#bae6fd", romanizationColor: "#93c5fd" } },
-  { id: "mint", colors: { activeColor: "#5eead4", inactiveColor: "#d1fae5", translationColor: "#99f6e4", romanizationColor: "#a7f3d0" } },
-  { id: "sunset", colors: { activeColor: "#fbbf24", inactiveColor: "#ffedd5", translationColor: "#fde68a", romanizationColor: "#fdba74" } },
-  { id: "sakura", colors: { activeColor: "#fda4af", inactiveColor: "#fce7f3", translationColor: "#fbcfe8", romanizationColor: "#fecdd3" } },
-  { id: "contrast", colors: { activeColor: "#ffffff", inactiveColor: "#cbd5e1", translationColor: "#e2e8f0", romanizationColor: "#94a3b8" } },
-  { id: "aurora", colors: { activeColor: "#22d3ee", inactiveColor: "#ccfbf1", translationColor: "#a7f3d0", romanizationColor: "#c4b5fd" } },
-  { id: "indigo", colors: { activeColor: "#818cf8", inactiveColor: "#e0e7ff", translationColor: "#c7d2fe", romanizationColor: "#a5b4fc" } },
-  { id: "coral", colors: { activeColor: "#fb7185", inactiveColor: "#ffedd5", translationColor: "#fed7aa", romanizationColor: "#fecdd3" } },
   { id: "lime", colors: { activeColor: "#a3e635", inactiveColor: "#ecfccb", translationColor: "#d9f99d", romanizationColor: "#bef264" } },
+  { id: "sky", colors: { activeColor: "#38bdf8", inactiveColor: "#dbeafe", translationColor: "#bae6fd", romanizationColor: "#93c5fd" } },
+  { id: "aurora", colors: { activeColor: "#22d3ee", inactiveColor: "#ccfbf1", translationColor: "#99f6e4", romanizationColor: "#a5f3fc" } },
+  { id: "lavender", colors: { activeColor: "#a78bfa", inactiveColor: "#ede9fe", translationColor: "#ddd6fe", romanizationColor: "#c4b5fd" } },
+  { id: "rose", colors: { activeColor: "#fb7185", inactiveColor: "#fce7f3", translationColor: "#fbcfe8", romanizationColor: "#fecdd3" } },
+  { id: "contrast", colors: { activeColor: "#ffffff", inactiveColor: "#cbd5e1", translationColor: "#e2e8f0", romanizationColor: "#94a3b8" } },
+  { id: "amber", colors: { activeColor: "#fbbf24", inactiveColor: "#fffbeb", translationColor: "#fde68a", romanizationColor: "#fdba74" } },
+  { id: "emerald", colors: { activeColor: "#34d399", inactiveColor: "#d1fae5", translationColor: "#a7f3d0", romanizationColor: "#6ee7b7" } },
+  { id: "indigo", colors: { activeColor: "#818cf8", inactiveColor: "#e0e7ff", translationColor: "#c7d2fe", romanizationColor: "#a5b4fc" } },
+  { id: "coral", colors: { activeColor: "#fb923c", inactiveColor: "#ffedd5", translationColor: "#fed7aa", romanizationColor: "#fdba74" } },
   { id: "moonlight", colors: { activeColor: "#f8fafc", inactiveColor: "#dbeafe", translationColor: "#e0e7ff", romanizationColor: "#cbd5e1" } },
   { id: "neon", colors: { activeColor: "#e879f9", inactiveColor: "#cffafe", translationColor: "#67e8f9", romanizationColor: "#c4b5fd" } },
 ];
 
-const featuredColorPresetCount = 6;
+const featuredColorPresetCount = 3;
 
 const overlayColorKeys: Array<keyof OverlayColorValues> = [
   "activeColor",
@@ -56,14 +56,26 @@ export default function StyleSettingsPage() {
     updateStyle,
     resetSection,
   } = useSettingsContext();
-  const [colorPresetsExpanded, setColorPresetsExpanded] = useState(() =>
-    overlayColorPresets.slice(featuredColorPresetCount).some((preset) => matchesColorPreset(style, preset)),
-  );
+  const [colorPresetsExpanded, setColorPresetsExpanded] = useState(false);
 
   const secondaryFlags = secondaryDisplayFlags(style.secondaryDisplay);
   const alignmentAvailable = style.layout === "double";
   const activeColorPreset = overlayColorPresets.find((preset) => matchesColorPreset(style, preset));
   const visibleColorPresets = colorPresetsExpanded ? overlayColorPresets : overlayColorPresets.slice(0, featuredColorPresetCount);
+  const fontWeightOptions: Array<[string, string]> = [
+    ["400", t("settings.overlay.fontWeightRegular")],
+    ["500", t("settings.overlay.fontWeightMedium")],
+    ["600", t("settings.overlay.fontWeightSemibold")],
+    ["700", t("settings.overlay.fontWeightBold")],
+    ["800", t("settings.overlay.fontWeightExtrabold")],
+  ];
+  const sections = [
+    { id: "style-colors", label: t("settings.overlay.colors") },
+    { id: "style-text-effects", label: t("settings.overlay.textEffects") },
+    { id: "style-common", label: t("settings.style.common") },
+    { id: "style-background-layout", label: t("settings.overlay.backgroundLayout") },
+    { id: "style-secondary", label: t("settings.overlay.secondary") },
+  ];
 
   const applyColorPreset = async (preset: OverlayColorPreset) => {
     setError(null);
@@ -73,9 +85,9 @@ export default function StyleSettingsPage() {
   };
 
   return (
-    <>
+    <SettingsPage sections={sections}>
       <PageHeader title={t("settings.style.title")} description={t("settings.style.description")} onReset={() => void resetSection("style")} resetting={resettingSection === "style"} confirming={confirmingReset === "style"} />
-      <SettingsSection title={t("settings.overlay.colors")} trailing={<span className={styles.colorPresetStatus}>{t("settings.overlay.currentColor", { name: activeColorPreset ? t(`settings.overlay.presets.${activeColorPreset.id}`) : t("settings.overlay.custom") })}</span>}>
+      <SettingsSection id="style-colors" title={t("settings.overlay.colors")} trailing={<span className={styles.colorPresetStatus}>{t("settings.overlay.currentColor", { name: activeColorPreset ? t(`settings.overlay.presets.${activeColorPreset.id}`) : t("settings.overlay.custom") })}</span>}>
         <div className={styles.colorPresetGrid} id="overlay-color-presets">
           {visibleColorPresets.map((preset) => {
             const active = preset.id === activeColorPreset?.id;
@@ -92,8 +104,18 @@ export default function StyleSettingsPage() {
           </Button>
         </div>
       </SettingsSection>
-      <SettingsSection title={t("settings.style.common")}>
+      <SettingsSection id="style-text-effects" title={t("settings.overlay.textEffects")}>
+        <TextRow label={t("settings.overlay.fontFamily")} description={t("settings.overlay.fontFamilyHint")} value={style.fontFamily} emptyValue={defaultOverlayStyle.fontFamily} onChange={(fontFamily) => void updateStyle({ fontFamily })} />
         <RangeRow label={t("settings.overlay.fontSize")} value={style.fontSize} min={16} max={72} suffix="px" onChange={(fontSize) => void updateStyle({ fontSize })} />
+        <SelectRow label={t("settings.overlay.fontWeight")} value={String(style.fontWeight)} onChange={(fontWeight) => void updateStyle({ fontWeight: Number(fontWeight) as OverlayStyle["fontWeight"] })} options={fontWeightOptions} />
+        <SelectRow label={t("settings.overlay.secondaryFontWeight")} value={String(style.secondaryFontWeight)} onChange={(secondaryFontWeight) => void updateStyle({ secondaryFontWeight: Number(secondaryFontWeight) as OverlayStyle["secondaryFontWeight"] })} options={fontWeightOptions} />
+        <RangeRow label={t("settings.overlay.lineHeight")} value={style.lineHeight} min={0.8} max={2} step={0.05} suffix="×" onChange={(lineHeight) => void updateStyle({ lineHeight })} />
+        <RangeRow label={t("settings.overlay.textShadowOffsetX")} value={style.textShadowOffsetX} min={-20} max={20} suffix="px" onChange={(textShadowOffsetX) => void updateStyle({ textShadowOffsetX })} />
+        <RangeRow label={t("settings.overlay.textShadowOffsetY")} value={style.textShadowOffsetY} min={-20} max={20} suffix="px" onChange={(textShadowOffsetY) => void updateStyle({ textShadowOffsetY })} />
+        <RangeRow label={t("settings.overlay.textShadowBlur")} value={style.textShadowBlur} min={0} max={40} suffix="px" onChange={(textShadowBlur) => void updateStyle({ textShadowBlur })} />
+        <ColorRow label={t("settings.overlay.textShadowColor")} description={t("settings.overlay.textShadowColorHint")} value={style.textShadowColor} onChange={(textShadowColor) => void updateStyle({ textShadowColor })} />
+      </SettingsSection>
+      <SettingsSection id="style-common" title={t("settings.style.common")}>
         <ColorRow label={t("settings.overlay.activeColor")} value={style.activeColor} onChange={(activeColor) => void updateStyle({ activeColor })} />
         <ColorRow label={t("settings.overlay.inactiveColor")} value={style.inactiveColor} onChange={(inactiveColor) => void updateStyle({ inactiveColor })} />
         <SelectRow label={t("settings.overlay.backgroundMode")} value={style.backgroundMode} onChange={(backgroundMode) => void updateStyle({ backgroundMode: backgroundMode as OverlayStyle["backgroundMode"] })} options={[["solid", t("settings.overlay.solid")], ["transparent", t("settings.overlay.transparent")]]} />
@@ -103,7 +125,7 @@ export default function StyleSettingsPage() {
         <ToggleRow label={t("settings.overlay.showRomanization")} value={secondaryFlags.romanization} onChange={(romanization) => updateStyle({ secondaryDisplay: secondaryDisplayFromFlags(secondaryFlags.translation, romanization) })} />
         <SelectRow label={t("settings.overlay.karaoke")} value={style.karaokeStyle} onChange={(karaokeStyle) => void updateStyle({ karaokeStyle: karaokeStyle as OverlayStyle["karaokeStyle"] })} options={[["sweep", t("settings.overlay.karaokeSweep")], ["bounce", t("settings.overlay.karaokeBounce")], ["highlight", t("settings.overlay.karaokeHighlight")]]} />
       </SettingsSection>
-      <SettingsSection title={t("settings.overlay.backgroundLayout")}>
+      <SettingsSection id="style-background-layout" title={t("settings.overlay.backgroundLayout")}>
         {style.backgroundMode !== "solid"
           ? <p className={styles.cardHint}>{t("settings.overlay.backgroundControlsHint")}</p>
           : style.background !== "glass"
@@ -114,10 +136,13 @@ export default function StyleSettingsPage() {
         <ColorRow label={t("settings.overlay.backgroundColor")} disabled={style.backgroundMode !== "solid"} value={style.solidColor} onChange={(solidColor) => void updateStyle({ solidColor })} />
         <ToggleRow label={t("settings.overlay.glass")} disabled={style.backgroundMode !== "solid"} value={style.background === "glass"} onChange={(enabled) => updateStyle({ background: enabled ? "glass" : "solid" })} />
         <RangeRow label={t("settings.overlay.blur")} disabled={style.backgroundMode !== "solid" || style.background !== "glass"} value={style.backgroundBlur} min={0} max={40} suffix="%" onChange={(backgroundBlur) => void updateStyle({ backgroundBlur })} />
+        <RangeRow label={t("settings.overlay.backgroundRadius")} value={style.backgroundRadius} min={0} max={64} suffix="px" onChange={(backgroundRadius) => void updateStyle({ backgroundRadius })} />
+        <RangeRow label={t("settings.overlay.backgroundPaddingX")} value={style.backgroundPaddingX} min={0} max={64} suffix="px" onChange={(backgroundPaddingX) => void updateStyle({ backgroundPaddingX })} />
+        <RangeRow label={t("settings.overlay.backgroundPaddingY")} value={style.backgroundPaddingY} min={0} max={64} suffix="px" onChange={(backgroundPaddingY) => void updateStyle({ backgroundPaddingY })} />
         <SelectRow label={t("settings.overlay.longLyrics")} value={style.longText} onChange={(longText) => void updateStyle({ longText: longText as OverlayStyle["longText"] })} options={[["shrink", t("settings.overlay.shrink")], ["wrap", t("settings.overlay.wrap")], ["marquee", t("settings.overlay.marquee")]]} />
         <SelectRow label={t("settings.overlay.alignment")} description={!alignmentAvailable ? t("settings.overlay.requiresDoubleLayout") : undefined} disabled={!alignmentAvailable} value={alignmentAvailable ? style.alignment : "center"} onChange={(alignment) => void updateStyle({ alignment: alignment as OverlayStyle["alignment"] })} options={[["center", t("settings.overlay.centered")], ["distributed", t("settings.overlay.distributed")]]} />
       </SettingsSection>
-      <SettingsSection title={t("settings.overlay.secondary")}>
+      <SettingsSection id="style-secondary" title={t("settings.overlay.secondary")}>
         {(!secondaryFlags.translation || !secondaryFlags.romanization) && <p className={styles.cardHint}>{t("settings.overlay.secondaryControlsHint")}</p>}
         <RangeRow label={t("settings.overlay.secondarySize")} value={style.secondaryFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.secondaryFontScale * 100)} onChange={(secondaryFontScale) => void updateStyle({ secondaryFontScale })} />
         <RangeRow label={t("settings.overlay.translationSize")} disabled={!secondaryFlags.translation} value={style.translationFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.translationFontScale * 100)} onChange={(translationFontScale) => void updateStyle({ translationFontScale })} />
@@ -126,6 +151,6 @@ export default function StyleSettingsPage() {
         <ColorRow label={t("settings.overlay.romanizationColor")} disabled={!secondaryFlags.romanization} value={style.romanizationColor} onChange={(romanizationColor) => void updateStyle({ romanizationColor })} />
         <ToggleRow label={t("settings.overlay.autoCenter")} value={style.autoCenterWithTranslationOrRomanization} onChange={(autoCenterWithTranslationOrRomanization) => updateStyle({ autoCenterWithTranslationOrRomanization })} />
       </SettingsSection>
-    </>
+    </SettingsPage>
   );
 }

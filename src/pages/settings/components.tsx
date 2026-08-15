@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Music2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/componen
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field";
 import { IconButton } from "@/components/ui/icon-button";
+import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -16,11 +17,43 @@ import { cn } from "@/lib/utils";
 import type { RegisteredApplication } from "@/shared/types";
 import styles from "../settings.module.scss";
 
+export type SettingsPageSection = {
+  id: string;
+  label: string;
+};
+
 const colorChoices = [
   "#f8fafc", "#e2e8f0", "#cbd5e1", "#aab7c8", "#8090a4",
   "#7dd3fc", "#a5b4fc", "#c4b5fd", "#99f6e4", "#fde68a", "#fda4af",
   "#172033", "#25324a", "#3d4b63", "#64748b",
 ];
+
+function normalizeHexColor(value: string) {
+  const match = value.trim().match(/^#([\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i);
+  if (!match) return null;
+  const channels = match[1].length <= 4
+    ? match[1].slice(0, 3).split("").map((channel) => channel.repeat(2)).join("")
+    : match[1].slice(0, 6);
+  return `#${channels.toLowerCase()}`;
+}
+
+function nativeColorValue(value: string) {
+  const directHex = normalizeHexColor(value);
+  if (directHex) return directHex;
+  if (typeof document === "undefined" || !CSS.supports("color", value)) return "#000000";
+
+  const context = document.createElement("canvas").getContext("2d");
+  if (!context) return "#000000";
+  context.fillStyle = "#000000";
+  context.fillStyle = value;
+  const normalized = context.fillStyle;
+  const canvasHex = normalizeHexColor(normalized);
+  if (canvasHex) return canvasHex;
+
+  const channels = normalized.startsWith("rgb") ? normalized.match(/[\d.]+/g)?.slice(0, 3) : null;
+  if (!channels || channels.length !== 3) return "#000000";
+  return `#${channels.map((channel) => Math.round(Number(channel)).toString(16).padStart(2, "0")).join("")}`;
+}
 
 export function PageHeader({ title, description, onReset, resetting = false }: { title: string; description?: string; onReset?: () => void; resetting?: boolean; confirming?: boolean }) {
   const { t } = useTranslation();
@@ -35,17 +68,113 @@ export function PageHeader({ title, description, onReset, resetting = false }: {
   );
 }
 
-export function SettingsSection({ title, trailing, children }: { title?: string; trailing?: React.ReactNode; children: React.ReactNode }) {
+export function SettingsPage({ sections, children }: { sections: SettingsPageSection[]; children: React.ReactNode }) {
+  const { t } = useTranslation();
+  const page = useRef<HTMLDivElement>(null);
+  const sectionIds = sections.map(({ id }) => id).join("\u0000");
+  const showTableOfContents = sections.length >= 2;
+  const [activeSection, setActiveSection] = useState(sections[0]?.id ?? "");
+
+  useEffect(() => {
+    if (!showTableOfContents) return;
+    const pageElement = page.current;
+    const scrollRoot = pageElement?.closest<HTMLElement>("[data-settings-scroll-root]");
+    const sectionElements = sectionIds
+      .split("\u0000")
+      .map((id) => document.getElementById(id))
+      .filter((element): element is HTMLElement => Boolean(element));
+    if (!pageElement || !scrollRoot || sectionElements.length === 0) return;
+
+    let frame = 0;
+    const updateActiveSection = () => {
+      frame = 0;
+      const rootTop = scrollRoot.getBoundingClientRect().top;
+      const activationLine = rootTop + 80;
+      const atBottom = scrollRoot.scrollTop + scrollRoot.clientHeight >= scrollRoot.scrollHeight - 2;
+      let nextSection = sectionElements[0].id;
+
+      if (atBottom) {
+        nextSection = sectionElements.at(-1)?.id ?? nextSection;
+      } else {
+        for (const element of sectionElements) {
+          if (element.getBoundingClientRect().top > activationLine) break;
+          nextSection = element.id;
+        }
+      }
+      setActiveSection((current) => current === nextSection ? current : nextSection);
+    };
+    const scheduleUpdate = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(updateActiveSection);
+    };
+    const resizeObserver = new ResizeObserver(scheduleUpdate);
+
+    resizeObserver.observe(pageElement);
+    scrollRoot.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+    updateActiveSection();
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
+      scrollRoot.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+    };
+  }, [sectionIds, showTableOfContents]);
+
+  const jumpToSection = (id: string) => {
+    const element = document.getElementById(id);
+    if (!element) return;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    setActiveSection(id);
+    element.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+  };
+
   return (
-    <Card className={cn(styles.card, "gap-0 py-0")}>
-      {(title || trailing) && (
-        <CardHeader className={cn(styles.cardHeader, "border-b pt-(--card-spacing)")}>
-          {title && <CardTitle>{title}</CardTitle>}
-          {trailing && <CardAction>{trailing}</CardAction>}
-        </CardHeader>
+    <div ref={page} className={cn(styles.settingsPage, showTableOfContents && styles.settingsPageWithToc)}>
+      <div className={styles.settingsPageContent}>{children}</div>
+      {showTableOfContents && (
+        <aside className={styles.settingsToc}>
+          <nav aria-label={t("settings.shell.onThisPage")}>
+            <p className={styles.settingsTocTitle}>{t("settings.shell.onThisPage")}</p>
+            <div className={styles.settingsTocLinks}>
+              {sections.map(({ id, label }) => {
+                const active = activeSection === id;
+                return (
+                  <Button
+                    key={id}
+                    type="button"
+                    variant={active ? "secondary" : "ghost"}
+                    size="sm"
+                    className="w-full justify-start"
+                    aria-current={active ? "location" : undefined}
+                    onClick={() => jumpToSection(id)}
+                  >
+                    <span className="truncate">{label}</span>
+                  </Button>
+                );
+              })}
+            </div>
+          </nav>
+        </aside>
       )}
-      <CardContent className={styles.cardContent}>{children}</CardContent>
-    </Card>
+    </div>
+  );
+}
+
+export function SettingsSection({ id, title, trailing, children }: { id: string; title?: string; trailing?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section id={id} className={styles.settingsSection}>
+      <Card className={cn(styles.card, "gap-0 py-0")}>
+        {(title || trailing) && (
+          <CardHeader className={cn(styles.cardHeader, "border-b pt-(--card-spacing)")}>
+            {title && <CardTitle>{title}</CardTitle>}
+            {trailing && <CardAction>{trailing}</CardAction>}
+          </CardHeader>
+        )}
+        <CardContent className={styles.cardContent}>{children}</CardContent>
+      </Card>
+    </section>
   );
 }
 
@@ -112,6 +241,28 @@ export function RangeRow({ label, description, value, min, max, step = 1, suffix
   );
 }
 
+export function TextRow({ label, description, value, emptyValue, disabled = false, onChange }: { label: string; description?: string; value: string; emptyValue: string; disabled?: boolean; onChange: (value: string) => void }) {
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => setDraft(value), [value]);
+
+  const commit = () => {
+    const next = draft.trim() || emptyValue;
+    setDraft(next);
+    if (next !== value) onChange(next);
+  };
+
+  return (
+    <Field className={styles.textSettingRow} data-disabled={disabled || undefined}>
+      <FieldContent>
+        <FieldTitle>{label}</FieldTitle>
+        {description && <FieldDescription>{description}</FieldDescription>}
+      </FieldContent>
+      <Input aria-label={label} disabled={disabled} spellCheck={false} value={draft} onBlur={commit} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} />
+    </Field>
+  );
+}
+
 export function ColorRow({ label, description, value, disabled = false, onChange }: { label: string; description?: string; value: string; disabled?: boolean; onChange: (value: string) => void }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -149,6 +300,16 @@ export function ColorRow({ label, description, value, disabled = false, onChange
           </div>
           <form onSubmit={(event) => { event.preventDefault(); applyDraft(); }}>
             <InputGroup>
+              <InputGroupAddon>
+                <Input
+                  type="color"
+                  className={styles.systemColorPicker}
+                  aria-label={t("settings.common.systemColorPicker", { label })}
+                  disabled={disabled}
+                  value={nativeColorValue(value)}
+                  onChange={(event) => { onChange(event.target.value); setOpen(false); }}
+                />
+              </InputGroupAddon>
               <InputGroupInput aria-invalid={invalid} aria-label={t("settings.common.colorValue", { label })} disabled={disabled} placeholder={t("settings.common.colorPlaceholder")} spellCheck={false} value={draft} onChange={(event) => { setDraft(event.target.value); setInvalid(false); }} />
               <InputGroupAddon align="inline-end"><Button type="submit" size="sm" disabled={disabled}>{t("common.actions.apply")}</Button></InputGroupAddon>
             </InputGroup>

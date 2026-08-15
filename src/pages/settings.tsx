@@ -493,7 +493,7 @@ export default function Settings() {
 
       <SidebarInset className={styles.settingsLayout}>
         <div className={styles.sidebarTriggerRow}>
-          <SidebarTrigger aria-label={t("settings.shell.navigation")} />
+          <SidebarTrigger aria-label={t("settings.shell.navigation")} size="icon" />
           <IconButton label={themeToggleLabel} tooltip={themeToggleLabel} variant="ghost" size="icon" onClick={() => void setTheme(nextTheme).catch((value) => setError(messageOf(value)))}>
             <ThemeToggleIcon />
           </IconButton>
@@ -526,7 +526,7 @@ export default function Settings() {
             </button>
           )}
         </div>
-        <div className={styles.content}>
+        <div className={styles.content} data-settings-scroll-root>
           {error && <Alert className={styles.inlineError}><span>{error}</span><IconButton label={t("settings.shell.closeToast")} variant="ghost" size="icon-sm" onClick={() => setError(null)}><X /></IconButton></Alert>}
           <Outlet context={context} />
         </div>
