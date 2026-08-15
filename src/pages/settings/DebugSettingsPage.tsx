@@ -3,7 +3,10 @@ import { useTranslation } from "react-i18next";
 import { debugLogLevels, useDebugLogs, type DebugLogLevel } from "../../features/debug/DebugLogProvider";
 import { useAppLanguage } from "../../features/i18n/I18nProvider";
 import styles from "../settings.module.scss";
-import { SettingsCard, SettingsHeading, ToggleRow } from "./components";
+import { PageHeader, SettingsSection, ToggleRow } from "./components";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const debugLevelLabels: Record<DebugLogLevel, string> = {
   debug: "DEBUG",
@@ -39,20 +42,24 @@ export default function DebugSettingsPage() {
 
   return (
     <>
-      <SettingsHeading title={t("settings.debug.title")} description={t("settings.debug.description")} />
-      <SettingsCard title={t("settings.debug.live")} trailing={debugLogs.enabled && <span className={styles.debugLogCount}>{debugLogs.entries.length} / 300</span>}>
+      <PageHeader title={t("settings.debug.title")} description={t("settings.debug.description")} />
+      <SettingsSection title={t("settings.debug.live")} trailing={debugLogs.enabled && <span className={styles.debugLogCount}>{debugLogs.entries.length} / 300</span>}>
         <ToggleRow label={t("settings.debug.toggle")} description={t("settings.debug.toggleHint")} value={debugLogs.enabled} onChange={debugLogs.setEnabled} />
         {debugLogs.enabled ? (
           <>
             <div className={styles.debugLogToolbar}>
-              <div role="group" aria-label={t("settings.debug.filter")}>
+              <ToggleGroup multiple variant="outline" size="sm" spacing={0} aria-label={t("settings.debug.filter")} value={[...debugLogs.visibleLevels]} onValueChange={(values) => {
+                const nextLevels = new Set(values as DebugLogLevel[]);
+                const changed = debugLogLevels.find((level) => nextLevels.has(level) !== debugLogs.visibleLevels.has(level));
+                if (changed) debugLogs.toggleLevel(changed);
+              }}>
                 {debugLogLevels.map((level) => (
-                  <button type="button" key={level} data-level={level} aria-pressed={debugLogs.visibleLevels.has(level)} onClick={() => debugLogs.toggleLevel(level)}>{debugLevelLabels[level]}</button>
+                  <ToggleGroupItem className="font-mono" key={level} value={level} data-level={level}>{debugLevelLabels[level]}</ToggleGroupItem>
                 ))}
-              </div>
-              <button type="button" onClick={debugLogs.clear} disabled={debugLogs.entries.length === 0}>{t("settings.debug.clear")}</button>
+              </ToggleGroup>
+              <Button type="button" variant="ghost" size="sm" onClick={debugLogs.clear} disabled={debugLogs.entries.length === 0}>{t("settings.debug.clear")}</Button>
             </div>
-            <div className={styles.debugLogViewport} ref={viewport} role="log" aria-live="polite">
+            <ScrollArea className={styles.debugLogViewport} viewportRef={viewport} role="log" aria-live="polite">
               {visibleEntries.length === 0 ? (
                 <p>{debugLogs.entries.length === 0 ? t("settings.debug.waiting") : t("settings.debug.filteredEmpty")}</p>
               ) : visibleEntries.map((entry) => (
@@ -62,12 +69,12 @@ export default function DebugSettingsPage() {
                   <code>{entry.message}</code>
                 </div>
               ))}
-            </div>
+            </ScrollArea>
           </>
         ) : (
           <p className={styles.cardHint}>{t("settings.debug.disabledHint")}</p>
         )}
-      </SettingsCard>
+      </SettingsSection>
     </>
   );
 }

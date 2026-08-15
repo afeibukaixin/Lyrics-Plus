@@ -1,10 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppLanguage } from "../i18n/I18nProvider";
 import { languageRegistry, supportedLanguages } from "../../shared/languages";
 import type { LanguagePreference } from "../../shared/types";
 import { api, isTauriRuntime } from "../../shared/api";
-import styles from "./LegalNoticeGate.module.scss";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const READ_SECONDS = 10;
 const languageOptions = supportedLanguages.map((code) => ({
@@ -15,7 +20,6 @@ const languageOptions = supportedLanguages.map((code) => ({
 export function LegalNoticeGate({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
   const { preference, setLanguage } = useAppLanguage();
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const [accepted, setAccepted] = useState<boolean | null>(null);
   const [seconds, setSeconds] = useState(READ_SECONDS);
   const [submitting, setSubmitting] = useState(false);
@@ -55,13 +59,6 @@ export function LegalNoticeGate({ children }: { children: React.ReactNode }) {
     return () => window.clearInterval(timer);
   }, [accepted]);
 
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (accepted !== false || !dialog) return;
-    if (!dialog.open) dialog.showModal();
-    return () => { if (dialog.open) dialog.close(); };
-  }, [accepted]);
-
   if (accepted === null) return null;
   if (accepted) return children;
 
@@ -87,34 +84,31 @@ export function LegalNoticeGate({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <dialog
-      aria-labelledby="legal-notice-title"
-      className={styles.dialog}
-      onCancel={(event) => { event.preventDefault(); quit(); }}
-      ref={dialogRef}
-    >
-      <header className={styles.header}>
+    <Dialog open disablePointerDismissal onOpenChange={(open) => { if (!open) quit(); }}>
+      <DialogContent className="grid h-[min(640px,calc(100vh-48px))] w-[min(760px,calc(100vw-48px))] grid-rows-[auto_minmax(0,1fr)_auto_auto] gap-0 overflow-hidden p-0" showClose={false}>
+      <DialogHeader className="flex flex-row items-center justify-between gap-5 border-b border-border px-[22px] pb-4 pt-[18px]">
         <div>
-          <span>Lyrics Plus</span>
-          <h1 id="legal-notice-title">{t("legalNotice.title")}</h1>
+          <DialogTitle className="text-xl" id="legal-notice-title">{t("legalNotice.title")}</DialogTitle>
+          <DialogDescription className="sr-only">{t("legalNotice.welcome")}</DialogDescription>
         </div>
-        <label>
-          {t("legalNotice.language")}
-          <select
+        <Field className="w-[150px] gap-1">
+          <FieldLabel>{t("legalNotice.language")}</FieldLabel>
+          <Select
+            items={[{ value: "system", label: t("common.language.system") }, ...languageOptions.map(({ code, label }) => ({ value: code, label }))]}
             value={preference}
-            onChange={(event) => {
+            onValueChange={(value) => {
               setError(null);
-              void setLanguage(event.currentTarget.value as LanguagePreference)
+              void setLanguage(value as LanguagePreference)
                 .catch(() => setError(t("legalNotice.languageError")));
             }}
           >
-            <option value="system">{t("common.language.system")}</option>
-            {languageOptions.map(({ code, label }) => <option key={code} value={code}>{label}</option>)}
-          </select>
-        </label>
-      </header>
+            <SelectTrigger className="w-full" aria-label={t("legalNotice.language")}><SelectValue /></SelectTrigger>
+            <SelectContent><SelectGroup><SelectItem value="system">{t("common.language.system")}</SelectItem>{languageOptions.map(({ code, label }) => <SelectItem key={code} value={code}>{label}</SelectItem>)}</SelectGroup></SelectContent>
+          </Select>
+        </Field>
+      </DialogHeader>
 
-      <div className={styles.content}>
+      <ScrollArea className="min-h-0"><div className="px-[22px] py-[18px] [&_h2]:mb-2 [&_h2]:mt-6 [&_h2]:text-base [&_h2]:font-medium [&_p]:mb-2.5 [&_p]:text-sm [&_p]:leading-relaxed [&_p]:text-muted-foreground [&_p:first-child]:font-medium [&_p:first-child]:text-foreground">
         <p>{t("legalNotice.welcome")}</p>
         <p>{t("legalNotice.project")}</p>
 
@@ -135,13 +129,13 @@ export function LegalNoticeGate({ children }: { children: React.ReactNode }) {
         <p>{t("legalNotice.responsibilityBody")}</p>
         <p>{t("legalNotice.rightsBody")}</p>
         <p>{t("legalNotice.asIsBody")}</p>
-      </div>
+      </div></ScrollArea>
 
-      {error && <p className={styles.error} role="alert">{error}</p>}
-      <footer className={styles.footer}>
-        <button className={styles.cancel} type="button" onClick={quit}>{t("legalNotice.cancel")}</button>
-        <button
-          className={styles.agree}
+      {error && <Alert variant="destructive" className="mx-6 my-2"><AlertDescription>{error}</AlertDescription></Alert>}
+      <DialogFooter className="flex justify-end gap-2.5 border-t border-border bg-card px-[22px] py-3">
+        <Button className="min-w-[132px]" variant="secondary" type="button" onClick={quit}>{t("legalNotice.cancel")}</Button>
+        <Button
+          className="min-w-[132px]"
           disabled={seconds > 0 || submitting}
           type="button"
           onClick={() => void accept()}
@@ -149,8 +143,9 @@ export function LegalNoticeGate({ children }: { children: React.ReactNode }) {
           {seconds > 0
             ? t("legalNotice.agreeCountdown", { count: seconds })
             : t("legalNotice.agree")}
-        </button>
-      </footer>
-    </dialog>
+        </Button>
+      </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

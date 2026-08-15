@@ -134,10 +134,6 @@ impl PlaybackSnapshot {
             error: Some(error),
         }
     }
-
-    pub fn matches_track(&self, player: PlayerKind, track_id: &str) -> bool {
-        self.player == Some(player) && self.track_id.as_deref() == Some(track_id)
-    }
 }
 
 fn now_ms() -> u64 {

@@ -29,10 +29,7 @@ export function playbackStatusText(snapshot: PlaybackSnapshot, t: TFunction): st
     case "invalid_response": return t("player.invalidResponse");
     case "multiple_playing": return t("player.multiplePlaying");
     case "no_unique_player": return t("player.noUniquePlayer");
-    case "source_not_allowed": return t("player.sourceNotAllowed", {
-      application: snapshot.sourceAppName ?? snapshot.sourceAppBundleId ?? t("settings.app.playerSystem"),
-      bundleId: snapshot.sourceAppBundleId ?? "",
-    });
+    case "source_not_allowed": return null;
     case "unavailable": return t("player.unavailable");
     default: return snapshot.error ? t("player.unavailable") : null;
   }

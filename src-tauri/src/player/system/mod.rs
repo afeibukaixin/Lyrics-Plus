@@ -234,6 +234,7 @@ fn normalized_system_metadata(info: &NowPlayingInfo) -> compat::TrackMetadata {
     )
 }
 
+#[cfg(test)]
 fn system_track_id(info: &NowPlayingInfo) -> Option<String> {
     let metadata = normalized_system_metadata(info);
     system_track_id_from_metadata(info, &metadata)

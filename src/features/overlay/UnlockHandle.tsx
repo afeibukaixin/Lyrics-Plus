@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { LockOpen } from "lucide-react";
 import { api } from "../../shared/api";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
+import { IconButton } from "@/components/ui/icon-button";
 import styles from "./UnlockHandle.module.scss";
 
 export default function UnlockHandle() {
@@ -19,12 +20,14 @@ export default function UnlockHandle() {
   }, []);
 
   return (
-    <button
+    <IconButton
       className={styles.handle}
       data-hover={hovered}
       disabled={busy}
-      aria-label={t("settings.app.unlockOverlay")}
-      title={t("settings.app.unlockOverlay")}
+      label={t("settings.app.unlockOverlay")}
+      tooltip={t("settings.app.unlockOverlay")}
+      variant="ghost"
+      size="icon-sm"
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
       onClick={async () => {
@@ -37,6 +40,6 @@ export default function UnlockHandle() {
       }}
     >
       <LockOpen aria-hidden="true" />
-    </button>
+    </IconButton>
   );
 }

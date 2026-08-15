@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useTranslation } from "react-i18next";
-import { Plus } from "lucide-react";
+import { Monitor, Moon, Plus, Sun } from "lucide-react";
 import { defaultGlobalShortcuts, type GlobalShortcutSettings, type GlobalShortcutStatus, type LanguagePreference, type PlayerFollowerServiceState, type PlayerSelection, type SystemMediaFilterMode, type ThemePreference } from "../../shared/types";
 import { api, messageOf } from "../../shared/api";
 import { languageRegistry, supportedLanguages } from "../../shared/languages";
 import { normalizeLanguagePreference } from "../../features/i18n/i18n";
 import { playbackStatusText } from "../../features/i18n/userText";
-import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
-import { Button } from "../../components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
-import { ApplicationList, RangeRow, SelectRow, SettingsCard, SettingsHeading, ToggleRow } from "./components";
+import { ApplicationList, SelectRow, SettingsSection, PageHeader, ToggleRow } from "./components";
 
 const playerOptions: PlayerSelection[] = ["auto", "apple_music", "spotify", "system"];
 const languageOptions = supportedLanguages.map((code) => ({ code, label: languageRegistry[code].nativeLabel }));
@@ -48,7 +50,6 @@ function shortcutFromEvent(event: React.KeyboardEvent<HTMLButtonElement>) {
 export default function AppSettingsPage({ scope }: { scope: "player" | "application" }) {
   const {
     config,
-    setUiFontScale,
     setTheme,
     setLanguage,
     setGlobalShortcuts,
@@ -211,19 +212,12 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
   const systemMediaAllowlist = config.app.systemMediaFilterMode === "allowlist";
   const playbackStatus = playbackStatusText(playback.snapshot, t);
   const playbackNeutral = playback.snapshot.errorCode === "waiting" || playback.snapshot.errorCode === "no_unique_player";
-
-  const resolveFilteredSource = async () => {
-    const bundleId = playback.snapshot.sourceAppBundleId;
-    if (!bundleId) return;
-    if (systemMediaAllowlist) {
-      await addCurrentSystemApplication();
-    } else {
-      await saveApplications(config.app.systemMediaApplications.filter((application) => application.bundleId !== bundleId));
-    }
-  };
+  const playbackHasActions = playback.snapshot.errorCode === "automation_denied"
+    || playback.snapshot.errorCode === "multiple_playing"
+    || ["not_installed", "response_timeout", "invalid_response", "unavailable"].includes(playback.snapshot.errorCode ?? "");
 
   return <>
-    <SettingsHeading
+    <PageHeader
       title={t(scope === "player" ? "settings.player.title" : "settings.app.title")}
       description={t(scope === "player" ? "settings.player.description" : "settings.app.description")}
       onReset={() => void resetSection(scope)}
@@ -231,22 +225,23 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
       confirming={confirmingReset === scope}
     />
     {scope === "player" && <>
-    {(playbackStatus || playback.configError || playback.snapshotLoadError) && <Alert className={playbackNeutral && !playback.configError && !playback.snapshotLoadError ? "border-border" : "border-[color:color-mix(in_srgb,var(--warning)_45%,var(--border))]"}>
-      <AlertTitle>{playbackNeutral ? t("settings.player.idleStatus") : t("settings.player.attentionStatus")}</AlertTitle>
-      <AlertDescription className="grid gap-3">
-        <span>{playback.configError ?? playback.snapshotLoadError ?? playbackStatus}</span>
-        <div className="flex flex-wrap gap-2">
-          {playback.snapshot.errorCode === "automation_denied" && <Button size="sm" variant="outline" onClick={() => void api.openAutomationSystemSettings().catch((error) => setError(messageOf(error)))}>{t("settings.player.openAutomationSettings")}</Button>}
-          {playback.snapshot.errorCode === "multiple_playing" && <><Button size="sm" variant="outline" onClick={() => void playback.setSelection("apple_music").catch((error) => setError(messageOf(error)))}>Apple Music</Button><Button size="sm" variant="outline" onClick={() => void playback.setSelection("spotify").catch((error) => setError(messageOf(error)))}>Spotify</Button></>}
-          {playback.snapshot.errorCode === "source_not_allowed" && playback.snapshot.sourceAppBundleId && <Button size="sm" variant="outline" onClick={() => void resolveFilteredSource()}>{t(systemMediaAllowlist ? "settings.player.allowSource" : "settings.player.removeExcludedSource")}</Button>}
-          {["not_installed", "response_timeout", "invalid_response", "unavailable"].includes(playback.snapshot.errorCode ?? "") && <><Button size="sm" variant="outline" onClick={() => void playback.refreshSnapshot()}>{t("settings.player.detectAgain")}</Button><Button size="sm" variant="ghost" onClick={() => void playback.setSelection("auto").catch((error) => setError(messageOf(error)))}>{t("settings.player.useAuto")}</Button></>}
-        </div>
-      </AlertDescription>
+    {(playbackStatus || playback.configError || playback.snapshotLoadError) && <Alert variant={playbackNeutral && !playback.configError && !playback.snapshotLoadError ? "default" : "warning"} className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 p-3">
+      <div className="min-w-[min(16rem,100%)] flex-1">
+        <AlertTitle className="mb-0">{playbackNeutral ? t("settings.player.idleStatus") : t("settings.player.attentionStatus")}</AlertTitle>
+        <AlertDescription className="mt-0.5">
+          <span>{playback.configError ?? playback.snapshotLoadError ?? playbackStatus}</span>
+        </AlertDescription>
+      </div>
+      {playbackHasActions && <div className="flex flex-none flex-wrap gap-2">
+        {playback.snapshot.errorCode === "automation_denied" && <Button size="sm" variant="outline" onClick={() => void api.openAutomationSystemSettings().catch((error) => setError(messageOf(error)))}>{t("settings.player.openAutomationSettings")}</Button>}
+        {playback.snapshot.errorCode === "multiple_playing" && <><Button size="sm" variant="outline" onClick={() => void playback.setSelection("apple_music").catch((error) => setError(messageOf(error)))}>Apple Music</Button><Button size="sm" variant="outline" onClick={() => void playback.setSelection("spotify").catch((error) => setError(messageOf(error)))}>Spotify</Button></>}
+        {["not_installed", "response_timeout", "invalid_response", "unavailable"].includes(playback.snapshot.errorCode ?? "") && <><Button size="sm" variant="outline" onClick={() => void playback.refreshSnapshot()}>{t("settings.player.detectAgain")}</Button><Button size="sm" variant="ghost" onClick={() => void playback.setSelection("auto").catch((error) => setError(messageOf(error)))}>{t("settings.player.useAuto")}</Button></>}
+      </div>}
     </Alert>}
-    <SettingsCard title={t("settings.app.player")}>
+    <SettingsSection title={t("settings.app.player")}>
       <SelectRow label={t("settings.app.playerMode")} description={t("settings.app.playerHint")} value={playback.selection} options={playerOptions.map((option) => [option, option === "auto" ? t("settings.app.playerAuto") : option === "apple_music" ? "Apple Music" : option === "spotify" ? "Spotify" : t("settings.app.playerSystem")])} onChange={(selection) => void playback.setSelection(selection as PlayerSelection).catch((error) => setError(messageOf(error)))} />
-    </SettingsCard>
-    <SettingsCard title={t("settings.app.systemApplications")}>
+    </SettingsSection>
+    <SettingsSection title={t("settings.app.systemApplications")}>
       <SelectRow
         label={t("settings.app.systemMediaFilterMode")}
         description={t("settings.app.systemMediaFilterModeHint")}
@@ -260,8 +255,8 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
       <div className={styles.systemApplicationsToolbar}>
         <p className={styles.cardHint}>{t(systemMediaAllowlist ? "settings.app.systemApplicationsAllowlistHint" : "settings.app.systemApplicationsBlocklistHint")}</p>
         <div className={styles.shortcutControls}>
-          <button className={styles.shortcutReset} disabled={savingApplications || !canAddCurrentSystemApplication} onClick={() => void addCurrentSystemApplication()}><Plus />{t(systemMediaAllowlist ? "settings.app.addAllowedApplication" : "settings.app.addBlockedApplication")}</button>
-          <button className={styles.shortcutReset} disabled={savingApplications} onClick={() => void chooseSystemApplications()}><Plus />{t(systemMediaAllowlist ? "settings.app.chooseAllowedApplications" : "settings.app.chooseBlockedApplications")}</button>
+          <Button variant="outline" size="sm" disabled={savingApplications || !canAddCurrentSystemApplication} onClick={() => void addCurrentSystemApplication()}><Plus />{t(systemMediaAllowlist ? "settings.app.addAllowedApplication" : "settings.app.addBlockedApplication")}</Button>
+          <Button variant="outline" size="sm" disabled={savingApplications} onClick={() => void chooseSystemApplications()}><Plus />{t(systemMediaAllowlist ? "settings.app.chooseAllowedApplications" : "settings.app.chooseBlockedApplications")}</Button>
         </div>
       </div>
       <ApplicationList
@@ -272,53 +267,62 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
         removeLabel={t("common.actions.remove")}
         onRemove={(bundleId) => void saveApplications(config.app.systemMediaApplications.filter((application) => application.bundleId !== bundleId))}
       />
-    </SettingsCard>
-    <SettingsCard title={t("settings.app.playerFollower")}>
+    </SettingsSection>
+    <SettingsSection title={t("settings.app.playerFollower")}>
       <div className={styles.systemApplicationsToolbar}>
         <p className={styles.cardHint}>{t("settings.app.playerFollowerHint")}</p>
-        <button className={styles.shortcutReset} disabled={savingFollower || followerUnavailable} onClick={() => void chooseFollower()}><Plus />{t("settings.app.choosePlayerFollower")}</button>
+        <Button variant="outline" size="sm" disabled={savingFollower || followerUnavailable} onClick={() => void chooseFollower()}><Plus />{t("settings.app.choosePlayerFollower")}</Button>
       </div>
       <ApplicationList applications={config.app.playerFollowerApplication ? [config.app.playerFollowerApplication] : []} icons={applicationIcons} busy={savingFollower || followerUnavailable} emptyLabel={t("settings.app.playerFollowerEmpty")} removeLabel={t("common.actions.remove")} onRemove={() => void clearFollower()} />
       {followerStatus === "development" && <p className={styles.cardHint}>{t("settings.app.playerFollowerDevelopment")}</p>}
       {followerStatus === "unsupported" && <p className={styles.cardHint} data-error="true">{t("settings.app.playerFollowerUnsupported")}</p>}
       {(followerStatus === "not_found" || followerStatus === "not_registered") && config.app.playerFollowerApplication && <div className={styles.systemApplicationsToolbar}>
         <p className={styles.cardHint} data-error="true">{t(followerStatus === "not_found" ? "settings.app.playerFollowerNotFound" : "settings.app.playerFollowerNotRegistered")}</p>
-        <button className={styles.shortcutReset} disabled={savingFollower} onClick={() => void retryFollower()}>{t("settings.app.retryPlayerFollower")}</button>
+        <Button variant="outline" size="sm" disabled={savingFollower} onClick={() => void retryFollower()}>{t("settings.app.retryPlayerFollower")}</Button>
       </div>}
       {followerStatus === "requires_approval" && <div className={styles.systemApplicationsToolbar}>
         <p className={styles.cardHint} data-error="true">{t("settings.app.playerFollowerApproval")}</p>
-        <button className={styles.shortcutReset} onClick={() => void api.openPlayerFollowerSystemSettings().catch((error) => setError(messageOf(error)))}>{t("settings.app.openLoginItems")}</button>
+        <Button variant="outline" size="sm" onClick={() => void api.openPlayerFollowerSystemSettings().catch((error) => setError(messageOf(error)))}>{t("settings.app.openLoginItems")}</Button>
       </div>}
-    </SettingsCard>
+    </SettingsSection>
     </>}
     {scope === "application" && <>
-    <SettingsCard title={t("settings.player.startup")}>
+    <SettingsSection title={t("settings.player.startup")}>
       <ToggleRow label={t("settings.app.silentStartup")} description={t("settings.player.silentStartupHint")} value={config.app.silentStartup} onChange={(enabled) => setSilentStartup(enabled).catch((error) => setError(messageOf(error)))} />
       <ToggleRow label={t("settings.app.hideDock")} description={t("settings.app.hideDockHint")} value={config.app.hideDockIcon} onChange={(hidden) => setDockIconHidden(hidden).catch((error) => setError(messageOf(error)))} />
-    </SettingsCard>
-    <SettingsCard title={t("settings.app.display")}>
-      <SelectRow label={t("settings.app.themeLabel")} description={t("settings.app.themeHint")} value={config.app.theme} options={(["dark", "light", "system"] as ThemePreference[]).map((theme) => [theme, t(`settings.theme.${theme}`)])} onChange={(theme) => void setTheme(theme as ThemePreference).catch((error) => setError(messageOf(error)))} />
+    </SettingsSection>
+    <SettingsSection title={t("settings.app.display")}>
+      <Field orientation="horizontal" className={styles.settingRow}>
+        <FieldContent>
+          <FieldTitle>{t("settings.app.themeLabel")}</FieldTitle>
+          <FieldDescription>{t("settings.app.themeHint")}</FieldDescription>
+        </FieldContent>
+        <ToggleGroup variant="outline" size="sm" spacing={0} value={[config.app.theme]} onValueChange={(values) => { const theme = values[0] as ThemePreference | undefined; if (theme) void setTheme(theme).catch((error) => setError(messageOf(error))); }}>
+          <ToggleGroupItem value="light" aria-label={t("settings.theme.light")}><Sun data-icon="inline-start" /><span>{t("settings.theme.light")}</span></ToggleGroupItem>
+          <ToggleGroupItem value="dark" aria-label={t("settings.theme.dark")}><Moon data-icon="inline-start" /><span>{t("settings.theme.dark")}</span></ToggleGroupItem>
+          <ToggleGroupItem value="system" aria-label={t("settings.theme.system")}><Monitor data-icon="inline-start" /><span>{t("settings.theme.system")}</span></ToggleGroupItem>
+        </ToggleGroup>
+      </Field>
       <SelectRow label={t("settings.app.language.label")} description={t("settings.app.language.description")} value={normalizeLanguagePreference(config.app.language)} options={[["system", t("common.language.system")], ...languageOptions.map(({ code, label }) => [code, label] as [string, string])]} onChange={(language) => void setLanguage(language as LanguagePreference).catch((error) => setError(messageOf(error)))} />
-      <RangeRow label={t("settings.app.fontScale")} value={config.app.uiFontScale} min={80} max={150} step={10} suffix="%" onChange={(scale) => void setUiFontScale(scale).catch((error) => setError(messageOf(error)))} />
-    </SettingsCard>
-    <SettingsCard title={t("settings.app.shortcuts")}>
+    </SettingsSection>
+    <SettingsSection title={t("settings.app.shortcuts")}>
       <div className={styles.shortcutRow}><span>{t("settings.app.openSettings")}</span><kbd>⌘ ,</kbd></div>
       {shortcutActions.map((action) => {
         const active = recording === action;
         const isDefault = config.app.shortcuts[action] === defaultGlobalShortcuts[action];
         return <div className={styles.shortcutRow} key={action}><span>{t(`settings.app.${action}`)}</span><div className={styles.shortcutControls}>
-          <button autoFocus={active} className={styles.shortcutRecorder} data-recording={active} disabled={savingShortcut} onClick={() => setRecording(active ? null : action)} onKeyDown={(event) => {
+          <Button autoFocus={active} variant="outline" size="sm" className={styles.shortcutRecorder} aria-pressed={active} data-recording={active} disabled={savingShortcut} onClick={() => setRecording(active ? null : action)} onKeyDown={(event) => {
             if (!active) return;
             event.preventDefault();
             if (event.key === "Escape") return setRecording(null);
             const shortcut = shortcutFromEvent(event);
             if (shortcut) void saveShortcut(action, shortcut);
-          }}>{active ? t("settings.app.record") : shortcutDisplay(config.app.shortcuts[action])}</button>
-          <button className={styles.shortcutReset} disabled={savingShortcut || isDefault} onClick={() => void saveShortcut(action, defaultGlobalShortcuts[action])}>{t("common.actions.resetDefault")}</button>
+          }}>{active ? t("settings.app.record") : shortcutDisplay(config.app.shortcuts[action])}</Button>
+          <Button variant="ghost" size="sm" disabled={savingShortcut || isDefault} onClick={() => void saveShortcut(action, defaultGlobalShortcuts[action])}>{t("common.actions.resetDefault")}</Button>
         </div></div>;
       })}
       {unavailableShortcuts.length > 0 && <p className={styles.cardHint} data-error="true">{t("settings.app.shortcutUnavailable", { actions: unavailableShortcuts.map((action) => t(`settings.app.${action}`)).join(", ") })}</p>}
-    </SettingsCard>
+    </SettingsSection>
     </>}
   </>;
 }

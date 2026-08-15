@@ -10,10 +10,25 @@ import {
 import { listen } from "@tauri-apps/api/event";
 import { NavLink, Outlet, useLocation, useOutletContext } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Bug, FileJson, Info, MonitorUp, Moon, Music2, Palette, Settings2, SlidersHorizontal, Sun, TriangleAlert, X } from "lucide-react";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../components/ui/alert-dialog";
-import { Button } from "../components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
+import { Bug, FileJson, Info, MonitorUp, Music2, Palette, Settings2, SlidersHorizontal, TriangleAlert, X } from "lucide-react";
+import { Alert } from "@/components/ui/alert";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { IconButton } from "@/components/ui/icon-button";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { toast } from "sonner";
 import { useLyrics } from "../features/lyrics/useLyrics";
 import { usePlayback } from "../features/player/usePlayback";
@@ -43,7 +58,6 @@ type ProviderDragState = {
 
 export type SettingsOutletContext = {
   config: ReturnType<typeof useAppConfig>["config"];
-  setUiFontScale: ReturnType<typeof useAppConfig>["setUiFontScale"];
   setTheme: ReturnType<typeof useAppConfig>["setTheme"];
   setLanguage: ReturnType<typeof useAppConfig>["setLanguage"];
   setGlobalShortcuts: ReturnType<typeof useAppConfig>["setGlobalShortcuts"];
@@ -89,7 +103,6 @@ export default function Settings() {
   const location = useLocation();
   const {
     config,
-    setUiFontScale,
     setTheme,
     setLanguage,
     setGlobalShortcuts,
@@ -360,7 +373,6 @@ export default function Settings() {
 
   const context: SettingsOutletContext = {
     config,
-    setUiFontScale,
     setTheme,
     setLanguage,
     setGlobalShortcuts,
@@ -401,44 +413,74 @@ export default function Settings() {
     syncAppliedConfig,
   };
 
-  const themeOrder = ["dark", "light", "system"] as const;
-  const themeIndex = themeOrder.indexOf(config.app.theme);
-  const nextTheme = themeOrder[(themeIndex + 1) % themeOrder.length];
-  const ThemeIcon = config.app.theme === "dark" ? Moon : config.app.theme === "light" ? Sun : MonitorUp;
   const playerHasWarning = Boolean(playback.configError || playback.snapshotLoadError)
     || (Boolean(playback.snapshot.errorCode)
-      && !["waiting", "no_unique_player"].includes(playback.snapshot.errorCode ?? ""));
+      && !["waiting", "no_unique_player", "source_not_allowed"].includes(playback.snapshot.errorCode ?? ""));
+
+  const primaryNavigation = [
+    { to: "/settings/style", label: t("settings.shell.nav.style"), icon: Palette },
+    { to: "/settings/display", label: t("settings.shell.nav.display"), icon: SlidersHorizontal },
+    { to: "/settings/lyrics", label: t("settings.shell.nav.lyrics"), icon: Music2 },
+    { to: "/settings/player", label: t("settings.shell.nav.player"), icon: MonitorUp, warning: playerHasWarning },
+    { to: "/settings/application", label: t("settings.shell.nav.application"), icon: Settings2 },
+    { to: "/settings/about", label: t("settings.shell.nav.about"), icon: Info },
+  ];
+  const advancedNavigation = [
+    { to: "/settings/debug", label: t("settings.shell.nav.debug"), icon: Bug },
+    { to: "/settings/config", label: t("settings.shell.nav.config"), icon: FileJson },
+  ];
 
   return (
-    <main className={styles.shell}>
-      <header className={styles.header}>
-        <div><span>Lyrics Plus</span><h1>{t("settings.shell.title")}</h1></div>
-        <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={t(`settings.theme.${config.app.theme}`)} onClick={() => void setTheme(nextTheme).catch((value) => setError(messageOf(value)))}><ThemeIcon className="size-4" /></Button></TooltipTrigger><TooltipContent>{t("settings.theme.switch", { current: t(`settings.theme.${config.app.theme}`), next: t(`settings.theme.${nextTheme}`) })}</TooltipContent></Tooltip>
-      </header>
+    <SidebarProvider className={styles.shell} style={{ "--sidebar-width": "11.5rem", "--sidebar-width-icon": "3.5rem" } as React.CSSProperties}>
+      <Sidebar collapsible="icon" aria-label={t("settings.shell.navigation")}>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {primaryNavigation.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <SidebarMenuItem key={item.to}>
+                      <SidebarMenuButton render={<NavLink to={item.to} />} isActive={location.pathname === item.to} tooltip={item.label}>
+                        <Icon aria-hidden="true" /><span>{item.label}</span>
+                      </SidebarMenuButton>
+                      {item.warning && <SidebarMenuBadge><TriangleAlert role="img" aria-label={t("settings.player.attentionStatus")} className="text-warning" /></SidebarMenuBadge>}
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+        <SidebarFooter>
+          <SidebarGroup className="p-0">
+            <SidebarGroupLabel>{t("settings.shell.advanced")}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {advancedNavigation.map((item) => {
+                  const Icon = item.icon;
+                  return <SidebarMenuItem key={item.to}><SidebarMenuButton render={<NavLink to={item.to} />} isActive={location.pathname === item.to} tooltip={item.label}><Icon aria-hidden="true" /><span>{item.label}</span></SidebarMenuButton></SidebarMenuItem>;
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarFooter>
+      </Sidebar>
 
-      <div className={styles.settingsLayout}>
-        <nav className={styles.sidebar} aria-label={t("settings.shell.navigation")}>
-          <NavLink to="/settings/style"><Palette /><div><strong>{t("settings.shell.nav.style")}</strong><small>{t("settings.shell.nav.styleHint")}</small></div></NavLink>
-          <NavLink to="/settings/display"><SlidersHorizontal /><div><strong>{t("settings.shell.nav.display")}</strong><small>{t("settings.shell.nav.displayHint")}</small></div></NavLink>
-          <NavLink to="/settings/lyrics"><Music2 /><div><strong>{t("settings.shell.nav.lyrics")}</strong><small>{t("settings.shell.nav.lyricsHint")}</small></div></NavLink>
-          <NavLink to="/settings/player"><MonitorUp /><div><strong>{t("settings.shell.nav.player")}</strong><small>{t("settings.shell.nav.playerHint")}</small></div>{playerHasWarning && <TriangleAlert className={styles.navWarning} />}</NavLink>
-          <NavLink to="/settings/application"><Settings2 /><div><strong>{t("settings.shell.nav.application")}</strong><small>{t("settings.shell.nav.applicationHint")}</small></div></NavLink>
-          <NavLink to="/settings/about"><Info /><div><strong>{t("settings.shell.nav.about")}</strong><small>{t("settings.shell.nav.aboutHint")}</small></div></NavLink>
-          <div className={styles.advancedNav}><span>{t("settings.shell.advanced")}</span>
-            <NavLink to="/settings/debug"><Bug /><strong>{t("settings.shell.nav.debug")}</strong></NavLink>
-            <NavLink to="/settings/config"><FileJson /><strong>{t("settings.shell.nav.config")}</strong></NavLink>
-          </div>
-        </nav>
-
-        <div className={styles.content}>{error && <div className={styles.inlineError} role="alert"><span>{error}</span><button aria-label={t("settings.shell.closeToast")} onClick={() => setError(null)}><X /></button></div>}<Outlet context={context} /></div>
-      </div>
+      <SidebarInset className={styles.settingsLayout}>
+        <div className={styles.sidebarTriggerRow}><SidebarTrigger aria-label={t("settings.shell.navigation")} /></div>
+        <div className={styles.content}>
+          {error && <Alert className={styles.inlineError}><span>{error}</span><IconButton label={t("settings.shell.closeToast")} variant="ghost" size="icon-sm" onClick={() => setError(null)}><X /></IconButton></Alert>}
+          <Outlet context={context} />
+        </div>
+      </SidebarInset>
       <AlertDialog open={confirmingReset !== null} onOpenChange={(open) => { if (!open && !resettingSection) setConfirmingReset(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>{t("settings.shell.resetTitle")}</AlertDialogTitle><AlertDialogDescription>{t("settings.shell.resetConfirm")}</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter><AlertDialogCancel>{t("common.actions.cancel")}</AlertDialogCancel><AlertDialogAction disabled={resettingSection !== null} onClick={() => void confirmResetSection()}>{t("common.actions.resetDefault")}</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </main>
+    </SidebarProvider>
   );
 }
 

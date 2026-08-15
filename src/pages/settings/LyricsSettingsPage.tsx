@@ -9,10 +9,17 @@ import { api, isTauriRuntime, messageOf } from "../../shared/api";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
-import { RangeRow, SettingsCard, SettingsHeading } from "./components";
-import { GripVertical, X } from "lucide-react";
-import { Button } from "../../components/ui/button";
-import { Progress } from "../../components/ui/progress";
+import { RangeRow, SettingsSection, PageHeader } from "./components";
+import { ChevronDown, GripVertical, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 
 const defaultTitleFilterKeywords = [
   "feat", "ft", "featuring", "主题曲", "片头曲", "片尾曲",
@@ -108,22 +115,22 @@ export default function LyricsSettingsPage() {
     : 0;
 
   return <>
-    <SettingsHeading title={t("settings.lyrics.title")} description={t("settings.lyrics.description")} onReset={() => void resetSection("lyrics")} resetting={resettingSection === "lyrics"} confirming={confirmingReset === "lyrics"} />
-    <SettingsCard title={t("settings.lyrics.autoMatch")}>
+    <PageHeader title={t("settings.lyrics.title")} description={t("settings.lyrics.description")} onReset={() => void resetSection("lyrics")} resetting={resettingSection === "lyrics"} confirming={confirmingReset === "lyrics"} />
+    <SettingsSection title={t("settings.lyrics.autoMatch")}>
       <RangeRow label={t("settings.lyrics.threshold")} value={providerView?.settings.autoApplyThreshold ?? 60} min={0} max={100} suffix="%" onChange={(autoApplyThreshold) => { if (providerView) void saveProviderSettings({ ...providerView.settings, autoApplyThreshold }); }} />
       <p className={styles.cardHint}>{t("settings.lyrics.thresholdHint")}</p>
-    </SettingsCard>
-    <SettingsCard title={t("settings.lyrics.currentTrack")}>
+    </SettingsSection>
+    <SettingsSection title={t("settings.lyrics.currentTrack")}>
       <div className={styles.currentTrack}><div><strong>{playback.snapshot.title ?? t("settings.lyrics.noTrack")}</strong><small>{playback.snapshot.artist ?? "—"}</small></div><em>{lyrics.document ? localizedSource(lyrics.document.metadata.source, t) : t("settings.lyrics.notAssociated")}</em></div>
       <div className={styles.buttonRow}>
-        <button disabled={!lyrics.trackKey} onClick={() => void api.showQuickLyricsWindow().catch((error) => setError(messageOf(error)))}>{t("settings.lyrics.manualSearch")}</button>
-        <button disabled={!lyrics.trackKey} onClick={() => fileInput.current?.click()}>{t("settings.lyrics.importLrc")}</button>
+        <Button variant="secondary" size="sm" disabled={!lyrics.trackKey} onClick={() => void api.showQuickLyricsWindow().catch((error) => setError(messageOf(error)))}>{t("settings.lyrics.manualSearch")}</Button>
+        <Button variant="secondary" size="sm" disabled={!lyrics.trackKey} onClick={() => fileInput.current?.click()}>{t("settings.lyrics.importLrc")}</Button>
         <input ref={fileInput} hidden type="file" accept=".lrc,text/plain" onChange={(event) => void handleFile(event.currentTarget.files?.[0])} />
-        {lyrics.document && <button className={styles.danger} onClick={() => void lyrics.remove()}>{t("settings.lyrics.unlink")}</button>}
+        {lyrics.document && <Button variant="destructive" size="sm" onClick={() => void lyrics.remove()}>{t("settings.lyrics.unlink")}</Button>}
       </div>
-      {lyrics.document && <div className={styles.offsetRow}><span>{t("settings.lyrics.offset", { value: `${lyrics.document.offsetMs > 0 ? "+" : ""}${lyrics.document.offsetMs}` })}</span><div><button onClick={() => void lyrics.changeOffset(-100)}>−100</button><button onClick={() => void lyrics.changeOffset(100)}>+100</button><button onClick={() => void lyrics.setOffset(0)}>{t("common.actions.reset")}</button></div></div>}
-    </SettingsCard>
-    <SettingsCard title={t("settings.lyrics.directory")}>
+      {lyrics.document && <div className={styles.offsetRow}><span>{t("settings.lyrics.offset", { value: `${lyrics.document.offsetMs > 0 ? "+" : ""}${lyrics.document.offsetMs}` })}</span><div><Button variant="outline" size="sm" onClick={() => void lyrics.changeOffset(-100)}>−100</Button><Button variant="outline" size="sm" onClick={() => void lyrics.changeOffset(100)}>+100</Button><Button variant="outline" size="sm" onClick={() => void lyrics.setOffset(0)}>{t("common.actions.reset")}</Button></div></div>}
+    </SettingsSection>
+    <SettingsSection title={t("settings.lyrics.directory")}>
       <p className={styles.directoryPath}>{libraryDir ?? t("library.loadingDirectory")}</p>
       {scanStatus && <div className={styles.scanStatus} data-phase={scanStatus.phase}>
         {scanStatus.phase === "discovering" && <><Progress className="animate-pulse" value={100} /><strong>{t("settings.lyrics.scanDiscovering")}</strong><span>{t("settings.lyrics.scanDiscovered", { discovered: scanStatus.discovered, skipped: scanStatus.skipped })}</span></>}
@@ -132,29 +139,34 @@ export default function LyricsSettingsPage() {
         {scanStatus.phase === "failed" && <><strong>{t("settings.lyrics.scanFailed")}</strong><span role="alert">{scanStatus.error}</span></>}
       </div>}
       <div className={styles.buttonRow}>
-        <button disabled={!libraryDir} onClick={() => void api.openLyricsDirectory().catch((error) => setError(messageOf(error)))}>{t("library.openFolder")}</button>
-        <button disabled={changingDirectory} onClick={() => void changeDirectory()}>{changingDirectory ? t("library.changing") : t("library.changeFolder")}</button>
-        <button disabled={!libraryDir} onClick={() => void rescanLibrary()}>{scanActive ? t("settings.lyrics.restartScan") : t("settings.lyrics.rescan")}</button>
+        <Button variant="secondary" size="sm" disabled={!libraryDir} onClick={() => void api.openLyricsDirectory().catch((error) => setError(messageOf(error)))}>{t("library.openFolder")}</Button>
+        <Button variant="secondary" size="sm" disabled={changingDirectory} onClick={() => void changeDirectory()}>{changingDirectory ? t("library.changing") : t("library.changeFolder")}</Button>
+        <Button variant="secondary" size="sm" disabled={!libraryDir} onClick={() => void rescanLibrary()}>{scanActive ? t("settings.lyrics.restartScan") : t("settings.lyrics.rescan")}</Button>
       </div>
-    </SettingsCard>
-    <div className={styles.advancedSection}>
-      <SettingsCard title={t("settings.lyrics.titleFilters")} trailing={<Button variant="ghost" size="sm" disabled={savingTitleFilters} onClick={() => void (providerView && saveProviderSettings({ ...providerView.settings, titleFilterKeywords: defaultTitleFilterKeywords }))}>{t("settings.lyrics.restoreTitleFilters")}</Button>}>
+    </SettingsSection>
+    <Collapsible className={styles.advancedSection}>
+      <CollapsibleTrigger render={<Button variant="outline" className={styles.advancedTrigger} />}>
+        {t("settings.shell.advanced")}<ChevronDown data-icon="inline-end" />
+      </CollapsibleTrigger>
+      <CollapsibleContent className={styles.advancedContent}>
+      <SettingsSection title={t("settings.lyrics.titleFilters")} trailing={<Button variant="ghost" size="sm" disabled={savingTitleFilters} onClick={() => void (providerView && saveProviderSettings({ ...providerView.settings, titleFilterKeywords: defaultTitleFilterKeywords }))}>{t("settings.lyrics.restoreTitleFilters")}</Button>}>
         <p className={styles.cardHint}>{t("settings.lyrics.titleFiltersHint")}</p>
-        <div className={styles.titleFilters}>{providerView?.settings.titleFilterKeywords.length ? providerView.settings.titleFilterKeywords.map((keyword, index) => <div className={styles.titleFilter} key={`${keyword}-${index}`}><span>{keyword}</span><button type="button" disabled={savingTitleFilters} onClick={() => void removeTitleFilter(index)}><X /></button></div>) : <p>{t("settings.lyrics.titleFiltersEmpty")}</p>}</div>
-        <form className={styles.titleFilterForm} onSubmit={(event) => void addTitleFilter(event)}><input aria-invalid={Boolean(titleFilterError)} placeholder={t("settings.lyrics.titleFilterPlaceholder")} value={titleFilterDraft} onChange={(event) => setTitleFilterDraft(event.target.value)} /><button disabled={!providerView || !normalizedTitleFilterDraft || Boolean(titleFilterError) || savingTitleFilters}>{t("settings.lyrics.addTitleFilter")}</button>{titleFilterError && <small role="alert">{titleFilterError}</small>}</form>
-      </SettingsCard>
-      <SettingsCard title={t("settings.lyrics.providerPriority")} trailing={providerView && <div className={styles.shortcutControls}><button className={styles.cardHeaderButton} disabled={!providerView.settings.providers.length || testingProvider !== null} onClick={() => void testProviders(providerView.settings.providers.map((provider) => provider.id))}>{testingProvider === "*" ? t("common.actions.testing") : t("common.actions.testAll")}</button><select disabled={savingProviderOrder} value={providerView.settings.mode} onChange={(event) => void saveProviderSettings({ ...providerView.settings, mode: event.target.value as ProviderSettings["mode"] })}><option value="strict">{t("settings.lyrics.strict")}</option><option value="smart">{t("settings.lyrics.smart")}</option></select></div>}>
+        <div className={styles.titleFilters}>{providerView?.settings.titleFilterKeywords.length ? providerView.settings.titleFilterKeywords.map((keyword, index) => <Badge variant="secondary" className={styles.titleFilter} key={`${keyword}-${index}`}><span>{keyword}</span><IconButton label={`${t("common.actions.remove")} ${keyword}`} variant="ghost" size="icon-sm" disabled={savingTitleFilters} onClick={() => void removeTitleFilter(index)}><X /></IconButton></Badge>) : <p>{t("settings.lyrics.titleFiltersEmpty")}</p>}</div>
+        <form className={styles.titleFilterForm} onSubmit={(event) => void addTitleFilter(event)}><InputGroup><InputGroupInput aria-invalid={Boolean(titleFilterError)} placeholder={t("settings.lyrics.titleFilterPlaceholder")} value={titleFilterDraft} onChange={(event) => setTitleFilterDraft(event.target.value)} /><InputGroupAddon align="inline-end"><Button size="sm" disabled={!providerView || !normalizedTitleFilterDraft || Boolean(titleFilterError) || savingTitleFilters}>{t("settings.lyrics.addTitleFilter")}</Button></InputGroupAddon></InputGroup>{titleFilterError && <small role="alert">{titleFilterError}</small>}</form>
+      </SettingsSection>
+      <SettingsSection title={t("settings.lyrics.providerPriority")} trailing={providerView && <div className={styles.shortcutControls}><Button variant="secondary" size="sm" disabled={!providerView.settings.providers.length || testingProvider !== null} onClick={() => void testProviders(providerView.settings.providers.map((provider) => provider.id))}>{testingProvider === "*" ? t("common.actions.testing") : t("common.actions.testAll")}</Button><Select disabled={savingProviderOrder} items={[{ value: "strict", label: t("settings.lyrics.strict") }, { value: "smart", label: t("settings.lyrics.smart") }]} value={providerView.settings.mode} onValueChange={(mode) => void saveProviderSettings({ ...providerView.settings, mode: mode as ProviderSettings["mode"] })}><SelectTrigger className="w-32" aria-label={t("settings.lyrics.providerPriority")}><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="strict">{t("settings.lyrics.strict")}</SelectItem><SelectItem value="smart">{t("settings.lyrics.smart")}</SelectItem></SelectGroup></SelectContent></Select></div>}>
         <p className={styles.cardHint}>{providerView?.settings.mode === "smart" ? t("settings.lyrics.smartHint") : t("settings.lyrics.strictHint")}</p>
-        <div className={styles.providers} data-dragging={Boolean(providerDrag)}>{providerView?.settings.providers.map((provider, index) => {
+        <ItemGroup className={styles.providers} data-dragging={Boolean(providerDrag)}>{providerView?.settings.providers.map((provider, index) => {
           const status = providerView.statuses.find((item) => item.providerId === provider.id);
-          return <div className={styles.provider} data-dragging={providerDrag?.providerId === provider.id} key={provider.id} ref={(element) => { if (element) providerRows.current.set(provider.id, element); else providerRows.current.delete(provider.id); }} style={{ transform: providerDragTransform(index) }}>
-            <button type="button" className={styles.dragHandle} disabled={savingProviderOrder} onPointerDown={(event) => beginProviderDrag(provider.id, index, event)} onPointerMove={continueProviderDrag} onPointerUp={finishProviderDrag} onPointerCancel={() => setProviderDrag(null)} onLostPointerCapture={() => setProviderDrag(null)}><GripVertical /></button>
-            <b>#{index + 1}</b><div><strong>{status?.name ?? provider.id}</strong><small data-health={status?.health ?? "unknown"}>{healthLabel(status, t)}</small></div>
-            <button aria-pressed={provider.enabled} className={styles.switch} data-on={provider.enabled} onClick={() => toggleProvider(provider.id)}><span /></button>
-            <button disabled={testingProvider !== null} onClick={() => void testProviders([provider.id])}>{testingProvider === provider.id || testingProvider === "*" ? t("common.actions.testing") : t("common.actions.test")}</button>
-          </div>;
-        })}</div>
-      </SettingsCard>
-    </div>
+          return <Item variant="muted" className={styles.provider} data-dragging={providerDrag?.providerId === provider.id} key={provider.id} ref={(element) => { if (element) providerRows.current.set(provider.id, element); else providerRows.current.delete(provider.id); }} style={{ transform: providerDragTransform(index) }}>
+            <ItemMedia><Button type="button" variant="ghost" size="icon-sm" className={styles.dragHandle} aria-label={`${status?.name ?? provider.id} #${index + 1}`} disabled={savingProviderOrder} onPointerDown={(event) => beginProviderDrag(provider.id, index, event)} onPointerMove={continueProviderDrag} onPointerUp={finishProviderDrag} onPointerCancel={() => setProviderDrag(null)} onLostPointerCapture={() => setProviderDrag(null)}><GripVertical /></Button></ItemMedia>
+            <Badge variant="outline">#{index + 1}</Badge>
+            <ItemContent><ItemTitle>{status?.name ?? provider.id}</ItemTitle><ItemDescription className={styles.providerStatus} data-health={status?.health ?? "unknown"}>{healthLabel(status, t)}</ItemDescription></ItemContent>
+            <ItemActions><Switch aria-label={status?.name ?? provider.id} checked={provider.enabled} onCheckedChange={() => toggleProvider(provider.id)} /><Button variant="secondary" size="sm" disabled={testingProvider !== null} onClick={() => void testProviders([provider.id])}>{testingProvider === provider.id || testingProvider === "*" ? t("common.actions.testing") : t("common.actions.test")}</Button></ItemActions>
+          </Item>;
+        })}</ItemGroup>
+      </SettingsSection>
+      </CollapsibleContent>
+    </Collapsible>
   </>;
 }

@@ -173,7 +173,6 @@ export type SettingsResetResponse = {
   overlayStyle: OverlayStyle;
   providerView: ProviderSettingsView;
   playerSelection: PlayerSelection;
-  uiFontScale: number;
 };
 
 export type OverlayAppearance = Omit<OverlayStyle, "horizontalMaxWidth" | "verticalMaxHeight">;
@@ -182,7 +181,6 @@ export type AppConfig = {
   schemaVersion: number;
   app: {
     theme: ThemePreference;
-    uiFontScale: number;
     language: string;
     playerSelection: PlayerSelection;
     systemMediaFilterMode: SystemMediaFilterMode;

@@ -16,10 +16,9 @@ use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSet
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 29;
+pub const CONFIG_SCHEMA_VERSION: u16 = 30;
 const APP_CONFIG_KEYS: &[&str] = &[
     "theme",
-    "uiFontScale",
     "language",
     "playerSelection",
     "systemMediaFilterMode",
@@ -39,9 +38,6 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
         let comment = match line {
             line if line.starts_with("  \"schemaVersion\":") => {
                 Some(("  ", ConfigComment::SchemaVersion))
-            }
-            line if line.starts_with("    \"uiFontScale\":") => {
-                Some(("    ", ConfigComment::UiFontScale))
             }
             line if line.starts_with("    \"theme\":") => Some(("    ", ConfigComment::Theme)),
             line if line.starts_with("    \"language\":") => {
@@ -166,7 +162,6 @@ impl Default for AppConfig {
 #[serde(default, rename_all = "camelCase")]
 pub struct AppPreferences {
     pub theme: ThemePreference,
-    pub ui_font_scale: u16,
     pub language: LanguagePreference,
     pub player_selection: PlayerSelection,
     pub system_media_filter_mode: SystemMediaFilterMode,
@@ -182,7 +177,6 @@ impl Default for AppPreferences {
     fn default() -> Self {
         Self {
             theme: ThemePreference::Dark,
-            ui_font_scale: 100,
             language: LanguagePreference::default(),
             player_selection: PlayerSelection::Auto,
             system_media_filter_mode: SystemMediaFilterMode::Allowlist,
@@ -475,7 +469,6 @@ impl AppConfig {
             ));
         }
         self.schema_version = CONFIG_SCHEMA_VERSION;
-        self.app.ui_font_scale = normalize_ui_font_scale(self.app.ui_font_scale);
         self.app.system_media_applications =
             normalize_system_media_applications(self.app.system_media_applications)?;
         self.app.player_follower_application =
@@ -545,15 +538,6 @@ fn configured_comment_language(preference: &LanguagePreference) -> UiLanguage {
     } else {
         UiLanguage::EnUs
     }
-}
-
-pub fn normalize_ui_font_scale(value: u16) -> u16 {
-    let clamped = value.clamp(80, 150);
-    (((clamped as u32 + 5) / 10) * 10).clamp(80, 150) as u16
-}
-
-pub fn migrate_v1_font_scale(value: u16) -> u16 {
-    normalize_ui_font_scale(((value as f64 / 1.2) / 10.0).round() as u16 * 10)
 }
 
 fn migrate_legacy_provider_order(settings: &mut ProviderSettings) {
@@ -725,19 +709,6 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
     let migrated = version < CONFIG_SCHEMA_VERSION || migrated_layout;
     #[cfg(not(test))]
     let _ = migrated_layout;
-    if version < 2 {
-        if let Some(scale) = user
-            .get_mut("app")
-            .and_then(Value::as_object_mut)
-            .and_then(|app| app.get_mut("uiFontScale"))
-        {
-            let old = scale
-                .as_u64()
-                .ok_or_else(|| error_at_key(raw, "uiFontScale", "uiFontScale 必须是数字"))?
-                as u16;
-            *scale = Value::from(migrate_v1_font_scale(old));
-        }
-    }
     user.as_object_mut()
         .expect("checked object")
         .insert("schemaVersion".into(), Value::from(CONFIG_SCHEMA_VERSION));
@@ -1026,7 +997,6 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
     }
     for (pointer, key) in [
         ("/schemaVersion", "schemaVersion"),
-        ("/app/uiFontScale", "uiFontScale"),
         ("/lyrics/providers/autoApplyThreshold", "autoApplyThreshold"),
         ("/overlay/appearance/fontSize", "fontSize"),
     ] {
@@ -1260,12 +1230,6 @@ fn check_keys(value: &Value, raw: &str, allowed: &[&str]) -> Result<(), ConfigDr
 
 fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftError> {
     let checks = [
-        (
-            "uiFontScale",
-            value.pointer("/app/uiFontScale"),
-            80.0,
-            150.0,
-        ),
         (
             "fontSize",
             value.pointer("/overlay/appearance/fontSize"),
@@ -1644,25 +1608,17 @@ mod tests {
     }
 
     #[test]
-    fn new_scale_rebases_old_scale() {
-        assert_eq!(migrate_v1_font_scale(80), 80);
-        assert_eq!(migrate_v1_font_scale(100), 80);
-        assert_eq!(migrate_v1_font_scale(120), 100);
-        assert_eq!(migrate_v1_font_scale(150), 130);
-    }
-
-    #[test]
     fn jsonc_supports_comments_trailing_commas_and_partial_values() {
         let parsed = parse_config_draft(
             r##"{
               // only override two fields
-              "app": { "uiFontScale": 120, },
+              "app": { "theme": "light", },
               /* keep everything else default */
               "overlay": { "appearance": { "activeColor": "#ff0000", }, },
             }"##,
         )
         .unwrap();
-        assert_eq!(parsed.config.app.ui_font_scale, 120);
+        assert_eq!(parsed.config.app.theme, ThemePreference::Light);
         assert_eq!(parsed.config.overlay.appearance.active_color, "#ff0000");
         assert_eq!(parsed.config.app.player_selection, PlayerSelection::Auto);
     }
@@ -1765,7 +1721,7 @@ mod tests {
     fn invalid_draft_falls_back_to_default() {
         let validation = validate_config_draft("{ nope }");
         assert!(!validation.valid);
-        assert_eq!(validation.effective_config.app.ui_font_scale, 100);
+        assert_eq!(validation.effective_config.app.theme, ThemePreference::Dark);
     }
 
     #[test]
@@ -1773,7 +1729,6 @@ mod tests {
         let default_jsonc =
             canonical_config_jsonc(&AppConfig::default(), UiLanguage::ZhCn).unwrap();
         let parsed = parse_config_draft(&default_jsonc).unwrap();
-        assert_eq!(parsed.config.app.ui_font_scale, 100);
         assert!(!parsed.config.app.silent_startup);
         assert_eq!(parsed.config.schema_version, CONFIG_SCHEMA_VERSION);
         assert_eq!(parsed.normalized_json, default_jsonc);
@@ -2191,7 +2146,6 @@ mod tests {
         for (raw, field) in [
             (r#"{"app":{"hideDockIcon":"yes"}}"#, "hideDockIcon"),
             (r#"{"app":{"playerSelection":"music"}}"#, "playerSelection"),
-            (r#"{"app":{"uiFontScale":151}}"#, "uiFontScale"),
             (
                 r#"{"lyrics":{"providers":{"autoApplyThreshold":101}}}"#,
                 "autoApplyThreshold",
@@ -2358,9 +2312,9 @@ mod tests {
                 comment_language: UiLanguage::ZhCn,
             }),
         };
-        let result = store.update(|config| config.app.ui_font_scale = 140);
+        let result = store.update(|config| config.app.theme = ThemePreference::Light);
         assert!(result.is_err());
-        assert_eq!(store.snapshot().app.ui_font_scale, 100);
+        assert_eq!(store.snapshot().app.theme, ThemePreference::Dark);
         let _ = fs::remove_dir_all(root);
     }
 
@@ -2372,7 +2326,7 @@ mod tests {
         let storage = Storage::open(root.clone(), root.join("library")).unwrap();
         let (store, migrated) = ConfigStore::load(&root, &storage).unwrap();
         assert!(!migrated);
-        assert_eq!(store.snapshot().app.ui_font_scale, 100);
+        assert_eq!(store.snapshot().app.theme, ThemePreference::Dark);
         assert_eq!(
             fs::read_to_string(root.join("config.json")).unwrap(),
             "{ broken }"
@@ -2397,14 +2351,14 @@ mod tests {
     fn valid_disk_config_is_rewritten_as_complete_commented_jsonc() {
         let root = test_root("canonical-disk-config");
         fs::create_dir_all(&root).unwrap();
-        fs::write(root.join("config.json"), r#"{"app":{"uiFontScale":120}}"#).unwrap();
+        fs::write(root.join("config.json"), r#"{"app":{"theme":"light"}}"#).unwrap();
         let storage = Storage::open(root.clone(), root.join("library")).unwrap();
         let (store, migrated) = ConfigStore::load(&root, &storage).unwrap();
         assert!(!migrated);
-        assert_eq!(store.snapshot().app.ui_font_scale, 120);
+        assert_eq!(store.snapshot().app.theme, ThemePreference::Light);
         let persisted = fs::read_to_string(root.join("config.json")).unwrap();
-        assert!(persisted.contains("// Interface text scale"));
-        assert!(persisted.contains("\"uiFontScale\": 120"));
+        assert!(persisted.contains("// Application theme"));
+        assert!(persisted.contains("\"theme\": \"light\""));
         assert_eq!(persisted, store.editor_data().user_json);
         drop(storage);
         let _ = fs::remove_dir_all(root);
@@ -2429,15 +2383,15 @@ mod tests {
         assert!(!store.set_comment_language(UiLanguage::EnUs).unwrap());
         assert_eq!(store.revision(), revision + 2);
         store
-            .update(|config| config.app.ui_font_scale = 130)
+            .update(|config| config.app.theme = ThemePreference::Light)
             .unwrap();
         let persisted = fs::read_to_string(root.join("config.json")).unwrap();
-        assert!(persisted.contains("// Interface text scale"));
-        assert!(persisted.contains("\"uiFontScale\": 130"));
+        assert!(persisted.contains("// Application theme"));
+        assert!(persisted.contains("\"theme\": \"light\""));
         assert!(store
             .export_json()
             .unwrap()
-            .contains("// Interface text scale"));
+            .contains("// Application theme"));
         drop(storage);
         let _ = fs::remove_dir_all(root);
     }
@@ -2450,13 +2404,13 @@ mod tests {
         let (store, _) = ConfigStore::load(&root, &storage).unwrap();
         let revision = store.revision();
         store
-            .update(|config| config.app.ui_font_scale = 120)
+            .update(|config| config.app.theme = ThemePreference::Light)
             .unwrap();
         let mut stale = store.snapshot();
-        stale.app.ui_font_scale = 140;
+        stale.app.theme = ThemePreference::Dark;
         let error = store.replace_at_revision(stale, revision).unwrap_err();
         assert!(error.starts_with("config.conflict:"));
-        assert_eq!(store.snapshot().app.ui_font_scale, 120);
+        assert_eq!(store.snapshot().app.theme, ThemePreference::Light);
         drop(storage);
         let _ = fs::remove_dir_all(root);
     }

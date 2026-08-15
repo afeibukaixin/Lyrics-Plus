@@ -5,7 +5,7 @@ import router from "./router";
 import Overlay from "./features/overlay/Overlay";
 import UnlockHandle from "./features/overlay/UnlockHandle";
 import QuickLyricsWindow from "./features/lyrics/QuickLyricsWindow";
-import { AppConfigProvider } from "./features/config/AppConfigProvider";
+import { AppConfigProvider, useAppConfig } from "./features/config/AppConfigProvider";
 import { DebugLogProvider } from "./features/debug/DebugLogProvider";
 import { AppI18nProvider } from "./features/i18n/I18nProvider";
 import { LegalNoticeGate } from "./features/legal/LegalNoticeGate";
@@ -15,6 +15,11 @@ import { Toaster } from "./components/ui/sonner";
 
 import "./tailwind.css";
 import "./styles.scss";
+
+function AppToaster() {
+  const { resolvedTheme } = useAppConfig();
+  return <Toaster theme={resolvedTheme} />;
+}
 
 const view = new URLSearchParams(window.location.search).get("view");
 const updatePreview = import.meta.env.DEV && new URLSearchParams(window.location.search).get("update-preview") === "1";
@@ -37,7 +42,7 @@ const content = view === "overlay" ? (
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <AppConfigProvider windowType={windowType}>
-      <AppI18nProvider><TooltipProvider delayDuration={400}>{content}<Toaster /></TooltipProvider></AppI18nProvider>
+      <AppI18nProvider><TooltipProvider delayDuration={400}>{content}<AppToaster /></TooltipProvider></AppI18nProvider>
     </AppConfigProvider>
   </React.StrictMode>
 );

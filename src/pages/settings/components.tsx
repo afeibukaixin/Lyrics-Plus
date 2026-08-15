@@ -1,13 +1,19 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Music2, X } from "lucide-react";
-import { Button } from "../../components/ui/button";
-import { Card } from "../../components/ui/card";
-import { Input } from "../../components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
-import { Slider } from "../../components/ui/slider";
-import { Switch } from "../../components/ui/switch";
-import type { RegisteredApplication } from "../../shared/types";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field";
+import { IconButton } from "@/components/ui/icon-button";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
+import type { RegisteredApplication } from "@/shared/types";
 import styles from "../settings.module.scss";
 
 const colorChoices = [
@@ -16,13 +22,31 @@ const colorChoices = [
   "#172033", "#25324a", "#3d4b63", "#64748b",
 ];
 
-export function SettingsHeading({ title, description, onReset, resetting = false }: { title: string; description: string; onReset?: () => void; resetting?: boolean; confirming?: boolean }) {
+export function PageHeader({ title, description, onReset, resetting = false }: { title: string; description?: string; onReset?: () => void; resetting?: boolean; confirming?: boolean }) {
   const { t } = useTranslation();
-  return <div className={styles.settingsHeading}><div><h2>{title}</h2><p>{description}</p></div>{onReset && <Button variant="outline" size="sm" disabled={resetting} onClick={onReset}>{resetting ? t("common.actions.resetting") : t("common.actions.resetDefault")}</Button>}</div>;
+  return (
+    <header className={styles.settingsHeading}>
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-balance">{title}</h1>
+        {description && <p className="text-sm text-muted-foreground">{description}</p>}
+      </div>
+      {onReset && <Button variant="outline" size="sm" disabled={resetting} onClick={onReset}>{resetting ? t("common.actions.resetting") : t("common.actions.resetDefault")}</Button>}
+    </header>
+  );
 }
 
-export function SettingsCard({ title, trailing, children }: { title: string; trailing?: React.ReactNode; children: React.ReactNode }) {
-  return <Card className={styles.card}><header><h3>{title}</h3>{trailing}</header>{children}</Card>;
+export function SettingsSection({ title, trailing, children }: { title?: string; trailing?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <Card className={cn(styles.card, "gap-0 py-0")}>
+      {(title || trailing) && (
+        <CardHeader className={cn(styles.cardHeader, "border-b")}>
+          {title && <CardTitle>{title}</CardTitle>}
+          {trailing && <CardAction>{trailing}</CardAction>}
+        </CardHeader>
+      )}
+      <CardContent className={styles.cardContent}>{children}</CardContent>
+    </Card>
+  );
 }
 
 export function ApplicationList({ applications, icons, busy, emptyLabel, removeLabel, onRemove }: {
@@ -33,27 +57,60 @@ export function ApplicationList({ applications, icons, busy, emptyLabel, removeL
   removeLabel: string;
   onRemove: (bundleId: string) => void;
 }) {
-  if (applications.length === 0) return <p className={styles.applicationEmpty}>{emptyLabel}</p>;
-  return <div className={styles.applicationList}>{applications.map((application) => (
-    <div className={styles.applicationItem} key={application.bundleId} title={application.bundleId}>
-      {icons[application.bundleId]
-        ? <img alt="" src={icons[application.bundleId]} />
-        : <span className={styles.applicationIconFallback}><Music2 /></span>}
-      <div className={styles.applicationDetails}>
-        <strong>{application.name}</strong>
-        <small>{application.bundleId}</small>
-      </div>
-      <button aria-label={`${removeLabel} ${application.name}`} className={styles.applicationRemove} disabled={busy} title={removeLabel} onClick={() => onRemove(application.bundleId)}><X /></button>
-    </div>
-  ))}</div>;
+  if (applications.length === 0) {
+    return (
+      <Empty className={styles.applicationEmpty}>
+        <EmptyHeader>
+          <EmptyMedia variant="icon"><Music2 /></EmptyMedia>
+          <EmptyTitle>{emptyLabel}</EmptyTitle>
+          <EmptyDescription>{emptyLabel}</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
+  }
+
+  return (
+    <ItemGroup className={styles.applicationList}>
+      {applications.map((application) => (
+        <Item variant="muted" className={styles.applicationItem} key={application.bundleId}>
+          <ItemMedia variant={icons[application.bundleId] ? "image" : "icon"}>
+            {icons[application.bundleId] ? <img alt="" src={icons[application.bundleId]} /> : <Music2 />}
+          </ItemMedia>
+          <ItemContent><ItemTitle>{application.name}</ItemTitle></ItemContent>
+          <ItemActions>
+            <IconButton label={`${removeLabel} ${application.name}`} tooltip={removeLabel} variant="ghost" size="icon-sm" disabled={busy} onClick={() => onRemove(application.bundleId)}><X /></IconButton>
+          </ItemActions>
+        </Item>
+      ))}
+    </ItemGroup>
+  );
 }
 
 export function ToggleRow({ label, description, value, disabled = false, onChange }: { label: string; description?: string; value: boolean; disabled?: boolean; onChange: (value: boolean) => void | Promise<unknown> }) {
-  return <div className={styles.settingRow}><div><strong>{label}</strong>{description && <small>{description}</small>}</div><Switch aria-label={label} checked={value} disabled={disabled} onCheckedChange={(checked) => void onChange(checked)} /></div>;
+  return (
+    <Field orientation="horizontal" className={styles.settingRow} data-disabled={disabled || undefined}>
+      <FieldContent>
+        <FieldTitle>{label}</FieldTitle>
+        {description && <FieldDescription>{description}</FieldDescription>}
+      </FieldContent>
+      <Switch aria-label={label} checked={value} disabled={disabled} onCheckedChange={(checked) => void onChange(checked)} />
+    </Field>
+  );
 }
 
 export function RangeRow({ label, description, value, min, max, step = 1, suffix, displayValue, disabled = false, onChange }: { label: string; description?: string; value: number; min: number; max: number; step?: number; suffix: string; displayValue?: number; disabled?: boolean; onChange: (value: number) => void }) {
-  return <div className={styles.settingRow}><div><strong>{label}</strong>{description && <small>{description}</small>}</div><div className={styles.rangeControl}><Slider aria-label={label} disabled={disabled} min={min} max={max} step={step} value={[value]} onValueChange={([next]) => onChange(next)} /><b>{displayValue ?? value}{suffix}</b></div></div>;
+  return (
+    <Field orientation="horizontal" className={styles.settingRow} data-disabled={disabled || undefined}>
+      <FieldContent>
+        <FieldTitle>{label}</FieldTitle>
+        {description && <FieldDescription>{description}</FieldDescription>}
+      </FieldContent>
+      <div className={styles.rangeControl}>
+        <Slider aria-label={label} disabled={disabled} min={min} max={max} step={step} value={[value]} onValueChange={([next]) => onChange(next)} />
+        <output className="text-xs text-muted-foreground tabular-nums">{displayValue ?? value}{suffix}</output>
+      </div>
+    </Field>
+  );
 }
 
 export function ColorRow({ label, description, value, disabled = false, onChange }: { label: string; description?: string; value: string; disabled?: boolean; onChange: (value: string) => void }) {
@@ -78,26 +135,43 @@ export function ColorRow({ label, description, value, disabled = false, onChange
   };
 
   return (
-    <div className={`${styles.settingRow} ${styles.colorSettingRow}`}>
-      <div><strong>{label}</strong>{description && <small>{description}</small>}</div>
-      <button type="button" className={styles.colorTrigger} aria-expanded={open} aria-label={t("settings.common.colorSelect", { label })} disabled={disabled} onClick={() => setOpen((current) => !current)}>
-        <span style={{ background: value }} /><code>{value}</code>
-      </button>
-      {open && (
-        <div className={styles.colorPanel}>
+    <Field orientation="horizontal" className={cn(styles.settingRow, styles.colorSettingRow)} data-disabled={disabled || undefined} data-invalid={invalid || undefined}>
+      <FieldContent>
+        <FieldTitle>{label}</FieldTitle>
+        {description && <FieldDescription>{description}</FieldDescription>}
+      </FieldContent>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger render={<Button type="button" variant="outline" className={styles.colorTrigger} disabled={disabled} />}>
+          <span style={{ background: value }} /><code>{value}</code>
+        </PopoverTrigger>
+        <PopoverContent align="end" className={styles.colorPopover}>
           <div className={styles.colorPalette} aria-label={t("settings.common.presetColors", { label })}>
-            {colorChoices.map((color) => <button type="button" aria-label={color} aria-pressed={color.toLowerCase() === value.toLowerCase()} disabled={disabled} key={color} onClick={() => { onChange(color); setOpen(false); }} style={{ background: color }} />)}
+            {colorChoices.map((color) => <Button type="button" variant="ghost" size="icon-sm" aria-label={color} aria-pressed={color.toLowerCase() === value.toLowerCase()} disabled={disabled} key={color} onClick={() => { onChange(color); setOpen(false); }} style={{ background: color }} />)}
           </div>
-          <form className={styles.colorValueForm} onSubmit={(event) => { event.preventDefault(); applyDraft(); }}>
-            <Input aria-invalid={invalid} aria-label={t("settings.common.colorValue", { label })} disabled={disabled} placeholder={t("settings.common.colorPlaceholder")} spellCheck={false} value={draft} onChange={(event) => { setDraft(event.target.value); setInvalid(false); }} />
-            <Button type="submit" size="sm" disabled={disabled}>{t("common.actions.apply")}</Button>
+          <form onSubmit={(event) => { event.preventDefault(); applyDraft(); }}>
+            <InputGroup>
+              <InputGroupInput aria-invalid={invalid} aria-label={t("settings.common.colorValue", { label })} disabled={disabled} placeholder={t("settings.common.colorPlaceholder")} spellCheck={false} value={draft} onChange={(event) => { setDraft(event.target.value); setInvalid(false); }} />
+              <InputGroupAddon align="inline-end"><Button type="submit" size="sm" disabled={disabled}>{t("common.actions.apply")}</Button></InputGroupAddon>
+            </InputGroup>
           </form>
-        </div>
-      )}
-    </div>
+        </PopoverContent>
+      </Popover>
+    </Field>
   );
 }
 
 export function SelectRow({ label, description, disabled = false, value, options, onChange }: { label: string; description?: string; disabled?: boolean; value: string; options: Array<[string, string]>; onChange: (value: string) => void }) {
-  return <div className={styles.settingRow}><div><strong>{label}</strong>{description && <small>{description}</small>}</div><Select disabled={disabled} value={value} onValueChange={onChange}><SelectTrigger aria-label={label} className="w-[180px]"><SelectValue /></SelectTrigger><SelectContent>{options.map(([optionValue, text]) => <SelectItem value={optionValue} key={optionValue}>{text}</SelectItem>)}</SelectContent></Select></div>;
+  const items = options.map(([optionValue, text]) => ({ value: optionValue, label: text }));
+  return (
+    <Field orientation="horizontal" className={styles.settingRow} data-disabled={disabled || undefined}>
+      <FieldContent>
+        <FieldTitle>{label}</FieldTitle>
+        {description && <FieldDescription>{description}</FieldDescription>}
+      </FieldContent>
+      <Select disabled={disabled} items={items} value={value} onValueChange={(next) => { if (next !== null) onChange(next); }}>
+        <SelectTrigger aria-label={label} className="w-45"><SelectValue /></SelectTrigger>
+        <SelectContent><SelectGroup>{options.map(([optionValue, text]) => <SelectItem value={optionValue} key={optionValue}>{text}</SelectItem>)}</SelectGroup></SelectContent>
+      </Select>
+    </Field>
+  );
 }

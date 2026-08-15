@@ -3,13 +3,17 @@ import { getVersion } from "@tauri-apps/api/app";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { useTranslation } from "react-i18next";
-import { LoaderCircle } from "lucide-react";
 import { isTauriRuntime } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
 import { useAppConfig } from "../config/AppConfigProvider";
 import { useAppLanguage } from "../i18n/I18nProvider";
 import appIcon from "../../../src-tauri/icons/128x128.png";
-import styles from "./UpdateProvider.module.scss";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 
 export type UpdateStatus = "idle" | "checking" | "available" | "downloading" | "installing" | "ready" | "latest" | "error";
 
@@ -33,7 +37,6 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
   const { config, loaded } = useAppConfig();
   const { language } = useAppLanguage();
   const { t } = useTranslation();
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const updateRef = useRef<Update | null>(null);
   const busy = useRef(false);
   const autoChecked = useRef(false);
@@ -62,13 +65,6 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
     setStatus("available");
     setDialogOpen(true);
   }, []);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (dialogOpen && !dialog.open) dialog.showModal();
-    if (!dialogOpen && dialog.open) dialog.close();
-  }, [dialogOpen]);
 
   const releasePendingUpdate = useCallback(async () => {
     const update = updateRef.current;
@@ -212,49 +208,40 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
   return (
     <UpdateContext.Provider value={value}>
       {children}
-      <dialog
-        aria-describedby="update-dialog-description"
-        aria-labelledby="update-dialog-title"
-        className={styles.dialog}
-        onCancel={(event) => {
-          event.preventDefault();
-          if (!active) dismissDialog();
-        }}
-        ref={dialogRef}
-      >
-        <header className={styles.hero}>
-          <div className={styles.icon}><img alt="" src={appIcon} /></div>
-          <div className={styles.heading}>
-            <span>Lyrics Plus</span>
-            <h1 id="update-dialog-title">{title}</h1>
-            <p id="update-dialog-description" role={status === "error" ? "alert" : undefined}>{description}</p>
+      <Dialog open={dialogOpen} disablePointerDismissal onOpenChange={(open) => { if (!open && !active) dismissDialog(); }}>
+        <DialogContent className="grid max-h-[min(640px,calc(100vh-48px))] w-[min(520px,calc(100vw-48px))] grid-rows-[auto_auto_minmax(0,1fr)_auto_auto] gap-0 overflow-hidden bg-card p-0" showClose={false}>
+        <DialogHeader className="flex flex-row items-center gap-3.5 border-b border-border px-[22px] pb-4 pt-5">
+          <div className="size-12 shrink-0 rounded-xl border border-border bg-muted p-[3px]"><img className="block size-full rounded-[9px]" alt="" src={appIcon} /></div>
+          <div className="min-w-0">
+            <DialogTitle id="update-dialog-title">{title}</DialogTitle>
+            <DialogDescription className="mt-1 leading-relaxed" id="update-dialog-description" role={status === "error" ? "alert" : undefined}>{description}</DialogDescription>
           </div>
-        </header>
+        </DialogHeader>
 
-        <div className={styles.versionRow}>
+        <div className="mx-[22px] mb-3 mt-3.5 flex items-center gap-2 rounded-lg bg-muted px-2.5 py-2 text-xs tabular-nums">
           <span>{t("settings.about.version", { version: currentVersion })}</span>
-          <b aria-hidden="true">→</b>
-          <strong>{t("settings.about.version", { version: availableVersion ?? "—" })}</strong>
+          <b className="text-muted-foreground" aria-hidden="true">→</b>
+          <strong className="text-primary">{t("settings.about.version", { version: availableVersion ?? "—" })}</strong>
         </div>
 
-        <section className={styles.notes} aria-labelledby="update-notes-title">
-          <h2 id="update-notes-title">{t("settings.about.releaseNotes")}</h2>
-          <div>{releaseNotes || t("settings.about.noReleaseNotes")}</div>
+        <section className="mx-[22px] min-h-0 overflow-hidden border-t border-border" aria-labelledby="update-notes-title">
+          <h2 className="m-0 py-2.5 text-sm font-medium" id="update-notes-title">{t("settings.about.releaseNotes")}</h2>
+          <ScrollArea className="max-h-[220px]"><div className="whitespace-pre-wrap pb-3 text-sm leading-relaxed text-muted-foreground">{releaseNotes || t("settings.about.noReleaseNotes")}</div></ScrollArea>
         </section>
 
         {(status === "downloading" || status === "installing") && (
-          <section className={styles.progress} aria-live="polite">
-            <div>
-              <span><LoaderCircle className="animate-spin" />{t(`settings.about.status.${status}`, { version: availableVersion ?? "" })}</span>
-              <strong>{percentage === null ? "" : `${percentage}%`}</strong>
+          <section className="grid gap-2 px-6 pt-4" aria-live="polite">
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="inline-flex items-center gap-2"><Spinner />{t(`settings.about.status.${status}`, { version: availableVersion ?? "" })}</span>
+              <strong className="text-primary tabular-nums">{percentage === null ? "" : `${percentage}%`}</strong>
             </div>
-            <progress
+            <Progress
               aria-label={t("settings.about.downloadProgress")}
-              max={totalBytes ?? undefined}
-              value={totalBytes ? Math.min(downloadedBytes, totalBytes) : undefined}
+              className={percentage === null ? "animate-pulse" : undefined}
+              value={percentage ?? 100}
             />
             {status === "downloading" && downloadedBytes > 0 && (
-              <small>
+              <small className="text-right text-xs text-muted-foreground tabular-nums">
                 {totalBytes
                   ? t("settings.about.downloadedSize", { downloaded: formatBytes(downloadedBytes, language), total: formatBytes(totalBytes, language) })
                   : t("settings.about.downloadedUnknownSize", { downloaded: formatBytes(downloadedBytes, language) })}
@@ -263,30 +250,31 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
           </section>
         )}
 
-        {error && status !== "error" && <p className={styles.error} role="alert">{error}</p>}
+        {error && status !== "error" && <Alert variant="destructive" className="mx-6 mt-3"><AlertDescription>{error}</AlertDescription></Alert>}
 
-        <footer className={styles.footer}>
+        <DialogFooter className="flex justify-end gap-2 border-t border-border px-[22px] pb-[18px] pt-3.5">
           {status === "available" && (
             <>
-              <button className={styles.secondary} type="button" onClick={dismissDialog}>{t("common.actions.cancel")}</button>
-              <button className={styles.primary} type="button" onClick={() => void installUpdate()}>{t("settings.about.installNow")}</button>
+              <Button className="min-w-28" variant="secondary" type="button" onClick={dismissDialog}>{t("common.actions.cancel")}</Button>
+              <Button className="min-w-28" type="button" onClick={() => void installUpdate()}>{t("settings.about.installNow")}</Button>
             </>
           )}
-          {active && <button className={styles.primary} disabled type="button">{t(`settings.about.status.${status}`, { version: availableVersion ?? "" })}</button>}
+          {active && <Button className="min-w-28" disabled type="button">{t(`settings.about.status.${status}`, { version: availableVersion ?? "" })}</Button>}
           {status === "ready" && (
             <>
-              <button className={styles.secondary} type="button" onClick={dismissDialog}>{t("settings.about.restartLater")}</button>
-              <button className={styles.primary} type="button" onClick={() => void restartToUpdate()}>{t("settings.about.restartNow")}</button>
+              <Button className="min-w-28" variant="secondary" type="button" onClick={dismissDialog}>{t("settings.about.restartLater")}</Button>
+              <Button className="min-w-28" type="button" onClick={() => void restartToUpdate()}>{t("settings.about.restartNow")}</Button>
             </>
           )}
           {status === "error" && (
             <>
-              <button className={styles.secondary} type="button" onClick={dismissDialog}>{t("common.actions.close")}</button>
-              <button className={styles.primary} type="button" onClick={() => void retryUpdate()}>{t("settings.about.retryUpdate")}</button>
+              <Button className="min-w-28" variant="secondary" type="button" onClick={dismissDialog}>{t("common.actions.close")}</Button>
+              <Button className="min-w-28" type="button" onClick={() => void retryUpdate()}>{t("settings.about.retryUpdate")}</Button>
             </>
           )}
-        </footer>
-      </dialog>
+        </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </UpdateContext.Provider>
   );
 }

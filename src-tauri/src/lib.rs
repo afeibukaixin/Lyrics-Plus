@@ -387,11 +387,11 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
 
 pub(crate) fn show_quick_lyrics_window(app: &tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("quick-lyrics") {
-        if let Err(error) = window.set_size(tauri::LogicalSize::new(900.0, 620.0)) {
-            log::warn!("Failed to restore the quick lyrics window size: {error}");
+        if let Err(error) = window.set_resizable(true) {
+            log::warn!("Failed to enable resizing for the quick lyrics window: {error}");
         }
-        if let Err(error) = window.set_resizable(false) {
-            log::warn!("Failed to disable resizing for the quick lyrics window: {error}");
+        if let Err(error) = window.set_min_size(Some(tauri::LogicalSize::new(680.0, 480.0))) {
+            log::warn!("Failed to set the quick lyrics window minimum size: {error}");
         }
         if let Err(error) = window.unminimize() {
             log::warn!("Failed to unminimize the quick lyrics window: {error}");
@@ -407,7 +407,8 @@ pub(crate) fn show_quick_lyrics_window(app: &tauri::AppHandle) -> Result<(), Str
     )
     .title(UiLanguage::ZhCn.native_labels().quick_title)
     .inner_size(900.0, 620.0)
-    .resizable(false)
+    .min_inner_size(680.0, 480.0)
+    .resizable(true)
     .maximizable(false)
     .minimizable(true)
     .center()
@@ -1893,7 +1894,8 @@ pub fn run() {
 
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_size(tauri::LogicalSize::new(980.0, 720.0));
-                let _ = window.set_resizable(false);
+                let _ = window.set_min_size(Some(tauri::LogicalSize::new(760.0, 560.0)));
+                let _ = window.set_resizable(true);
                 let _ = center_main_window_on_cursor(app.handle(), &window);
             }
 
@@ -1998,7 +2000,6 @@ pub fn run() {
             commands::show_main_window,
             commands::show_quick_lyrics_window,
             commands::get_app_config,
-            commands::set_ui_font_scale,
             commands::set_theme,
             commands::resolve_system_media_applications,
             commands::set_system_media_filter_mode,

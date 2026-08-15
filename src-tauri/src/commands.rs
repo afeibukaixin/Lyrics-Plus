@@ -308,7 +308,6 @@ pub struct SettingsResetResponse {
     pub overlay_style: OverlayStyleSettings,
     pub provider_view: ProviderSettingsView,
     pub player_selection: PlayerSelection,
-    pub ui_font_scale: u16,
 }
 
 #[derive(Debug, Serialize)]
@@ -1231,20 +1230,6 @@ pub fn quit_application(app: tauri::AppHandle) {
 }
 
 #[tauri::command]
-pub fn set_ui_font_scale(
-    app: tauri::AppHandle,
-    scale: u16,
-    state: State<'_, AppState>,
-) -> Result<AppConfig, String> {
-    let config = state
-        .config
-        .update(|config| config.app.ui_font_scale = scale)?;
-    app.emit("config://changed", &config)
-        .map_err(|error| error.to_string())?;
-    Ok(config)
-}
-
-#[tauri::command]
 pub fn set_theme(
     app: tauri::AppHandle,
     theme: ThemePreference,
@@ -1872,7 +1857,6 @@ pub fn reset_settings_section(
             state.config.update(|config| {
                 config.app.theme = ThemePreference::Dark;
                 config.app.language = LanguagePreference::default();
-                config.app.ui_font_scale = 100;
                 config.app.silent_startup = false;
             })?;
         }
@@ -1900,7 +1884,6 @@ pub fn reset_settings_section(
             .selection
             .read()
             .unwrap_or_else(|error| error.into_inner()),
-        ui_font_scale: configured.app.ui_font_scale,
     })
 }
 

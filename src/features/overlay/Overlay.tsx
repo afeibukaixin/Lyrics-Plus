@@ -3,7 +3,8 @@ import { LogicalSize } from "@tauri-apps/api/dpi";
 import { listen } from "@tauri-apps/api/event";
 import { currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
 import { useTranslation } from "react-i18next";
-import { AlignLeft, Columns2, Columns3, EyeOff, Grid2X2Check, Lock, Minus, PanelsTopLeft, Plus, Rows3, Settings } from "lucide-react";
+import { ClockArrowLeft, ClockArrowRight, Columns3, EyeOff, Lock, Minus, PanelsTopBottom, PanelTop, Plus, Rows3, Settings, Square, SquareDashed } from "lucide-react";
+import { IconButton } from "@/components/ui/icon-button";
 import { api, isTauriRuntime } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
@@ -104,16 +105,6 @@ type SupportingLine = {
   baseSize: number;
   color: string;
 };
-
-type OffsetIconName = "offsetEarlier" | "offsetLater";
-
-function OffsetIcon({ name }: { name: OffsetIconName }) {
-  const paths: Record<OffsetIconName, React.ReactNode> = {
-    offsetEarlier: <><path d="M9 8l-4 4 4 4M5 12h7" /><circle cx="16" cy="12" r="5" /><path d="M16 9.5V12l1.8 1.2" /></>,
-    offsetLater: <><circle cx="8" cy="12" r="5" /><path d="M8 9.5V12l1.8 1.2M15 8l4 4-4 4M12 12h7" /></>,
-  };
-  return <svg aria-hidden="true" viewBox="0 0 24 24">{paths[name]}</svg>;
-}
 
 function formatOffset(offsetMs: number) {
   if (offsetMs === 0) return "0s";
@@ -866,73 +857,85 @@ export default function Overlay() {
               <div className={styles.resizeHandle} data-active={activeResizeEdge === "right"} data-edge="right" data-tauri-drag-region="false" role="separator" aria-label={t("overlay.toolbar.resizeHorizontal")} aria-orientation="vertical" onLostPointerCapture={lostResizeCapture} onPointerCancel={cancelResize} onPointerDown={beginResize("right", "horizontal")} onPointerMove={continueResize} onPointerUp={endResize} />
             </>
           )}
-          <div className={styles.toolbar} data-tauri-drag-region="false" aria-label={t("overlay.toolbar.label")} ref={toolbarRef}>
-            <button aria-label={t("overlay.toolbar.lock")} title={t("overlay.toolbar.lock")} onClick={() => void api.setOverlayLocked(true)}><Lock /></button>
-            <button aria-label={t("overlay.toolbar.decreaseFont")} title={t("overlay.toolbar.decreaseFont")} onClick={() => void updateStyle({ fontSize: style.fontSize - 2 })}><Minus /></button>
-            <button aria-label={t("overlay.toolbar.increaseFont")} title={t("overlay.toolbar.increaseFont")} onClick={() => void updateStyle({ fontSize: style.fontSize + 2 })}><Plus /></button>
+          <div className={styles.toolbar} data-tauri-drag-region="false" role="toolbar" aria-label={t("overlay.toolbar.label")} ref={toolbarRef}>
+            <IconButton label={t("overlay.toolbar.lock")} variant="ghost" size="icon-sm" onClick={() => void api.setOverlayLocked(true)}><Lock /></IconButton>
+            <IconButton label={t("overlay.toolbar.decreaseFont")} variant="ghost" size="icon-sm" onClick={() => void updateStyle({ fontSize: style.fontSize - 2 })}><Minus /></IconButton>
+            <IconButton label={t("overlay.toolbar.increaseFont")} variant="ghost" size="icon-sm" onClick={() => void updateStyle({ fontSize: style.fontSize + 2 })}><Plus /></IconButton>
             <div className={styles.offsetControl} role="group" aria-label={t("overlay.toolbar.offsetGroup", { value: offsetAvailable ? formatOffsetMs(offsetMs) : t("overlay.toolbar.unavailable") })}>
-              <button
-                aria-label={t("overlay.toolbar.delay")}
+              <IconButton
+                label={t("overlay.toolbar.delay")}
+                tooltip={t("overlay.toolbar.delayTitle")}
+                variant="ghost"
+                size="icon-sm"
                 disabled={!offsetAvailable}
-                title={t("overlay.toolbar.delayTitle")}
                 onClick={(event) => void lyrics.changeOffset(event.shiftKey ? -500 : -100)}
-              ><OffsetIcon name="offsetEarlier" /></button>
-              <button
+              ><ClockArrowLeft /></IconButton>
+              <IconButton
                 className={styles.offsetValue}
-                aria-label={!offsetAvailable
+                label={!offsetAvailable
                   ? t("overlay.toolbar.noOffset")
                   : offsetMs === 0
                     ? t("overlay.toolbar.zeroOffset")
                     : t("overlay.toolbar.offsetReset", { value: formatOffsetMs(offsetMs) })}
+                tooltip={offsetValueTitle}
+                variant="ghost"
+                size="icon-sm"
                 disabled={!offsetAvailable || offsetMs === 0}
-                title={offsetValueTitle}
                 onClick={() => void lyrics.setOffset(0)}
-              >{offsetLabel}</button>
-              <button
-                aria-label={t("overlay.toolbar.advance")}
+              >{offsetLabel}</IconButton>
+              <IconButton
+                label={t("overlay.toolbar.advance")}
+                tooltip={t("overlay.toolbar.advanceTitle")}
+                variant="ghost"
+                size="icon-sm"
                 disabled={!offsetAvailable}
-                title={t("overlay.toolbar.advanceTitle")}
                 onClick={(event) => void lyrics.changeOffset(event.shiftKey ? 500 : 100)}
-              ><OffsetIcon name="offsetLater" /></button>
+              ><ClockArrowRight /></IconButton>
             </div>
-            <button aria-label={t("overlay.toolbar.toggleLayout", { value: t(`overlay.layout.${style.layout}`) })} title={t("overlay.toolbar.toggleLayoutTitle", { value: t(`overlay.layout.${style.layout}`) })} onClick={() => void updateStyle({
+            <IconButton label={t("overlay.toolbar.toggleLayout", { value: t(`overlay.layout.${style.layout}`) })} tooltip={t("overlay.toolbar.toggleLayoutTitle", { value: t(`overlay.layout.${style.layout}`) })} variant="ghost" size="icon-sm" onClick={() => void updateStyle({
               layout: nextValue(style.layout, ["single", "double"] as const),
-            })}>{style.layout === "double" ? <Columns3 /> : <AlignLeft />}</button>
-            <button aria-label={t("overlay.toolbar.toggleOrientation", { value: t(`overlay.orientation.${style.orientation}`) })} title={t("overlay.toolbar.toggleOrientationTitle", { value: t(`overlay.orientation.${style.orientation}`) })} onClick={() => void updateStyle({
+            })}>{style.layout === "double" ? <PanelsTopBottom /> : <PanelTop />}</IconButton>
+            <IconButton label={t("overlay.toolbar.toggleOrientation", { value: t(`overlay.orientation.${style.orientation}`) })} tooltip={t("overlay.toolbar.toggleOrientationTitle", { value: t(`overlay.orientation.${style.orientation}`) })} variant="ghost" size="icon-sm" onClick={() => void updateStyle({
               orientation: nextValue(style.orientation, ["horizontal", "vertical"] as const),
-            })}>{vertical ? <Columns2 /> : <Rows3 />}</button>
-            <button
-              aria-label={t("overlay.toolbar.toggleBackground", { value: backgroundLabel })}
+            })}>{vertical ? <Columns3 /> : <Rows3 />}</IconButton>
+            <IconButton
+              label={t("overlay.toolbar.toggleBackground", { value: backgroundLabel })}
+              tooltip={t("overlay.toolbar.toggleBackgroundTitle", { value: backgroundLabel })}
+              variant="ghost"
+              size="icon-sm"
               aria-pressed={!transparentMode}
               data-on={!transparentMode}
-              title={t("overlay.toolbar.toggleBackgroundTitle", { value: backgroundLabel })}
               onClick={() => void updateStyle(transparentMode
                 ? {
                     backgroundMode: "solid",
                     ...(style.background === "transparent" ? { background: "solid" as const } : {}),
                   }
                 : { backgroundMode: "transparent" })}
-            >{transparentMode ? <Grid2X2Check /> : <PanelsTopLeft />}</button>
-            <button
+            >{transparentMode ? <SquareDashed /> : <Square />}</IconButton>
+            <IconButton
+              label={supportingToggleTitle(t("common.feature.translation"), secondaryFlags.translation, translationAvailable)}
+              tooltip={supportingToggleTitle(t("common.feature.translation"), secondaryFlags.translation, translationAvailable)}
+              variant="ghost"
+              size="icon-sm"
               className={styles.trackToggle}
               data-available={translationAvailable}
               data-on={secondaryFlags.translation}
-              aria-label={supportingToggleTitle(t("common.feature.translation"), secondaryFlags.translation, translationAvailable)}
               aria-pressed={secondaryFlags.translation}
-              title={supportingToggleTitle(t("common.feature.translation"), secondaryFlags.translation, translationAvailable)}
               onClick={() => toggleSupportingTrack("translation")}
-            >{t("overlay.toolbar.translationGlyph")}</button>
-            <button
+            >{t("overlay.toolbar.translationGlyph")}</IconButton>
+            <IconButton
+              label={supportingToggleTitle(t("common.feature.romanization"), secondaryFlags.romanization, romanizationAvailable)}
+              tooltip={supportingToggleTitle(t("common.feature.romanization"), secondaryFlags.romanization, romanizationAvailable)}
+              variant="ghost"
+              size="icon-sm"
               className={styles.trackToggle}
               data-available={romanizationAvailable}
               data-on={secondaryFlags.romanization}
-              aria-label={supportingToggleTitle(t("common.feature.romanization"), secondaryFlags.romanization, romanizationAvailable)}
               aria-pressed={secondaryFlags.romanization}
-              title={supportingToggleTitle(t("common.feature.romanization"), secondaryFlags.romanization, romanizationAvailable)}
               onClick={() => toggleSupportingTrack("romanization")}
-            >{t("overlay.toolbar.romanizationGlyph")}</button>
-            <button aria-label={t("overlay.toolbar.hide")} title={t("overlay.toolbar.hide")} onClick={() => void api.setOverlayVisible(false)}><EyeOff /></button>
-            <button aria-label={t("overlay.toolbar.openSettings")} title={t("overlay.toolbar.openSettings")} onClick={() => void api.showMainWindow()}><Settings /></button>
+            >{t("overlay.toolbar.romanizationGlyph")}</IconButton>
+            <IconButton label={t("overlay.toolbar.hide")} variant="ghost" size="icon-sm" onClick={() => void api.setOverlayVisible(false)}><EyeOff /></IconButton>
+            <IconButton label={t("overlay.toolbar.openSettings")} variant="ghost" size="icon-sm" onClick={() => void api.showMainWindow()}><Settings /></IconButton>
           </div>
         </>
       )}

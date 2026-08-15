@@ -180,7 +180,7 @@
 .toolbar {
   position: absolute; top: 6px; left: 50%; z-index: 10; max-width: calc(100% - 6px); height: 34px;
   display: flex; align-items: center; gap: 3px; padding: 3px 5px; overflow-x: auto; overflow-y: hidden;
-  border: 1px solid rgba(255,255,255,.12); border-radius: 9px; background: rgba(13,14,19,.88);
+  border: 1px solid var(--border); border-radius: 9px; background: color-mix(in srgb, var(--popover) 90%, transparent); box-shadow: 0 7px 24px rgb(0 0 0 / 18%);
   opacity: 0; pointer-events: none;
   transform: translate(-50%, -5px); transition: opacity .16s, transform .16s; backdrop-filter: blur(14px);
   cursor: default;
@@ -200,34 +200,27 @@
 }
 .overlay[data-orientation="vertical"][data-hover="true"] .toolbar,
 .overlay[data-orientation="vertical"] .toolbar:focus-within { transform: translate(0, -50%); }
-.toolbar button {
-  width: 26px; height: 26px; flex: none; display: grid; place-items: center; padding: 0;
-  border-radius: 7px; color: rgba(255,255,255,.68);
-}
-.toolbar button:hover:not(:disabled), .toolbar button[data-on="true"] { background: rgba(157,131,255,.19); color: #fff; }
-.toolbar button:disabled { cursor: not-allowed; opacity: .34; }
 .offsetControl {
   flex: none; display: flex; align-items: center; gap: 1px; padding: 1px;
-  border: 1px solid rgba(255,255,255,.09); border-radius: 8px; background: rgba(255,255,255,.035);
+  border: 1px solid var(--border); border-radius: 8px; background: var(--muted);
 }
 .overlay[data-orientation="vertical"] .offsetControl { flex-direction: column; }
 .toolbar .offsetControl > button { width: 23px; height: 22px; border-radius: 6px; }
 .toolbar .offsetValue {
-  width: auto; min-width: 40px; padding: 0 4px; color: rgba(255,255,255,.8);
+  width: auto; min-width: 40px; padding: 0 4px;
   font-size: 8px; font-variant-numeric: tabular-nums; letter-spacing: -.02em;
 }
 .overlay[data-orientation="vertical"] .toolbar .offsetValue { width: 23px; min-width: 23px; padding: 0 1px; }
 .toolbar .offsetValue:disabled { opacity: .7; }
-.toolbar .trackToggle { border: 1px solid transparent; font-size: 9px; font-weight: 750; }
-.toolbar .trackToggle[data-available="false"] { border-color: rgba(238,198,107,.3); color: rgba(238,198,107,.6); }
-.toolbar .trackToggle[data-available="false"][data-on="true"] { background: rgba(238,198,107,.12); color: #f0c66b; }
+.toolbar .trackToggle { position: relative; border: 1px solid transparent; font-size: 9px; font-weight: 750; }
+.toolbar .trackToggle[data-available="false"] { border-color: var(--muted-foreground); border-style: dashed; color: var(--muted-foreground); }
+.toolbar .trackToggle[data-available="false"]::after { content: ""; position: absolute; right: 2px; bottom: 2px; width: 3px; height: 3px; border-radius: 50%; background: currentColor; }
+.toolbar .trackToggle[data-available="false"][data-on="true"] { background: var(--accent); color: var(--accent-foreground); }
 .toolbar button > span, .toolbar button svg { width: 14px; height: 14px; }
 .toolbar button svg {
   fill: none; stroke: currentColor; stroke-width: 1.8;
   stroke-linecap: round; stroke-linejoin: round;
 }
-.toolbar label { flex: none; display: flex; align-items: center; gap: 4px; color: rgba(255,255,255,.52); font-size: 8px; }
-.toolbar input { width: 62px; accent-color: #9d83ff; }
 .toolbar::-webkit-scrollbar { display: none; }
 @keyframes marquee-once {
   0%, 12% { transform: translateX(0); }
@@ -242,11 +235,4 @@
 @media (prefers-reduced-motion: reduce) {
   .active[data-marquee="true"] > span, .next[data-marquee="true"] > span { animation: none; }
   .karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] { animation: none; }
-}
-
-:global(html:not(.dark)) {
-  .toolbar { border-color: rgb(0 0 0 / 14%); background: rgb(255 255 255 / 88%); box-shadow: 0 7px 24px rgb(0 0 0 / 18%); }
-  .toolbar button { color: rgb(20 24 32 / 72%); }
-  .toolbar button:hover:not(:disabled), .toolbar button[data-on="true"] { background: rgb(0 122 255 / 12%); color: #006be0; }
-  .offsetControl { border-color: rgb(0 0 0 / 10%); background: rgb(0 0 0 / 4%); }
 }

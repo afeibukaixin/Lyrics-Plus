@@ -4,6 +4,13 @@ import { api, errorCodeOf, messageOf } from "../../shared/api";
 import type { AppConfig, ConfigDraftValidation, ConfigEditorData } from "../../shared/types";
 import { useAppConfig } from "./AppConfigProvider";
 import styles from "./ConfigEditor.module.scss";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
+import { cn } from "@/lib/utils";
 
 type Props = {
   onApplied: (config: AppConfig, appearanceOnly: boolean) => Promise<void>;
@@ -14,9 +21,6 @@ type Props = {
 export default function ConfigEditor({ onApplied, setError, setNotice }: Props) {
   const { t } = useTranslation();
   const { config, syncConfig } = useAppConfig();
-  const defaultEditor = useRef<HTMLPreElement>(null);
-  const userEditor = useRef<HTMLTextAreaElement>(null);
-  const defaultLineNumbers = useRef<HTMLPreElement>(null);
   const userLineNumbers = useRef<HTMLPreElement>(null);
   const dirtyRef = useRef(false);
   const validationRequest = useRef(0);
@@ -128,20 +132,14 @@ export default function ConfigEditor({ onApplied, setError, setNotice }: Props) 
     } catch (value) { setError(messageOf(value)); }
   };
 
-  const defaultText = data?.defaultJsonc ?? t("settings.config.loadingDefault");
   const lineNumbersOf = (value: string) =>
     Array.from({ length: value.split("\n").length }, (_, index) => index + 1).join("\n");
-  const defaultLines = useMemo(() => lineNumbersOf(defaultText), [defaultText]);
   const userLines = useMemo(() => lineNumbersOf(draft), [draft]);
 
-  const syncScroll = (source: HTMLElement, target: HTMLElement | null) => {
-    if (target) {
-      if (target.scrollTop !== source.scrollTop) target.scrollTop = source.scrollTop;
-      if (target.scrollLeft !== source.scrollLeft) target.scrollLeft = source.scrollLeft;
+  const syncLineNumbers = (source: HTMLTextAreaElement) => {
+    if (userLineNumbers.current) {
+      userLineNumbers.current.style.transform = `translateY(${-source.scrollTop}px)`;
     }
-    const offset = `translateY(${-source.scrollTop}px)`;
-    if (defaultLineNumbers.current) defaultLineNumbers.current.style.transform = offset;
-    if (userLineNumbers.current) userLineNumbers.current.style.transform = offset;
   };
 
   const status = conflict
@@ -159,47 +157,39 @@ export default function ConfigEditor({ onApplied, setError, setNotice }: Props) 
 
   return (
     <section className={styles.editorShell}>
-      <header className={styles.header}>
-        <div><h2>{t("settings.config.title")}</h2><p>{t("settings.config.description")}</p></div>
-        <div className={styles.actions}>
-          <button onClick={() => void reload()}>{t("common.actions.reload")}</button>
-          <button disabled={!data} onClick={() => data && changeDraft(data.defaultJsonc)}>{t("common.actions.resetDefault")}</button>
-          <button data-primary disabled={!dirty || !validation?.valid || conflict || validating || saving} onClick={() => void save()}>{saving ? t("settings.config.saving") : t("settings.config.saveApply")}</button>
-        </div>
-      </header>
-
       <div className={styles.toolbar}>
-        <button onClick={() => void exportConfig()}>{t("settings.config.export")}</button>
-        <button onClick={() => void api.revealConfigDirectory().catch((value) => setError(messageOf(value)))}>{t("settings.config.openDirectory")}</button>
-        <span data-kind={status.kind}>{status.text}</span>
+        <div>
+          <Button variant="ghost" size="sm" onClick={() => void exportConfig()}>{t("settings.config.export")}</Button>
+          <Button variant="ghost" size="sm" onClick={() => void api.revealConfigDirectory().catch((value) => setError(messageOf(value)))}>{t("settings.config.openDirectory")}</Button>
+        </div>
+        <Badge variant="outline" data-kind={status.kind} aria-live="polite">{status.text}</Badge>
+        <div className={styles.actions}>
+          <Button variant="outline" size="sm" onClick={() => void reload()}>{t("common.actions.reload")}</Button>
+          <Button variant="outline" size="sm" disabled={!data} onClick={() => data && changeDraft(data.defaultJsonc)}>{t("common.actions.resetDefault")}</Button>
+          <Button size="sm" disabled={!dirty || !validation?.valid || conflict || validating || saving} onClick={() => void save()}>{saving ? t("settings.config.saving") : t("settings.config.saveApply")}</Button>
+        </div>
       </div>
 
-      <div className={styles.columns}>
-        <section className={styles.panel}>
-          <header><strong>{t("settings.config.defaultConfig")}</strong><span>{t("settings.config.readOnly")}</span></header>
-          <div className={styles.codeFrame}>
-            <pre ref={defaultLineNumbers} aria-hidden className={styles.lineNumbers}>{defaultLines}</pre>
-            <pre ref={defaultEditor} aria-label={t("settings.config.defaultAria")} onScroll={(event) => syncScroll(event.currentTarget, userEditor.current)}><code>{defaultText}</code></pre>
-          </div>
-        </section>
-        <section className={styles.panel} data-invalid={!validation?.valid || conflict}>
-          <header><strong>{t("settings.config.myConfig")}</strong><span>{dirty ? t("settings.config.unsaved") : t("settings.config.saved")}</span></header>
-          <div className={styles.codeFrame}>
+      <div className={styles.editor}>
+        <Card className={cn(styles.panel, "gap-0 py-0")} data-invalid={!validation?.valid || conflict}>
+          <CardHeader className="border-b"><CardTitle>{t("settings.config.myConfig")}</CardTitle><CardAction><Badge variant="secondary">{dirty ? t("settings.config.unsaved") : t("settings.config.saved")}</Badge></CardAction></CardHeader>
+          <CardContent className="min-h-0 px-0">
+          <Field data-invalid={!validation?.valid || conflict} className={styles.codeFrame}>
             <pre ref={userLineNumbers} aria-hidden className={styles.lineNumbers}>{userLines}</pre>
-            <textarea
-              ref={userEditor}
+            <Textarea
               aria-invalid={!validation?.valid || conflict}
               aria-label={t("settings.config.myConfigAria")}
               onChange={(event) => changeDraft(event.currentTarget.value)}
-              onScroll={(event) => syncScroll(event.currentTarget, defaultEditor.current)}
+              onScroll={(event) => syncLineNumbers(event.currentTarget)}
               placeholder={t("settings.config.placeholder")}
               spellCheck={false}
               value={draft}
             />
-          </div>
-        </section>
+          </Field>
+          </CardContent>
+        </Card>
       </div>
-      {!validation?.valid && <p className={styles.fallback}>{t("settings.config.fallback")}</p>}
+      {!validation?.valid && <Alert variant="destructive" className={styles.fallback}><AlertDescription>{t("settings.config.fallback")}</AlertDescription></Alert>}
     </section>
   );
 }

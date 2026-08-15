@@ -16,8 +16,8 @@ const defaultTitleFilterKeywords = [
 ];
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 29,
-  app: { theme: "dark", uiFontScale: 100, language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, silentStartup: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
+  schemaVersion: 30,
+  app: { theme: "dark", language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, silentStartup: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
       mode: "smart",
@@ -41,7 +41,7 @@ const defaultConfig: AppConfig = {
 
 type AppConfigContextValue = {
   config: AppConfig;
-  setUiFontScale: (scale: number) => Promise<void>;
+  resolvedTheme: "light" | "dark";
   setTheme: (theme: ThemePreference) => Promise<void>;
   setLanguage: (language: LanguagePreference) => Promise<void>;
   setGlobalShortcuts: (shortcuts: GlobalShortcutSettings) => Promise<void>;
@@ -67,6 +67,7 @@ export function AppConfigProvider({
 }) {
   const [config, setConfig] = useState(defaultConfig);
   const [loaded, setLoaded] = useState(!isTauriRuntime());
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
 
   useEffect(() => {
     document.documentElement.dataset.window = windowType;
@@ -81,10 +82,6 @@ export function AppConfigProvider({
   }, [windowType]);
 
   useEffect(() => {
-    document.documentElement.style.setProperty("--ui-font-scale", String(config.app.uiFontScale / 100));
-  }, [config.app.uiFontScale]);
-
-  useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = () => {
       const resolved = config.app.theme === "system"
@@ -92,8 +89,10 @@ export function AppConfigProvider({
         : config.app.theme;
       document.documentElement.dataset.theme = config.app.theme;
       document.documentElement.dataset.resolvedTheme = resolved;
+      document.documentElement.classList.toggle("light", resolved === "light");
       document.documentElement.classList.toggle("dark", resolved === "dark");
       document.documentElement.style.colorScheme = resolved;
+      setResolvedTheme(resolved);
     };
     apply();
     media.addEventListener("change", apply);
@@ -103,13 +102,7 @@ export function AppConfigProvider({
   const value = useMemo<AppConfigContextValue>(() => ({
     config,
     loaded,
-    setUiFontScale: async (scale) => {
-      if (!isTauriRuntime()) {
-        setConfig((current) => ({ ...current, app: { ...current.app, uiFontScale: scale } }));
-        return;
-      }
-      setConfig(await api.setUiFontScale(scale));
-    },
+    resolvedTheme,
     setTheme: async (theme) => {
       if (!isTauriRuntime()) {
         setConfig((current) => ({ ...current, app: { ...current.app, theme } }));
@@ -187,7 +180,7 @@ export function AppConfigProvider({
       setConfig(await api.setOverlayHideWhenNotPlaying(hidden));
     },
     syncConfig: setConfig,
-  }), [config, loaded]);
+  }), [config, loaded, resolvedTheme]);
 
   return <AppConfigContext.Provider value={value}>{children}</AppConfigContext.Provider>;
 }

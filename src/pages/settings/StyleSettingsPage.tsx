@@ -2,7 +2,10 @@ import { secondaryDisplayFlags, secondaryDisplayFromFlags, type OverlayStyle } f
 import { useTranslation } from "react-i18next";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
-import { ColorRow, RangeRow, SelectRow, SettingsCard, SettingsHeading, ToggleRow } from "./components";
+import { ColorRow, PageHeader, RangeRow, SelectRow, SettingsSection, ToggleRow } from "./components";
+import { Button } from "@/components/ui/button";
+import { ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 type OverlayColorValues = Pick<
   OverlayStyle,
@@ -59,19 +62,19 @@ export default function StyleSettingsPage() {
 
   return (
     <>
-      <SettingsHeading title={t("settings.style.title")} description={t("settings.style.description")} onReset={() => void resetSection("style")} resetting={resettingSection === "style"} confirming={confirmingReset === "style"} />
-      <SettingsCard title={t("settings.overlay.colors")} trailing={<span className={styles.colorPresetStatus}>{t("settings.overlay.currentColor", { name: activeColorPreset ? t(`settings.overlay.presets.${activeColorPreset.id}`) : t("settings.overlay.custom") })}</span>}>
+      <PageHeader title={t("settings.style.title")} description={t("settings.style.description")} onReset={() => void resetSection("style")} resetting={resettingSection === "style"} confirming={confirmingReset === "style"} />
+      <SettingsSection title={t("settings.overlay.colors")} trailing={<span className={styles.colorPresetStatus}>{t("settings.overlay.currentColor", { name: activeColorPreset ? t(`settings.overlay.presets.${activeColorPreset.id}`) : t("settings.overlay.custom") })}</span>}>
         <div className={styles.colorPresetGrid}>
           {overlayColorPresets.map((preset) => {
             const active = preset.id === activeColorPreset?.id;
-            return <button type="button" className={styles.colorPresetButton} data-active={active} aria-pressed={active} key={preset.id} onClick={() => void applyColorPreset(preset)}>
+            return <Button type="button" variant="outline" className={styles.colorPresetButton} data-active={active} aria-pressed={active} key={preset.id} onClick={() => void applyColorPreset(preset)}>
               <span className={styles.colorPresetPreview} aria-hidden="true">{overlayColorKeys.map((key) => <i key={key} style={{ background: preset.colors[key] }} />)}</span>
               <strong>{t(`settings.overlay.presets.${preset.id}`)}</strong>
-            </button>;
+            </Button>;
           })}
         </div>
-      </SettingsCard>
-      <SettingsCard title={t("settings.style.common")}>
+      </SettingsSection>
+      <SettingsSection title={t("settings.style.common")}>
         <RangeRow label={t("settings.overlay.fontSize")} value={style.fontSize} min={16} max={72} suffix="px" onChange={(fontSize) => void updateStyle({ fontSize })} />
         <ColorRow label={t("settings.overlay.activeColor")} value={style.activeColor} onChange={(activeColor) => void updateStyle({ activeColor })} />
         <ColorRow label={t("settings.overlay.inactiveColor")} value={style.inactiveColor} onChange={(inactiveColor) => void updateStyle({ inactiveColor })} />
@@ -81,9 +84,13 @@ export default function StyleSettingsPage() {
         <ToggleRow label={t("settings.overlay.showTranslation")} value={secondaryFlags.translation} onChange={(translation) => updateStyle({ secondaryDisplay: secondaryDisplayFromFlags(translation, secondaryFlags.romanization) })} />
         <ToggleRow label={t("settings.overlay.showRomanization")} value={secondaryFlags.romanization} onChange={(romanization) => updateStyle({ secondaryDisplay: secondaryDisplayFromFlags(secondaryFlags.translation, romanization) })} />
         <SelectRow label={t("settings.overlay.karaoke")} value={style.karaokeStyle} onChange={(karaokeStyle) => void updateStyle({ karaokeStyle: karaokeStyle as OverlayStyle["karaokeStyle"] })} options={[["sweep", t("settings.overlay.karaokeSweep")], ["bounce", t("settings.overlay.karaokeBounce")], ["highlight", t("settings.overlay.karaokeHighlight")]]} />
-      </SettingsCard>
-      <div className={styles.advancedSection}>
-        <SettingsCard title={t("settings.overlay.backgroundLayout")}>
+      </SettingsSection>
+      <Collapsible className={styles.advancedSection}>
+        <CollapsibleTrigger render={<Button variant="outline" className={styles.advancedTrigger} />}>
+          {t("settings.shell.advanced")}<ChevronDown data-icon="inline-end" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className={styles.advancedContent}>
+        <SettingsSection title={t("settings.overlay.backgroundLayout")}>
           <RangeRow label={t("settings.overlay.opacity")} value={style.opacity} min={0.2} max={1} step={0.05} suffix="%" displayValue={Math.round(style.opacity * 100)} onChange={(opacity) => void updateStyle({ opacity })} />
           <RangeRow label={t("settings.overlay.backgroundOpacity")} description={style.backgroundMode !== "solid" ? t("settings.overlay.requiresVisibleBackground") : undefined} disabled={style.backgroundMode !== "solid"} value={style.backgroundOpacity} min={0} max={1} step={0.05} suffix="%" displayValue={Math.round(style.backgroundOpacity * 100)} onChange={(backgroundOpacity) => void updateStyle({ backgroundOpacity })} />
           <ColorRow label={t("settings.overlay.backgroundColor")} description={style.backgroundMode !== "solid" ? t("settings.overlay.requiresVisibleBackground") : undefined} disabled={style.backgroundMode !== "solid"} value={style.solidColor} onChange={(solidColor) => void updateStyle({ solidColor })} />
@@ -91,16 +98,17 @@ export default function StyleSettingsPage() {
           <RangeRow label={t("settings.overlay.blur")} description={style.backgroundMode !== "solid" || style.background !== "glass" ? t("settings.overlay.requiresGlassBackground") : undefined} disabled={style.backgroundMode !== "solid" || style.background !== "glass"} value={style.backgroundBlur} min={0} max={40} suffix="%" onChange={(backgroundBlur) => void updateStyle({ backgroundBlur })} />
           <SelectRow label={t("settings.overlay.longLyrics")} value={style.longText} onChange={(longText) => void updateStyle({ longText: longText as OverlayStyle["longText"] })} options={[["shrink", t("settings.overlay.shrink")], ["wrap", t("settings.overlay.wrap")], ["marquee", t("settings.overlay.marquee")]]} />
           <SelectRow label={t("settings.overlay.alignment")} description={!alignmentAvailable ? t("settings.overlay.requiresDoubleLayout") : undefined} disabled={!alignmentAvailable} value={alignmentAvailable ? style.alignment : "center"} onChange={(alignment) => void updateStyle({ alignment: alignment as OverlayStyle["alignment"] })} options={[["center", t("settings.overlay.centered")], ["distributed", t("settings.overlay.distributed")]]} />
-        </SettingsCard>
-        <SettingsCard title={t("settings.overlay.secondary")}>
+        </SettingsSection>
+        <SettingsSection title={t("settings.overlay.secondary")}>
           <RangeRow label={t("settings.overlay.secondarySize")} value={style.secondaryFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.secondaryFontScale * 100)} onChange={(secondaryFontScale) => void updateStyle({ secondaryFontScale })} />
           <RangeRow label={t("settings.overlay.translationSize")} description={!secondaryFlags.translation ? t("settings.overlay.requiresTranslation") : undefined} disabled={!secondaryFlags.translation} value={style.translationFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.translationFontScale * 100)} onChange={(translationFontScale) => void updateStyle({ translationFontScale })} />
           <ColorRow label={t("settings.overlay.translationColor")} description={!secondaryFlags.translation ? t("settings.overlay.requiresTranslation") : undefined} disabled={!secondaryFlags.translation} value={style.translationColor} onChange={(translationColor) => void updateStyle({ translationColor })} />
           <RangeRow label={t("settings.overlay.romanizationSize")} description={!secondaryFlags.romanization ? t("settings.overlay.requiresRomanization") : undefined} disabled={!secondaryFlags.romanization} value={style.romanizationFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.romanizationFontScale * 100)} onChange={(romanizationFontScale) => void updateStyle({ romanizationFontScale })} />
           <ColorRow label={t("settings.overlay.romanizationColor")} description={!secondaryFlags.romanization ? t("settings.overlay.requiresRomanization") : undefined} disabled={!secondaryFlags.romanization} value={style.romanizationColor} onChange={(romanizationColor) => void updateStyle({ romanizationColor })} />
           <ToggleRow label={t("settings.overlay.autoCenter")} value={style.autoCenterWithTranslationOrRomanization} onChange={(autoCenterWithTranslationOrRomanization) => updateStyle({ autoCenterWithTranslationOrRomanization })} />
-        </SettingsCard>
-      </div>
+        </SettingsSection>
+        </CollapsibleContent>
+      </Collapsible>
     </>
   );
 }
