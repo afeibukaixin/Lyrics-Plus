@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { FileText, Music2, RefreshCw, Search, X } from "lucide-react";
+import { FileText, Music2, Search } from "lucide-react";
 import { localizedSource } from "../i18n/userText";
 import { useLyrics } from "./useLyrics";
 import { usePlayback } from "../player/usePlayback";
@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
-import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
+import { Item, ItemActions, ItemContent, ItemGroup } from "@/components/ui/item";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -41,13 +41,11 @@ export default function QuickLyricsWindow() {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [applyingKey, setApplyingKey] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
     setSearchTitle(playback.snapshot.title ?? "");
     setSelectedKey(null);
     setNotice(null);
-    setDetailsOpen(false);
     if (!lyrics.trackKey || !playback.snapshot.title || !playback.snapshot.artist) return;
     if (searchedTrack.current === lyrics.trackKey) return;
     searchedTrack.current = lyrics.trackKey;
@@ -81,23 +79,23 @@ export default function QuickLyricsWindow() {
 
   const isCurrent = (result: LyricsSearchResult) => result.lyrics.trim() === lyrics.document?.raw.trim();
 
-  const searchByTitle = async () => {
+  const searchLyrics = async () => {
     const title = searchTitle.trim();
     const artist = playback.snapshot.artist?.trim();
     if (!title || !artist || !lyrics.trackKey || lyrics.searching) return;
     setNotice(null);
+
+    if (normalized(title) === normalized(playback.snapshot.title)) {
+      await lyrics.search();
+      return;
+    }
+
     await lyrics.searchWith({
       title,
       artist,
       album: playback.snapshot.album ?? null,
       durationMs: playback.snapshot.durationMs ?? null,
     });
-  };
-
-  const refreshCurrentTrack = async () => {
-    setSearchTitle(playback.snapshot.title ?? "");
-    setNotice(null);
-    await lyrics.search();
   };
 
   const selectAndApply = async (result: LyricsSearchResult) => {
@@ -124,51 +122,48 @@ export default function QuickLyricsWindow() {
       <h1 className="sr-only">{t("quickLyrics.title")}</h1>
       <header className={styles.header} aria-label={t("quickLyrics.title")}>
         <div className={styles.track}>
-          <Music2 aria-hidden="true" />
           <div><strong className="font-medium">{currentTitle}</strong><span className="text-xs text-muted-foreground">{currentArtist}</span></div>
         </div>
-        <form className={styles.search} onSubmit={(event) => { event.preventDefault(); void searchByTitle(); }}>
+        <form className={styles.search} onSubmit={(event) => { event.preventDefault(); void searchLyrics(); }}>
           <InputGroup>
             <InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon>
             <InputGroupInput aria-label={t("quickLyrics.searchLabel")} autoComplete="off" disabled={!lyrics.trackKey || lyrics.searching} placeholder={t("quickLyrics.searchPlaceholder")} value={searchTitle} onChange={(event) => setSearchTitle(event.currentTarget.value)} />
-            <InputGroupAddon align="inline-end"><Button size="sm" disabled={!lyrics.trackKey || lyrics.searching || !searchTitle.trim()} type="submit">{t("common.actions.search")}</Button></InputGroupAddon>
+            <InputGroupAddon align="inline-end"><Button size="sm" disabled={!lyrics.trackKey || lyrics.searching || !searchTitle.trim()} type="submit">{lyrics.searching ? t("common.actions.searching") : t("common.actions.search")}</Button></InputGroupAddon>
           </InputGroup>
         </form>
-        <Button className={styles.refreshButton} variant="secondary" size="sm" disabled={!lyrics.trackKey || lyrics.searching} onClick={() => void refreshCurrentTrack()}>
-          <RefreshCw aria-hidden="true" data-icon="inline-start" className={cn(lyrics.searching && "animate-spin")} />
-          <span>{lyrics.searching ? t("common.actions.searching") : t("quickLyrics.refresh")}</span>
-        </Button>
       </header>
 
       <section className={styles.workspace}>
         <Card className={cn(styles.resultsPanel, "gap-0 py-0")}>
           <CardHeader className={styles.panelTitle}>
             <CardTitle>{t("quickLyrics.candidates")} <Badge variant="secondary">{lyrics.results.length}</Badge></CardTitle>
-            {selected && <CardAction><Button variant="ghost" size="sm" type="button" aria-expanded={detailsOpen} onClick={() => setDetailsOpen((open) => !open)}><FileText data-icon="inline-start" aria-hidden="true" />{detailsOpen ? t("quickLyrics.hideRaw") : t("quickLyrics.showRaw")}</Button></CardAction>}
           </CardHeader>
-          <CardContent className="min-h-0 px-0"><ScrollArea className="min-h-0"><ItemGroup className={styles.resultList}>
+          <CardContent className="min-h-0 px-0"><ScrollArea className="h-full min-h-0"><ItemGroup className={styles.resultList}>
             {lyrics.results.map((result, index) => {
               const key = resultKey(result);
               const current = isCurrent(result);
               const recommended = !current && index === 0;
-              const titleDiffers = normalized(result.title) !== normalized(searchTitle || playback.snapshot.title);
-              const artistDiffers = normalized(result.artist) !== normalized(playback.snapshot.artist);
-              const details = [result.album, formatTime(result.durationMs)].filter(Boolean).join(" · ");
               const capabilities = [
                 result.synced && t("common.feature.synced"),
                 result.hasWordTiming && t("common.feature.wordTiming"),
                 result.hasTranslation && t("common.feature.hasTranslation"),
                 result.hasRomanization && t("common.feature.romanization"),
               ].filter(Boolean) as string[];
+              const songSummary = [
+                result.title,
+                result.artist,
+                formatTime(result.durationMs),
+              ].filter(Boolean).join(" · ");
               return (
-                <Item render={<Button variant="ghost" type="button" disabled={Boolean(applyingKey)} />} key={key} data-current={current} data-selected={key === selectedKey} onClick={() => void selectAndApply(result)}>
-                  <ItemContent>
-                    <ItemTitle>{localizedSource(result.source, t)}{(current || recommended) && <Badge variant={current ? "default" : "secondary"}>{current ? t("quickLyrics.current") : t("quickLyrics.recommended")}</Badge>}</ItemTitle>
-                    {(titleDiffers || artistDiffers) && <ItemDescription>{titleDiffers ? result.title : null}{titleDiffers && artistDiffers ? " · " : null}{artistDiffers ? result.artist : null}</ItemDescription>}
-                    {details && <ItemDescription>{details}</ItemDescription>}
-                    {capabilities.length > 0 && <div className={styles.capabilities}>{capabilities.map((capability) => <Badge variant="outline" key={capability}>{capability}</Badge>)}</div>}
+                <Item size="xs" className={cn("h-auto justify-start", styles.resultItem)} render={<Button variant="ghost" type="button" disabled={Boolean(applyingKey)} />} key={key} data-current={current} data-selected={key === selectedKey} onClick={() => void selectAndApply(result)}>
+                  <ItemContent className={styles.resultContent}>
+                    <div className={styles.resultHeading}><span className={styles.songSummary} title={songSummary}>{songSummary}</span>{(current || recommended) && <Badge variant={current ? "default" : "secondary"}>{current ? t("quickLyrics.current") : t("quickLyrics.recommended")}</Badge>}</div>
+                    <div className={styles.resultDetails}>
+                      <span className={cn(styles.sourceName, "text-xs text-muted-foreground")} title={localizedSource(result.source, t)}>{localizedSource(result.source, t)}</span>
+                      {capabilities.length > 0 && <div className={styles.capabilities}>{capabilities.map((capability) => <Badge variant="outline" key={capability}>{capability}</Badge>)}</div>}
+                    </div>
                   </ItemContent>
-                  {result.score < .995 && <ItemActions><Badge variant="outline">{Math.round(result.score * 100)}%</Badge></ItemActions>}
+                  <ItemActions><Badge variant="outline">{Math.round(result.score * 100)}%</Badge></ItemActions>
                 </Item>
               );
             })}
@@ -176,10 +171,13 @@ export default function QuickLyricsWindow() {
           </ItemGroup></ScrollArea></CardContent>
         </Card>
 
-        {detailsOpen && <Card className={cn(styles.previewPanel, "gap-0 py-0")} role="complementary">
-          <CardHeader className={styles.panelTitle}><CardTitle>{t("library.rawLrc")}</CardTitle>{selected && <Badge variant="secondary">{localizedSource(selected.source, t)}</Badge>}<CardAction><Button className={styles.closeDetails} variant="ghost" size="icon-sm" type="button" aria-label={t("quickLyrics.hideRaw")} onClick={() => setDetailsOpen(false)}><X aria-hidden="true" /></Button></CardAction></CardHeader>
-          <CardContent className="min-h-0 px-0">{selected ? <ScrollArea className="min-h-0"><pre className="font-mono text-sm leading-relaxed">{selected.lyrics}</pre></ScrollArea> : <Empty className={styles.empty}><EmptyHeader><EmptyMedia variant="icon"><FileText /></EmptyMedia><EmptyTitle>{t("quickLyrics.selectCandidate")}</EmptyTitle><EmptyDescription>{t("quickLyrics.rawHint")}</EmptyDescription></EmptyHeader></Empty>}</CardContent>
-        </Card>}
+        <Card className={cn(styles.previewPanel, "gap-0 py-0")} role="complementary">
+          <CardHeader className={styles.panelTitle}>
+            <CardTitle>{t("quickLyrics.preview")}</CardTitle>
+            {selected && <CardAction><Badge variant="secondary">{localizedSource(selected.source, t)}</Badge></CardAction>}
+          </CardHeader>
+          <CardContent className="min-h-0 px-0">{selected ? <ScrollArea className="h-full min-h-0"><pre className="font-mono text-sm leading-relaxed">{selected.lyrics}</pre></ScrollArea> : <Empty className={styles.empty}><EmptyHeader><EmptyMedia variant="icon"><FileText /></EmptyMedia><EmptyTitle>{t("quickLyrics.selectCandidate")}</EmptyTitle><EmptyDescription>{t("quickLyrics.rawHint")}</EmptyDescription></EmptyHeader></Empty>}</CardContent>
+        </Card>
       </section>
 
       <div className={cn(styles.status, "text-xs text-muted-foreground")} aria-live="polite">{lyrics.searching ? t("quickLyrics.searchingCandidates") : applyingKey ? t("quickLyrics.applying") : notice}</div>

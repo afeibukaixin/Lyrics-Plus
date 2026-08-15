@@ -1,7 +1,8 @@
 .shell { height: 100vh; min-height: 0; overflow: hidden; }
 .settingsLayout { min-width: 0; min-height: 0; height: 100vh; overflow: hidden; }
-.sidebarTriggerRow { position: absolute; z-index: 2; top: 10px; left: 10px; }
+.sidebarTriggerRow { position: absolute; z-index: 2; top: 10px; left: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .content { min-height: 0; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 48px clamp(24px, 5vw, 56px); }
+.configPage { min-height: 0; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
 
 .settingsHeading { margin-bottom: 22px; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
 .settingsHeading > div { min-width: 0; }
@@ -13,6 +14,7 @@
 .cardHeader { min-height: 44px; }
 .cardContent { padding: 0; }
 .settingRow { min-height: 58px; align-items: center; justify-content: space-between; gap: 20px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.settingRow [data-slot="field-label"], .shortcutRow > span:first-child, .applicationItem [data-slot="item-title"], .provider [data-slot="item-title"], .applicationEmpty [data-slot="empty-title"], .currentTrack strong, .aboutHero strong, .colorPresetButton strong { font-size: 1rem; }
 .settingRow:last-child { border-bottom: 0; }
 .rangeControl { width: min(330px, 60%); display: grid; grid-template-columns: 1fr 52px; gap: 10px; align-items: center; }
 .rangeControl output { text-align: right; }
@@ -27,11 +29,18 @@
 .colorPalette button:hover, .colorPalette button[aria-pressed="true"] { outline: 2px solid var(--ring); outline-offset: 1px; }
 
 .colorPresetStatus, .debugLogCount { color: var(--muted-foreground); font-size: .75rem; font-variant-numeric: tabular-nums; }
-.colorPresetGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 16px; }
-.colorPresetButton { min-width: 0; height: auto; display: grid; gap: 8px; padding: 10px; text-align: left; }
-.colorPresetButton strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.colorPresetPreview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); height: 18px; overflow: hidden; border: 1px solid var(--border); border-radius: calc(var(--radius) - 6px); }
+.colorPresetGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 14px 16px 16px; }
+.colorPresetButton { position: relative; width: 100%; min-width: 0; height: 66px; display: grid; grid-template-columns: minmax(0, 1fr) 7.5rem; align-items: center; justify-self: stretch; gap: 14px; padding: 10px 14px; text-align: left; background: color-mix(in srgb, var(--background) 64%, transparent); }
+.colorPresetButton:hover { border-color: color-mix(in srgb, var(--foreground) 22%, var(--border)); }
+.colorPresetButton[data-active="true"] { border-color: var(--ring); background: color-mix(in srgb, var(--accent) 72%, transparent); box-shadow: 0 0 0 1px var(--ring); }
+.colorPresetButton strong { min-width: 0; overflow: hidden; color: var(--muted-foreground); font-weight: 500; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.colorPresetButton[data-active="true"] strong { color: var(--foreground); }
+.colorPresetPreview { min-width: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); height: 26px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--foreground) 18%, var(--border)); border-radius: calc(var(--radius) - 5px); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 5%); }
 .colorPresetPreview i { min-width: 0; }
+.colorPresetActions { display: flex; justify-content: center; padding: 0 16px 12px; }
+.colorPresetActions button { color: var(--muted-foreground); }
+.colorPresetChevron { transition: transform 160ms ease; }
+.colorPresetChevron[data-expanded="true"] { transform: rotate(180deg); }
 
 .buttonRow { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; }
 .cardHint { margin: 0; padding: 12px 16px; color: var(--muted-foreground); font-size: .875rem; overflow-wrap: anywhere; }
@@ -41,10 +50,6 @@
 .scanStatus { display: grid; gap: 6px; margin: 10px 16px 4px; padding: 12px; border: 1px solid var(--border); border-radius: calc(var(--radius) - 4px); background: var(--muted); color: var(--muted-foreground); }
 .scanStatus[data-phase="failed"] { border-color: color-mix(in srgb, var(--destructive) 40%, var(--border)); }
 .scanStatus[data-phase="failed"] strong, .scanStatus[data-phase="failed"] span { color: var(--destructive); }
-
-.advancedSection { margin-top: 16px; }
-.advancedTrigger { width: 100%; justify-content: space-between; }
-.advancedContent { padding-top: 16px; }
 
 .currentTrack { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 6px; }
 .currentTrack > div { min-width: 0; display: grid; gap: 3px; }
@@ -63,6 +68,7 @@
 .providers { display: grid; gap: 6px; padding: 0 12px 12px; }
 .providers[data-dragging="true"] { user-select: none; }
 .provider { min-height: 48px; transition: transform .15s cubic-bezier(.2, .8, .2, 1), border-color .15s, background .15s, box-shadow .15s; will-change: transform; }
+.provider > [data-slot="item-media"] { align-self: center; transform: none; }
 .provider[data-dragging="true"] { position: relative; z-index: 2; border-color: var(--ring); background: var(--card); box-shadow: var(--shadow-window); }
 .providerStatus { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .providerStatus[data-health="available"] { color: var(--success); }
@@ -75,8 +81,11 @@
 .systemApplicationsToolbar .cardHint { flex: 1 1 320px; padding: 0; }
 .systemApplicationsToolbar .shortcutControls { margin-left: auto; }
 .applicationList { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; padding: 12px; }
-.applicationItem { min-width: 0; }
-.applicationEmpty { min-height: 160px; border-top: 1px solid var(--border); }
+.applicationItem { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; }
+.applicationContent { min-width: 0; }
+.applicationItem .applicationName { min-width: 0; width: 100%; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.applicationItem > [data-slot="item-actions"] { justify-self: end; }
+.applicationEmpty { min-height: 104px; border-top: 1px solid var(--border); }
 
 .shortcutRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--muted-foreground); }
 .shortcutRow:last-child { border-bottom: 0; }
@@ -115,4 +124,8 @@
   .rangeControl { width: 100%; }
   .settingRow [data-slot="toggle-group"] { width: 100%; }
   .settingRow [data-slot="toggle-group-item"] { flex: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .colorPresetChevron { transition: none; }
 }

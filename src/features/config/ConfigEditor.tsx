@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 
@@ -172,20 +172,20 @@ export default function ConfigEditor({ onApplied, setError, setNotice }: Props) 
 
       <div className={styles.editor}>
         <Card className={cn(styles.panel, "gap-0 py-0")} data-invalid={!validation?.valid || conflict}>
-          <CardHeader className="border-b"><CardTitle>{t("settings.config.myConfig")}</CardTitle><CardAction><Badge variant="secondary">{dirty ? t("settings.config.unsaved") : t("settings.config.saved")}</Badge></CardAction></CardHeader>
-          <CardContent className="min-h-0 px-0">
-          <Field data-invalid={!validation?.valid || conflict} className={styles.codeFrame}>
-            <pre ref={userLineNumbers} aria-hidden className={styles.lineNumbers}>{userLines}</pre>
-            <Textarea
-              aria-invalid={!validation?.valid || conflict}
-              aria-label={t("settings.config.myConfigAria")}
-              onChange={(event) => changeDraft(event.currentTarget.value)}
-              onScroll={(event) => syncLineNumbers(event.currentTarget)}
-              placeholder={t("settings.config.placeholder")}
-              spellCheck={false}
-              value={draft}
-            />
-          </Field>
+          <CardHeader className="border-b pt-(--card-spacing)"><CardTitle>{t("settings.config.myConfig")}</CardTitle></CardHeader>
+          <CardContent className="grid min-h-0 px-0">
+            <Field data-invalid={!validation?.valid || conflict} className={styles.codeFrame}>
+              <pre ref={userLineNumbers} aria-hidden className={styles.lineNumbers}>{userLines}</pre>
+              <Textarea
+                aria-invalid={!validation?.valid || conflict}
+                aria-label={t("settings.config.myConfigAria")}
+                onChange={(event) => changeDraft(event.currentTarget.value)}
+                onScroll={(event) => syncLineNumbers(event.currentTarget)}
+                placeholder={t("settings.config.placeholder")}
+                spellCheck={false}
+                value={draft}
+              />
+            </Field>
           </CardContent>
         </Card>
       </div>

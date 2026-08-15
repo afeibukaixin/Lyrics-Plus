@@ -1254,6 +1254,26 @@ fn plist_string(path: &Path, key: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
+#[cfg(target_os = "macos")]
+fn localized_application_name(path: &Path) -> Option<String> {
+    use objc2_foundation::{NSBundle, NSString};
+
+    let bundle_path = NSString::from_str(path.to_string_lossy().as_ref());
+    let bundle = NSBundle::bundleWithPath(&bundle_path)?;
+    ["CFBundleDisplayName", "CFBundleName"]
+        .into_iter()
+        .find_map(|key| {
+            let value = bundle.objectForInfoDictionaryKey(&NSString::from_str(key))?;
+            let value = value.downcast_ref::<NSString>()?.to_string();
+            (!value.trim().is_empty()).then_some(value)
+        })
+}
+
+#[cfg(not(target_os = "macos"))]
+fn localized_application_name(_path: &Path) -> Option<String> {
+    None
+}
+
 fn resolve_registered_application(path: &Path) -> Result<RegisteredApplication, String> {
     if !path.is_dir() || path.extension().and_then(|value| value.to_str()) != Some("app") {
         return Err(format!("不是有效的 .app：{}", path.display()));
@@ -1265,7 +1285,8 @@ fn resolve_registered_application(path: &Path) -> Result<RegisteredApplication, 
         .ok_or_else(|| format!("应用缺少 Info.plist：{}", path.display()))?;
     let bundle_id = plist_string(&plist, "CFBundleIdentifier")
         .ok_or_else(|| format!("应用缺少 Bundle ID：{}", path.display()))?;
-    let name = plist_string(&plist, "CFBundleDisplayName")
+    let name = localized_application_name(path)
+        .or_else(|| plist_string(&plist, "CFBundleDisplayName"))
         .or_else(|| plist_string(&plist, "CFBundleName"))
         .or_else(|| {
             path.file_stem()

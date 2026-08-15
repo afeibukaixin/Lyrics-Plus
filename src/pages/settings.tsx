@@ -10,7 +10,7 @@ import {
 import { listen } from "@tauri-apps/api/event";
 import { NavLink, Outlet, useLocation, useOutletContext } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Bug, FileJson, Info, MonitorUp, Music2, Palette, Settings2, SlidersHorizontal, TriangleAlert, X } from "lucide-react";
+import { Bug, FileJson, Info, Monitor, MonitorUp, Moon, Music2, Palette, Settings2, SlidersHorizontal, Sun, TriangleAlert, X } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { IconButton } from "@/components/ui/icon-button";
@@ -42,6 +42,7 @@ import {
   type ProviderSettings,
   type ProviderSettingsView,
   type SettingsSection,
+  type ThemePreference,
 } from "../shared/types";
 import styles from "./settings.module.scss";
 import { rememberSettingsPath } from "../router/settingsRoute";
@@ -55,6 +56,8 @@ type ProviderDragState = {
   currentY: number;
   positions: Array<{ top: number; center: number }>;
 };
+
+const themeCycle: readonly ThemePreference[] = ["dark", "light", "system"];
 
 export type SettingsOutletContext = {
   config: ReturnType<typeof useAppConfig>["config"];
@@ -429,6 +432,14 @@ export default function Settings() {
     { to: "/settings/debug", label: t("settings.shell.nav.debug"), icon: Bug },
     { to: "/settings/config", label: t("settings.shell.nav.config"), icon: FileJson },
   ];
+  const currentThemeIndex = themeCycle.indexOf(config.app.theme);
+  const nextTheme = themeCycle[(currentThemeIndex + 1) % themeCycle.length];
+  const themeToggleLabel = t({
+    light: "settings.theme.switchToLight",
+    dark: "settings.theme.switchToDark",
+    system: "settings.theme.switchToSystem",
+  }[nextTheme]);
+  const ThemeToggleIcon = config.app.theme === "light" ? Sun : config.app.theme === "dark" ? Moon : Monitor;
 
   return (
     <SidebarProvider className={styles.shell} style={{ "--sidebar-width": "11.5rem", "--sidebar-width-icon": "3.5rem" } as React.CSSProperties}>
@@ -468,7 +479,12 @@ export default function Settings() {
       </Sidebar>
 
       <SidebarInset className={styles.settingsLayout}>
-        <div className={styles.sidebarTriggerRow}><SidebarTrigger aria-label={t("settings.shell.navigation")} /></div>
+        <div className={styles.sidebarTriggerRow}>
+          <SidebarTrigger aria-label={t("settings.shell.navigation")} />
+          <IconButton label={themeToggleLabel} tooltip={themeToggleLabel} variant="ghost" size="icon" onClick={() => void setTheme(nextTheme).catch((value) => setError(messageOf(value)))}>
+            <ThemeToggleIcon />
+          </IconButton>
+        </div>
         <div className={styles.content}>
           {error && <Alert className={styles.inlineError}><span>{error}</span><IconButton label={t("settings.shell.closeToast")} variant="ghost" size="icon-sm" onClick={() => setError(null)}><X /></IconButton></Alert>}
           <Outlet context={context} />

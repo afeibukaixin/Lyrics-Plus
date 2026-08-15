@@ -8,6 +8,7 @@ import { languageRegistry, supportedLanguages } from "../../shared/languages";
 import { normalizeLanguagePreference } from "../../features/i18n/i18n";
 import { playbackStatusText } from "../../features/i18n/userText";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -244,7 +245,6 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
     <SettingsSection title={t("settings.app.systemApplications")}>
       <SelectRow
         label={t("settings.app.systemMediaFilterMode")}
-        description={t("settings.app.systemMediaFilterModeHint")}
         value={config.app.systemMediaFilterMode}
         options={[
           ["allowlist", t("settings.app.systemMediaAllowlist")],
@@ -271,10 +271,12 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
     <SettingsSection title={t("settings.app.playerFollower")}>
       <div className={styles.systemApplicationsToolbar}>
         <p className={styles.cardHint}>{t("settings.app.playerFollowerHint")}</p>
-        <Button variant="outline" size="sm" disabled={savingFollower || followerUnavailable} onClick={() => void chooseFollower()}><Plus />{t("settings.app.choosePlayerFollower")}</Button>
+        <div className={styles.shortcutControls}>
+          {followerStatus === "development" && <Badge variant="secondary">{t("settings.app.playerFollowerDevelopmentShort")}</Badge>}
+          <Button variant="outline" size="sm" disabled={savingFollower || followerUnavailable} onClick={() => void chooseFollower()}><Plus />{t("settings.app.choosePlayerFollower")}</Button>
+        </div>
       </div>
       <ApplicationList applications={config.app.playerFollowerApplication ? [config.app.playerFollowerApplication] : []} icons={applicationIcons} busy={savingFollower || followerUnavailable} emptyLabel={t("settings.app.playerFollowerEmpty")} removeLabel={t("common.actions.remove")} onRemove={() => void clearFollower()} />
-      {followerStatus === "development" && <p className={styles.cardHint}>{t("settings.app.playerFollowerDevelopment")}</p>}
       {followerStatus === "unsupported" && <p className={styles.cardHint} data-error="true">{t("settings.app.playerFollowerUnsupported")}</p>}
       {(followerStatus === "not_found" || followerStatus === "not_registered") && config.app.playerFollowerApplication && <div className={styles.systemApplicationsToolbar}>
         <p className={styles.cardHint} data-error="true">{t(followerStatus === "not_found" ? "settings.app.playerFollowerNotFound" : "settings.app.playerFollowerNotRegistered")}</p>

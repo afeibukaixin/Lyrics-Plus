@@ -25,11 +25,13 @@ export default function DisplaySettingsPage() {
     <SettingsSection title={t("settings.overlay.state")}>
       <ToggleRow label={t("settings.overlay.show")} description={t("settings.overlay.showHint")} value={overlaySettings.visible} onChange={setVisible} />
       <ToggleRow label={t("settings.overlay.autoHide")} description={t("settings.overlay.autoHideHint")} value={config.overlay.hideWhenNotPlaying} onChange={(hidden) => setOverlayHideWhenNotPlaying(hidden).catch((value) => setError(messageOf(value)))} />
-      <ToggleRow label={t("settings.overlay.lock")} description={t("settings.overlay.lockHint")} value={overlaySettings.locked} onChange={setLocked} />
+      <ToggleRow
+        label={t("settings.overlay.lock")}
+        description={t(overlaySettings.locked ? "settings.overlay.lockHint" : "settings.display.directControlHint")}
+        value={overlaySettings.locked}
+        onChange={setLocked}
+      />
       <div className={styles.buttonRow}><Button variant="secondary" size="sm" onClick={() => void resetOverlayBounds()}>{t("settings.overlay.resetPosition")}</Button></div>
-    </SettingsSection>
-    <SettingsSection title={t("settings.display.directControl")}>
-      <p className={styles.cardHint}>{t("settings.display.directControlHint")}</p>
     </SettingsSection>
   </>;
 }

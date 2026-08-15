@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Music2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field";
 import { IconButton } from "@/components/ui/icon-button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
@@ -39,7 +39,7 @@ export function SettingsSection({ title, trailing, children }: { title?: string;
   return (
     <Card className={cn(styles.card, "gap-0 py-0")}>
       {(title || trailing) && (
-        <CardHeader className={cn(styles.cardHeader, "border-b")}>
+        <CardHeader className={cn(styles.cardHeader, "border-b pt-(--card-spacing)")}>
           {title && <CardTitle>{title}</CardTitle>}
           {trailing && <CardAction>{trailing}</CardAction>}
         </CardHeader>
@@ -63,7 +63,6 @@ export function ApplicationList({ applications, icons, busy, emptyLabel, removeL
         <EmptyHeader>
           <EmptyMedia variant="icon"><Music2 /></EmptyMedia>
           <EmptyTitle>{emptyLabel}</EmptyTitle>
-          <EmptyDescription>{emptyLabel}</EmptyDescription>
         </EmptyHeader>
       </Empty>
     );
@@ -76,7 +75,7 @@ export function ApplicationList({ applications, icons, busy, emptyLabel, removeL
           <ItemMedia variant={icons[application.bundleId] ? "image" : "icon"}>
             {icons[application.bundleId] ? <img alt="" src={icons[application.bundleId]} /> : <Music2 />}
           </ItemMedia>
-          <ItemContent><ItemTitle>{application.name}</ItemTitle></ItemContent>
+          <ItemContent className={styles.applicationContent}><ItemTitle className={styles.applicationName} title={application.name}>{application.name}</ItemTitle></ItemContent>
           <ItemActions>
             <IconButton label={`${removeLabel} ${application.name}`} tooltip={removeLabel} variant="ghost" size="icon-sm" disabled={busy} onClick={() => onRemove(application.bundleId)}><X /></IconButton>
           </ItemActions>
@@ -106,7 +105,7 @@ export function RangeRow({ label, description, value, min, max, step = 1, suffix
         {description && <FieldDescription>{description}</FieldDescription>}
       </FieldContent>
       <div className={styles.rangeControl}>
-        <Slider aria-label={label} disabled={disabled} min={min} max={max} step={step} value={[value]} onValueChange={([next]) => onChange(next)} />
+        <Slider aria-label={label} disabled={disabled} min={min} max={max} step={step} value={value} onValueChange={onChange} />
         <output className="text-xs text-muted-foreground tabular-nums">{displayValue ?? value}{suffix}</output>
       </div>
     </Field>

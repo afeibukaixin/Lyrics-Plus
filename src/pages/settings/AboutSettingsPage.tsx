@@ -56,7 +56,6 @@ export default function AboutSettingsPage() {
         )}
       </SettingsSection>
       <SettingsSection title={t("settings.about.project")}>
-        <p className={styles.cardHint}>{t("settings.about.projectHint")}</p>
         <div className={styles.buttonRow}>
           {links.map(([key, url]) => <Button variant="outline" size="sm" key={key} onClick={() => open(url)}>{t(`settings.about.links.${key}`)}</Button>)}
         </div>

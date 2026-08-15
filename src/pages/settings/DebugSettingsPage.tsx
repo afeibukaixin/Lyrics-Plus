@@ -71,9 +71,7 @@ export default function DebugSettingsPage() {
               ))}
             </ScrollArea>
           </>
-        ) : (
-          <p className={styles.cardHint}>{t("settings.debug.disabledHint")}</p>
-        )}
+        ) : null}
       </SettingsSection>
     </>
   );

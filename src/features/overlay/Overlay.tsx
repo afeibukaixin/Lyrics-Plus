@@ -1,20 +1,17 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LogicalSize } from "@tauri-apps/api/dpi";
 import { listen } from "@tauri-apps/api/event";
 import { currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
 import { useTranslation } from "react-i18next";
-import { ClockArrowLeft, ClockArrowRight, Columns3, EyeOff, Lock, Minus, PanelsTopBottom, PanelTop, Plus, Rows3, Settings, Square, SquareDashed } from "lucide-react";
+import { ClockArrowLeft, ClockArrowRight, EyeOff, Lock, Minus, MoveHorizontal, MoveVertical, PanelsTopBottom, PanelTop, Plus, Settings, Square, SquareDashed } from "lucide-react";
 import { IconButton } from "@/components/ui/icon-button";
 import { api, isTauriRuntime } from "../../shared/api";
-import { reportFrontendError } from "../../shared/debugLog";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
 import {
   defaultOverlayStyle,
   secondaryDisplayFlags,
   secondaryDisplayFromFlags,
   type LyricsLine,
-  type OverlayResizeBounds,
-  type OverlayResizeEdge,
   type OverlaySettings,
   type OverlayStyle,
   type ToolbarPlacement,
@@ -46,22 +43,6 @@ type MarqueeMetric = {
   overflowing: boolean;
   distance: number;
   duration: number;
-};
-
-type ActiveResizeSession = {
-  pointerId: number;
-  edge: OverlayResizeEdge;
-  axis: "horizontal" | "vertical";
-  handle: HTMLDivElement;
-  startCoordinate: number;
-  latestCoordinate: number;
-  startMainSize: number | null;
-  minimumMainSize: number;
-  pendingMainSize: number | null;
-  lastBounds: OverlayResizeBounds | null;
-  processing: boolean;
-  ending: boolean;
-  committing: boolean;
 };
 
 function sameMarqueeMetrics(left: MarqueeMetric[], right: MarqueeMetric[]) {
@@ -167,8 +148,6 @@ export default function Overlay() {
   const fitRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shrinkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unlockFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const resizeSession = useRef<ActiveResizeSession | null>(null);
-  const finishResizeRef = useRef<() => void>(() => undefined);
   const styleRef = useRef(style);
   const lastRequestedSize = useRef<{ width: number; height: number } | null>(null);
   const lastMeasuredLayoutKey = useRef<string | null>(null);
@@ -179,7 +158,6 @@ export default function Overlay() {
   const [fitScale, setFitScale] = useState(1);
   const [wrapped, setWrapped] = useState(false);
   const [marqueeMetrics, setMarqueeMetrics] = useState<MarqueeMetric[]>([]);
-  const [activeResizeEdge, setActiveResizeEdge] = useState<OverlayResizeEdge | null>(null);
   const [overlayHovered, setOverlayHovered] = useState(false);
   const [unlockFeedback, setUnlockFeedback] = useState(false);
   const [toolbarSide, setToolbarSide] = useState<ToolbarPlacement>("top");
@@ -187,7 +165,6 @@ export default function Overlay() {
     horizontal: MIN_HORIZONTAL_WIDTH,
     vertical: MIN_VERTICAL_HEIGHT,
   });
-  const resizing = activeResizeEdge !== null;
   const transparentMode = style.backgroundMode === "transparent" || style.background === "transparent";
   const glassEnabled = !transparentMode && style.background === "glass";
   const effectiveBackgroundOpacity = transparentMode ? 0 : style.backgroundOpacity;
@@ -195,15 +172,6 @@ export default function Overlay() {
   const backdropFilter = glassEnabled && !nativeVibrancy
     ? `blur(${style.backgroundBlur}px) saturate(1.2)`
     : "none";
-
-  const clearResizeState = useCallback(() => {
-    const session = resizeSession.current;
-    resizeSession.current = null;
-    if (session?.handle.hasPointerCapture(session.pointerId)) {
-      try { session.handle.releasePointerCapture(session.pointerId); } catch { /* Already released by the system. */ }
-    }
-    setActiveResizeEdge(null);
-  }, []);
 
   useEffect(() => {
     styleRef.current = style;
@@ -224,12 +192,10 @@ export default function Overlay() {
     void api.getOverlaySettings().then(setSettings);
     void api.getOverlayToolbarPlacement().then(setToolbarSide);
     const cleanupStyleListener = createTauriListenerCleanup(listen<OverlayStyle>("overlay://style", ({ payload }) => {
-      clearResizeState();
       styleRef.current = payload;
       setStyle(payload);
     }));
     const cleanupSettingsListener = createTauriListenerCleanup(listen<OverlaySettings>("overlay://settings", ({ payload }) => {
-      if (payload.locked) clearResizeState();
       if (payload.locked || !payload.visible) setOverlayHovered(false);
       setSettings(payload);
     }));
@@ -255,7 +221,7 @@ export default function Overlay() {
       cleanupToolbarPlacementListener();
       cleanupUnlockFeedbackListener();
     };
-  }, [clearResizeState]);
+  }, []);
 
   useEffect(() => {
     const clearSelection = () => {
@@ -288,15 +254,6 @@ export default function Overlay() {
     };
     void refreshLimits();
   }, []);
-
-  useEffect(() => {
-    const onBlur = () => finishResizeRef.current();
-    window.addEventListener("blur", onBlur);
-    return () => {
-      window.removeEventListener("blur", onBlur);
-      clearResizeState();
-    };
-  }, [clearResizeState]);
 
   useEffect(() => {
     if (settings.locked) return;
@@ -446,7 +403,7 @@ export default function Overlay() {
   }, [fitLimits.height, fitLimits.width, primaryLineKey, supportingKey, style.fontSize, style.horizontalMaxWidth, style.layout, style.longText, style.orientation, style.romanizationFontScale, style.secondaryFontScale, style.translationFontScale, style.verticalMaxHeight]);
 
   useLayoutEffect(() => {
-    if (!settings.visible || resizing) {
+    if (!settings.visible) {
       lastRequestedSize.current = null;
       if (fitRetryTimer.current !== null) clearTimeout(fitRetryTimer.current);
       fitRetryTimer.current = null;
@@ -597,166 +554,7 @@ export default function Overlay() {
       if (shrinkTimer.current !== null) clearTimeout(shrinkTimer.current);
       shrinkTimer.current = null;
     };
-  }, [constrained, fitLimits.height, fitLimits.width, fitScale, horizontalContentLimit, horizontalWindowLimit, marqueeHorizontalLimit, marqueeMetrics, marqueeTimeLimit, marqueeVerticalLimit, overlayHorizontalPadding, overlayVerticalPadding, primaryText, resizing, settings.visible, style.fontSize, style.layout, style.longText, style.orientation, style.romanizationFontScale, style.secondaryFontScale, style.translationFontScale, supportingKey, vertical, verticalContentLimit, verticalWindowLimit, wrapped]);
-
-  const resizeCoordinate = (event: Pick<React.PointerEvent<HTMLDivElement>, "screenX" | "screenY">, axis: "horizontal" | "vertical") =>
-    axis === "horizontal" ? event.screenX : event.screenY;
-
-  const requestedMainSize = (session: ActiveResizeSession) => {
-    if (session.startMainSize === null) return null;
-    const delta = session.latestCoordinate - session.startCoordinate;
-    const direction = session.edge === "left" || session.edge === "top" ? -1 : 1;
-    return session.startMainSize + delta * direction;
-  };
-
-  const commitResizeSession = (session: ActiveResizeSession) => {
-    if (resizeSession.current !== session || session.committing || session.processing || session.pendingMainSize !== null || !session.ending) return;
-    session.committing = true;
-    const bounds = session.lastBounds;
-    if (!bounds) {
-      if (session.startMainSize === null) {
-        session.committing = false;
-        return;
-      }
-      clearResizeState();
-      return;
-    }
-    const next = {
-      ...styleRef.current,
-      ...(session.axis === "horizontal"
-        ? { horizontalMaxWidth: Math.max(session.minimumMainSize, bounds.width) }
-        : { verticalMaxHeight: Math.max(session.minimumMainSize, bounds.height) }),
-    };
-    styleRef.current = next;
-    setStyle(next);
-    void api.setOverlayStyle(next).then((saved) => {
-      styleRef.current = saved;
-      setStyle(saved);
-      if (resizeSession.current === session) clearResizeState();
-    }).catch((error) => {
-      reportFrontendError("Failed to persist the overlay bounds", error);
-      if (resizeSession.current === session) clearResizeState();
-    });
-  };
-
-  const processResizeQueue = async (session: ActiveResizeSession) => {
-    if (session.processing || resizeSession.current !== session) return;
-    session.processing = true;
-    try {
-      while (resizeSession.current === session && session.pendingMainSize !== null) {
-        const mainSize = session.pendingMainSize;
-        session.pendingMainSize = null;
-        const bounds = await api.resizeOverlayEdge(session.edge, mainSize, session.minimumMainSize);
-        if (resizeSession.current !== session) return;
-        session.lastBounds = bounds;
-      }
-    } catch (error) {
-      if (resizeSession.current === session) {
-        reportFrontendError("Failed to resize the overlay window", error);
-        clearResizeState();
-      }
-    } finally {
-      session.processing = false;
-      if (resizeSession.current === session) {
-        if (session.pendingMainSize !== null) void processResizeQueue(session);
-        else commitResizeSession(session);
-      }
-    }
-  };
-
-  const queueResize = (session: ActiveResizeSession) => {
-    const mainSize = requestedMainSize(session);
-    if (mainSize === null || resizeSession.current !== session) return;
-    session.pendingMainSize = mainSize;
-    void processResizeQueue(session);
-  };
-
-  const finishResizeSession = (session: ActiveResizeSession, coordinate?: number) => {
-    if (resizeSession.current !== session || session.ending) return;
-    if (coordinate !== undefined) session.latestCoordinate = coordinate;
-    session.ending = true;
-    queueResize(session);
-    if (session.handle.hasPointerCapture(session.pointerId)) {
-      try { session.handle.releasePointerCapture(session.pointerId); } catch { /* Already released by the system. */ }
-    }
-    commitResizeSession(session);
-  };
-
-  finishResizeRef.current = () => {
-    const session = resizeSession.current;
-    if (session) finishResizeSession(session);
-  };
-
-  const beginResize = (
-    edge: OverlayResizeEdge,
-    axis: "horizontal" | "vertical",
-  ) => (event: React.PointerEvent<HTMLDivElement>) => {
-    if (settings.locked || event.button !== 0 || !isTauriRuntime()) return;
-    event.preventDefault();
-    event.stopPropagation();
-    clearResizeState();
-    const handle = event.currentTarget;
-    const coordinate = resizeCoordinate(event, axis);
-    const session: ActiveResizeSession = {
-      pointerId: event.pointerId,
-      edge,
-      axis,
-      handle,
-      startCoordinate: coordinate,
-      latestCoordinate: coordinate,
-      startMainSize: null,
-      minimumMainSize: axis === "horizontal" ? minimumHorizontalWidth : minimumVerticalHeight,
-      pendingMainSize: null,
-      lastBounds: null,
-      processing: false,
-      ending: false,
-      committing: false,
-    };
-    resizeSession.current = session;
-    setActiveResizeEdge(edge);
-    handle.setPointerCapture(event.pointerId);
-    const overlayWindow = getCurrentWindow();
-    void Promise.all([overlayWindow.outerSize(), overlayWindow.scaleFactor()]).then(([size, scale]) => {
-      if (resizeSession.current !== session) return;
-      session.startMainSize = (axis === "horizontal" ? size.width : size.height) / scale;
-      queueResize(session);
-      commitResizeSession(session);
-    }).catch((error) => {
-      reportFrontendError("Failed to read the overlay bounds", error);
-      if (resizeSession.current === session) clearResizeState();
-    });
-  };
-
-  const continueResize = (event: React.PointerEvent<HTMLDivElement>) => {
-    const session = resizeSession.current;
-    if (!session || session.pointerId !== event.pointerId || session.ending) return;
-    event.preventDefault();
-    event.stopPropagation();
-    session.latestCoordinate = resizeCoordinate(event, session.axis);
-    queueResize(session);
-  };
-
-  const endResize = (event: React.PointerEvent<HTMLDivElement>) => {
-    const session = resizeSession.current;
-    if (!session || session.pointerId !== event.pointerId) return;
-    event.preventDefault();
-    event.stopPropagation();
-    finishResizeSession(session, resizeCoordinate(event, session.axis));
-  };
-
-  const cancelResize = (event: React.PointerEvent<HTMLDivElement>) => {
-    const session = resizeSession.current;
-    if (!session || session.pointerId !== event.pointerId) return;
-    event.preventDefault();
-    event.stopPropagation();
-    finishResizeSession(session);
-  };
-
-  const lostResizeCapture = (event: React.PointerEvent<HTMLDivElement>) => {
-    const session = resizeSession.current;
-    if (!session || session.pointerId !== event.pointerId || session.ending) return;
-    finishResizeSession(session);
-  };
+  }, [constrained, fitLimits.height, fitLimits.width, fitScale, horizontalContentLimit, horizontalWindowLimit, marqueeHorizontalLimit, marqueeMetrics, marqueeTimeLimit, marqueeVerticalLimit, overlayHorizontalPadding, overlayVerticalPadding, primaryText, settings.visible, style.fontSize, style.layout, style.longText, style.orientation, style.romanizationFontScale, style.secondaryFontScale, style.translationFontScale, supportingKey, vertical, verticalContentLimit, verticalWindowLimit, wrapped]);
 
   const toggleSupportingTrack = (kind: "translation" | "romanization") => {
     const translation = kind === "translation" ? !secondaryFlags.translation : secondaryFlags.translation;
@@ -784,7 +582,6 @@ export default function Overlay() {
       data-long-text={style.longText}
       data-constrained={constrained}
       data-hover={overlayHovered || unlockFeedback}
-      data-resizing={resizing}
       data-tauri-drag-region={settings.locked ? "false" : "deep"}
       style={{
         "--lyric-size": `${style.fontSize}px`,
@@ -846,17 +643,6 @@ export default function Overlay() {
 
       {!settings.locked && (
         <>
-          {vertical ? (
-            <>
-              <div className={styles.resizeHandle} data-active={activeResizeEdge === "top"} data-edge="top" data-tauri-drag-region="false" role="separator" aria-label={t("overlay.toolbar.resizeVertical")} aria-orientation="horizontal" onLostPointerCapture={lostResizeCapture} onPointerCancel={cancelResize} onPointerDown={beginResize("top", "vertical")} onPointerMove={continueResize} onPointerUp={endResize} />
-              <div className={styles.resizeHandle} data-active={activeResizeEdge === "bottom"} data-edge="bottom" data-tauri-drag-region="false" role="separator" aria-label={t("overlay.toolbar.resizeVertical")} aria-orientation="horizontal" onLostPointerCapture={lostResizeCapture} onPointerCancel={cancelResize} onPointerDown={beginResize("bottom", "vertical")} onPointerMove={continueResize} onPointerUp={endResize} />
-            </>
-          ) : (
-            <>
-              <div className={styles.resizeHandle} data-active={activeResizeEdge === "left"} data-edge="left" data-tauri-drag-region="false" role="separator" aria-label={t("overlay.toolbar.resizeHorizontal")} aria-orientation="vertical" onLostPointerCapture={lostResizeCapture} onPointerCancel={cancelResize} onPointerDown={beginResize("left", "horizontal")} onPointerMove={continueResize} onPointerUp={endResize} />
-              <div className={styles.resizeHandle} data-active={activeResizeEdge === "right"} data-edge="right" data-tauri-drag-region="false" role="separator" aria-label={t("overlay.toolbar.resizeHorizontal")} aria-orientation="vertical" onLostPointerCapture={lostResizeCapture} onPointerCancel={cancelResize} onPointerDown={beginResize("right", "horizontal")} onPointerMove={continueResize} onPointerUp={endResize} />
-            </>
-          )}
           <div className={styles.toolbar} data-tauri-drag-region="false" role="toolbar" aria-label={t("overlay.toolbar.label")} ref={toolbarRef}>
             <IconButton label={t("overlay.toolbar.lock")} variant="ghost" size="icon-sm" onClick={() => void api.setOverlayLocked(true)}><Lock /></IconButton>
             <IconButton label={t("overlay.toolbar.decreaseFont")} variant="ghost" size="icon-sm" onClick={() => void updateStyle({ fontSize: style.fontSize - 2 })}><Minus /></IconButton>
@@ -897,7 +683,7 @@ export default function Overlay() {
             })}>{style.layout === "double" ? <PanelsTopBottom /> : <PanelTop />}</IconButton>
             <IconButton label={t("overlay.toolbar.toggleOrientation", { value: t(`overlay.orientation.${style.orientation}`) })} tooltip={t("overlay.toolbar.toggleOrientationTitle", { value: t(`overlay.orientation.${style.orientation}`) })} variant="ghost" size="icon-sm" onClick={() => void updateStyle({
               orientation: nextValue(style.orientation, ["horizontal", "vertical"] as const),
-            })}>{vertical ? <Columns3 /> : <Rows3 />}</IconButton>
+            })}>{vertical ? <MoveVertical /> : <MoveHorizontal />}</IconButton>
             <IconButton
               label={t("overlay.toolbar.toggleBackground", { value: backgroundLabel })}
               tooltip={t("overlay.toolbar.toggleBackgroundTitle", { value: backgroundLabel })}
