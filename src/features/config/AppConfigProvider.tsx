@@ -95,7 +95,7 @@ function applyPendingNotchPreferences(
 }
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 41,
+  schemaVersion: 42,
   app: { theme: "dark", language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, silentStartup: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
@@ -111,7 +111,7 @@ const defaultConfig: AppConfig = {
     },
     displays: {
       statusBar: { enabled: false, appearance: defaultStatusBarLyricsAppearance },
-      listWindow: { enabled: false, showTranslation: true, showRomanization: false, appearance: defaultListLyricsAppearance },
+      listWindow: { enabled: false, alwaysOnTop: false, showTranslation: true, showRomanization: false, appearance: defaultListLyricsAppearance },
       notch: {
         enabled: false,
         monitorId: null,

@@ -1,5 +1,6 @@
 import { defaultOverlayStyle, secondaryDisplayFlags, secondaryDisplayFromFlags, type LyricsBaseAppearance, type LyricsStyleMode, type OverlayStyle } from "../../shared/types";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ListMusic, Monitor, Palette, PanelTop, PanelTopDashed } from "lucide-react";
 import { api, messageOf } from "../../shared/api";
@@ -52,6 +53,12 @@ const baseColorKeys: Array<keyof Omit<LyricsBaseAppearance, "fontFamily">> = [
 
 type StyleMode = "base" | LyricsStyleMode;
 
+function styleModeFromQuery(value: string | null): StyleMode {
+  return value === "desktop" || value === "statusBar" || value === "listWindow" || value === "notch"
+    ? value
+    : "base";
+}
+
 function baseColorsForPreset(preset: OverlayColorPreset): Omit<LyricsBaseAppearance, "fontFamily"> {
   return {
     ...preset.colors,
@@ -67,6 +74,8 @@ function matchesColorPreset(style: LyricsBaseAppearance, preset: OverlayColorPre
 
 export default function StyleSettingsPage() {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedMode = searchParams.get("mode");
   const {
     style,
     config,
@@ -87,8 +96,17 @@ export default function StyleSettingsPage() {
     resetSection,
   } = useSettingsContext();
   const [colorPresetsExpanded, setColorPresetsExpanded] = useState(false);
-  const [mode, setMode] = useState<StyleMode>("base");
+  const [mode, setMode] = useState<StyleMode>(() => styleModeFromQuery(requestedMode));
   const [resettingMode, setResettingMode] = useState<StyleMode | null>(null);
+
+  useEffect(() => {
+    setMode(styleModeFromQuery(requestedMode));
+  }, [requestedMode]);
+
+  const selectMode = (next: StyleMode) => {
+    setMode(next);
+    setSearchParams(next === "base" ? {} : { mode: next }, { replace: true });
+  };
 
   const secondaryFlags = secondaryDisplayFlags(style.secondaryDisplay);
   const alignmentAvailable = style.layout === "double";
@@ -187,7 +205,7 @@ export default function StyleSettingsPage() {
   return (
     <SettingsPage sections={sections}>
       <PageHeader title={t("settings.style.title")} description={t("settings.style.description")} onReset={() => void resetCurrentMode()} resetting={mode === "desktop" ? resettingSection === "style" : resettingMode === mode} confirming={mode === "desktop" && confirmingReset === "style"} />
-      <ToggleGroup className={cn(styles.lyricsModeSelector, "grid w-full")} variant="outline" aria-label={t("settings.style.modes.selector")} value={[mode]} onValueChange={(values) => { const next = values[0] as StyleMode | undefined; if (next) setMode(next); }}>
+      <ToggleGroup className={cn(styles.lyricsModeSelector, "grid w-full")} variant="outline" aria-label={t("settings.style.modes.selector")} value={[mode]} onValueChange={(values) => { const next = values[0] as StyleMode | undefined; if (next) selectMode(next); }}>
         {modes.map((item) => {
           const Icon = item.icon;
           return <ToggleGroupItem key={item.id} value={item.id} aria-label={item.label}>

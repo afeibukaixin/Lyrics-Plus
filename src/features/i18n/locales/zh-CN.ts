@@ -79,6 +79,14 @@ export const zhCN = {
   lyricsList: {
     noTrack: "没有正在播放的歌曲", waiting: "等待播放器", lyrics: "完整歌词", returnCurrent: "回到当前歌词",
     loading: "正在载入歌词", empty: "暂无歌词", emptyHint: "播放歌曲后会自动匹配歌词。", chooseLyrics: "选择歌词",
+    toolbar: {
+      label: "列表歌词工具栏", decreaseFont: "减小字号", increaseFont: "增大字号", offsetGroup: "歌词偏移，当前{{value}}",
+      delay: "歌词延后 100 毫秒；按住 Shift 调整 500 毫秒", advance: "歌词提前 100 毫秒；按住 Shift 调整 500 毫秒",
+      resetOffset: "当前偏移{{value}}，点击重置",
+      unavailableTrack: "{{action}}（当前歌词暂无{{track}}，资源出现后自动应用）",
+      openSettings: "打开列表歌词设置", pin: "窗口置顶", unpin: "取消窗口置顶",
+      resetSize: "恢复默认窗口大小", hide: "隐藏列表歌词",
+    },
   },
   overlay: {
     fallback: "播放音乐后自动显示歌词", layout: { single: "单歌词", double: "双歌词" },

@@ -19,8 +19,11 @@ use crate::lyrics::LyricsWord;
 use crate::TrayMenuState;
 
 const CONTENT_INSET: f64 = 6.0;
-const SCROLL_DELAY: Duration = Duration::from_millis(1_000);
-const SCROLL_SPEED_POINTS_PER_SECOND: f64 = 28.0;
+const SCROLL_SPEED_POINTS_PER_SECOND: f64 = 35.0;
+const DEFAULT_SCROLL_DURATION_SECONDS: f64 = 4.0;
+const MIN_SCROLL_DURATION_SECONDS: f64 = 0.1;
+const SCROLL_START_HOLD_PROGRESS: f64 = 0.12;
+const SCROLL_END_HOLD_PROGRESS: f64 = 0.88;
 const STATUS_BAR_FONT_SIZE_MAX: f64 = 18.0;
 const TEXT_LAYER_HEIGHT_PADDING: f64 = 4.0;
 
@@ -50,6 +53,7 @@ struct RenderPayload {
     base_color: String,
     highlight_color: String,
     highlight_ranges: Vec<HighlightRange>,
+    scroll_duration: Option<Duration>,
     is_playing: bool,
 }
 
@@ -153,20 +157,28 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
     let mut content_key = format!("{track_key}:fallback:{text}");
     let mut base_color = preferences.appearance.text_color.clone();
     let mut highlighted_ranges = Vec::new();
+    let mut scroll_duration = None;
 
     if runtime.track_key == playback_key {
         if let Some(document) = runtime.document.as_ref() {
             let adjusted = (position_ms as i128 + document.offset_ms as i128).max(0) as u64;
-            let current_line = document
-                .tracks
-                .original
-                .lines
+            let lines = &document.tracks.original.lines;
+            let current_index = lines
                 .iter()
-                .take_while(|line| line.start_ms <= adjusted)
-                .last();
-            if let Some(line) = current_line.filter(|line| !line.text.trim().is_empty()) {
+                .rposition(|line| line.start_ms <= adjusted);
+            if let Some((index, line)) = current_index
+                .and_then(|index| lines.get(index).map(|line| (index, line)))
+                .filter(|(_, line)| !line.text.trim().is_empty())
+            {
                 text = line.text.trim().to_owned();
                 content_key = format!("{track_key}:line:{}:{text}", line.start_ms);
+                scroll_duration = lines
+                    .get(index + 1)
+                    .map(|next| next.start_ms)
+                    .or(line.end_ms)
+                    .and_then(|end_ms| end_ms.checked_sub(line.start_ms))
+                    .filter(|duration_ms| *duration_ms > 0)
+                    .map(Duration::from_millis);
                 if let Some(words) = line.words.as_deref().filter(|words| !words.is_empty()) {
                     base_color = preferences.appearance.inactive_color.clone();
                     highlighted_ranges = highlight_ranges(&text, words, adjusted);
@@ -194,6 +206,7 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
         base_color,
         highlight_color: preferences.appearance.highlight_color,
         highlight_ranges: highlighted_ranges,
+        scroll_duration,
         is_playing: playback.is_playing,
     })
 }
@@ -344,12 +357,35 @@ fn scroll_elapsed(content_key: &str, is_playing: bool) -> Duration {
     now.saturating_duration_since(changed_at)
 }
 
-fn scroll_offset(content_width: f64, available_width: f64, elapsed: Duration) -> f64 {
+fn scroll_offset(
+    content_width: f64,
+    available_width: f64,
+    elapsed: Duration,
+    maximum_duration: Option<Duration>,
+) -> f64 {
     let maximum = (content_width - available_width).max(0.0);
-    if maximum <= 0.0 || elapsed <= SCROLL_DELAY {
+    if maximum <= 0.0 {
         return 0.0;
     }
-    ((elapsed - SCROLL_DELAY).as_secs_f64() * SCROLL_SPEED_POINTS_PER_SECOND).min(maximum)
+
+    let preferred_duration = DEFAULT_SCROLL_DURATION_SECONDS
+        .max(maximum / SCROLL_SPEED_POINTS_PER_SECOND);
+    let duration = maximum_duration
+        .map(|limit| preferred_duration.min(limit.as_secs_f64()))
+        .unwrap_or(preferred_duration)
+        .max(MIN_SCROLL_DURATION_SECONDS);
+    let progress = (elapsed.as_secs_f64() / duration).clamp(0.0, 1.0);
+    if progress <= SCROLL_START_HOLD_PROGRESS {
+        return 0.0;
+    }
+    if progress >= SCROLL_END_HOLD_PROGRESS {
+        return maximum;
+    }
+
+    let travel_progress = (progress - SCROLL_START_HOLD_PROGRESS)
+        / (SCROLL_END_HOLD_PROGRESS - SCROLL_START_HOLD_PROGRESS);
+    let eased_progress = travel_progress * travel_progress * (3.0 - 2.0 * travel_progress);
+    maximum * eased_progress
 }
 
 fn render_on_main(payload: RenderPayload, tray: &tauri::tray::TrayIcon) {
@@ -412,7 +448,12 @@ fn render_on_main(payload: RenderPayload, tray: &tauri::tray::TrayIcon) {
 
         let content_width = attributed.size().width.ceil();
         let available_width = (payload.width - CONTENT_INSET * 2.0).max(1.0);
-        let offset = scroll_offset(content_width, available_width, elapsed);
+        let offset = scroll_offset(
+            content_width,
+            available_width,
+            elapsed,
+            payload.scroll_duration,
+        );
         let layer_height = (font_size + TEXT_LAYER_HEIGHT_PADDING).min(button_height);
         let origin_x = CONTENT_INSET - offset;
         let origin_y = ((button_height - layer_height) / 2.0).floor();

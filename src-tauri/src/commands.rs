@@ -1679,6 +1679,11 @@ pub fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn show_list_lyrics_settings(app: tauri::AppHandle) -> Result<(), String> {
+    crate::show_list_lyrics_settings(&app)
+}
+
+#[tauri::command]
 pub fn show_quick_lyrics_window(app: tauri::AppHandle) -> Result<(), String> {
     crate::show_quick_lyrics_window(&app)
 }
@@ -2308,6 +2313,11 @@ pub fn reset_lyrics_display_position(
         crate::position_auxiliary_lyrics_window_default(&app, &window, label)?;
     }
     Ok(())
+}
+
+#[tauri::command]
+pub fn reset_list_lyrics_window_size(app: tauri::AppHandle) -> Result<(), String> {
+    crate::reset_list_lyrics_window_size(&app)
 }
 
 #[tauri::command]

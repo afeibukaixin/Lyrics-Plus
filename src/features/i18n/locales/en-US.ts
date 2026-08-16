@@ -81,6 +81,14 @@ export const enUS = {
   lyricsList: {
     noTrack: "Nothing is playing", waiting: "Waiting for player", lyrics: "Full lyrics", returnCurrent: "Return to current line",
     loading: "Loading lyrics", empty: "No lyrics available", emptyHint: "Lyrics are matched automatically when a song plays.", chooseLyrics: "Choose Lyrics",
+    toolbar: {
+      label: "Lyrics list toolbar", decreaseFont: "Decrease font size", increaseFont: "Increase font size", offsetGroup: "Lyrics offset, currently {{value}}",
+      delay: "Delay lyrics by 100 milliseconds; hold Shift for 500 milliseconds", advance: "Advance lyrics by 100 milliseconds; hold Shift for 500 milliseconds",
+      resetOffset: "Current offset is {{value}}; click to reset",
+      unavailableTrack: "{{action}} (the current lyrics have no {{track}}; the preference will apply when it becomes available)",
+      openSettings: "Open lyrics list settings", pin: "Keep window on top", unpin: "Stop keeping window on top",
+      resetSize: "Restore default window size", hide: "Hide lyrics list",
+    },
   },
   overlay: {
     fallback: "Lyrics appear automatically when music plays", layout: { single: "Single", double: "Double" },

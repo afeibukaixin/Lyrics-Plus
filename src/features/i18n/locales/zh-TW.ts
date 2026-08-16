@@ -81,6 +81,14 @@ export const zhTW = {
   lyricsList: {
     noTrack: "沒有正在播放的歌曲", waiting: "等待播放器", lyrics: "完整歌詞", returnCurrent: "回到目前歌詞",
     loading: "正在載入歌詞", empty: "暫無歌詞", emptyHint: "播放歌曲後會自動配對歌詞。", chooseLyrics: "選擇歌詞",
+    toolbar: {
+      label: "列表歌詞工具列", decreaseFont: "縮小字型", increaseFont: "放大字型", offsetGroup: "歌詞偏移，目前{{value}}",
+      delay: "歌詞延後 100 毫秒；按住 Shift 調整 500 毫秒", advance: "歌詞提前 100 毫秒；按住 Shift 調整 500 毫秒",
+      resetOffset: "目前偏移{{value}}，點擊重設",
+      unavailableTrack: "{{action}}（目前歌詞暫無{{track}}，資源出現後會自動套用）",
+      openSettings: "開啟列表歌詞設定", pin: "視窗置頂", unpin: "取消視窗置頂",
+      resetSize: "恢復預設視窗大小", hide: "隱藏列表歌詞",
+    },
   },
   overlay: {
     fallback: "播放音樂後會自動顯示歌詞", layout: { single: "單歌詞", double: "雙歌詞" },

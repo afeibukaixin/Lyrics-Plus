@@ -169,6 +169,8 @@ export type ListLyricsAppearance = {
   romanizationColor: string;
   activeBackgroundColor: string;
   backgroundColor: string;
+  backgroundOpacity: number;
+  backgroundMode: "solid" | "transparent";
   alignment: "left" | "center" | "right";
 };
 
@@ -191,6 +193,7 @@ export type LyricsDisplayPreferences = {
   };
   listWindow: {
     enabled: boolean;
+    alwaysOnTop: boolean;
     showTranslation: boolean;
     showRomanization: boolean;
     appearance: ListLyricsAppearance;
@@ -490,7 +493,9 @@ export const defaultListLyricsAppearance: ListLyricsAppearance = {
   romanizationColor: "#bef264",
   activeBackgroundColor: "rgba(148, 163, 184, 0.14)",
   backgroundColor: "#171821",
-  alignment: "left",
+  backgroundOpacity: 1,
+  backgroundMode: "solid",
+  alignment: "center",
 };
 
 export const defaultNotchLyricsAppearance: NotchLyricsAppearance = {

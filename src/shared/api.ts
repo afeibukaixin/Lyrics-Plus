@@ -144,6 +144,7 @@ export const api = {
   fitNotchLyricsContent: (width: number, height: number) =>
     invoke<void>("fit_notch_lyrics_content", { width, height }),
   showMainWindow: () => invoke<void>("show_main_window"),
+  showListLyricsSettings: () => invoke<void>("show_list_lyrics_settings"),
   showQuickLyricsWindow: () => invoke<void>("show_quick_lyrics_window"),
   resetSettingsSection: (section: SettingsSection) =>
     invoke<SettingsResetResponse>("reset_settings_section", { section }),
@@ -204,6 +205,7 @@ export const api = {
     invoke<SettingsResetResponse>("reset_lyrics_style_mode", { mode }),
   resetLyricsDisplayPosition: (mode: "statusBar" | "listWindow" | "notch") =>
     invoke<void>("reset_lyrics_display_position", { mode }),
+  resetListLyricsWindowSize: () => invoke<void>("reset_list_lyrics_window_size"),
   exportAppConfig: () => invoke<ConfigExport>("export_app_config"),
   revealConfigDirectory: () => invoke<void>("reveal_config_directory"),
   getConfigEditorData: () => invoke<ConfigEditorData>("get_config_editor_data"),

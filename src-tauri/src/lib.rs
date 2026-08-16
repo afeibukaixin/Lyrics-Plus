@@ -41,6 +41,8 @@ struct TrayMenuState {
 
 pub(crate) const LEGAL_NOTICE_VERSION: u16 = 1;
 pub(crate) const LEGAL_NOTICE_PREFERENCE: &str = "legal.notice.acceptedVersion";
+const LIST_LYRICS_DEFAULT_WIDTH: f64 = 520.0;
+const LIST_LYRICS_DEFAULT_HEIGHT: f64 = 720.0;
 
 pub(crate) fn legal_notice_accepted(storage: &storage::Storage) -> Result<bool, String> {
     Ok(storage
@@ -485,21 +487,46 @@ fn create_list_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {
     if app.get_webview_window("lyrics-list").is_some() {
         return Ok(());
     }
+    let always_on_top = app
+        .state::<AppState>()
+        .config
+        .snapshot()
+        .lyrics
+        .displays
+        .list_window
+        .always_on_top;
     WebviewWindowBuilder::new(
         app,
         "lyrics-list",
         WebviewUrl::App("index.html?view=lyrics-list".into()),
     )
     .title(UiLanguage::ZhCn.native_labels().list_title)
-    .inner_size(520.0, 720.0)
+    .inner_size(LIST_LYRICS_DEFAULT_WIDTH, LIST_LYRICS_DEFAULT_HEIGHT)
     .min_inner_size(360.0, 480.0)
+    .transparent(true)
+    .accept_first_mouse(true)
+    .decorations(false)
+    .shadow(false)
     .resizable(true)
-    .maximizable(true)
+    .maximizable(false)
     .minimizable(true)
+    .always_on_top(always_on_top)
     .visible(false)
     .center()
     .build()?;
     Ok(())
+}
+
+pub(crate) fn reset_list_lyrics_window_size(app: &tauri::AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("lyrics-list")
+        .ok_or_else(|| "列表歌词窗口不存在".to_string())?;
+    window
+        .set_size(tauri::LogicalSize::new(
+            LIST_LYRICS_DEFAULT_WIDTH,
+            LIST_LYRICS_DEFAULT_HEIGHT,
+        ))
+        .map_err(|error| error.to_string())
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -798,7 +825,12 @@ fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), Stri
     if displays.list_window.enabled {
         create_list_lyrics_window(app).map_err(|error| error.to_string())?;
         if let Some(window) = app.get_webview_window("lyrics-list") {
-            window.show().map_err(|error| error.to_string())?;
+            window
+                .set_always_on_top(displays.list_window.always_on_top)
+                .map_err(|error| error.to_string())?;
+            if !window.is_visible().unwrap_or(false) {
+                window.show().map_err(|error| error.to_string())?;
+            }
         }
     } else if let Some(window) = app.get_webview_window("lyrics-list") {
         window.hide().map_err(|error| error.to_string())?;
@@ -1453,6 +1485,10 @@ fn center_main_window_on_cursor(
 
 pub(crate) fn show_main_window_centered(app: &tauri::AppHandle) -> Result<(), String> {
     show_main_window_at(app, Some("#/settings"))
+}
+
+pub(crate) fn show_list_lyrics_settings(app: &tauri::AppHandle) -> Result<(), String> {
+    show_main_window_at(app, Some("#/settings/style?mode=listWindow"))
 }
 
 fn should_show_main_window(notice_accepted: bool, silent_startup: bool) -> bool {
@@ -2605,6 +2641,7 @@ pub fn run() {
             commands::fit_overlay_content,
             commands::fit_notch_lyrics_content,
             commands::show_main_window,
+            commands::show_list_lyrics_settings,
             commands::show_quick_lyrics_window,
             commands::get_app_config,
             commands::set_theme,
@@ -2636,6 +2673,7 @@ pub fn run() {
             commands::reset_lyrics_base_appearance,
             commands::reset_lyrics_style_mode,
             commands::reset_lyrics_display_position,
+            commands::reset_list_lyrics_window_size,
             commands::export_app_config,
             commands::reveal_config_directory,
             commands::get_config_editor_data,

@@ -16,7 +16,7 @@ use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSet
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 41;
+pub const CONFIG_SCHEMA_VERSION: u16 = 42;
 const APP_CONFIG_KEYS: &[&str] = &[
     "theme",
     "language",
@@ -491,6 +491,7 @@ impl Default for StatusBarLyricsAppearance {
 #[serde(default, rename_all = "camelCase")]
 pub struct ListLyricsPreferences {
     pub enabled: bool,
+    pub always_on_top: bool,
     pub show_translation: bool,
     pub show_romanization: bool,
     pub appearance: ListLyricsAppearance,
@@ -500,6 +501,7 @@ impl Default for ListLyricsPreferences {
     fn default() -> Self {
         Self {
             enabled: false,
+            always_on_top: false,
             show_translation: true,
             show_romanization: false,
             appearance: ListLyricsAppearance::default(),
@@ -522,6 +524,8 @@ pub struct ListLyricsAppearance {
     pub romanization_color: String,
     pub active_background_color: String,
     pub background_color: String,
+    pub background_opacity: f64,
+    pub background_mode: String,
     pub alignment: String,
 }
 
@@ -540,7 +544,9 @@ impl Default for ListLyricsAppearance {
             romanization_color: "#bef264".into(),
             active_background_color: "rgba(148, 163, 184, 0.14)".into(),
             background_color: "#171821".into(),
-            alignment: "left".into(),
+            background_opacity: 1.0,
+            background_mode: "solid".into(),
+            alignment: "center".into(),
         }
     }
 }
@@ -866,11 +872,19 @@ impl AppConfig {
             list_appearance.secondary_font_scale.clamp(0.35, 1.0);
         list_appearance.line_height = list_appearance.line_height.clamp(0.8, 2.0);
         list_appearance.line_gap = list_appearance.line_gap.clamp(0.0, 32.0);
+        list_appearance.background_opacity =
+            list_appearance.background_opacity.clamp(0.0, 1.0);
+        if !matches!(
+            list_appearance.background_mode.as_str(),
+            "solid" | "transparent"
+        ) {
+            list_appearance.background_mode = "solid".into();
+        }
         if !matches!(
             list_appearance.alignment.as_str(),
             "left" | "center" | "right"
         ) {
-            list_appearance.alignment = "left".into();
+            list_appearance.alignment = "center".into();
         }
         let notch_appearance = &mut self.lyrics.displays.notch.appearance;
         notch_appearance.font_size = notch_appearance.font_size.clamp(12, 32);
@@ -1163,6 +1177,33 @@ fn migrate_v41_fixed_notch_background(user: &mut Value, version: u16) {
     }
 }
 
+fn migrate_v42_list_preferences(user: &mut Value, version: u16) {
+    if version >= 42 {
+        return;
+    }
+    let Some(list_window) = user
+        .pointer_mut("/lyrics/displays/listWindow")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    list_window
+        .entry("alwaysOnTop")
+        .or_insert_with(|| Value::from(false));
+    let Some(appearance) = list_window
+        .get_mut("appearance")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    appearance
+        .entry("backgroundOpacity")
+        .or_insert_with(|| Value::from(1.0));
+    appearance
+        .entry("backgroundMode")
+        .or_insert_with(|| Value::from("solid"));
+}
+
 fn migrate_status_bar_status_item_fields(user: &mut Value) {
     let Some(status_bar) = user
         .pointer_mut("/lyrics/displays/statusBar")
@@ -1288,6 +1329,7 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
     migrate_v39_notch_supporting_tracks(&mut user, version);
     migrate_v40_notch_colors(&mut user, version);
     migrate_v41_fixed_notch_background(&mut user, version);
+    migrate_v42_list_preferences(&mut user, version);
     validate_known_fields(&user, raw)?;
     validate_field_types_and_options(&user, raw)?;
     migrate_status_bar_status_item_fields(&mut user);
@@ -1550,6 +1592,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                     raw,
                     &[
                         "enabled",
+                        "alwaysOnTop",
                         "showTranslation",
                         "showRomanization",
                         "appearance",
@@ -1572,6 +1615,8 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                             "romanizationColor",
                             "activeBackgroundColor",
                             "backgroundColor",
+                            "backgroundOpacity",
+                            "backgroundMode",
                             "alignment",
                         ],
                     )?;
@@ -1737,6 +1782,10 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         ("/lyrics/displays/statusBar/locked", "locked"),
         ("/lyrics/displays/listWindow/enabled", "enabled"),
         (
+            "/lyrics/displays/listWindow/alwaysOnTop",
+            "alwaysOnTop",
+        ),
+        (
             "/lyrics/displays/listWindow/showTranslation",
             "showTranslation",
         ),
@@ -1886,6 +1935,11 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         &["strict", "smart"],
     )?;
     for (pointer, key, options) in [
+        (
+            "/lyrics/displays/listWindow/appearance/backgroundMode",
+            "backgroundMode",
+            &["solid", "transparent"] as &[&str],
+        ),
         (
             "/overlay/appearance/backgroundMode",
             "backgroundMode",
@@ -2129,6 +2183,12 @@ fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftEr
             value.pointer("/lyrics/displays/listWindow/appearance/fontSize"),
             12.0,
             56.0,
+        ),
+        (
+            "backgroundOpacity",
+            value.pointer("/lyrics/displays/listWindow/appearance/backgroundOpacity"),
+            0.0,
+            1.0,
         ),
         (
             "fontSize",
