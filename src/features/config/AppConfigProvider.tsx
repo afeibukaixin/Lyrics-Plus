@@ -95,7 +95,7 @@ function applyPendingNotchPreferences(
 }
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 42,
+  schemaVersion: 43,
   app: { theme: "dark", language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, silentStartup: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {

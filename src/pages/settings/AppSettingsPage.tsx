@@ -19,7 +19,14 @@ import { ApplicationList, PageHeader, SelectRow, SettingsPage, SettingsSection, 
 const playerOptions: PlayerSelection[] = ["auto", "apple_music", "spotify", "system"];
 const languageOptions = supportedLanguages.map((code) => ({ code, label: languageRegistry[code].nativeLabel }));
 type ShortcutAction = keyof GlobalShortcutSettings;
-const shortcutActions: ShortcutAction[] = ["toggleOverlay", "unlockOverlay", "resetOverlay"];
+const shortcutActions: ShortcutAction[] = [
+  "toggleOverlay",
+  "unlockOverlay",
+  "resetOverlay",
+  "toggleStatusBarLyrics",
+  "toggleListLyrics",
+  "toggleNotchLyrics",
+];
 
 function shortcutDisplay(value: string) {
   const mac = navigator.userAgent.includes("Mac");
@@ -208,7 +215,9 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
     }
   };
 
-  const unavailableShortcuts = shortcutStatus ? shortcutActions.filter((action) => !shortcutStatus[action]) : [];
+  const unavailableShortcuts = shortcutStatus
+    ? shortcutActions.filter((action) => config.app.shortcuts[action].trim() && !shortcutStatus[action])
+    : [];
   const followerUnavailable = followerStatus === null || followerStatus === "development" || followerStatus === "unsupported";
   const systemMediaAllowlist = config.app.systemMediaFilterMode === "allowlist";
   const playbackStatus = playbackStatusText(playback.snapshot, t);
@@ -330,7 +339,7 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
             if (event.key === "Escape") return setRecording(null);
             const shortcut = shortcutFromEvent(event);
             if (shortcut) void saveShortcut(action, shortcut);
-          }}>{active ? t("settings.app.record") : shortcutDisplay(config.app.shortcuts[action])}</Button>
+          }}>{active ? t("settings.app.record") : config.app.shortcuts[action].trim() ? shortcutDisplay(config.app.shortcuts[action]) : t("settings.app.shortcutUnset")}</Button>
           <Button variant="ghost" size="sm" disabled={savingShortcut || isDefault} onClick={() => void saveShortcut(action, defaultGlobalShortcuts[action])}>{t("common.actions.resetDefault")}</Button>
         </div></div>;
       })}

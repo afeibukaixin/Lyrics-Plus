@@ -147,7 +147,7 @@ export const zhTW = {
       dockMenu: "Dock 與選單列", hideDock: "隱藏 Dock 圖示和執行指示點", hideDockHint: "隱藏後仍可透過選單列圖示開啟 Lyrics Plus",
       silentStartup: "靜默啟動", silentStartupHint: "下次啟動時不顯示設定視窗，仍可透過選單列圖示開啟 Lyrics Plus。",
       shortcuts: "快速鍵", openSettings: "開啟設定", toggleOverlay: "顯示 / 隱藏桌面歌詞", unlockOverlay: "鎖定 / 解鎖桌面歌詞",
-      resetOverlay: "重設並顯示桌面歌詞", record: "請按下按鍵組合 · Esc 取消", shortcutUnavailable: "{{actions}}快速鍵未註冊，可能與系統或其他應用程式衝突，請重新錄製。", diagnostics: "診斷",
+      resetOverlay: "重設並顯示桌面歌詞", toggleStatusBarLyrics: "顯示 / 隱藏選單列歌詞", toggleListLyrics: "顯示 / 隱藏列表歌詞", toggleNotchLyrics: "顯示 / 隱藏動態島歌詞", shortcutUnset: "未設定", record: "請按下按鍵組合 · Esc 取消", shortcutUnavailable: "{{actions}}快速鍵未註冊，可能與系統或其他應用程式衝突，請重新錄製。", diagnostics: "診斷",
       diagnosticsLyrics: "歌詞來源：{{source}} · {{count}} 行", diagnosticsEmpty: "目前歌曲沒有已連結的歌詞",
     },
     about: {

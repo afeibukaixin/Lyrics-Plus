@@ -33,6 +33,9 @@ export type GlobalShortcutSettings = {
   toggleOverlay: string;
   unlockOverlay: string;
   resetOverlay: string;
+  toggleStatusBarLyrics: string;
+  toggleListLyrics: string;
+  toggleNotchLyrics: string;
 };
 
 export type GlobalShortcutStatus = Record<keyof GlobalShortcutSettings, boolean>;
@@ -46,6 +49,9 @@ export const defaultGlobalShortcuts: GlobalShortcutSettings = {
   toggleOverlay: "CommandOrControl+Shift+KeyL",
   unlockOverlay: "CommandOrControl+Shift+KeyU",
   resetOverlay: "CommandOrControl+Shift+Digit0",
+  toggleStatusBarLyrics: "",
+  toggleListLyrics: "",
+  toggleNotchLyrics: "",
 };
 
 export type OverlaySettings = {

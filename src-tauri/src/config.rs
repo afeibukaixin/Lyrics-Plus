@@ -16,7 +16,7 @@ use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSet
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 42;
+pub const CONFIG_SCHEMA_VERSION: u16 = 43;
 const APP_CONFIG_KEYS: &[&str] = &[
     "theme",
     "language",
@@ -313,6 +313,9 @@ pub struct GlobalShortcutSettings {
     pub toggle_overlay: String,
     pub unlock_overlay: String,
     pub reset_overlay: String,
+    pub toggle_status_bar_lyrics: String,
+    pub toggle_list_lyrics: String,
+    pub toggle_notch_lyrics: String,
 }
 
 impl Default for GlobalShortcutSettings {
@@ -321,19 +324,21 @@ impl Default for GlobalShortcutSettings {
             toggle_overlay: "CommandOrControl+Shift+KeyL".into(),
             unlock_overlay: "CommandOrControl+Shift+KeyU".into(),
             reset_overlay: "CommandOrControl+Shift+Digit0".into(),
+            toggle_status_bar_lyrics: String::new(),
+            toggle_list_lyrics: String::new(),
+            toggle_notch_lyrics: String::new(),
         }
     }
 }
 
 impl GlobalShortcutSettings {
-    pub fn parsed(&self) -> Result<[Shortcut; 3], String> {
-        let entries = [
-            ("显示 / 隐藏桌面歌词", self.toggle_overlay.as_str()),
-            ("锁定 / 解锁桌面歌词", self.unlock_overlay.as_str()),
-            ("复位并显示桌面歌词", self.reset_overlay.as_str()),
-        ];
-        let mut parsed = Vec::with_capacity(entries.len());
-        for (label, value) in entries {
+    pub fn parsed(&self) -> Result<([Shortcut; 3], [Option<Shortcut>; 3]), String> {
+        let mut parsed = Vec::<Shortcut>::with_capacity(6);
+        let mut parse = |label: &str, value: &str, optional: bool| {
+            let value = value.trim();
+            if optional && value.is_empty() {
+                return Ok(None);
+            }
             let shortcut = value
                 .parse::<Shortcut>()
                 .map_err(|error| format!("{label}快捷键无效：{error}"))?;
@@ -344,13 +349,29 @@ impl GlobalShortcutSettings {
                 .iter()
                 .any(|existing: &Shortcut| existing.id() == shortcut.id())
             {
-                return Err("三个全局快捷键不能重复".into());
+                return Err("全局快捷键不能重复".into());
             }
             parsed.push(shortcut);
-        }
-        parsed
-            .try_into()
-            .map_err(|_| "全局快捷键配置不完整".to_string())
+            Ok(Some(shortcut))
+        };
+        let required = [
+            parse("显示 / 隐藏桌面歌词", &self.toggle_overlay, false)?
+                .ok_or_else(|| "全局快捷键配置不完整".to_string())?,
+            parse("锁定 / 解锁桌面歌词", &self.unlock_overlay, false)?
+                .ok_or_else(|| "全局快捷键配置不完整".to_string())?,
+            parse("复位并显示桌面歌词", &self.reset_overlay, false)?
+                .ok_or_else(|| "全局快捷键配置不完整".to_string())?,
+        ];
+        let optional = [
+            parse(
+                "显示 / 隐藏状态栏歌词",
+                &self.toggle_status_bar_lyrics,
+                true,
+            )?,
+            parse("显示 / 隐藏列表歌词", &self.toggle_list_lyrics, true)?,
+            parse("显示 / 隐藏灵动岛歌词", &self.toggle_notch_lyrics, true)?,
+        ];
+        Ok((required, optional))
     }
 }
 
@@ -1483,7 +1504,14 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
             check_keys(
                 shortcuts,
                 raw,
-                &["toggleOverlay", "unlockOverlay", "resetOverlay"],
+                &[
+                    "toggleOverlay",
+                    "unlockOverlay",
+                    "resetOverlay",
+                    "toggleStatusBarLyrics",
+                    "toggleListLyrics",
+                    "toggleNotchLyrics",
+                ],
             )?;
         }
         if let Some(applications) = app.get("systemMediaApplications").and_then(Value::as_array) {
@@ -1919,6 +1947,12 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         ("/app/shortcuts/toggleOverlay", "toggleOverlay"),
         ("/app/shortcuts/unlockOverlay", "unlockOverlay"),
         ("/app/shortcuts/resetOverlay", "resetOverlay"),
+        (
+            "/app/shortcuts/toggleStatusBarLyrics",
+            "toggleStatusBarLyrics",
+        ),
+        ("/app/shortcuts/toggleListLyrics", "toggleListLyrics"),
+        ("/app/shortcuts/toggleNotchLyrics", "toggleNotchLyrics"),
     ] {
         if value
             .pointer(pointer)

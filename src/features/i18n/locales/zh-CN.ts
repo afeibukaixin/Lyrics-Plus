@@ -152,7 +152,7 @@ export const zhCN = {
       dockMenu: "Dock 与菜单栏", hideDock: "隐藏 Dock 图标和运行指示点", hideDockHint: "隐藏后仍可通过菜单栏图标打开 Lyrics Plus",
       silentStartup: "静默启动", silentStartupHint: "下次启动时不显示设置窗口，仍可通过菜单栏图标打开 Lyrics Plus。",
       shortcuts: "快捷键", openSettings: "打开设置", toggleOverlay: "显示 / 隐藏桌面歌词", unlockOverlay: "锁定 / 解锁桌面歌词",
-      resetOverlay: "复位并显示桌面歌词", record: "请按组合键 · Esc 取消", shortcutUnavailable: "{{actions}}快捷键未注册，可能与系统或其他应用冲突，请重新录制。", diagnostics: "诊断",
+      resetOverlay: "复位并显示桌面歌词", toggleStatusBarLyrics: "显示 / 隐藏状态栏歌词", toggleListLyrics: "显示 / 隐藏列表歌词", toggleNotchLyrics: "显示 / 隐藏灵动岛歌词", shortcutUnset: "未设置", record: "请按组合键 · Esc 取消", shortcutUnavailable: "{{actions}}快捷键未注册，可能与系统或其他应用冲突，请重新录制。", diagnostics: "诊断",
       diagnosticsLyrics: "歌词来源：{{source}} · {{count}} 行", diagnosticsEmpty: "当前没有已关联歌词",
     },
     about: {

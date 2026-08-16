@@ -154,7 +154,7 @@ export const enUS = {
       dockMenu: "Dock & Menu Bar", hideDock: "Hide Dock icon and running indicator", hideDockHint: "Lyrics Plus remains available from the menu bar",
       silentStartup: "Silent startup", silentStartupHint: "Do not show Settings on the next launch. Lyrics Plus remains available from the menu bar.",
       shortcuts: "Shortcuts", openSettings: "Open Settings", toggleOverlay: "Show / hide desktop lyrics", unlockOverlay: "Lock / unlock desktop lyrics",
-      resetOverlay: "Reset and show desktop lyrics", record: "Press a shortcut · Esc to cancel", shortcutUnavailable: "{{actions}} is not registered and may conflict with the system or another app. Record a different shortcut.", diagnostics: "Diagnostics",
+      resetOverlay: "Reset and show desktop lyrics", toggleStatusBarLyrics: "Show / hide menu bar lyrics", toggleListLyrics: "Show / hide list lyrics", toggleNotchLyrics: "Show / hide Dynamic Island lyrics", shortcutUnset: "Not set", record: "Press a shortcut · Esc to cancel", shortcutUnavailable: "{{actions}} is not registered and may conflict with the system or another app. Record a different shortcut.", diagnostics: "Diagnostics",
       diagnosticsLyrics: "Lyrics source: {{source}} · {{count}} lines", diagnosticsEmpty: "No lyrics are linked to the current track",
     },
     about: {

@@ -127,12 +127,26 @@ fn sync_tray_toggle_accelerator(
     shortcuts: &GlobalShortcutSettings,
 ) -> Result<(), String> {
     if let Some(tray) = app.try_state::<TrayMenuState>() {
-        let accelerator = shortcuts
-            .toggle_overlay
-            .replace("CommandOrControl", "CmdOrCtrl");
-        tray.toggle_overlay
-            .set_accelerator(Some(accelerator.as_str()))
-            .map_err(|error| format!("更新菜单栏快捷键失败：{error}"))?;
+        for (item, value) in [
+            (&tray.toggle_overlay, shortcuts.toggle_overlay.as_str()),
+            (
+                &tray.toggle_status_bar_lyrics,
+                shortcuts.toggle_status_bar_lyrics.as_str(),
+            ),
+            (
+                &tray.toggle_list_lyrics,
+                shortcuts.toggle_list_lyrics.as_str(),
+            ),
+            (
+                &tray.toggle_notch_lyrics,
+                shortcuts.toggle_notch_lyrics.as_str(),
+            ),
+        ] {
+            let accelerator =
+                (!value.trim().is_empty()).then(|| value.replace("CommandOrControl", "CmdOrCtrl"));
+            item.set_accelerator(accelerator.as_deref())
+                .map_err(|error| format!("更新菜单栏快捷键失败：{error}"))?;
+        }
     }
     Ok(())
 }
@@ -141,7 +155,11 @@ fn unregister_global_shortcuts(
     app: &tauri::AppHandle,
     shortcuts: &GlobalShortcutSettings,
 ) -> Result<(), String> {
-    let parsed = shortcuts.parsed()?;
+    let (required, optional) = shortcuts.parsed()?;
+    let parsed = required
+        .into_iter()
+        .chain(optional.into_iter().flatten())
+        .collect::<Vec<_>>();
     app.global_shortcut()
         .unregister_multiple(parsed)
         .map_err(|error| format!("注销旧快捷键失败：{error}"))
@@ -151,7 +169,8 @@ fn register_global_shortcuts(
     app: &tauri::AppHandle,
     shortcuts: &GlobalShortcutSettings,
 ) -> Result<(), String> {
-    let [toggle, toggle_lock, reset] = shortcuts.parsed()?;
+    let ([toggle, toggle_lock, reset], [toggle_status_bar, toggle_list, toggle_notch]) =
+        shortcuts.parsed()?;
     let mut registered = Vec::<Shortcut>::new();
 
     let result = (|| {
@@ -236,6 +255,98 @@ fn register_global_shortcuts(
                 )
             })?;
         registered.push(reset);
+
+        if let Some(toggle_status_bar) = toggle_status_bar {
+            app.global_shortcut()
+                .on_shortcut(toggle_status_bar, |app, _, event| {
+                    if event.state == ShortcutState::Pressed {
+                        let enabled = app
+                            .state::<AppState>()
+                            .config
+                            .snapshot()
+                            .lyrics
+                            .displays
+                            .status_bar
+                            .enabled;
+                        if let Err(error) = commands::set_status_bar_lyrics_enabled(
+                            app.clone(),
+                            !enabled,
+                            app.state::<AppState>(),
+                        ) {
+                            log::warn!(
+                                "Failed to toggle menu bar lyrics from global shortcut: {error}"
+                            );
+                        }
+                    }
+                })
+                .map_err(|error| {
+                    format!(
+                        "注册显示 / 隐藏状态栏歌词快捷键 {} 失败：{error}",
+                        shortcuts.toggle_status_bar_lyrics
+                    )
+                })?;
+            registered.push(toggle_status_bar);
+        }
+
+        if let Some(toggle_list) = toggle_list {
+            app.global_shortcut()
+                .on_shortcut(toggle_list, |app, _, event| {
+                    if event.state == ShortcutState::Pressed {
+                        let enabled = app
+                            .state::<AppState>()
+                            .config
+                            .snapshot()
+                            .lyrics
+                            .displays
+                            .list_window
+                            .enabled;
+                        if let Err(error) = commands::set_list_lyrics_visible(
+                            app.clone(),
+                            !enabled,
+                            app.state::<AppState>(),
+                        ) {
+                            log::warn!(
+                                "Failed to toggle list lyrics from global shortcut: {error}"
+                            );
+                        }
+                    }
+                })
+                .map_err(|error| {
+                    format!(
+                        "注册显示 / 隐藏列表歌词快捷键 {} 失败：{error}",
+                        shortcuts.toggle_list_lyrics
+                    )
+                })?;
+            registered.push(toggle_list);
+        }
+
+        if let Some(toggle_notch) = toggle_notch {
+            app.global_shortcut().on_shortcut(toggle_notch, |app, _, event| {
+                if event.state == ShortcutState::Pressed {
+                    let enabled = app
+                        .state::<AppState>()
+                        .config
+                        .snapshot()
+                        .lyrics
+                        .displays
+                        .notch
+                        .enabled;
+                    if let Err(error) = commands::set_notch_lyrics_visible(
+                        app.clone(),
+                        !enabled,
+                        app.state::<AppState>(),
+                    ) {
+                        log::warn!("Failed to toggle Dynamic Island lyrics from global shortcut: {error}");
+                    }
+                }
+            }).map_err(|error| {
+                format!(
+                    "注册显示 / 隐藏灵动岛歌词快捷键 {} 失败：{error}",
+                    shortcuts.toggle_notch_lyrics
+                )
+            })?;
+            registered.push(toggle_notch);
+        }
         Ok(())
     })();
 
@@ -931,21 +1042,21 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         .unwrap_or_else(|error| error.into_inner())
         .visible;
     let display_config = app.state::<AppState>().config.snapshot().lyrics.displays;
-    let toggle_accelerator = app
-        .state::<AppState>()
-        .config
-        .snapshot()
-        .app
-        .shortcuts
-        .toggle_overlay
-        .replace("CommandOrControl", "CmdOrCtrl");
+    let shortcuts = app.state::<AppState>().config.snapshot().app.shortcuts;
+    let accelerator = |value: &str| {
+        (!value.trim().is_empty()).then(|| value.replace("CommandOrControl", "CmdOrCtrl"))
+    };
+    let toggle_accelerator = accelerator(&shortcuts.toggle_overlay);
+    let status_bar_accelerator = accelerator(&shortcuts.toggle_status_bar_lyrics);
+    let list_accelerator = accelerator(&shortcuts.toggle_list_lyrics);
+    let notch_accelerator = accelerator(&shortcuts.toggle_notch_lyrics);
     let toggle_overlay = CheckMenuItem::with_id(
         app,
         "toggle-overlay",
         labels.toggle_overlay,
         true,
         overlay_visible,
-        Some(toggle_accelerator.as_str()),
+        toggle_accelerator.as_deref(),
     )?;
     let toggle_status_bar_lyrics = CheckMenuItem::with_id(
         app,
@@ -953,7 +1064,7 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         labels.toggle_status_bar_lyrics,
         true,
         display_config.status_bar.enabled,
-        None::<&str>,
+        status_bar_accelerator.as_deref(),
     )?;
     let toggle_list_lyrics = CheckMenuItem::with_id(
         app,
@@ -961,7 +1072,7 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         labels.toggle_list_lyrics,
         true,
         display_config.list_window.enabled,
-        None::<&str>,
+        list_accelerator.as_deref(),
     )?;
     let toggle_notch_lyrics = CheckMenuItem::with_id(
         app,
@@ -969,7 +1080,7 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         labels.toggle_notch_lyrics,
         true,
         display_config.notch.enabled,
-        None::<&str>,
+        notch_accelerator.as_deref(),
     )?;
     let switch_lyrics = MenuItem::with_id(
         app,

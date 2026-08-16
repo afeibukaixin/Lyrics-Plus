@@ -77,6 +77,9 @@ pub struct GlobalShortcutStatus {
     pub toggle_overlay: bool,
     pub unlock_overlay: bool,
     pub reset_overlay: bool,
+    pub toggle_status_bar_lyrics: bool,
+    pub toggle_list_lyrics: bool,
+    pub toggle_notch_lyrics: bool,
 }
 
 impl Default for OverlaySettings {
@@ -1994,12 +1997,17 @@ pub fn get_global_shortcut_status(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<GlobalShortcutStatus, String> {
-    let [toggle, unlock, reset] = state.config.snapshot().app.shortcuts.parsed()?;
+    let ([toggle, unlock, reset], [toggle_status_bar, toggle_list, toggle_notch]) =
+        state.config.snapshot().app.shortcuts.parsed()?;
     let shortcuts = app.global_shortcut();
     Ok(GlobalShortcutStatus {
         toggle_overlay: shortcuts.is_registered(toggle),
         unlock_overlay: shortcuts.is_registered(unlock),
         reset_overlay: shortcuts.is_registered(reset),
+        toggle_status_bar_lyrics: toggle_status_bar
+            .is_some_and(|shortcut| shortcuts.is_registered(shortcut)),
+        toggle_list_lyrics: toggle_list.is_some_and(|shortcut| shortcuts.is_registered(shortcut)),
+        toggle_notch_lyrics: toggle_notch.is_some_and(|shortcut| shortcuts.is_registered(shortcut)),
     })
 }
 
