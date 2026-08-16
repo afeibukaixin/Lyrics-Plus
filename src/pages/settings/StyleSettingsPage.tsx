@@ -217,11 +217,10 @@ export default function StyleSettingsPage() {
         <TextRow label={t("settings.overlay.fontFamily")} description={t("settings.overlay.fontFamilyHint")} value={baseAppearance.fontFamily} emptyValue={defaultOverlayStyle.fontFamily} onChange={(fontFamily) => void setLyricsBaseAppearance({ ...baseAppearance, fontFamily }).catch((error) => setError(messageOf(error)))} />
       </SettingsSection>
       <SettingsSection id="base-colors" title={t("settings.style.modeControls.baseColors")}>
-        <ColorRow label={t("settings.overlay.activeColor")} value={baseAppearance.activeColor} onChange={(activeColor) => void setLyricsBaseAppearance({ ...baseAppearance, activeColor }).catch((error) => setError(messageOf(error)))} />
-        <ColorRow label={t("settings.overlay.inactiveColor")} value={baseAppearance.inactiveColor} onChange={(inactiveColor) => void setLyricsBaseAppearance({ ...baseAppearance, inactiveColor }).catch((error) => setError(messageOf(error)))} />
-        <ColorRow label={t("settings.overlay.translationColor")} value={baseAppearance.translationColor} onChange={(translationColor) => void setLyricsBaseAppearance({ ...baseAppearance, translationColor }).catch((error) => setError(messageOf(error)))} />
-        <ColorRow label={t("settings.overlay.romanizationColor")} value={baseAppearance.romanizationColor} onChange={(romanizationColor) => void setLyricsBaseAppearance({ ...baseAppearance, romanizationColor }).catch((error) => setError(messageOf(error)))} />
-        <ColorRow label={t("settings.style.modeControls.supportingColor")} value={baseAppearance.supportingColor} onChange={(supportingColor) => void setLyricsBaseAppearance({ ...baseAppearance, supportingColor }).catch((error) => setError(messageOf(error)))} />
+        <ColorRow label={t("settings.style.modeControls.baseActiveColor")} description={t("settings.style.modeControls.baseActiveColorHint")} value={baseAppearance.activeColor} onChange={(activeColor) => void setLyricsBaseAppearance({ ...baseAppearance, activeColor }).catch((error) => setError(messageOf(error)))} />
+        <ColorRow label={t("settings.style.modeControls.baseInactiveColor")} description={t("settings.style.modeControls.baseInactiveColorHint")} value={baseAppearance.inactiveColor} onChange={(inactiveColor) => void setLyricsBaseAppearance({ ...baseAppearance, inactiveColor }).catch((error) => setError(messageOf(error)))} />
+        <ColorRow label={t("settings.overlay.translationColor")} description={t("settings.overlay.translationColorHint")} value={baseAppearance.translationColor} onChange={(translationColor) => void setLyricsBaseAppearance({ ...baseAppearance, translationColor }).catch((error) => setError(messageOf(error)))} />
+        <ColorRow label={t("settings.overlay.romanizationColor")} description={t("settings.overlay.romanizationColorHint")} value={baseAppearance.romanizationColor} onChange={(romanizationColor) => void setLyricsBaseAppearance({ ...baseAppearance, romanizationColor }).catch((error) => setError(messageOf(error)))} />
         <ColorRow label={t("settings.overlay.backgroundColor")} value={baseAppearance.backgroundColor} onChange={(backgroundColor) => void setLyricsBaseAppearance({ ...baseAppearance, backgroundColor }).catch((error) => setError(messageOf(error)))} />
       </SettingsSection>
       </> : mode === "desktop" ? <>
@@ -248,8 +247,8 @@ export default function StyleSettingsPage() {
       </SettingsSection>
       <SettingsSection id="style-common" title={t("settings.style.common")}>
         {!desktopInheritance.inheritColors && <>
-          <ColorRow label={t("settings.overlay.activeColor")} value={style.activeColor} onChange={(activeColor) => void updateStyle({ activeColor })} />
-          <ColorRow label={t("settings.overlay.inactiveColor")} value={style.inactiveColor} onChange={(inactiveColor) => void updateStyle({ inactiveColor })} />
+          <ColorRow label={t("settings.style.modeControls.desktopActiveColor")} description={t("settings.style.modeControls.desktopActiveColorHint")} value={style.activeColor} onChange={(activeColor) => void updateStyle({ activeColor })} />
+          <ColorRow label={t("settings.style.modeControls.desktopInactiveColor")} description={t("settings.style.modeControls.desktopInactiveColorHint")} value={style.inactiveColor} onChange={(inactiveColor) => void updateStyle({ inactiveColor })} />
         </>}
         <SelectRow label={t("settings.overlay.backgroundMode")} value={style.backgroundMode} onChange={(backgroundMode) => void updateStyle({ backgroundMode: backgroundMode as OverlayStyle["backgroundMode"] })} options={[["solid", t("settings.overlay.solid")], ["transparent", t("settings.overlay.transparent")]]} />
         <SelectRow label={t("settings.overlay.lyricLayout")} value={style.layout} onChange={(layout) => void updateStyle({ layout: layout as OverlayStyle["layout"] })} options={[["single", t("overlay.layout.single")], ["double", t("overlay.layout.double")]]} />
