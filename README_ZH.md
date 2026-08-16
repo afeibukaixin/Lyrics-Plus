@@ -1,28 +1,58 @@
 <div align="center">
   <h1>Lyrics Plus</h1>
-  <p>面向 macOS 的桌面同步歌词应用。</p>
-  <p><strong>macOS 13+ · Apple Silicon & Intel · MIT License</strong></p>
+  <p>面向 macOS 的同步歌词伴侣应用。</p>
+  <p><strong>macOS 13+ · Apple Silicon 与 Intel · MIT License</strong></p>
   <p>简体中文 · <a href="README.md">English</a></p>
 </div>
 
-> [!IMPORTANT]
-> 这是一次 Vibe Coding 尝试。随着对话不断变长，反复的上下文丢失会让已经完成的实现倒退，项目也逐渐陷入不断修复新旧 Bug 的循环，持续消耗大量精力。现阶段开发暂缓；后续会在时间和精力允许时继续更新。
+Lyrics Plus 是一款免费开源的 macOS 应用，会跟随音乐播放器，让歌词始终匹配当前歌曲与播放进度。2.0.0 重构了设置体验，并将桌面歌词、状态栏歌词、列表歌词和灵动岛歌词统一为可配置的展示系统。
 
-Lyrics Plus 会跟随 Apple Music、Spotify 和兼容的 macOS 媒体应用，让同步歌词始终匹配当前歌曲与播放进度。项目使用 Tauri 2、React、TypeScript 和 Rust 构建。
+项目使用 Tauri 2、React、TypeScript 和 Rust 构建。
 
-## 桌面歌词
+## 截图
 
-![Lyrics Plus 五种桌面歌词模式](docs/screenshots/lyrics-modes.png)
+![Lyrics Plus 样式设置、字体与快捷配色](docs/screenshots/lyrics-style-settings.png)
 
-支持透明、横排或竖排、单排或双排布局，并可调整字体、颜色、透明度、对齐、背景、长文本处理和逐词卡拉 OK 效果。
+![Lyrics Plus 播放器设置与系统媒体筛选](docs/screenshots/player-and-lyrics.png)
 
-## 当前功能
+![Lyrics Plus 桌面歌词模式](docs/screenshots/lyrics-modes.png)
 
-- **播放器：** Apple Music、Spotify 和兼容的系统媒体应用；支持来源过滤、播放器跟随启动与静默启动。
-- **歌词：** 并发搜索 LRCLIB、酷狗、QQ 音乐和网易云音乐；支持候选排序、来源管理、标题过滤与繁简匹配。
-- **歌词内容：** 同步 LRC、翻译、音译、逐词时间轴、本地导入、离线歌词库与时间偏移调整。
-- **桌面显示：** 浮窗置顶、跨桌面空间和多显示器显示，以及移动、缩放、锁定、鼠标穿透与位置复位。
-- **应用能力：** 仅用于设置的主窗口、菜单栏、全局快捷键、快速切换歌词、JSONC 配置、实时日志、四种界面语言与主动确认更新。
+## 按你的方式显示歌词
+
+- **桌面歌词：** 始终置顶的歌词浮窗，支持跨桌面空间和多显示器显示，以及移动、缩放、锁定、鼠标穿透、停止播放时隐藏和位置复位。
+- **状态栏歌词：** 在 macOS 状态栏显示当前歌词，可配置宽度、颜色和超长文本滚动行为。
+- **列表歌词：** 打开可滚动的独立歌词窗口，并选择是否显示翻译和音译。
+- **灵动岛歌词：** 将歌词吸附到屏幕顶部，悬停后显示控制工具栏，并可选择显示下一句歌词。
+
+可以让每种模式继承统一的字体和配色，也可以单独调整。支持配置字体、字号、字重、对齐方式、透明度、背景、当前行和非当前行颜色、翻译、音译，以及可用时的逐字卡拉 OK 时间轴。
+
+## 播放来源
+
+- **Apple Music 和 Spotify：** 使用 macOS 专用监听，获取播放状态并支持自动化控制。
+- **系统媒体：** 跟随 macOS 提供信息的兼容第三方媒体应用，并支持允许列表和排除列表筛选。
+- **跟随播放器：** 通过随应用附带的辅助服务，让 Lyrics Plus 随指定播放器启动和退出。
+- **启动控制：** 支持静默启动、菜单栏访问、隐藏 Dock 图标，以及智能或手动选择播放器。
+
+Apple Music 和 Spotify 可能会请求“自动化”权限。播放器跟随功能可能需要在“登录项”设置中批准。播放控制和歌曲信息取决于各应用向 macOS 提供的能力。
+
+## 歌词搜索与歌词库
+
+- 并发搜索 LRCLIB、酷狗、QQ 音乐和网易云音乐。
+- 调整或禁用歌词源，选择智能或严格排序，测试歌词源状态，并设置自动匹配相似度。
+- 根据歌名、歌手、专辑、时长和内容能力对候选结果排序，支持标题过滤和繁简中文匹配。
+- 在可用时显示同步 LRC、翻译、音译和逐字时间轴。
+- 支持导入本地歌词、维护离线歌词库、关联歌曲歌词和调整时间偏移。
+
+在线歌词源是可选功能。启用后，歌曲名、歌手、专辑和时长等匹配信息会发送给所选第三方服务。
+
+## 设置与维护
+
+设置窗口分为样式、显示与交互、歌词、播放器、应用、调试日志、配置和关于与更新。
+
+- 使用支持注释和尾随逗号的 JSONC 编辑配置。
+- 出现问题时查看实时调试日志。
+- 支持四种界面语言：English、简体中文、繁体中文（香港）和繁体中文（台湾）。
+- 查看发布说明，带进度下载更新，并选择何时重启应用。
 
 ## 下载
 
@@ -31,14 +61,11 @@ Lyrics Plus 会跟随 Apple Music、Spotify 和兼容的 macOS 媒体应用，�
 - `aarch64`：Apple Silicon Mac。
 - `x64`：Intel Mac。
 
-将 Lyrics Plus 移动到“应用程序”文件夹后打开。
-
-> [!NOTE]
-> 当前版本使用 macOS ad-hoc 签名，暂未通过 Apple Developer ID 公证。如果首次启动被系统阻止，请前往“系统设置 → 隐私与安全性”并选择“仍要打开”。
-
-Apple Music 和 Spotify 可能请求“自动化”权限。系统媒体信息与播放控制能力取决于第三方应用实际提供的内容。
+首次打开前，请将 Lyrics Plus 移动到“应用程序”文件夹。当前版本使用 macOS ad-hoc 签名，暂未通过 Apple Developer ID 公证。如果 macOS 阻止首次启动，请前往“系统设置 → 隐私与安全性”并选择“仍要打开”。
 
 ## 全局快捷键
+
+以下是默认快捷键。其他歌词展示模式的快捷键可以在“应用”设置中配置。
 
 | 快捷键 | 功能 |
 |---|---|
@@ -57,25 +84,19 @@ pnpm install
 pnpm tauri dev
 ```
 
-检查与本地构建：
+构建本地应用包：
 
 ```bash
-pnpm exec tsc --noEmit
-cd src-tauri && cargo test
 pnpm tauri build
 ```
 
-## 联网与版权
+## 免责声明、版权与许可证
 
-启用在线歌词源时，歌曲名、歌手、专辑和时长等匹配信息会发送给所选第三方服务。相关内容、可用性、授权范围和数据处理规则不受本项目控制。
+阅读完整的[中文免责声明](DISCLAIMER_ZH.md)。歌词及其他音乐相关内容的权利归相应权利人所有。Lyrics Plus 仅提供搜索、解析、缓存、导入和展示等软件功能，与 Apple Music、Spotify、歌词服务及任何权利人不存在隶属或背书关系。
 
-歌词权利归相应权利人所有。Lyrics Plus 仅提供搜索、解析、缓存、导入和展示功能，与 Apple Music、Spotify、歌词服务及权利人不存在隶属或背书关系。软件按 MIT License 以现状提供。
+应用代码按 [MIT License](LICENSE) 发布。MIT License 适用于项目代码，不适用于第三方歌词或音乐内容。
 
 ## 致谢
 
 - [MxIris-LyricsX-Project/LyricsX](https://github.com/MxIris-LyricsX-Project/LyricsX)
 - [ddddxxx/LyricsX](https://github.com/ddddxxx/LyricsX)
-
-## License
-
-[MIT](LICENSE)

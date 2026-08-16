@@ -1,28 +1,58 @@
 <div align="center">
   <h1>Lyrics Plus</h1>
-  <p>Synchronized desktop lyrics for macOS.</p>
+  <p>A synchronized lyrics companion for macOS.</p>
   <p><strong>macOS 13+ · Apple Silicon & Intel · MIT License</strong></p>
   <p><a href="README_ZH.md">简体中文</a> · English</p>
 </div>
 
-> [!IMPORTANT]
-> Lyrics Plus is a vibe-coding experiment. As the conversations grew, repeated context loss caused completed behavior to regress and turned development into an exhausting loop of fixing old and new bugs. Active development is paused for now; updates may resume when time and energy allow.
+Lyrics Plus is a free and open-source macOS app that follows your music player and keeps lyrics aligned with the current track and playback position. Version 2.0.0 rebuilds the settings experience and brings desktop, menu bar, list, and Dynamic Island lyrics into one configurable system.
 
-Lyrics Plus follows Apple Music, Spotify, and compatible macOS media apps, keeping synchronized lyrics aligned with the current song and playback position. It is built with Tauri 2, React, TypeScript, and Rust.
+It is built with Tauri 2, React, TypeScript, and Rust.
 
-## Desktop Lyrics
+## Screenshots
 
-![Five desktop lyrics modes in Lyrics Plus](docs/screenshots/lyrics-modes.png)
+![Lyrics Plus style settings with shared typography and color presets](docs/screenshots/lyrics-style-settings.png)
 
-Choose transparent, horizontal or vertical, single-line or dual-line layouts. Adjust fonts, colors, opacity, alignment, backgrounds, long-text behavior, and word-level karaoke effects.
+![Lyrics Plus player settings with system media filtering](docs/screenshots/player-and-lyrics.png)
 
-## Current Features
+![Lyrics Plus desktop lyrics modes](docs/screenshots/lyrics-modes.png)
 
-- **Players:** Apple Music, Spotify, and compatible System Media apps; source filtering, player-follow launch, and silent startup.
-- **Lyrics:** concurrent LRCLIB, Kugou, QQMusic, and Netease search; candidate ranking, provider controls, title filtering, and Simplified/Traditional Chinese matching.
-- **Content:** synchronized LRC, translations, romanization, word-level timing, local import, offline library, and timing offset adjustment.
-- **Desktop:** always-on-top overlay across Spaces and displays, with move, resize, lock, click-through, and position reset.
-- **Application:** a settings-only main window, menu bar controls, global shortcuts, quick lyrics switching, JSONC configuration, live debug logs, four UI languages, and opt-in updates.
+## Display Lyrics Your Way
+
+- **Desktop Lyrics:** an always-on-top overlay that can move across Spaces and displays, resize, lock, pass clicks through, hide when playback stops, and reset its position.
+- **Menu Bar Lyrics:** show the current lyric in the macOS menu bar with configurable width, colors, and scrolling behavior.
+- **Lyrics List:** open a standalone, scrollable lyrics window with optional translation and romanization.
+- **Dynamic Island Lyrics:** attach lyrics to the top of a display, reveal controls on hover, and optionally show the next line.
+
+Shared typography and colors can be inherited by each mode or refined independently. Configure fonts, font sizes, weights, alignment, opacity, backgrounds, active and inactive colors, translations, romanization, and word-level karaoke timing.
+
+## Playback Sources
+
+- **Apple Music and Spotify:** dedicated macOS listeners with playback state and automation support.
+- **System Media:** follow compatible third-party media apps exposed by macOS, with allowlist and blocklist filtering.
+- **Player following:** optionally start and quit Lyrics Plus together with a selected player through the bundled helper service.
+- **Startup controls:** silent startup, menu bar access, Dock visibility, and automatic or manually selected player detection.
+
+Apple Music and Spotify may ask for Automation permission. Player following may require approval in Login Items settings. Playback controls and metadata depend on what each application exposes to macOS.
+
+## Lyrics Search and Library
+
+- Search LRCLIB, Kugou, QQMusic, and Netease concurrently.
+- Reorder or disable providers, choose smart or strict provider ordering, test provider health, and set an automatic match threshold.
+- Rank candidates using title, artist, album, duration, and capability information, with title filters and simplified/traditional Chinese matching.
+- Display synchronized LRC, translations, romanization, and word-level timing when available.
+- Import local lyrics, keep an offline lyrics library, associate lyrics with tracks, and adjust timing offsets.
+
+Online providers are optional. When enabled, matching metadata such as title, artist, album, and duration is sent to the selected third-party service.
+
+## Settings and Maintenance
+
+The settings window is organized into Style, Display & Interaction, Lyrics, Player, Application, Debug Logs, Configuration, and About & Updates.
+
+- Edit configuration as JSONC with comments and trailing commas.
+- Inspect live debug logs when troubleshooting.
+- Use four interface languages: English, Simplified Chinese, Traditional Chinese (Hong Kong), and Traditional Chinese (Taiwan).
+- Review release notes, download updates with progress information, and choose when to restart after installation.
 
 ## Download
 
@@ -31,20 +61,17 @@ Download the latest build from [GitHub Releases](https://github.com/afeibukaixin
 - `aarch64` for Apple Silicon Macs.
 - `x64` for Intel Macs.
 
-Move Lyrics Plus to the Applications folder, then open it.
-
-> [!NOTE]
-> Current builds use macOS ad-hoc signing and are not notarized with an Apple Developer ID. If macOS blocks the first launch, open System Settings → Privacy & Security and choose Open Anyway.
-
-Apple Music and Spotify may request Automation permission. System Media support and playback controls depend on what each third-party app exposes.
+Move Lyrics Plus to the Applications folder before opening it. Current builds use macOS ad-hoc signing and are not notarized with an Apple Developer ID. If macOS blocks the first launch, open System Settings → Privacy & Security and choose Open Anyway.
 
 ## Global Shortcuts
 
+These are the default shortcuts. Additional display shortcuts can be configured in Application settings.
+
 | Shortcut | Action |
 |---|---|
-| `⌘ ⇧ L` | Show or hide desktop lyrics |
-| `⌘ ⇧ U` | Lock or unlock desktop lyrics |
-| `⌘ ⇧ 0` | Reset and show desktop lyrics |
+| `⌘ ⇧ L` | Show or hide Desktop Lyrics |
+| `⌘ ⇧ U` | Lock or unlock Desktop Lyrics |
+| `⌘ ⇧ 0` | Reset and show Desktop Lyrics |
 
 ## Local Development
 
@@ -57,25 +84,19 @@ pnpm install
 pnpm tauri dev
 ```
 
-Checks and local build:
+Build a local application bundle with:
 
 ```bash
-pnpm exec tsc --noEmit
-cd src-tauri && cargo test
 pnpm tauri build
 ```
 
-## Network Access and Copyright
+## Disclaimer, Copyright, and License
 
-When an online lyrics source is enabled, matching metadata such as title, artist, album, and duration is sent to the selected third-party services. Their content, availability, licensing, and data practices are outside this project's control.
+Read the full [English disclaimer](DISCLAIMER.md). Lyrics and other music-related content remain the property of their respective rightsholders. Lyrics Plus only provides software features for searching, parsing, caching, importing, and displaying that content; it is not affiliated with Apple Music, Spotify, any lyrics provider, or any rightsholder.
 
-Lyrics remain the property of their respective rights holders. Lyrics Plus only searches, parses, caches, imports, and displays them; it is not affiliated with Apple Music, Spotify, any lyrics provider, or any rights holder. The software is provided as is under the MIT License.
+The application code is released under the [MIT License](LICENSE). The MIT License applies to the project code, not to third-party lyrics or music content.
 
 ## Acknowledgements
 
 - [MxIris-LyricsX-Project/LyricsX](https://github.com/MxIris-LyricsX-Project/LyricsX)
 - [ddddxxx/LyricsX](https://github.com/ddddxxx/LyricsX)
-
-## License
-
-[MIT](LICENSE)
