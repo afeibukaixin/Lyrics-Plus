@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
@@ -12,8 +13,9 @@ use tauri_plugin_opener::OpenerExt;
 use crate::config::{
     normalize_player_follower_application, normalize_system_media_applications,
     validate_config_draft, AppConfig, ConfigDraftValidation, ConfigEditorData, ConfigStore,
-    GlobalShortcutSettings, LanguagePreference, OverlayAppearance, RegisteredApplication,
-    SystemMediaFilterMode, ThemePreference,
+    GlobalShortcutSettings, LanguagePreference, ListLyricsPreferences, LyricsBaseAppearance,
+    LyricsModeStyleInheritance, NotchLyricsPreferences, OverlayAppearance, RegisteredApplication,
+    StatusBarLyricsPreferences, SystemMediaFilterMode, ThemePreference,
 };
 use crate::language::UiLanguage;
 use crate::lyrics::provider::{
@@ -36,6 +38,10 @@ pub struct AppState {
     pub overlay_monitor: Arc<RwLock<Option<String>>>,
     pub overlay_placement: Arc<Mutex<crate::OverlayPlacementState>>,
     pub last_snapshot: Arc<RwLock<PlaybackSnapshot>>,
+    pub lyrics_runtime: Arc<RwLock<LyricsRuntimeSnapshot>>,
+    pub lyrics_generation: Arc<AtomicU64>,
+    pub lyrics_auto_search_attempted: Arc<Mutex<HashSet<String>>>,
+    pub notch_has_safe_area: Arc<AtomicBool>,
     pub storage: Arc<Storage>,
     pub config: Arc<ConfigStore>,
     pub providers: Arc<ProviderRegistry>,
@@ -336,6 +342,307 @@ pub struct SearchResponse {
     pub provider_statuses: Vec<ProviderStatus>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LyricsRuntimeStatus {
+    Idle,
+    Loading,
+    Ready,
+    NotFound,
+    Error,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LyricsRuntimeSnapshot {
+    pub track_key: Option<String>,
+    pub document: Option<LyricsDocument>,
+    pub status: LyricsRuntimeStatus,
+    pub error: Option<String>,
+}
+
+impl Default for LyricsRuntimeSnapshot {
+    fn default() -> Self {
+        Self {
+            track_key: None,
+            document: None,
+            status: LyricsRuntimeStatus::Idle,
+            error: None,
+        }
+    }
+}
+
+fn player_key(player: PlayerKind) -> &'static str {
+    match player {
+        PlayerKind::AppleMusic => "apple_music",
+        PlayerKind::Spotify => "spotify",
+        PlayerKind::System => "system",
+    }
+}
+
+pub(crate) fn playback_track_key(snapshot: &PlaybackSnapshot) -> Option<String> {
+    let player = snapshot.player?;
+    let title = snapshot.title.as_deref()?.trim();
+    let artist = snapshot.artist.as_deref()?.trim();
+    if title.is_empty() || artist.is_empty() {
+        return None;
+    }
+    if let Some(track_id) = snapshot
+        .track_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+    {
+        return Some(format!("{}:{}", player_key(player), track_id));
+    }
+    let fallback = format!("{title}|{artist}|{}", snapshot.duration_ms.unwrap_or(0))
+        .to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some(format!("{}:fallback:{fallback}", player_key(player)))
+}
+
+fn publish_lyrics_runtime(app: &tauri::AppHandle, snapshot: LyricsRuntimeSnapshot) {
+    if let Some(state) = app.try_state::<AppState>() {
+        *state
+            .lyrics_runtime
+            .write()
+            .unwrap_or_else(|error| error.into_inner()) = snapshot.clone();
+    }
+    let _ = app.emit("lyrics://runtime-changed", &snapshot);
+    crate::sync_lyrics_surfaces(app);
+}
+
+pub(crate) fn set_runtime_document_if_active(
+    app: &tauri::AppHandle,
+    track_key: &str,
+    document: Option<LyricsDocument>,
+) {
+    let Some(state) = app.try_state::<AppState>() else {
+        return;
+    };
+    let active = state
+        .lyrics_runtime
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .track_key
+        .as_deref()
+        == Some(track_key);
+    if !active {
+        return;
+    }
+    state.lyrics_generation.fetch_add(1, Ordering::SeqCst);
+    publish_lyrics_runtime(
+        app,
+        LyricsRuntimeSnapshot {
+            track_key: Some(track_key.to_owned()),
+            status: if document.is_some() {
+                LyricsRuntimeStatus::Ready
+            } else {
+                LyricsRuntimeStatus::NotFound
+            },
+            document,
+            error: None,
+        },
+    );
+}
+
+fn reload_active_lyrics_runtime(app: &tauri::AppHandle) {
+    let Some(state) = app.try_state::<AppState>() else {
+        return;
+    };
+    let runtime = state
+        .lyrics_runtime
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .clone();
+    let track_key = runtime.track_key;
+    let Some(track_key) = track_key else {
+        return;
+    };
+    match state.storage.load(&track_key) {
+        Ok(Some(document)) => set_runtime_document_if_active(app, &track_key, Some(document)),
+        Ok(None) if runtime.status != LyricsRuntimeStatus::Loading => {
+            set_runtime_document_if_active(app, &track_key, None);
+        }
+        Ok(None) => {}
+        Err(error) => log::warn!("Failed to refresh the active lyrics runtime: {error}"),
+    }
+}
+
+pub(crate) fn sync_lyrics_runtime(app: &tauri::AppHandle, playback: &PlaybackSnapshot) {
+    let Some(state) = app.try_state::<AppState>() else {
+        return;
+    };
+    let next_key = playback_track_key(playback);
+    let current_key = state
+        .lyrics_runtime
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .track_key
+        .clone();
+    if current_key == next_key {
+        crate::sync_lyrics_surfaces(app);
+        return;
+    }
+
+    let generation = state.lyrics_generation.fetch_add(1, Ordering::SeqCst) + 1;
+    let Some(track_key) = next_key else {
+        publish_lyrics_runtime(app, LyricsRuntimeSnapshot::default());
+        return;
+    };
+    publish_lyrics_runtime(
+        app,
+        LyricsRuntimeSnapshot {
+            track_key: Some(track_key.clone()),
+            document: None,
+            status: LyricsRuntimeStatus::Loading,
+            error: None,
+        },
+    );
+
+    let playback = playback.clone();
+    let worker_app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let state = worker_app.state::<AppState>();
+        let current = || state.lyrics_generation.load(Ordering::SeqCst) == generation;
+        match state.storage.load(&track_key) {
+            Ok(Some(document)) => {
+                if current() {
+                    publish_lyrics_runtime(
+                        &worker_app,
+                        LyricsRuntimeSnapshot {
+                            track_key: Some(track_key),
+                            document: Some(document),
+                            status: LyricsRuntimeStatus::Ready,
+                            error: None,
+                        },
+                    );
+                }
+                return;
+            }
+            Err(error) => {
+                if current() {
+                    publish_lyrics_runtime(
+                        &worker_app,
+                        LyricsRuntimeSnapshot {
+                            track_key: Some(track_key),
+                            document: None,
+                            status: LyricsRuntimeStatus::Error,
+                            error: Some(error),
+                        },
+                    );
+                }
+                return;
+            }
+            Ok(None) => {}
+        }
+
+        let first_attempt = state
+            .lyrics_auto_search_attempted
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .insert(track_key.clone());
+        let (Some(title), Some(artist)) = (playback.title.clone(), playback.artist.clone()) else {
+            if current() {
+                publish_lyrics_runtime(
+                    &worker_app,
+                    LyricsRuntimeSnapshot {
+                        track_key: Some(track_key),
+                        document: None,
+                        status: LyricsRuntimeStatus::NotFound,
+                        error: None,
+                    },
+                );
+            }
+            return;
+        };
+        if !first_attempt {
+            if current() {
+                publish_lyrics_runtime(
+                    &worker_app,
+                    LyricsRuntimeSnapshot {
+                        track_key: Some(track_key),
+                        document: None,
+                        status: LyricsRuntimeStatus::NotFound,
+                        error: None,
+                    },
+                );
+            }
+            return;
+        }
+
+        let input = LyricsSearchInput {
+            title: title.clone(),
+            artist: artist.clone(),
+            album: playback.album.clone(),
+            duration_ms: playback.duration_ms,
+            title_filter_keywords: Arc::default(),
+        };
+        match state.providers.search(&state.http, &input).await {
+            Ok(mut outcome) => {
+                if !current() {
+                    return;
+                }
+                let secondary_display = state
+                    .overlay_style
+                    .read()
+                    .unwrap_or_else(|error| error.into_inner())
+                    .secondary_display;
+                prefer_candidate_capabilities(&mut outcome.results, secondary_display);
+                let document = if can_auto_apply(&outcome.results, outcome.auto_apply_threshold) {
+                    outcome.results.first().and_then(|result| {
+                        state
+                            .storage
+                            .save(SaveRequest {
+                                track_key: &track_key,
+                                title: &title,
+                                artist: &artist,
+                                source: &result.source,
+                                raw: &result.lyrics,
+                                provider_id: Some(&result.provider_id),
+                                provider_item_id: Some(&result.id),
+                                kind: SaveKind::Automatic,
+                            })
+                            .ok()
+                    })
+                } else {
+                    None
+                };
+                if document.is_some() {
+                    let _ = worker_app.emit("lyrics://changed", &track_key);
+                }
+                if current() {
+                    publish_lyrics_runtime(
+                        &worker_app,
+                        LyricsRuntimeSnapshot {
+                            track_key: Some(track_key),
+                            status: if document.is_some() {
+                                LyricsRuntimeStatus::Ready
+                            } else {
+                                LyricsRuntimeStatus::NotFound
+                            },
+                            document,
+                            error: None,
+                        },
+                    );
+                }
+            }
+            Err(error) if current() => publish_lyrics_runtime(
+                &worker_app,
+                LyricsRuntimeSnapshot {
+                    track_key: Some(track_key),
+                    document: None,
+                    status: LyricsRuntimeStatus::Error,
+                    error: Some(error),
+                },
+            ),
+            Err(_) => {}
+        }
+    });
+}
+
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SettingsSection {
@@ -345,6 +652,42 @@ pub enum SettingsSection {
     Player,
     Application,
     About,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LyricsStyleMode {
+    Desktop,
+    StatusBar,
+    ListWindow,
+    Notch,
+}
+
+fn sync_desktop_style_from_config(
+    app: &tauri::AppHandle,
+    state: &State<'_, AppState>,
+    config: &AppConfig,
+) -> Result<OverlayStyleSettings, String> {
+    let geometry = {
+        let current = state
+            .overlay_style
+            .read()
+            .unwrap_or_else(|error| error.into_inner());
+        (current.horizontal_max_width, current.vertical_max_height)
+    };
+    let mut style = config.overlay.appearance.clone().into_style();
+    style.horizontal_max_width = geometry.0;
+    style.vertical_max_height = geometry.1;
+    *state
+        .overlay_style
+        .write()
+        .unwrap_or_else(|error| error.into_inner()) = style.clone();
+    if let Some(window) = app.get_webview_window("lyrics-overlay") {
+        crate::sync_overlay_vibrancy(&window, &style);
+    }
+    app.emit("overlay://style", &style)
+        .map_err(|error| error.to_string())?;
+    Ok(style)
 }
 
 #[derive(Debug, Serialize)]
@@ -522,6 +865,20 @@ pub fn get_cached_lyrics(
     state.storage.load(&track_key)
 }
 
+#[tauri::command]
+pub fn get_lyrics_runtime_snapshot(state: State<'_, AppState>) -> LyricsRuntimeSnapshot {
+    state
+        .lyrics_runtime
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .clone()
+}
+
+#[tauri::command]
+pub fn get_notch_has_safe_area(state: State<'_, AppState>) -> bool {
+    state.notch_has_safe_area.load(Ordering::Relaxed)
+}
+
 fn save_and_emit(
     app: &tauri::AppHandle,
     state: &AppState,
@@ -540,6 +897,7 @@ fn save_and_emit(
     })?;
     app.emit("lyrics://changed", &input.track_key)
         .map_err(|error| error.to_string())?;
+    set_runtime_document_if_active(app, &input.track_key, Some(document.clone()));
     Ok(document)
 }
 
@@ -575,7 +933,10 @@ pub fn set_lyrics_offset(
 ) -> Result<(), String> {
     state.storage.set_offset(&track_key, offset_ms)?;
     app.emit("lyrics://changed", &track_key)
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    let document = state.storage.load(&track_key)?;
+    set_runtime_document_if_active(&app, &track_key, document);
+    Ok(())
 }
 
 #[tauri::command]
@@ -586,7 +947,9 @@ pub fn remove_lyrics_association(
 ) -> Result<(), String> {
     state.storage.remove(&track_key)?;
     app.emit("lyrics://changed", &track_key)
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    set_runtime_document_if_active(&app, &track_key, None);
+    Ok(())
 }
 
 pub(crate) fn start_library_scan(app: &tauri::AppHandle) -> LibraryScanStatus {
@@ -601,6 +964,7 @@ pub(crate) fn start_library_scan(app: &tauri::AppHandle) -> LibraryScanStatus {
         });
         match result {
             Ok(true) => {
+                reload_active_lyrics_runtime(&worker_app);
                 let _ = worker_app.emit("lyrics://library-changed", ());
             }
             Ok(false) => {}
@@ -1657,6 +2021,237 @@ pub fn set_overlay_hide_when_not_playing(
     Ok(config)
 }
 
+fn finish_display_config_update(
+    app: &tauri::AppHandle,
+    config: AppConfig,
+) -> Result<AppConfig, String> {
+    crate::sync_lyrics_surfaces(app);
+    app.emit("config://changed", &config)
+        .map_err(|error| error.to_string())?;
+    Ok(config)
+}
+
+#[tauri::command]
+pub fn set_lyrics_base_appearance(
+    app: tauri::AppHandle,
+    appearance: LyricsBaseAppearance,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let config = state
+        .config
+        .update(|config| config.lyrics.base_appearance = appearance.clone())?;
+    sync_desktop_style_from_config(&app, &state, &config)?;
+    finish_display_config_update(&app, config)
+}
+
+#[tauri::command]
+pub fn set_lyrics_style_inheritance(
+    app: tauri::AppHandle,
+    mode: LyricsStyleMode,
+    inheritance: LyricsModeStyleInheritance,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let config = state.config.update(|config| match mode {
+        LyricsStyleMode::Desktop => config.lyrics.style_inheritance.desktop = inheritance,
+        LyricsStyleMode::StatusBar => config.lyrics.style_inheritance.status_bar = inheritance,
+        LyricsStyleMode::ListWindow => config.lyrics.style_inheritance.list_window = inheritance,
+        LyricsStyleMode::Notch => config.lyrics.style_inheritance.notch = inheritance,
+    })?;
+    if matches!(mode, LyricsStyleMode::Desktop) {
+        sync_desktop_style_from_config(&app, &state, &config)?;
+    }
+    finish_display_config_update(&app, config)
+}
+
+#[tauri::command]
+pub fn reset_lyrics_base_appearance(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let config = state.config.update(|config| {
+        config.lyrics.base_appearance = LyricsBaseAppearance::default();
+    })?;
+    sync_desktop_style_from_config(&app, &state, &config)?;
+    finish_display_config_update(&app, config)
+}
+
+#[tauri::command]
+pub fn set_status_bar_lyrics_enabled(
+    app: tauri::AppHandle,
+    enabled: bool,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let config = state
+        .config
+        .update(|config| config.lyrics.displays.status_bar.enabled = enabled)?;
+    finish_display_config_update(&app, config)
+}
+
+#[tauri::command]
+pub fn set_list_lyrics_visible(
+    app: tauri::AppHandle,
+    visible: bool,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let config = state
+        .config
+        .update(|config| config.lyrics.displays.list_window.enabled = visible)?;
+    finish_display_config_update(&app, config)
+}
+
+#[tauri::command]
+pub fn set_list_lyrics_options(
+    app: tauri::AppHandle,
+    show_translation: bool,
+    show_romanization: bool,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let config = state.config.update(|config| {
+        config.lyrics.displays.list_window.show_translation = show_translation;
+        config.lyrics.displays.list_window.show_romanization = show_romanization;
+    })?;
+    finish_display_config_update(&app, config)
+}
+
+#[tauri::command]
+pub fn set_notch_lyrics_visible(
+    app: tauri::AppHandle,
+    visible: bool,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let config = state
+        .config
+        .update(|config| config.lyrics.displays.notch.enabled = visible)?;
+    finish_display_config_update(&app, config)
+}
+
+#[tauri::command]
+pub fn set_notch_lyrics_preferences(
+    app: tauri::AppHandle,
+    font_size: u16,
+    background_opacity: f64,
+    expanded_on_hover: bool,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let config = state.config.update(|config| {
+        config.lyrics.displays.notch.appearance.font_size = font_size.clamp(12, 32);
+        config.lyrics.displays.notch.appearance.background_opacity =
+            background_opacity.clamp(0.2, 1.0);
+        config.lyrics.displays.notch.expanded_on_hover = expanded_on_hover;
+    })?;
+    finish_display_config_update(&app, config)
+}
+
+#[tauri::command]
+pub fn set_lyrics_display_preferences(
+    app: tauri::AppHandle,
+    mode: LyricsStyleMode,
+    preferences: serde_json::Value,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let config = match mode {
+        LyricsStyleMode::Desktop => return Err("桌面歌词样式请使用桌面样式接口".into()),
+        LyricsStyleMode::StatusBar => {
+            let value = serde_json::from_value::<StatusBarLyricsPreferences>(preferences)
+                .map_err(|error| format!("状态栏歌词配置无效：{error}"))?;
+            state
+                .config
+                .update(|config| config.lyrics.displays.status_bar = value.clone())?
+        }
+        LyricsStyleMode::ListWindow => {
+            let value = serde_json::from_value::<ListLyricsPreferences>(preferences)
+                .map_err(|error| format!("歌词列表配置无效：{error}"))?;
+            state
+                .config
+                .update(|config| config.lyrics.displays.list_window = value.clone())?
+        }
+        LyricsStyleMode::Notch => {
+            let value = serde_json::from_value::<NotchLyricsPreferences>(preferences)
+                .map_err(|error| format!("刘海歌词配置无效：{error}"))?;
+            state
+                .config
+                .update(|config| config.lyrics.displays.notch = value.clone())?
+        }
+    };
+    finish_display_config_update(&app, config)
+}
+
+#[tauri::command]
+pub fn reset_lyrics_style_mode(
+    app: tauri::AppHandle,
+    mode: LyricsStyleMode,
+    state: State<'_, AppState>,
+) -> Result<SettingsResetResponse, String> {
+    if matches!(mode, LyricsStyleMode::Desktop) {
+        return reset_settings_section(app, SettingsSection::Style, state);
+    }
+    state.config.update(|config| match mode {
+        LyricsStyleMode::StatusBar => {
+            config.lyrics.displays.status_bar = Default::default();
+            config.lyrics.style_inheritance.status_bar = Default::default();
+        }
+        LyricsStyleMode::ListWindow => {
+            config.lyrics.displays.list_window = Default::default();
+            config.lyrics.style_inheritance.list_window = Default::default();
+        }
+        LyricsStyleMode::Notch => {
+            config.lyrics.displays.notch = Default::default();
+            config.lyrics.style_inheritance.notch = Default::default();
+        }
+        LyricsStyleMode::Desktop => {}
+    })?;
+    let configured = state.config.snapshot();
+    crate::sync_lyrics_surfaces(&app);
+    app.emit("config://changed", &configured)
+        .map_err(|error| error.to_string())?;
+    Ok(SettingsResetResponse {
+        overlay_settings: get_overlay_settings_inner(&state),
+        overlay_style: state
+            .overlay_style
+            .read()
+            .unwrap_or_else(|error| error.into_inner())
+            .clone(),
+        provider_view: state.providers.settings_view(),
+        player_selection: *state
+            .selection
+            .read()
+            .unwrap_or_else(|error| error.into_inner()),
+    })
+}
+
+#[tauri::command]
+pub fn reset_lyrics_display_position(
+    app: tauri::AppHandle,
+    mode: LyricsStyleMode,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let label = match mode {
+        LyricsStyleMode::StatusBar => "lyrics-status-bar",
+        LyricsStyleMode::ListWindow => "lyrics-list",
+        LyricsStyleMode::Notch => "lyrics-notch",
+        LyricsStyleMode::Desktop => return Err("桌面歌词请使用桌面位置复位命令".into()),
+    };
+    if label == "lyrics-status-bar" {
+        state
+            .storage
+            .remove_preference("lyrics-status-bar.position")?;
+        state
+            .storage
+            .remove_preference("lyrics-status-bar.last-monitor")?;
+        state
+            .storage
+            .remove_preferences_with_prefix("lyrics-status-bar.position.")?;
+    } else {
+        state
+            .storage
+            .remove_preferences_with_prefix(&format!("{label}.position."))?;
+    }
+    if let Some(window) = app.get_webview_window(label) {
+        crate::position_auxiliary_lyrics_window_default(&app, &window, label)?;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn export_app_config(state: State<'_, AppState>) -> Result<ConfigExport, String> {
     Ok(ConfigExport {
@@ -1793,6 +2388,7 @@ fn apply_app_config(
     }
     crate::reconcile_overlay_visibility(app)?;
     crate::sync_tray_overlay_checked(app, saved.overlay.visible);
+    crate::sync_lyrics_surfaces(app);
     let _ = app.emit("player://selection", saved.app.player_selection);
     let _ = app.emit("overlay://settings", get_overlay_settings_inner(&state));
     let _ = app.emit("overlay://style", &style);
@@ -1822,16 +2418,24 @@ pub fn reset_settings_section(
                     .unwrap_or_else(|error| error.into_inner());
                 (current.horizontal_max_width, current.vertical_max_height)
             };
-            let mut style = OverlayStyleSettings::default();
+            *state
+                .overlay_settings
+                .write()
+                .unwrap_or_else(|error| error.into_inner()) = OverlaySettings::default();
+            let configured = state.config.update(|config| {
+                config.overlay.appearance = OverlayAppearance::default();
+                config.overlay.visible = true;
+                config.overlay.locked = false;
+                config.overlay.hide_when_not_playing = false;
+                config.lyrics.style_inheritance.desktop = Default::default();
+            })?;
+            let mut style = configured.overlay.appearance.into_style();
             style.horizontal_max_width = geometry.0;
             style.vertical_max_height = geometry.1;
             *state
                 .overlay_style
                 .write()
                 .unwrap_or_else(|error| error.into_inner()) = style.clone();
-            state.config.update(|config| {
-                config.overlay.appearance = OverlayAppearance::default();
-            })?;
 
             if let Some(window) = app.get_webview_window("lyrics-overlay") {
                 crate::sync_overlay_vibrancy(&window, &style);
@@ -1839,6 +2443,10 @@ pub fn reset_settings_section(
             }
             app.emit("overlay://style", &style)
                 .map_err(|error| error.to_string())?;
+            app.emit("overlay://settings", get_overlay_settings_inner(&state))
+                .map_err(|error| error.to_string())?;
+            crate::reconcile_overlay_visibility(&app)?;
+            crate::sync_tray_overlay_checked(&app, true);
         }
         SettingsSection::Display => {
             state
@@ -1883,6 +2491,7 @@ pub fn reset_settings_section(
                 config.overlay.visible = true;
                 config.overlay.locked = false;
                 config.overlay.hide_when_not_playing = false;
+                config.lyrics.displays = Default::default();
             })?;
 
             let window = app
@@ -1935,6 +2544,7 @@ pub fn reset_settings_section(
     }
 
     let configured = state.config.snapshot();
+    crate::sync_lyrics_surfaces(&app);
     let _ = app.emit("config://changed", &configured);
     if let Some(error) = player_follower_error {
         return Err(error);

@@ -2,7 +2,25 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, isTauriRuntime } from "../../shared/api";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
-import { defaultGlobalShortcuts, defaultOverlayStyle, type AppConfig, type GlobalShortcutSettings, type LanguagePreference, type RegisteredApplication, type SystemMediaFilterMode, type ThemePreference } from "../../shared/types";
+import {
+  defaultGlobalShortcuts,
+  defaultLyricsBaseAppearance,
+  defaultLyricsStyleInheritance,
+  defaultListLyricsAppearance,
+  defaultNotchLyricsAppearance,
+  defaultOverlayStyle,
+  defaultStatusBarLyricsAppearance,
+  type AppConfig,
+  type GlobalShortcutSettings,
+  type LanguagePreference,
+  type LyricsDisplayPreferences,
+  type LyricsBaseAppearance,
+  type LyricsModeStyleInheritance,
+  type LyricsStyleMode,
+  type RegisteredApplication,
+  type SystemMediaFilterMode,
+  type ThemePreference,
+} from "../../shared/types";
 
 const defaultOverlayAppearance = (({
   horizontalMaxWidth: _horizontalMaxWidth,
@@ -15,8 +33,54 @@ const defaultTitleFilterKeywords = [
   "插曲", "电影", "电视剧", "动画", "游戏", "ost",
 ];
 
+function materializeLyricsStyleInheritance(config: AppConfig): AppConfig {
+  const base = config.lyrics.baseAppearance;
+  const inheritance = config.lyrics.styleInheritance;
+  const next: AppConfig = {
+    ...config,
+    lyrics: {
+      ...config.lyrics,
+      displays: {
+        statusBar: { ...config.lyrics.displays.statusBar, appearance: { ...config.lyrics.displays.statusBar.appearance } },
+        listWindow: { ...config.lyrics.displays.listWindow, appearance: { ...config.lyrics.displays.listWindow.appearance } },
+        notch: { ...config.lyrics.displays.notch, appearance: { ...config.lyrics.displays.notch.appearance } },
+      },
+    },
+    overlay: { ...config.overlay, appearance: { ...config.overlay.appearance } },
+  };
+  if (inheritance.desktop.inheritFontFamily) next.overlay.appearance.fontFamily = base.fontFamily;
+  if (inheritance.desktop.inheritColors) Object.assign(next.overlay.appearance, {
+    activeColor: base.activeColor,
+    inactiveColor: base.inactiveColor,
+    translationColor: base.translationColor,
+    romanizationColor: base.romanizationColor,
+    solidColor: base.backgroundColor,
+  });
+  if (inheritance.statusBar.inheritFontFamily) next.lyrics.displays.statusBar.appearance.fontFamily = base.fontFamily;
+  if (inheritance.statusBar.inheritColors) Object.assign(next.lyrics.displays.statusBar.appearance, {
+    textColor: base.activeColor,
+    inactiveColor: base.inactiveColor,
+    highlightColor: base.activeColor,
+  });
+  if (inheritance.listWindow.inheritFontFamily) next.lyrics.displays.listWindow.appearance.fontFamily = base.fontFamily;
+  if (inheritance.listWindow.inheritColors) Object.assign(next.lyrics.displays.listWindow.appearance, {
+    activeColor: base.activeColor,
+    inactiveColor: base.inactiveColor,
+    translationColor: base.translationColor,
+    romanizationColor: base.romanizationColor,
+    backgroundColor: base.backgroundColor,
+  });
+  if (inheritance.notch.inheritFontFamily) next.lyrics.displays.notch.appearance.fontFamily = base.fontFamily;
+  if (inheritance.notch.inheritColors) Object.assign(next.lyrics.displays.notch.appearance, {
+    activeColor: base.activeColor,
+    secondaryColor: base.supportingColor,
+    backgroundColor: base.backgroundColor,
+  });
+  return next;
+}
+
 const defaultConfig: AppConfig = {
-  schemaVersion: 30,
+  schemaVersion: 36,
   app: { theme: "dark", language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, silentStartup: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
@@ -30,6 +94,13 @@ const defaultConfig: AppConfig = {
         { id: "netease", enabled: true },
       ],
     },
+    displays: {
+      statusBar: { enabled: false, appearance: defaultStatusBarLyricsAppearance },
+      listWindow: { enabled: false, showTranslation: true, showRomanization: false, appearance: defaultListLyricsAppearance },
+      notch: { enabled: false, monitorId: null, expandedOnHover: true, appearance: defaultNotchLyricsAppearance },
+    },
+    baseAppearance: defaultLyricsBaseAppearance,
+    styleInheritance: defaultLyricsStyleInheritance,
   },
   overlay: {
     visible: true,
@@ -52,6 +123,15 @@ type AppConfigContextValue = {
   setSilentStartup: (enabled: boolean) => Promise<void>;
   setAutoCheckUpdates: (enabled: boolean) => Promise<void>;
   setOverlayHideWhenNotPlaying: (hidden: boolean) => Promise<void>;
+  setStatusBarLyricsEnabled: (enabled: boolean) => Promise<void>;
+  setListLyricsVisible: (visible: boolean) => Promise<void>;
+  setListLyricsOptions: (showTranslation: boolean, showRomanization: boolean) => Promise<void>;
+  setNotchLyricsVisible: (visible: boolean) => Promise<void>;
+  setNotchLyricsPreferences: (fontSize: number, backgroundOpacity: number, expandedOnHover: boolean) => Promise<void>;
+  setLyricsDisplayPreferences: <Mode extends Exclude<LyricsStyleMode, "desktop">>(mode: Mode, preferences: LyricsDisplayPreferences[Mode]) => Promise<void>;
+  setLyricsBaseAppearance: (appearance: LyricsBaseAppearance) => Promise<void>;
+  setLyricsStyleInheritance: (mode: LyricsStyleMode, inheritance: LyricsModeStyleInheritance) => Promise<void>;
+  resetLyricsBaseAppearance: () => Promise<void>;
   loaded: boolean;
   syncConfig: (config: AppConfig) => void;
 };
@@ -63,7 +143,7 @@ export function AppConfigProvider({
   windowType = "main",
 }: {
   children: React.ReactNode;
-  windowType?: "main" | "quick-lyrics" | "overlay" | "unlock-handle";
+  windowType?: "main" | "quick-lyrics" | "overlay" | "unlock-handle" | "lyrics-status-bar" | "lyrics-list" | "lyrics-notch";
 }) {
   const [config, setConfig] = useState(defaultConfig);
   const [loaded, setLoaded] = useState(!isTauriRuntime());
@@ -178,6 +258,87 @@ export function AppConfigProvider({
         return;
       }
       setConfig(await api.setOverlayHideWhenNotPlaying(hidden));
+    },
+    setStatusBarLyricsEnabled: async (enabled) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({ ...current, lyrics: { ...current.lyrics, displays: { ...current.lyrics.displays, statusBar: { ...current.lyrics.displays.statusBar, enabled } } } }));
+        return;
+      }
+      setConfig(await api.setStatusBarLyricsEnabled(enabled));
+    },
+    setListLyricsVisible: async (enabled) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({ ...current, lyrics: { ...current.lyrics, displays: { ...current.lyrics.displays, listWindow: { ...current.lyrics.displays.listWindow, enabled } } } }));
+        return;
+      }
+      setConfig(await api.setListLyricsVisible(enabled));
+    },
+    setListLyricsOptions: async (showTranslation, showRomanization) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({ ...current, lyrics: { ...current.lyrics, displays: { ...current.lyrics.displays, listWindow: { ...current.lyrics.displays.listWindow, showTranslation, showRomanization } } } }));
+        return;
+      }
+      setConfig(await api.setListLyricsOptions(showTranslation, showRomanization));
+    },
+    setNotchLyricsVisible: async (enabled) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({ ...current, lyrics: { ...current.lyrics, displays: { ...current.lyrics.displays, notch: { ...current.lyrics.displays.notch, enabled } } } }));
+        return;
+      }
+      setConfig(await api.setNotchLyricsVisible(enabled));
+    },
+    setNotchLyricsPreferences: async (fontSize, backgroundOpacity, expandedOnHover) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({ ...current, lyrics: { ...current.lyrics, displays: { ...current.lyrics.displays, notch: { ...current.lyrics.displays.notch, expandedOnHover, appearance: { ...current.lyrics.displays.notch.appearance, fontSize, backgroundOpacity } } } } }));
+        return;
+      }
+      setConfig(await api.setNotchLyricsPreferences(fontSize, backgroundOpacity, expandedOnHover));
+    },
+    setLyricsDisplayPreferences: async (mode, preferences) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => materializeLyricsStyleInheritance({
+          ...current,
+          lyrics: {
+            ...current.lyrics,
+            displays: { ...current.lyrics.displays, [mode]: preferences },
+          },
+        }));
+        return;
+      }
+      setConfig(await api.setLyricsDisplayPreferences(mode, preferences));
+    },
+    setLyricsBaseAppearance: async (appearance) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => materializeLyricsStyleInheritance({
+          ...current,
+          lyrics: { ...current.lyrics, baseAppearance: appearance },
+        }));
+        return;
+      }
+      setConfig(await api.setLyricsBaseAppearance(appearance));
+    },
+    setLyricsStyleInheritance: async (mode, inheritance) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => materializeLyricsStyleInheritance({
+          ...current,
+          lyrics: {
+            ...current.lyrics,
+            styleInheritance: { ...current.lyrics.styleInheritance, [mode]: inheritance },
+          },
+        }));
+        return;
+      }
+      setConfig(await api.setLyricsStyleInheritance(mode, inheritance));
+    },
+    resetLyricsBaseAppearance: async () => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => materializeLyricsStyleInheritance({
+          ...current,
+          lyrics: { ...current.lyrics, baseAppearance: defaultLyricsBaseAppearance },
+        }));
+        return;
+      }
+      setConfig(await api.resetLyricsBaseAppearance());
     },
     syncConfig: setConfig,
   }), [config, loaded, resolvedTheme]);

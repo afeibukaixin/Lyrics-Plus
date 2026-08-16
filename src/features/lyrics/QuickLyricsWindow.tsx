@@ -34,7 +34,7 @@ function normalized(value: string | null | undefined) {
 export default function QuickLyricsWindow() {
   const { t } = useTranslation();
   const playback = usePlayback();
-  const lyrics = useLyrics(playback.snapshot, playback.positionMs, false);
+  const lyrics = useLyrics(playback.snapshot, playback.positionMs);
   const searchedTrack = useRef<string | null>(null);
   const applying = useRef(false);
   const [searchTitle, setSearchTitle] = useState("");

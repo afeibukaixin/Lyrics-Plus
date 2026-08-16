@@ -5,6 +5,9 @@ import router from "./router";
 import Overlay from "./features/overlay/Overlay";
 import UnlockHandle from "./features/overlay/UnlockHandle";
 import QuickLyricsWindow from "./features/lyrics/QuickLyricsWindow";
+import LyricsListWindow from "./features/lyrics/LyricsListWindow";
+import NotchLyricsWindow from "./features/lyrics/NotchLyricsWindow";
+import StatusBarLyricsWindow from "./features/lyrics/StatusBarLyricsWindow";
 import { AppConfigProvider, useAppConfig } from "./features/config/AppConfigProvider";
 import { DebugLogProvider } from "./features/debug/DebugLogProvider";
 import { AppI18nProvider } from "./features/i18n/I18nProvider";
@@ -23,7 +26,7 @@ function AppToaster() {
 
 const view = new URLSearchParams(window.location.search).get("view");
 const updatePreview = import.meta.env.DEV && new URLSearchParams(window.location.search).get("update-preview") === "1";
-const windowType = view === "overlay" || view === "unlock-handle" || view === "quick-lyrics"
+const windowType = view === "overlay" || view === "unlock-handle" || view === "quick-lyrics" || view === "lyrics-status-bar" || view === "lyrics-list" || view === "lyrics-notch"
   ? view
   : "main";
 
@@ -33,6 +36,12 @@ const content = view === "overlay" ? (
   <UnlockHandle />
 ) : view === "quick-lyrics" ? (
   <DebugLogProvider><QuickLyricsWindow /></DebugLogProvider>
+) : view === "lyrics-list" ? (
+  <LyricsListWindow />
+) : view === "lyrics-status-bar" ? (
+  <StatusBarLyricsWindow />
+) : view === "lyrics-notch" ? (
+  <NotchLyricsWindow />
 ) : updatePreview ? (
   <DebugLogProvider><UpdateProvider><RouterProvider router={router} /></UpdateProvider></DebugLogProvider>
 ) : (

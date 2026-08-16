@@ -11,12 +11,17 @@ pub enum UiLanguage {
 #[derive(Clone, Copy)]
 pub struct NativeLabels {
     pub toggle_overlay: &'static str,
+    pub toggle_status_bar_lyrics: &'static str,
+    pub toggle_list_lyrics: &'static str,
+    pub toggle_notch_lyrics: &'static str,
     pub switch_lyrics: &'static str,
     pub settings: &'static str,
     pub quit: &'static str,
     pub quick_title: &'static str,
     pub unlock_title: &'static str,
     pub overlay_title: &'static str,
+    pub list_title: &'static str,
+    pub notch_title: &'static str,
 }
 
 #[derive(Clone, Copy)]
@@ -36,6 +41,7 @@ pub enum ConfigComment {
     TitleFilterKeywords,
     ProviderMode,
     Providers,
+    LyricsDisplays,
     OverlayState,
     HideWhenNotPlaying,
     FontFamily,
@@ -62,21 +68,31 @@ impl UiLanguage {
         match self {
             Self::ZhCn => NativeLabels {
                 toggle_overlay: "显示桌面歌词",
+                toggle_status_bar_lyrics: "显示状态栏歌词",
+                toggle_list_lyrics: "显示列表歌词",
+                toggle_notch_lyrics: "显示刘海歌词",
                 switch_lyrics: "切换歌词",
                 settings: "设置",
                 quit: "退出",
                 quick_title: "快速切换歌词",
                 unlock_title: "解锁桌面歌词",
                 overlay_title: "Lyrics Plus 桌面歌词",
+                list_title: "Lyrics Plus 列表歌词",
+                notch_title: "Lyrics Plus 刘海歌词",
             },
             Self::EnUs => NativeLabels {
                 toggle_overlay: "Show Desktop Lyrics",
+                toggle_status_bar_lyrics: "Show Menu Bar Lyrics",
+                toggle_list_lyrics: "Show Lyrics List",
+                toggle_notch_lyrics: "Show Notch Lyrics",
                 switch_lyrics: "Switch Lyrics",
                 settings: "Settings",
                 quit: "Quit",
                 quick_title: "Quick Lyrics Switcher",
                 unlock_title: "Unlock Desktop Lyrics",
                 overlay_title: "Lyrics Plus Desktop Lyrics",
+                list_title: "Lyrics Plus Lyrics List",
+                notch_title: "Lyrics Plus Notch Lyrics",
             },
         }
     }
@@ -98,6 +114,7 @@ impl UiLanguage {
             (Self::ZhCn, ConfigComment::TitleFilterKeywords) => "仅在本地匹配评分前按顺序智能移除标题中的屏蔽内容。",
             (Self::ZhCn, ConfigComment::ProviderMode) => "strict 按歌词源顺序搜索；smart 可优先选择质量更高的匹配。",
             (Self::ZhCn, ConfigComment::Providers) => "歌词源顺序决定严格模式的搜索顺序；至少启用一个歌词源。",
+            (Self::ZhCn, ConfigComment::LyricsDisplays) => "状态栏、列表窗口和刘海歌词可独立开启。",
             (Self::ZhCn, ConfigComment::OverlayState) => "桌面歌词的显示与锁定状态。",
             (Self::ZhCn, ConfigComment::HideWhenNotPlaying) => "播放暂停、停止或不可用时隐藏桌面歌词。",
             (Self::ZhCn, ConfigComment::FontFamily) => "歌词字体族，语法与 CSS font-family 相同，按顺序回退。",
@@ -132,6 +149,7 @@ impl UiLanguage {
             (Self::EnUs, ConfigComment::TitleFilterKeywords) => "Keywords intelligently removed in order before local title scoring only.",
             (Self::EnUs, ConfigComment::ProviderMode) => "strict follows provider order; smart can prioritize higher-quality matches.",
             (Self::EnUs, ConfigComment::Providers) => "Provider order controls strict search order; at least one must be enabled.",
+            (Self::EnUs, ConfigComment::LyricsDisplays) => "Menu bar, list-window, and notch lyrics can be enabled independently.",
             (Self::EnUs, ConfigComment::OverlayState) => "Desktop lyrics visibility and lock state.",
             (Self::EnUs, ConfigComment::HideWhenNotPlaying) => "Hide while playback is paused, stopped, or unavailable.",
             (Self::EnUs, ConfigComment::FontFamily) => "Lyric font family using CSS font-family syntax and ordered fallbacks.",

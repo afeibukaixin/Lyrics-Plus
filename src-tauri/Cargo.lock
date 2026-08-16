@@ -2644,6 +2644,7 @@ dependencies = [
  "tauri-plugin-window-state",
  "tempfile",
  "tokio",
+ "unicode-segmentation",
  "wait-timeout",
  "zhhz",
 ]

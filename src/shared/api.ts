@@ -13,6 +13,11 @@ import type {
   LegalNoticeStatus,
   NativeLanguage,
   LyricsDocument,
+  LyricsDisplayPreferences,
+  LyricsBaseAppearance,
+  LyricsModeStyleInheritance,
+  LyricsStyleMode,
+  LyricsRuntimeSnapshot,
   LibraryScanStatus,
   LyricsSearchInput,
   LyricsSearchResult,
@@ -71,6 +76,9 @@ export const api = {
     invoke<void>("set_player_selection", { selection }),
   getCachedLyrics: (trackKey: string) =>
     invoke<LyricsDocument | null>("get_cached_lyrics", { trackKey }),
+  getLyricsRuntimeSnapshot: () =>
+    invoke<LyricsRuntimeSnapshot>("get_lyrics_runtime_snapshot"),
+  getNotchHasSafeArea: () => invoke<boolean>("get_notch_has_safe_area"),
   getLibraryScanStatus: () => invoke<LibraryScanStatus>("get_library_scan_status"),
   rescanLyricsLibrary: () => invoke<LibraryScanStatus>("rescan_lyrics_library"),
   setLyricsDirectory: (path: string) =>
@@ -172,6 +180,29 @@ export const api = {
     invoke<AppConfig>("set_auto_check_updates", { enabled }),
   setOverlayHideWhenNotPlaying: (hidden: boolean) =>
     invoke<AppConfig>("set_overlay_hide_when_not_playing", { hidden }),
+  setStatusBarLyricsEnabled: (enabled: boolean) =>
+    invoke<AppConfig>("set_status_bar_lyrics_enabled", { enabled }),
+  setListLyricsVisible: (visible: boolean) =>
+    invoke<AppConfig>("set_list_lyrics_visible", { visible }),
+  setListLyricsOptions: (showTranslation: boolean, showRomanization: boolean) =>
+    invoke<AppConfig>("set_list_lyrics_options", { showTranslation, showRomanization }),
+  setNotchLyricsVisible: (visible: boolean) =>
+    invoke<AppConfig>("set_notch_lyrics_visible", { visible }),
+  setNotchLyricsPreferences: (fontSize: number, backgroundOpacity: number, expandedOnHover: boolean) =>
+    invoke<AppConfig>("set_notch_lyrics_preferences", { fontSize, backgroundOpacity, expandedOnHover }),
+  setLyricsDisplayPreferences: <Mode extends Exclude<LyricsStyleMode, "desktop">>(
+    mode: Mode,
+    preferences: LyricsDisplayPreferences[Mode],
+  ) => invoke<AppConfig>("set_lyrics_display_preferences", { mode, preferences }),
+  setLyricsBaseAppearance: (appearance: LyricsBaseAppearance) =>
+    invoke<AppConfig>("set_lyrics_base_appearance", { appearance }),
+  setLyricsStyleInheritance: (mode: LyricsStyleMode, inheritance: LyricsModeStyleInheritance) =>
+    invoke<AppConfig>("set_lyrics_style_inheritance", { mode, inheritance }),
+  resetLyricsBaseAppearance: () => invoke<AppConfig>("reset_lyrics_base_appearance"),
+  resetLyricsStyleMode: (mode: LyricsStyleMode) =>
+    invoke<SettingsResetResponse>("reset_lyrics_style_mode", { mode }),
+  resetLyricsDisplayPosition: (mode: "statusBar" | "listWindow" | "notch") =>
+    invoke<void>("reset_lyrics_display_position", { mode }),
   exportAppConfig: () => invoke<ConfigExport>("export_app_config"),
   revealConfigDirectory: () => invoke<void>("reveal_config_directory"),
   getConfigEditorData: () => invoke<ConfigEditorData>("get_config_editor_data"),
@@ -196,10 +227,13 @@ export function errorCodeOf(error: unknown): AppErrorCode {
 }
 
 export function trackKeyOf(snapshot: PlaybackSnapshot): string | null {
-  if (!snapshot.player || !snapshot.title || !snapshot.artist) return null;
-  if (snapshot.trackId) return `${snapshot.player}:${snapshot.trackId}`;
-  const fallback = `${snapshot.title}|${snapshot.artist}|${snapshot.durationMs ?? 0}`
-    .toLocaleLowerCase()
+  const title = snapshot.title?.trim();
+  const artist = snapshot.artist?.trim();
+  const trackId = snapshot.trackId?.trim();
+  if (!snapshot.player || !title || !artist) return null;
+  if (trackId) return `${snapshot.player}:${trackId}`;
+  const fallback = `${title}|${artist}|${snapshot.durationMs ?? 0}`
+    .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
   return `${snapshot.player}:fallback:${fallback}`;

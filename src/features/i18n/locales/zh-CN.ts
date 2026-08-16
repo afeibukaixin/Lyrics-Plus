@@ -52,7 +52,7 @@ export const zhCN = {
     validation: "配置内容无效，请检查标记的位置。",
   },
   window: {
-    main: "Lyrics Plus", quickLyrics: "快速切换歌词", overlay: "Lyrics Plus 桌面歌词",
+    main: "Lyrics Plus", quickLyrics: "快速切换歌词", overlay: "Lyrics Plus 桌面歌词", statusBarLyrics: "Lyrics Plus 状态栏歌词", lyricsList: "Lyrics Plus 列表歌词", notchLyrics: "Lyrics Plus 刘海歌词",
     unlockHandle: "解锁桌面歌词",
   },
   player: {
@@ -75,6 +75,10 @@ export const zhCN = {
     noCandidates: "暂无候选歌词", autoSearchHint: "播放歌曲后会自动搜索所有已启用来源。",
     preview: "歌词浏览", applying: "正在应用这份歌词…", selectCandidate: "选择候选歌词",
     rawHint: "这里会显示未经处理的原始 LRC 内容。", switched: "已切换为 {{source}} 的歌词",
+  },
+  lyricsList: {
+    noTrack: "没有正在播放的歌曲", waiting: "等待播放器", lyrics: "完整歌词", returnCurrent: "回到当前歌词",
+    loading: "正在载入歌词", empty: "暂无歌词", emptyHint: "播放歌曲后会自动匹配歌词。", chooseLyrics: "选择歌词",
   },
   overlay: {
     fallback: "播放音乐后自动显示歌词", layout: { single: "单歌词", double: "双歌词" },
@@ -112,11 +116,16 @@ export const zhCN = {
       colorPlaceholder: "#ffffff 或 rgba(255,255,255,.8)", capabilitiesHint: "关联歌词后会显示翻译、音译和逐字时间轴的可用状态",
     },
     style: {
-      title: "歌词样式", description: "调整桌面歌词的外观。", common: "常用样式", advanced: "高级样式",
+      title: "歌词样式", description: "先设置公共字体与配色，再调整每种歌词模式。", common: "常用样式", advanced: "高级样式",
+      modes: { base: "基础样式", desktop: "桌面歌词", statusBar: "状态栏歌词", listWindow: "歌词列表", notch: "刘海歌词", selector: "歌词样式模式" },
+      modeControls: { inheritance: "基础样式继承", inheritFontFamily: "跟随基础字体", inheritColors: "跟随基础配色", baseFont: "基础字体", baseColors: "基础配色", supportingColor: "辅助内容颜色", displayPosition: "显示与位置", text: "文字", backgroundSize: "背景与尺寸", displayContent: "显示内容", textLayout: "文字与排版", colors: "颜色", displayInteraction: "显示与交互", locked: "锁定位置", lockedHint: "锁定后鼠标会穿透歌词窗口", unlockedHint: "解锁后可直接拖动歌词窗口", resetPosition: "复位位置", textColor: "文字颜色", maxWidth: "最大宽度", mainFontSize: "主歌词字号", mainFontWeight: "主歌词粗细", secondaryFontSize: "辅助歌词字号", lineGap: "歌词间距", alignment: "对齐方式", left: "左对齐", center: "居中", right: "右对齐", activeLyrics: "当前歌词", inactiveLyrics: "普通歌词", supportingLyrics: "翻译与音译", activeBackground: "当前行背景", windowBackground: "窗口背景", primaryColor: "主歌词颜色", secondaryColor: "辅助文字颜色", positionReset: "歌词窗口位置已复位。" },
     },
     display: {
-      title: "显示与交互", description: "控制桌面歌词的显示状态、鼠标穿透和位置。",
+      title: "显示与交互", description: "独立控制桌面、状态栏、列表和刘海歌词。",
       directControlHint: "解锁后拖动空白区域可移动歌词窗口。", manageShortcuts: "管理全局快捷键",
+      statusBar: { title: "状态栏歌词", show: "显示状态栏歌词", showHint: "在 macOS 菜单栏显示当前歌词", width: "歌词宽度", widthHint: "超出固定宽度的歌词会自动滚动", textColor: "普通文字颜色", inactiveColor: "未唱文字颜色", highlightColor: "卡拉 OK 高亮色" },
+      listWindow: { title: "列表歌词", show: "显示列表歌词窗口", showHint: "打开可滚动的完整歌词独立窗口", translation: "显示翻译", romanization: "显示音译" },
+      notch: { title: "刘海歌词", show: "显示刘海歌词", showHint: "吸附主屏幕顶部；无刘海时显示为顶部胶囊", expandOnHover: "悬停时展开", fontSize: "字号", backgroundOpacity: "背景透明度" },
     },
     player: { title: "播放器", description: "查看监听状态，并选择播放来源、系统媒体筛选和播放器跟随。", startup: "启动与菜单栏", silentStartupHint: "启动时不显示设置窗口；桌面歌词、播放器监听和菜单栏仍会运行。", idleStatus: "等待播放", attentionStatus: "播放器需要处理", openAutomationSettings: "打开自动化设置", detectAgain: "重新检测", useAuto: "切换为智能选择" },
     app: {

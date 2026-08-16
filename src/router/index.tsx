@@ -2,7 +2,6 @@ import { createHashRouter, Navigate } from "react-router";
 import IndexLayout from "../layout";
 import Settings from "../pages/settings";
 import StyleSettingsPage from "../pages/settings/StyleSettingsPage";
-import DisplaySettingsPage from "../pages/settings/DisplaySettingsPage";
 import LyricsSettingsPage from "../pages/settings/LyricsSettingsPage";
 import AppSettingsPage from "../pages/settings/AppSettingsPage";
 import DebugSettingsPage from "../pages/settings/DebugSettingsPage";
@@ -29,7 +28,7 @@ const router = createHashRouter([
         children: [
           { index: true, element: <SettingsIndexRedirect /> },
           { path: "style", element: <StyleSettingsPage /> },
-          { path: "display", element: <DisplaySettingsPage /> },
+          { path: "display", element: <Navigate to="/settings/style" replace /> },
           { path: "lyrics", element: <LyricsSettingsPage /> },
           { path: "player", element: <AppSettingsPage scope="player" /> },
           { path: "application", element: <AppSettingsPage scope="application" /> },

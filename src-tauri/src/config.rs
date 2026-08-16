@@ -16,7 +16,7 @@ use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSet
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 31;
+pub const CONFIG_SCHEMA_VERSION: u16 = 36;
 const APP_CONFIG_KEYS: &[&str] = &[
     "theme",
     "language",
@@ -78,6 +78,9 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             }
             line if line.starts_with("      \"providers\":") => {
                 Some(("      ", ConfigComment::Providers))
+            }
+            line if line.starts_with("    \"displays\":") => {
+                Some(("    ", ConfigComment::LyricsDisplays))
             }
             line if line.starts_with("    \"visible\":") => {
                 Some(("    ", ConfigComment::OverlayState))
@@ -351,10 +354,247 @@ impl GlobalShortcutSettings {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct LyricsPreferences {
     pub providers: ProviderSettings,
+    pub displays: LyricsDisplayPreferences,
+    pub base_appearance: LyricsBaseAppearance,
+    pub style_inheritance: LyricsStyleInheritance,
+}
+
+impl Default for LyricsPreferences {
+    fn default() -> Self {
+        Self {
+            providers: ProviderSettings::default(),
+            displays: LyricsDisplayPreferences::default(),
+            base_appearance: LyricsBaseAppearance::default(),
+            style_inheritance: LyricsStyleInheritance::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct LyricsBaseAppearance {
+    pub font_family: String,
+    pub active_color: String,
+    pub inactive_color: String,
+    pub translation_color: String,
+    pub romanization_color: String,
+    pub supporting_color: String,
+    pub background_color: String,
+}
+
+impl Default for LyricsBaseAppearance {
+    fn default() -> Self {
+        let overlay = OverlayStyleSettings::default();
+        Self {
+            font_family: overlay.font_family,
+            active_color: "#a3e635".into(),
+            inactive_color: "#ecfccb".into(),
+            translation_color: "#d9f99d".into(),
+            romanization_color: "#bef264".into(),
+            supporting_color: "#94a3b8".into(),
+            background_color: "#171821".into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct LyricsModeStyleInheritance {
+    pub inherit_font_family: bool,
+    pub inherit_colors: bool,
+}
+
+impl Default for LyricsModeStyleInheritance {
+    fn default() -> Self {
+        Self {
+            inherit_font_family: true,
+            inherit_colors: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct LyricsStyleInheritance {
+    pub desktop: LyricsModeStyleInheritance,
+    pub status_bar: LyricsModeStyleInheritance,
+    pub list_window: LyricsModeStyleInheritance,
+    pub notch: LyricsModeStyleInheritance,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct LyricsDisplayPreferences {
+    pub status_bar: StatusBarLyricsPreferences,
+    pub list_window: ListLyricsPreferences,
+    pub notch: NotchLyricsPreferences,
+}
+
+impl Default for LyricsDisplayPreferences {
+    fn default() -> Self {
+        Self {
+            status_bar: StatusBarLyricsPreferences::default(),
+            list_window: ListLyricsPreferences::default(),
+            notch: NotchLyricsPreferences::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct StatusBarLyricsPreferences {
+    pub enabled: bool,
+    pub appearance: StatusBarLyricsAppearance,
+}
+
+impl Default for StatusBarLyricsPreferences {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            appearance: StatusBarLyricsAppearance::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct StatusBarLyricsAppearance {
+    pub font_family: String,
+    pub font_size: u16,
+    pub font_weight: u16,
+    pub text_color: String,
+    pub inactive_color: String,
+    pub highlight_color: String,
+    #[serde(alias = "maxWidth")]
+    pub width: u16,
+}
+
+impl Default for StatusBarLyricsAppearance {
+    fn default() -> Self {
+        Self {
+            font_family: OverlayAppearance::default().font_family,
+            font_size: 14,
+            font_weight: 600,
+            text_color: "#a3e635".into(),
+            inactive_color: "#ecfccb".into(),
+            highlight_color: "#a3e635".into(),
+            width: 220,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ListLyricsPreferences {
+    pub enabled: bool,
+    pub show_translation: bool,
+    pub show_romanization: bool,
+    pub appearance: ListLyricsAppearance,
+}
+
+impl Default for ListLyricsPreferences {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            show_translation: true,
+            show_romanization: false,
+            appearance: ListLyricsAppearance::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ListLyricsAppearance {
+    pub font_family: String,
+    pub font_size: u16,
+    pub font_weight: u16,
+    pub secondary_font_scale: f64,
+    pub line_height: f64,
+    pub line_gap: f64,
+    pub active_color: String,
+    pub inactive_color: String,
+    pub translation_color: String,
+    pub romanization_color: String,
+    pub active_background_color: String,
+    pub background_color: String,
+    pub alignment: String,
+}
+
+impl Default for ListLyricsAppearance {
+    fn default() -> Self {
+        Self {
+            font_family: OverlayAppearance::default().font_family,
+            font_size: 24,
+            font_weight: 600,
+            secondary_font_scale: 0.58,
+            line_height: 1.45,
+            line_gap: 8.0,
+            active_color: "#a3e635".into(),
+            inactive_color: "#ecfccb".into(),
+            translation_color: "#d9f99d".into(),
+            romanization_color: "#bef264".into(),
+            active_background_color: "rgba(148, 163, 184, 0.14)".into(),
+            background_color: "#171821".into(),
+            alignment: "left".into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct NotchLyricsPreferences {
+    pub enabled: bool,
+    pub monitor_id: Option<String>,
+    pub expanded_on_hover: bool,
+    pub appearance: NotchLyricsAppearance,
+}
+
+impl Default for NotchLyricsPreferences {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            monitor_id: None,
+            expanded_on_hover: true,
+            appearance: NotchLyricsAppearance::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct NotchLyricsAppearance {
+    pub font_family: String,
+    pub font_size: u16,
+    pub font_weight: u16,
+    pub active_color: String,
+    pub secondary_color: String,
+    pub background_color: String,
+    pub background_opacity: f64,
+    pub background_blur: f64,
+    pub border_radius: f64,
+    pub max_width: u16,
+}
+
+impl Default for NotchLyricsAppearance {
+    fn default() -> Self {
+        Self {
+            font_family: OverlayAppearance::default().font_family,
+            font_size: 18,
+            font_weight: 700,
+            active_color: "#a3e635".into(),
+            secondary_color: "#94a3b8".into(),
+            background_color: "#171821".into(),
+            background_opacity: 0.88,
+            background_blur: 20.0,
+            border_radius: 22.0,
+            max_width: 404,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -506,6 +746,54 @@ impl OverlayAppearance {
 }
 
 impl AppConfig {
+    pub fn apply_lyrics_style_inheritance(&mut self) {
+        let base = self.lyrics.base_appearance.clone();
+        let inheritance = self.lyrics.style_inheritance.clone();
+
+        if inheritance.desktop.inherit_font_family {
+            self.overlay.appearance.font_family = base.font_family.clone();
+        }
+        if inheritance.desktop.inherit_colors {
+            self.overlay.appearance.active_color = base.active_color.clone();
+            self.overlay.appearance.inactive_color = base.inactive_color.clone();
+            self.overlay.appearance.translation_color = base.translation_color.clone();
+            self.overlay.appearance.romanization_color = base.romanization_color.clone();
+            self.overlay.appearance.solid_color = base.background_color.clone();
+        }
+
+        let status = &mut self.lyrics.displays.status_bar.appearance;
+        if inheritance.status_bar.inherit_font_family {
+            status.font_family = base.font_family.clone();
+        }
+        if inheritance.status_bar.inherit_colors {
+            status.text_color = base.active_color.clone();
+            status.inactive_color = base.inactive_color.clone();
+            status.highlight_color = base.active_color.clone();
+        }
+
+        let list = &mut self.lyrics.displays.list_window.appearance;
+        if inheritance.list_window.inherit_font_family {
+            list.font_family = base.font_family.clone();
+        }
+        if inheritance.list_window.inherit_colors {
+            list.active_color = base.active_color.clone();
+            list.inactive_color = base.inactive_color.clone();
+            list.translation_color = base.translation_color.clone();
+            list.romanization_color = base.romanization_color.clone();
+            list.background_color = base.background_color.clone();
+        }
+
+        let notch = &mut self.lyrics.displays.notch.appearance;
+        if inheritance.notch.inherit_font_family {
+            notch.font_family = base.font_family;
+        }
+        if inheritance.notch.inherit_colors {
+            notch.active_color = base.active_color;
+            notch.secondary_color = base.supporting_color;
+            notch.background_color = base.background_color;
+        }
+    }
+
     pub fn normalized(mut self) -> Result<Self, String> {
         if self.schema_version > CONFIG_SCHEMA_VERSION {
             return Err(format!(
@@ -514,11 +802,101 @@ impl AppConfig {
             ));
         }
         self.schema_version = CONFIG_SCHEMA_VERSION;
+        self.lyrics.base_appearance.font_family =
+            self.lyrics.base_appearance.font_family.trim().to_owned();
+        if self.lyrics.base_appearance.font_family.is_empty() {
+            self.lyrics.base_appearance.font_family = LyricsBaseAppearance::default().font_family;
+        }
+        for (name, color) in [
+            (
+                "基础主歌词颜色",
+                self.lyrics.base_appearance.active_color.as_str(),
+            ),
+            (
+                "基础普通歌词颜色",
+                self.lyrics.base_appearance.inactive_color.as_str(),
+            ),
+            (
+                "基础翻译颜色",
+                self.lyrics.base_appearance.translation_color.as_str(),
+            ),
+            (
+                "基础音译颜色",
+                self.lyrics.base_appearance.romanization_color.as_str(),
+            ),
+            (
+                "基础辅助内容颜色",
+                self.lyrics.base_appearance.supporting_color.as_str(),
+            ),
+            (
+                "基础背景颜色",
+                self.lyrics.base_appearance.background_color.as_str(),
+            ),
+        ] {
+            if !is_supported_color(color) {
+                return Err(format!("{name}不是有效的颜色值"));
+            }
+        }
+        self.apply_lyrics_style_inheritance();
         self.app.system_media_applications =
             normalize_system_media_applications(self.app.system_media_applications)?;
         self.app.player_follower_application =
             normalize_player_follower_application(self.app.player_follower_application)?;
         self.app.shortcuts.parsed()?;
+        self.lyrics.displays.notch.monitor_id = self
+            .lyrics
+            .displays
+            .notch
+            .monitor_id
+            .take()
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        let status_appearance = &mut self.lyrics.displays.status_bar.appearance;
+        status_appearance.font_size = status_appearance.font_size.clamp(10, 18);
+        status_appearance.font_weight =
+            normalize_display_font_weight(status_appearance.font_weight);
+        status_appearance.width = status_appearance.width.clamp(120, 360);
+        let list_appearance = &mut self.lyrics.displays.list_window.appearance;
+        list_appearance.font_size = list_appearance.font_size.clamp(12, 56);
+        list_appearance.font_weight = normalize_display_font_weight(list_appearance.font_weight);
+        list_appearance.secondary_font_scale =
+            list_appearance.secondary_font_scale.clamp(0.35, 1.0);
+        list_appearance.line_height = list_appearance.line_height.clamp(0.8, 2.0);
+        list_appearance.line_gap = list_appearance.line_gap.clamp(0.0, 32.0);
+        if !matches!(
+            list_appearance.alignment.as_str(),
+            "left" | "center" | "right"
+        ) {
+            list_appearance.alignment = "left".into();
+        }
+        let notch_appearance = &mut self.lyrics.displays.notch.appearance;
+        notch_appearance.font_size = notch_appearance.font_size.clamp(12, 32);
+        notch_appearance.font_weight = normalize_display_font_weight(notch_appearance.font_weight);
+        notch_appearance.background_opacity = notch_appearance.background_opacity.clamp(0.2, 1.0);
+        notch_appearance.background_blur = notch_appearance.background_blur.clamp(0.0, 40.0);
+        notch_appearance.border_radius = notch_appearance.border_radius.clamp(0.0, 40.0);
+        notch_appearance.max_width = notch_appearance.max_width.clamp(280, 640);
+        for (name, color) in [
+            ("状态栏文字颜色", status_appearance.text_color.as_str()),
+            ("状态栏未唱颜色", status_appearance.inactive_color.as_str()),
+            ("状态栏高亮颜色", status_appearance.highlight_color.as_str()),
+            ("列表当前歌词颜色", list_appearance.active_color.as_str()),
+            ("列表普通歌词颜色", list_appearance.inactive_color.as_str()),
+            ("列表翻译颜色", list_appearance.translation_color.as_str()),
+            ("列表音译颜色", list_appearance.romanization_color.as_str()),
+            (
+                "列表当前行背景",
+                list_appearance.active_background_color.as_str(),
+            ),
+            ("列表窗口背景", list_appearance.background_color.as_str()),
+            ("刘海歌词颜色", notch_appearance.active_color.as_str()),
+            ("刘海辅助颜色", notch_appearance.secondary_color.as_str()),
+            ("刘海背景颜色", notch_appearance.background_color.as_str()),
+        ] {
+            if !is_supported_color(color) {
+                return Err(format!("{name}不是有效的颜色值"));
+            }
+        }
         let normalized_style = self.overlay.appearance.clone().into_style();
         for (name, color) in color_fields(&normalized_style) {
             if !is_supported_color(color) {
@@ -664,6 +1042,83 @@ fn migrate_legacy_overlay_layout(
     Ok(true)
 }
 
+fn migrate_v32_display_appearances(user: &mut Value, version: u16) {
+    if version >= 33 {
+        return;
+    }
+    let Some(displays) = user
+        .get_mut("lyrics")
+        .and_then(|value| value.get_mut("displays"))
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    if let Some(notch) = displays.get_mut("notch").and_then(Value::as_object_mut) {
+        let mut appearance = serde_json::Map::new();
+        if let Some(value) = notch.remove("fontSize") {
+            appearance.insert("fontSize".into(), value);
+        }
+        if let Some(value) = notch.remove("backgroundOpacity") {
+            appearance.insert("backgroundOpacity".into(), value);
+        }
+        if !appearance.is_empty() {
+            notch.insert("appearance".into(), Value::Object(appearance));
+        }
+    }
+}
+
+fn migrate_v34_lyrics_base_appearance(user: &mut Value, version: u16) {
+    if version >= 34 {
+        return;
+    }
+    let Some(appearance) = user
+        .pointer_mut("/lyrics/displays/listWindow/appearance")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    if let Some(secondary) = appearance.remove("secondaryColor") {
+        appearance.insert("translationColor".into(), secondary.clone());
+        appearance.insert("romanizationColor".into(), secondary);
+    }
+}
+
+fn migrate_status_bar_status_item_fields(user: &mut Value) {
+    let Some(status_bar) = user
+        .pointer_mut("/lyrics/displays/statusBar")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    status_bar.remove("locked");
+    status_bar.remove("maxCharacters");
+    status_bar.remove("showTrayIcon");
+
+    let Some(appearance) = status_bar
+        .get_mut("appearance")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    if !appearance.contains_key("width") {
+        if let Some(width) = appearance.remove("maxWidth") {
+            appearance.insert("width".into(), width);
+        }
+    } else {
+        appearance.remove("maxWidth");
+    }
+    for key in [
+        "backgroundColor",
+        "backgroundOpacity",
+        "backgroundBlur",
+        "borderRadius",
+        "paddingX",
+        "paddingY",
+    ] {
+        appearance.remove(key);
+    }
+}
+
 pub fn validate_config_draft(raw: &str) -> ConfigDraftValidation {
     match parse_config_draft(raw) {
         Ok(parsed) => ConfigDraftValidation {
@@ -746,8 +1201,11 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
         };
         app.insert("systemMediaFilterMode".into(), Value::from(mode));
     }
+    migrate_v32_display_appearances(&mut user, version);
+    migrate_v34_lyrics_base_appearance(&mut user, version);
     validate_known_fields(&user, raw)?;
     validate_field_types_and_options(&user, raw)?;
+    migrate_status_bar_status_item_fields(&mut user);
 
     let migrated_layout = migrate_legacy_overlay_layout(&mut user, version, raw)?;
     #[cfg(test)]
@@ -908,7 +1366,43 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
         }
     }
     if let Some(lyrics) = value.get("lyrics") {
-        check_keys(lyrics, raw, &["providers"])?;
+        check_keys(
+            lyrics,
+            raw,
+            &[
+                "providers",
+                "displays",
+                "baseAppearance",
+                "styleInheritance",
+            ],
+        )?;
+        if let Some(base) = lyrics.get("baseAppearance") {
+            check_keys(
+                base,
+                raw,
+                &[
+                    "fontFamily",
+                    "activeColor",
+                    "inactiveColor",
+                    "translationColor",
+                    "romanizationColor",
+                    "supportingColor",
+                    "backgroundColor",
+                ],
+            )?;
+        }
+        if let Some(inheritance) = lyrics.get("styleInheritance") {
+            check_keys(
+                inheritance,
+                raw,
+                &["desktop", "statusBar", "listWindow", "notch"],
+            )?;
+            for mode in ["desktop", "statusBar", "listWindow", "notch"] {
+                if let Some(value) = inheritance.get(mode) {
+                    check_keys(value, raw, &["inheritFontFamily", "inheritColors"])?;
+                }
+            }
+        }
         if let Some(providers) = lyrics.get("providers") {
             check_keys(
                 providers,
@@ -923,6 +1417,104 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
             if let Some(items) = providers.get("providers").and_then(Value::as_array) {
                 for item in items {
                     check_keys(item, raw, &["id", "enabled"])?;
+                }
+            }
+        }
+        if let Some(displays) = lyrics.get("displays") {
+            check_keys(displays, raw, &["statusBar", "listWindow", "notch"])?;
+            if let Some(status_bar) = displays.get("statusBar") {
+                check_keys(
+                    status_bar,
+                    raw,
+                    &[
+                        "enabled",
+                        // Accepted only so older configurations can be migrated.
+                        "showTrayIcon",
+                        "locked",
+                        "maxCharacters",
+                        "appearance",
+                    ],
+                )?;
+                if let Some(appearance) = status_bar.get("appearance") {
+                    check_keys(
+                        appearance,
+                        raw,
+                        &[
+                            "fontFamily",
+                            "fontSize",
+                            "fontWeight",
+                            "textColor",
+                            "inactiveColor",
+                            "highlightColor",
+                            "width",
+                            // Legacy floating-window fields remain valid input.
+                            "backgroundColor",
+                            "backgroundOpacity",
+                            "backgroundBlur",
+                            "borderRadius",
+                            "paddingX",
+                            "paddingY",
+                            "maxWidth",
+                        ],
+                    )?;
+                }
+            }
+            if let Some(list_window) = displays.get("listWindow") {
+                check_keys(
+                    list_window,
+                    raw,
+                    &[
+                        "enabled",
+                        "showTranslation",
+                        "showRomanization",
+                        "appearance",
+                    ],
+                )?;
+                if let Some(appearance) = list_window.get("appearance") {
+                    check_keys(
+                        appearance,
+                        raw,
+                        &[
+                            "fontFamily",
+                            "fontSize",
+                            "fontWeight",
+                            "secondaryFontScale",
+                            "lineHeight",
+                            "lineGap",
+                            "activeColor",
+                            "inactiveColor",
+                            "translationColor",
+                            "romanizationColor",
+                            "activeBackgroundColor",
+                            "backgroundColor",
+                            "alignment",
+                        ],
+                    )?;
+                }
+            }
+            if let Some(notch) = displays.get("notch") {
+                check_keys(
+                    notch,
+                    raw,
+                    &["enabled", "monitorId", "expandedOnHover", "appearance"],
+                )?;
+                if let Some(appearance) = notch.get("appearance") {
+                    check_keys(
+                        appearance,
+                        raw,
+                        &[
+                            "fontFamily",
+                            "fontSize",
+                            "fontWeight",
+                            "activeColor",
+                            "secondaryColor",
+                            "backgroundColor",
+                            "backgroundOpacity",
+                            "backgroundBlur",
+                            "borderRadius",
+                            "maxWidth",
+                        ],
+                    )?;
                 }
             }
         }
@@ -983,6 +1575,13 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         ("/app/shortcuts", "shortcuts"),
         ("/lyrics", "lyrics"),
         ("/lyrics/providers", "providers"),
+        ("/lyrics/displays", "displays"),
+        ("/lyrics/displays/statusBar", "statusBar"),
+        ("/lyrics/displays/statusBar/appearance", "appearance"),
+        ("/lyrics/displays/listWindow", "listWindow"),
+        ("/lyrics/displays/listWindow/appearance", "appearance"),
+        ("/lyrics/displays/notch", "notch"),
+        ("/lyrics/displays/notch/appearance", "appearance"),
         ("/overlay", "overlay"),
         ("/overlay/appearance", "appearance"),
     ] {
@@ -1039,6 +1638,55 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         ("/overlay/visible", "visible"),
         ("/overlay/locked", "locked"),
         ("/overlay/hideWhenNotPlaying", "hideWhenNotPlaying"),
+        ("/lyrics/displays/statusBar/enabled", "enabled"),
+        (
+            "/lyrics/displays/statusBar/showTrayIcon",
+            "showTrayIcon",
+        ),
+        ("/lyrics/displays/statusBar/locked", "locked"),
+        ("/lyrics/displays/listWindow/enabled", "enabled"),
+        (
+            "/lyrics/displays/listWindow/showTranslation",
+            "showTranslation",
+        ),
+        (
+            "/lyrics/displays/listWindow/showRomanization",
+            "showRomanization",
+        ),
+        ("/lyrics/displays/notch/enabled", "enabled"),
+        ("/lyrics/displays/notch/expandedOnHover", "expandedOnHover"),
+        (
+            "/lyrics/styleInheritance/desktop/inheritFontFamily",
+            "inheritFontFamily",
+        ),
+        (
+            "/lyrics/styleInheritance/desktop/inheritColors",
+            "inheritColors",
+        ),
+        (
+            "/lyrics/styleInheritance/statusBar/inheritFontFamily",
+            "inheritFontFamily",
+        ),
+        (
+            "/lyrics/styleInheritance/statusBar/inheritColors",
+            "inheritColors",
+        ),
+        (
+            "/lyrics/styleInheritance/listWindow/inheritFontFamily",
+            "inheritFontFamily",
+        ),
+        (
+            "/lyrics/styleInheritance/listWindow/inheritColors",
+            "inheritColors",
+        ),
+        (
+            "/lyrics/styleInheritance/notch/inheritFontFamily",
+            "inheritFontFamily",
+        ),
+        (
+            "/lyrics/styleInheritance/notch/inheritColors",
+            "inheritColors",
+        ),
         (
             "/overlay/appearance/autoCenterWithTranslationOrRomanization",
             "autoCenterWithTranslationOrRomanization",
@@ -1054,6 +1702,26 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
     for (pointer, key) in [
         ("/schemaVersion", "schemaVersion"),
         ("/lyrics/providers/autoApplyThreshold", "autoApplyThreshold"),
+        ("/lyrics/displays/statusBar/appearance/fontSize", "fontSize"),
+        (
+            "/lyrics/displays/statusBar/appearance/fontWeight",
+            "fontWeight",
+        ),
+        ("/lyrics/displays/statusBar/appearance/width", "width"),
+        (
+            "/lyrics/displays/statusBar/appearance/maxWidth",
+            "maxWidth",
+        ),
+        (
+            "/lyrics/displays/listWindow/appearance/fontSize",
+            "fontSize",
+        ),
+        (
+            "/lyrics/displays/listWindow/appearance/fontWeight",
+            "fontWeight",
+        ),
+        ("/lyrics/displays/notch/appearance/fontSize", "fontSize"),
+        ("/lyrics/displays/notch/appearance/fontWeight", "fontWeight"),
         ("/overlay/appearance/fontSize", "fontSize"),
         ("/overlay/appearance/fontWeight", "fontWeight"),
         (
@@ -1069,6 +1737,15 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         }
     }
     validate_language_preference(value, raw)?;
+    if let Some(candidate) = value.pointer("/lyrics/displays/notch/monitorId") {
+        if !candidate.is_null() && !candidate.is_string() {
+            return Err(error_at_key(
+                raw,
+                "monitorId",
+                "monitorId 必须是字符串或 null",
+            ));
+        }
+    }
     validate_string_option(
         value,
         raw,
@@ -1331,6 +2008,42 @@ fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftEr
             100.0,
         ),
         (
+            "fontSize",
+            value.pointer("/lyrics/displays/statusBar/appearance/fontSize"),
+            10.0,
+            32.0,
+        ),
+        (
+            "width",
+            value.pointer("/lyrics/displays/statusBar/appearance/width"),
+            120.0,
+            360.0,
+        ),
+        (
+            "maxWidth",
+            value.pointer("/lyrics/displays/statusBar/appearance/maxWidth"),
+            120.0,
+            720.0,
+        ),
+        (
+            "fontSize",
+            value.pointer("/lyrics/displays/listWindow/appearance/fontSize"),
+            12.0,
+            56.0,
+        ),
+        (
+            "fontSize",
+            value.pointer("/lyrics/displays/notch/appearance/fontSize"),
+            12.0,
+            32.0,
+        ),
+        (
+            "backgroundOpacity",
+            value.pointer("/lyrics/displays/notch/appearance/backgroundOpacity"),
+            0.2,
+            1.0,
+        ),
+        (
             "opacity",
             value.pointer("/overlay/appearance/opacity"),
             0.2,
@@ -1471,6 +2184,13 @@ fn color_fields(style: &OverlayStyleSettings) -> [(&'static str, &str); 6] {
         ("音译颜色", &style.romanization_color),
         ("文字阴影颜色", &style.text_shadow_color),
     ]
+}
+
+fn normalize_display_font_weight(value: u16) -> u16 {
+    [400_u16, 500, 600, 700, 800]
+        .into_iter()
+        .min_by_key(|candidate| (*candidate).abs_diff(value))
+        .unwrap_or(600)
 }
 
 fn is_supported_color(value: &str) -> bool {

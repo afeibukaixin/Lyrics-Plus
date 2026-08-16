@@ -45,7 +45,7 @@
 
 .lines {
   width: max-content; height: max-content; max-width: var(--content-max-width); max-height: var(--content-max-height); position: relative; z-index: 1;
-  min-width: 0; display: grid; align-items: center; gap: 8px; pointer-events: none;
+  min-width: 0; display: grid; align-items: center; gap: 8px; pointer-events: none; filter: drop-shadow(var(--text-shadow));
 }
 .overlay:not([data-orientation="vertical"]) .lines { min-width: var(--content-min-width); }
 .overlay[data-layout="double"][data-orientation="horizontal"] .active,
@@ -69,7 +69,7 @@
 .overlay[data-alignment="distributed"][data-layout="double"][data-orientation="vertical"] .next { height: 100%; }
 .active, .next {
   min-width: 0; overflow: visible; color: var(--active-color); font-family: var(--lyric-font-family); font-weight: var(--lyric-font-weight); line-height: var(--lyric-line-height);
-  letter-spacing: -.02em; white-space: nowrap; text-overflow: clip; text-shadow: var(--text-shadow);
+  letter-spacing: -.02em; white-space: nowrap; text-overflow: clip;
 }
 .next { color: var(--inactive-color); font-weight: var(--secondary-font-weight); }
 .karaokeText { white-space: pre; }

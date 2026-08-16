@@ -2,6 +2,8 @@ mod commands;
 mod config;
 mod language;
 mod lyrics;
+#[cfg(target_os = "macos")]
+mod macos_status_item;
 mod overlay_effect;
 mod player;
 mod player_lifecycle;
@@ -17,13 +19,19 @@ pub(crate) use overlay_effect::sync_overlay_vibrancy;
 use overlay_effect::{HORIZONTAL_OVERLAY_SURFACE_INSET, VERTICAL_OVERLAY_SURFACE_INSET};
 use player::{query_selected_player, PlayerSelection, SystemMediaService};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
-use tauri::tray::TrayIconBuilder;
+use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
 
 struct TrayMenuState {
+    icon: TrayIcon<tauri::Wry>,
+    #[cfg(target_os = "macos")]
+    lyrics_icon: TrayIcon<tauri::Wry>,
     toggle_overlay: CheckMenuItem<tauri::Wry>,
+    toggle_status_bar_lyrics: CheckMenuItem<tauri::Wry>,
+    toggle_list_lyrics: CheckMenuItem<tauri::Wry>,
+    toggle_notch_lyrics: CheckMenuItem<tauri::Wry>,
     switch_lyrics: MenuItem<tauri::Wry>,
     settings: MenuItem<tauri::Wry>,
     quit: MenuItem<tauri::Wry>,
@@ -49,6 +57,15 @@ pub(crate) fn apply_native_language(
         tray.toggle_overlay
             .set_text(labels.toggle_overlay)
             .map_err(|error| error.to_string())?;
+        tray.toggle_status_bar_lyrics
+            .set_text(labels.toggle_status_bar_lyrics)
+            .map_err(|error| error.to_string())?;
+        tray.toggle_list_lyrics
+            .set_text(labels.toggle_list_lyrics)
+            .map_err(|error| error.to_string())?;
+        tray.toggle_notch_lyrics
+            .set_text(labels.toggle_notch_lyrics)
+            .map_err(|error| error.to_string())?;
         tray.switch_lyrics
             .set_text(labels.switch_lyrics)
             .map_err(|error| error.to_string())?;
@@ -63,6 +80,8 @@ pub(crate) fn apply_native_language(
         ("quick-lyrics", labels.quick_title),
         ("lyrics-unlock-handle", labels.unlock_title),
         ("lyrics-overlay", labels.overlay_title),
+        ("lyrics-list", labels.list_title),
+        ("lyrics-notch", labels.notch_title),
     ] {
         if let Some(window) = app.get_webview_window(label) {
             window.set_title(title).map_err(|error| error.to_string())?;
@@ -75,6 +94,26 @@ pub(crate) fn sync_tray_overlay_checked(app: &tauri::AppHandle, visible: bool) {
     if let Some(tray) = app.try_state::<TrayMenuState>() {
         if let Err(error) = tray.toggle_overlay.set_checked(visible) {
             log::warn!("Failed to sync the tray overlay toggle state: {error}");
+        }
+    }
+}
+
+fn sync_tray_lyrics_display_checked(app: &tauri::AppHandle) {
+    let Some(state) = app.try_state::<AppState>() else {
+        return;
+    };
+    let displays = state.config.snapshot().lyrics.displays;
+    if let Some(tray) = app.try_state::<TrayMenuState>() {
+        for result in [
+            tray.toggle_status_bar_lyrics
+                .set_checked(displays.status_bar.enabled),
+            tray.toggle_list_lyrics
+                .set_checked(displays.list_window.enabled),
+            tray.toggle_notch_lyrics.set_checked(displays.notch.enabled),
+        ] {
+            if let Err(error) = result {
+                log::warn!("Failed to sync a lyrics display tray item: {error}");
+            }
         }
     }
 }
@@ -279,8 +318,15 @@ pub(crate) fn apply_dock_icon_hidden(_app: &tauri::AppHandle, _hidden: bool) -> 
 
 #[cfg(target_os = "macos")]
 fn enable_joining_other_apps_fullscreen(window: &tauri::WebviewWindow) -> tauri::Result<()> {
+    use objc2::MainThreadMarker;
     use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
 
+    if MainThreadMarker::new().is_none() {
+        return Err(std::io::Error::other(
+            "macOS window collection behavior must be updated on the main thread",
+        )
+        .into());
+    }
     let ns_window = window.ns_window()?;
     let ns_window = unsafe { &*ns_window.cast::<NSWindow>() };
     let mut behavior = ns_window.collectionBehavior();
@@ -417,6 +463,357 @@ pub(crate) fn show_quick_lyrics_window(app: &tauri::AppHandle) -> Result<(), Str
     window.set_focus().map_err(|error| error.to_string())
 }
 
+fn create_list_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {
+    if app.get_webview_window("lyrics-list").is_some() {
+        return Ok(());
+    }
+    WebviewWindowBuilder::new(
+        app,
+        "lyrics-list",
+        WebviewUrl::App("index.html?view=lyrics-list".into()),
+    )
+    .title(UiLanguage::ZhCn.native_labels().list_title)
+    .inner_size(520.0, 720.0)
+    .min_inner_size(360.0, 480.0)
+    .resizable(true)
+    .maximizable(true)
+    .minimizable(true)
+    .visible(false)
+    .center()
+    .build()?;
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn restore_status_bar_position(app: &tauri::AppHandle, window: &tauri::WebviewWindow) -> bool {
+    let Some(state) = app.try_state::<AppState>() else {
+        return false;
+    };
+    let monitor_id = state
+        .storage
+        .get_preference("lyrics-status-bar.last-monitor")
+        .ok()
+        .flatten()
+        .or_else(|| {
+            app.primary_monitor()
+                .ok()
+                .flatten()
+                .map(|monitor| notch_monitor_id(&monitor))
+        });
+    let raw = monitor_id
+        .as_deref()
+        .and_then(|id| {
+            state
+                .storage
+                .get_preference(&format!("lyrics-status-bar.position.{id}"))
+                .ok()
+                .flatten()
+        })
+        .or_else(|| {
+            state
+                .storage
+                .get_preference("lyrics-status-bar.position")
+                .ok()
+                .flatten()
+        });
+    let Some(raw) = raw else {
+        return false;
+    };
+    let Some((x, y)) = raw.split_once(',') else {
+        return false;
+    };
+    let (Ok(x), Ok(y)) = (x.parse::<i32>(), y.parse::<i32>()) else {
+        return false;
+    };
+    let position = tauri::PhysicalPosition::new(x, y);
+    let visible = app.available_monitors().ok().is_some_and(|monitors| {
+        monitors.iter().any(|monitor| {
+            let origin = monitor.position();
+            let size = monitor.size();
+            position.x >= origin.x
+                && position.y >= origin.y
+                && position.x < origin.x.saturating_add(size.width as i32)
+                && position.y < origin.y.saturating_add(size.height as i32)
+        })
+    });
+    visible && window.set_position(position).is_ok()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn position_status_bar_window_default(app: &tauri::AppHandle, window: &tauri::WebviewWindow) {
+    let Some(monitor) = app.primary_monitor().ok().flatten() else {
+        return;
+    };
+    let scale = monitor.scale_factor().max(1.0);
+    let size = window
+        .outer_size()
+        .unwrap_or(tauri::PhysicalSize::new(360, 36));
+    let right_gap = (96.0 * scale).round() as i32;
+    let top_gap = (3.0 * scale).round() as i32;
+    let x = monitor.position().x + monitor.size().width as i32 - size.width as i32 - right_gap;
+    let y = monitor.position().y + top_gap;
+    let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+}
+
+#[cfg(not(target_os = "macos"))]
+fn create_status_bar_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {
+    if app.get_webview_window("lyrics-status-bar").is_some() {
+        return Ok(());
+    }
+    let config = app.state::<AppState>().config.snapshot();
+    let appearance = &config.lyrics.displays.status_bar.appearance;
+    let height = appearance.font_size as f64 + 12.0;
+    let window = WebviewWindowBuilder::new(
+        app,
+        "lyrics-status-bar",
+        WebviewUrl::App("index.html?view=lyrics-status-bar".into()),
+    )
+    .title("Lyrics Plus 状态栏歌词")
+    .inner_size(appearance.width as f64, height.max(26.0))
+    .transparent(true)
+    .decorations(false)
+    .shadow(false)
+    .resizable(false)
+    .maximizable(false)
+    .minimizable(false)
+    .focusable(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .visible(false)
+    .build()?;
+    enable_joining_other_apps_fullscreen(&window)?;
+    window.set_ignore_cursor_events(true)?;
+    if !restore_status_bar_position(app, &window) {
+        position_status_bar_window_default(app, &window);
+    }
+    Ok(())
+}
+
+pub(crate) fn position_auxiliary_lyrics_window_default(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+    label: &str,
+) -> Result<(), String> {
+    match label {
+        "lyrics-status-bar" => {
+            #[cfg(not(target_os = "macos"))]
+            position_status_bar_window_default(app, window);
+        }
+        "lyrics-notch" => schedule_notch_position(app, window),
+        "lyrics-list" => {
+            let _ = window.center();
+        }
+        _ => return Err("未知歌词窗口".into()),
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn screen_safe_top(monitor: &tauri::Monitor) -> f64 {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::NSScreen;
+
+    let Some(marker) = MainThreadMarker::new() else {
+        return 0.0;
+    };
+    let monitor_name = monitor.name().map(String::as_str);
+    let screens = NSScreen::screens(marker);
+    if let Some(screen) = screens
+        .iter()
+        .find(|screen| monitor_name.is_some_and(|name| screen.localizedName().to_string() == name))
+    {
+        return screen.safeAreaInsets().top;
+    }
+    NSScreen::mainScreen(marker)
+        .map(|screen| screen.safeAreaInsets().top)
+        .unwrap_or(0.0)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn screen_safe_top(_monitor: &tauri::Monitor) -> f64 {
+    0.0
+}
+
+fn preferred_notch_monitor(app: &tauri::AppHandle) -> Option<tauri::Monitor> {
+    let preferred = app
+        .try_state::<AppState>()
+        .and_then(|state| state.config.snapshot().lyrics.displays.notch.monitor_id);
+    let monitors = app.available_monitors().ok()?;
+    preferred
+        .as_deref()
+        .and_then(|id| {
+            monitors
+                .iter()
+                .find(|monitor| notch_monitor_id(monitor) == id)
+                .cloned()
+        })
+        .or_else(|| app.primary_monitor().ok().flatten())
+        .or_else(|| monitors.into_iter().next())
+}
+
+fn notch_monitor_id(monitor: &tauri::Monitor) -> String {
+    let position = monitor.position();
+    let size = monitor.size();
+    format!(
+        "{}@{},{}:{}x{}",
+        monitor.name().map(String::as_str).unwrap_or("display"),
+        position.x,
+        position.y,
+        size.width,
+        size.height
+    )
+}
+
+fn position_notch_window(app: &tauri::AppHandle, window: &tauri::WebviewWindow) {
+    let Some(monitor) = preferred_notch_monitor(app) else {
+        return;
+    };
+    let resolved_monitor_id = notch_monitor_id(&monitor);
+    if let Some(state) = app.try_state::<AppState>() {
+        let current = state.config.snapshot().lyrics.displays.notch.monitor_id;
+        if current.as_deref() != Some(resolved_monitor_id.as_str()) {
+            if let Ok(config) = state.config.update(|config| {
+                config.lyrics.displays.notch.monitor_id = Some(resolved_monitor_id.clone());
+            }) {
+                let _ = app.emit("config://changed", &config);
+            }
+        }
+    }
+    let scale = monitor.scale_factor().max(1.0);
+    let width = window.outer_size().map(|size| size.width).unwrap_or(420);
+    let monitor_width = monitor.size().width;
+    let x = monitor.position().x + monitor_width.saturating_sub(width) as i32 / 2;
+    let safe_top = (screen_safe_top(&monitor) * scale).round() as i32;
+    let y = monitor.position().y + safe_top.max((6.0 * scale).round() as i32);
+    let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+    if let Some(state) = app.try_state::<AppState>() {
+        state
+            .notch_has_safe_area
+            .store(safe_top > 0, std::sync::atomic::Ordering::Relaxed);
+    }
+    let _ = window.emit("notch://safe-area", safe_top > 0);
+}
+
+fn schedule_notch_position(app: &tauri::AppHandle, window: &tauri::WebviewWindow) {
+    let target = window.clone();
+    let handle = app.clone();
+    if let Err(error) = window.run_on_main_thread(move || position_notch_window(&handle, &target)) {
+        log::warn!("Failed to schedule notch lyrics positioning: {error}");
+    }
+}
+
+fn create_notch_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {
+    if app.get_webview_window("lyrics-notch").is_some() {
+        return Ok(());
+    }
+    let width = app
+        .state::<AppState>()
+        .config
+        .snapshot()
+        .lyrics
+        .displays
+        .notch
+        .appearance
+        .max_width as f64
+        + 16.0;
+    let window = WebviewWindowBuilder::new(
+        app,
+        "lyrics-notch",
+        WebviewUrl::App("index.html?view=lyrics-notch".into()),
+    )
+    .title(UiLanguage::ZhCn.native_labels().notch_title)
+    .inner_size(width, 108.0)
+    .transparent(true)
+    .decorations(false)
+    .shadow(false)
+    .resizable(false)
+    .maximizable(false)
+    .minimizable(false)
+    .focusable(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .visible(false)
+    .build()?;
+    enable_joining_other_apps_fullscreen(&window)?;
+    schedule_notch_position(app, &window);
+    Ok(())
+}
+
+// 该函数会创建窗口并调用 AppKit，只能由主线程入口调用。
+fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let displays = state.config.snapshot().lyrics.displays;
+    #[cfg(not(target_os = "macos"))]
+    {
+        if displays.status_bar.enabled {
+            create_status_bar_lyrics_window(app).map_err(|error| error.to_string())?;
+            if let Some(window) = app.get_webview_window("lyrics-status-bar") {
+                let appearance = &displays.status_bar.appearance;
+                let height = appearance.font_size as f64 + 12.0;
+                let _ = window.set_size(tauri::LogicalSize::new(
+                    appearance.width as f64,
+                    height.max(26.0),
+                ));
+                window.show().map_err(|error| error.to_string())?;
+            }
+        } else if let Some(window) = app.get_webview_window("lyrics-status-bar") {
+            window.hide().map_err(|error| error.to_string())?;
+        }
+    }
+    if displays.list_window.enabled {
+        create_list_lyrics_window(app).map_err(|error| error.to_string())?;
+        if let Some(window) = app.get_webview_window("lyrics-list") {
+            window.show().map_err(|error| error.to_string())?;
+        }
+    } else if let Some(window) = app.get_webview_window("lyrics-list") {
+        window.hide().map_err(|error| error.to_string())?;
+    }
+
+    let has_track = state
+        .last_snapshot
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .title
+        .as_deref()
+        .is_some_and(|title| !title.trim().is_empty());
+    if displays.notch.enabled && has_track {
+        create_notch_lyrics_window(app).map_err(|error| error.to_string())?;
+        if let Some(window) = app.get_webview_window("lyrics-notch") {
+            let _ = window.set_size(tauri::LogicalSize::new(
+                displays.notch.appearance.max_width as f64 + 16.0,
+                108.0,
+            ));
+            window.show().map_err(|error| error.to_string())?;
+            schedule_notch_position(app, &window);
+        }
+    } else if let Some(window) = app.get_webview_window("lyrics-notch") {
+        window.hide().map_err(|error| error.to_string())?;
+    }
+    sync_tray_lyrics_display_checked(app);
+    Ok(())
+}
+
+fn sync_lyrics_surfaces_on_main(app: &tauri::AppHandle) {
+    #[cfg(target_os = "macos")]
+    macos_status_item::sync(app);
+    #[cfg(not(target_os = "macos"))]
+    if let Some(tray) = app.try_state::<TrayMenuState>() {
+        if let Err(error) = tray.icon.set_title(None::<&str>) {
+            log::warn!("Failed to update menu bar lyrics: {error}");
+        }
+    }
+    if let Err(error) = reconcile_auxiliary_lyrics_windows(app) {
+        log::warn!("Failed to reconcile auxiliary lyrics windows: {error}");
+    }
+}
+
+pub(crate) fn sync_lyrics_surfaces(app: &tauri::AppHandle) {
+    let handle = app.clone();
+    if let Err(error) = app.run_on_main_thread(move || sync_lyrics_surfaces_on_main(&handle)) {
+        log::warn!("Failed to schedule lyrics surface synchronization: {error}");
+    }
+}
+
 fn initial_overlay_dimensions(style: &OverlayStyleSettings) -> (f64, f64) {
     match style.orientation {
         OverlayOrientation::Horizontal => (style.horizontal_max_width.unwrap_or(760.0), 156.0),
@@ -470,6 +867,7 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .visible;
+    let display_config = app.state::<AppState>().config.snapshot().lyrics.displays;
     let toggle_accelerator = app
         .state::<AppState>()
         .config
@@ -486,6 +884,30 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         overlay_visible,
         Some(toggle_accelerator.as_str()),
     )?;
+    let toggle_status_bar_lyrics = CheckMenuItem::with_id(
+        app,
+        "toggle-status-bar-lyrics",
+        labels.toggle_status_bar_lyrics,
+        true,
+        display_config.status_bar.enabled,
+        None::<&str>,
+    )?;
+    let toggle_list_lyrics = CheckMenuItem::with_id(
+        app,
+        "toggle-list-lyrics",
+        labels.toggle_list_lyrics,
+        true,
+        display_config.list_window.enabled,
+        None::<&str>,
+    )?;
+    let toggle_notch_lyrics = CheckMenuItem::with_id(
+        app,
+        "toggle-notch-lyrics",
+        labels.toggle_notch_lyrics,
+        true,
+        display_config.notch.enabled,
+        None::<&str>,
+    )?;
     let switch_lyrics = MenuItem::with_id(
         app,
         "switch-lyrics",
@@ -495,14 +917,18 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     )?;
     let settings = MenuItem::with_id(app, "settings", labels.settings, true, Some("CmdOrCtrl+,"))?;
     let quit = MenuItem::with_id(app, "quit", labels.quit, true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&toggle_overlay, &switch_lyrics, &settings, &quit])?;
-
-    app.manage(TrayMenuState {
-        toggle_overlay: toggle_overlay.clone(),
-        switch_lyrics: switch_lyrics.clone(),
-        settings: settings.clone(),
-        quit: quit.clone(),
-    });
+    let menu = Menu::with_items(
+        app,
+        &[
+            &toggle_overlay,
+            &toggle_status_bar_lyrics,
+            &toggle_list_lyrics,
+            &toggle_notch_lyrics,
+            &switch_lyrics,
+            &settings,
+            &quit,
+        ],
+    )?;
 
     #[cfg(target_os = "macos")]
     let tray_icon = {
@@ -522,7 +948,7 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     #[cfg(target_os = "macos")]
     let tray_builder = tray_builder.icon_as_template(true);
 
-    tray_builder
+    let icon = tray_builder
         .tooltip("Lyrics Plus")
         .menu(&menu)
         .show_menu_on_left_click(true)
@@ -535,6 +961,51 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                     .unwrap_or_else(|error| error.into_inner())
                     .visible;
                 let _ = commands::update_overlay_visible(app, !visible);
+            }
+            "toggle-status-bar-lyrics" => {
+                let enabled = app
+                    .state::<AppState>()
+                    .config
+                    .snapshot()
+                    .lyrics
+                    .displays
+                    .status_bar
+                    .enabled;
+                let _ = commands::set_status_bar_lyrics_enabled(
+                    app.clone(),
+                    !enabled,
+                    app.state::<AppState>(),
+                );
+            }
+            "toggle-list-lyrics" => {
+                let enabled = app
+                    .state::<AppState>()
+                    .config
+                    .snapshot()
+                    .lyrics
+                    .displays
+                    .list_window
+                    .enabled;
+                let _ = commands::set_list_lyrics_visible(
+                    app.clone(),
+                    !enabled,
+                    app.state::<AppState>(),
+                );
+            }
+            "toggle-notch-lyrics" => {
+                let enabled = app
+                    .state::<AppState>()
+                    .config
+                    .snapshot()
+                    .lyrics
+                    .displays
+                    .notch
+                    .enabled;
+                let _ = commands::set_notch_lyrics_visible(
+                    app.clone(),
+                    !enabled,
+                    app.state::<AppState>(),
+                );
             }
             "switch-lyrics" => {
                 if let Err(error) = show_quick_lyrics_window(app) {
@@ -553,6 +1024,36 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             _ => {}
         })
         .build(app)?;
+
+    #[cfg(target_os = "macos")]
+    let lyrics_icon = TrayIconBuilder::with_id("lyrics-status-item")
+        .title("Lyrics Plus")
+        .tooltip("Lyrics Plus")
+        .menu(&menu)
+        .show_menu_on_left_click(true)
+        .build(app)?;
+    #[cfg(target_os = "macos")]
+    lyrics_icon.with_inner_tray_icon(|inner| {
+        if let Some(status_item) = inner.ns_status_item() {
+            status_item.setVisible(false);
+        }
+    })?;
+
+    app.manage(TrayMenuState {
+        icon,
+        #[cfg(target_os = "macos")]
+        lyrics_icon,
+        toggle_overlay: toggle_overlay.clone(),
+        toggle_status_bar_lyrics: toggle_status_bar_lyrics.clone(),
+        toggle_list_lyrics: toggle_list_lyrics.clone(),
+        toggle_notch_lyrics: toggle_notch_lyrics.clone(),
+        switch_lyrics: switch_lyrics.clone(),
+        settings: settings.clone(),
+        quit: quit.clone(),
+    });
+    sync_lyrics_surfaces(app);
+    #[cfg(target_os = "macos")]
+    macos_status_item::start(app.clone());
 
     Ok(())
 }
@@ -650,6 +1151,7 @@ fn start_player_monitor(app: tauri::AppHandle) {
                 *state.auto_player.write().unwrap_or_else(|e| e.into_inner()) = next_auto_player;
             }
             let _ = app.emit("playback://snapshot", &snapshot);
+            commands::sync_lyrics_runtime(&app, &snapshot);
             if let Err(error) = reconcile_overlay_visibility(&app) {
                 log::warn!("Failed to reconcile overlay visibility with playback state: {error}");
             }
@@ -658,11 +1160,21 @@ fn start_player_monitor(app: tauri::AppHandle) {
                     reconcile_overlay_placement(&app, &window);
                 }
             }
-            let any_window_visible = ["main", "lyrics-overlay"].iter().any(|label| {
-                app.get_webview_window(label)
-                    .and_then(|window| window.is_visible().ok())
-                    .unwrap_or(false)
-            });
+            let any_window_visible = app
+                .try_state::<AppState>()
+                .is_some_and(|state| state.config.snapshot().lyrics.displays.status_bar.enabled)
+                || [
+                    "main",
+                    "lyrics-overlay",
+                    "lyrics-list",
+                    "lyrics-notch",
+                ]
+                .iter()
+                .any(|label| {
+                    app.get_webview_window(label)
+                        .and_then(|window| window.is_visible().ok())
+                        .unwrap_or(false)
+                });
             tokio::time::sleep(Duration::from_millis(if any_window_visible {
                 750
             } else {
@@ -1452,6 +1964,9 @@ pub(crate) fn activate_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     if let Err(error) = reconcile_overlay_visibility(app) {
         log::warn!("Failed to reconcile overlay visibility at activation: {error}");
     }
+    if let Err(error) = reconcile_auxiliary_lyrics_windows(app) {
+        log::warn!("Failed to restore auxiliary lyrics windows: {error}");
+    }
     start_overlay_pointer_monitor(app.clone());
     start_player_monitor(app.clone());
     player_lifecycle::start_exit_monitor(app.clone());
@@ -1813,6 +2328,7 @@ pub fn run() {
                 .skip_initial_state("main")
                 .skip_initial_state("lyrics-overlay")
                 .skip_initial_state("quick-lyrics")
+                .skip_initial_state("lyrics-notch")
                 .build(),
         )
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -1872,6 +2388,10 @@ pub fn run() {
                     ..OverlayPlacementState::default()
                 })),
                 last_snapshot: Arc::new(RwLock::new(player::PlaybackSnapshot::empty())),
+                lyrics_runtime: Arc::new(RwLock::new(commands::LyricsRuntimeSnapshot::default())),
+                lyrics_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+                lyrics_auto_search_attempted: Arc::new(Mutex::new(std::collections::HashSet::new())),
+                notch_has_safe_area: Arc::new(std::sync::atomic::AtomicBool::new(false)),
                 storage: Arc::new(storage),
                 config,
                 providers: Arc::new(lyrics::provider::ProviderRegistry::new(provider_settings)),
@@ -1930,6 +2450,20 @@ pub fn run() {
                     let _ = window.hide();
                 }
             }
+            if window.label() == "lyrics-list" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                    if let Some(state) = window.app_handle().try_state::<AppState>() {
+                        if let Ok(config) = state.config.update(|config| {
+                            config.lyrics.displays.list_window.enabled = false;
+                        }) {
+                            let _ = window.app_handle().emit("config://changed", &config);
+                        }
+                    }
+                    sync_lyrics_surfaces(window.app_handle());
+                }
+            }
             if window.label() == "lyrics-overlay" {
                 if let tauri::WindowEvent::Moved(position) = event {
                     if let Some(overlay) = window.app_handle().get_webview_window("lyrics-overlay")
@@ -1978,6 +2512,8 @@ pub fn run() {
             commands::set_provider_settings,
             commands::test_provider,
             commands::get_cached_lyrics,
+            commands::get_lyrics_runtime_snapshot,
+            commands::get_notch_has_safe_area,
             commands::save_lyrics,
             commands::import_lyrics,
             commands::set_lyrics_offset,
@@ -2018,6 +2554,17 @@ pub fn run() {
             commands::set_silent_startup,
             commands::set_auto_check_updates,
             commands::set_overlay_hide_when_not_playing,
+            commands::set_status_bar_lyrics_enabled,
+            commands::set_list_lyrics_visible,
+            commands::set_list_lyrics_options,
+            commands::set_notch_lyrics_visible,
+            commands::set_notch_lyrics_preferences,
+            commands::set_lyrics_display_preferences,
+            commands::set_lyrics_base_appearance,
+            commands::set_lyrics_style_inheritance,
+            commands::reset_lyrics_base_appearance,
+            commands::reset_lyrics_style_mode,
+            commands::reset_lyrics_display_position,
             commands::export_app_config,
             commands::reveal_config_directory,
             commands::get_config_editor_data,

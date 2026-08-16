@@ -28,15 +28,17 @@ export function AppI18nProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     document.documentElement.lang = language;
     const view = new URLSearchParams(window.location.search).get("view");
-    const titleKey = view === "quick-lyrics"
-      ? "window.quickLyrics"
-      : view === "overlay"
-        ? "window.overlay"
-        : view === "unlock-handle"
-          ? "window.unlockHandle"
-          : "window.main";
+    const titleKeys: Record<string, string> = {
+      "quick-lyrics": "window.quickLyrics",
+      overlay: "window.overlay",
+      "lyrics-status-bar": "window.statusBarLyrics",
+      "lyrics-list": "window.lyricsList",
+      "lyrics-notch": "window.notchLyrics",
+      "unlock-handle": "window.unlockHandle",
+    };
+    const titleKey = titleKeys[view ?? ""] ?? "window.main";
     void appI18n.changeLanguage(language).then(() => {
-      document.title = appI18n.t(titleKey);
+      document.title = appI18n.t(titleKey as "window.main");
     });
     if (isTauriRuntime()) void api.setNativeLanguage(nativeLanguageFor(language)).catch(() => undefined);
   }, [language]);

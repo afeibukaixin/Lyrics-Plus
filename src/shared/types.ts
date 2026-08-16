@@ -112,6 +112,96 @@ export type LyricsDocument = {
   raw: string;
 };
 
+export type LyricsRuntimeStatus = "idle" | "loading" | "ready" | "not_found" | "error";
+
+export type LyricsRuntimeSnapshot = {
+  trackKey: string | null;
+  document: LyricsDocument | null;
+  status: LyricsRuntimeStatus;
+  error: string | null;
+};
+
+export type LyricsStyleMode = "desktop" | "statusBar" | "listWindow" | "notch";
+
+export type LyricsBaseAppearance = {
+  fontFamily: string;
+  activeColor: string;
+  inactiveColor: string;
+  translationColor: string;
+  romanizationColor: string;
+  supportingColor: string;
+  backgroundColor: string;
+};
+
+export type LyricsModeStyleInheritance = {
+  inheritFontFamily: boolean;
+  inheritColors: boolean;
+};
+
+export type LyricsStyleInheritance = Record<LyricsStyleMode, LyricsModeStyleInheritance>;
+
+export type StatusBarLyricsAppearance = {
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: OverlayFontWeight;
+  textColor: string;
+  inactiveColor: string;
+  highlightColor: string;
+  width: number;
+};
+
+export type ListLyricsAppearance = {
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: OverlayFontWeight;
+  secondaryFontScale: number;
+  lineHeight: number;
+  lineGap: number;
+  activeColor: string;
+  inactiveColor: string;
+  translationColor: string;
+  romanizationColor: string;
+  activeBackgroundColor: string;
+  backgroundColor: string;
+  alignment: "left" | "center" | "right";
+};
+
+export type NotchLyricsAppearance = {
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: OverlayFontWeight;
+  activeColor: string;
+  secondaryColor: string;
+  backgroundColor: string;
+  backgroundOpacity: number;
+  backgroundBlur: number;
+  borderRadius: number;
+  maxWidth: number;
+};
+
+export type LyricsDisplayPreferences = {
+  statusBar: {
+    enabled: boolean;
+    appearance: StatusBarLyricsAppearance;
+  };
+  listWindow: {
+    enabled: boolean;
+    showTranslation: boolean;
+    showRomanization: boolean;
+    appearance: ListLyricsAppearance;
+  };
+  notch: {
+    enabled: boolean;
+    monitorId: string | null;
+    expandedOnHover: boolean;
+    appearance: NotchLyricsAppearance;
+  };
+};
+
+export type StatusBarLyricsPreferences = LyricsDisplayPreferences["statusBar"];
+export type ListLyricsPreferences = LyricsDisplayPreferences["listWindow"];
+export type NotchLyricsPreferences = LyricsDisplayPreferences["notch"];
+
 export type LyricsSearchResult = {
   id: string;
   providerId: string;
@@ -163,7 +253,7 @@ export type ProviderSettingsView = {
   statuses: ProviderStatus[];
 };
 
-export type SettingsSection = "style" | "display" | "lyrics" | "player" | "application" | "about";
+export type SettingsSection = "style" | "lyrics" | "player" | "application" | "about";
 export type LanguagePreference = "system" | SupportedLanguage;
 export type ThemePreference = "system" | "light" | "dark";
 export type NativeLanguage = "zh-CN" | "en-US";
@@ -193,6 +283,9 @@ export type AppConfig = {
   };
   lyrics: {
     providers: ProviderSettings;
+    displays: LyricsDisplayPreferences;
+    baseAppearance: LyricsBaseAppearance;
+    styleInheritance: LyricsStyleInheritance;
   };
   overlay: {
     visible: boolean;
@@ -348,4 +441,60 @@ export const defaultOverlayStyle: OverlayStyle = {
   textShadowColor: "rgba(0, 0, 0, 0.55)",
   horizontalMaxWidth: null,
   verticalMaxHeight: null,
+};
+
+export const defaultLyricsBaseAppearance: LyricsBaseAppearance = {
+  fontFamily: defaultOverlayStyle.fontFamily,
+  activeColor: "#a3e635",
+  inactiveColor: "#ecfccb",
+  translationColor: "#d9f99d",
+  romanizationColor: "#bef264",
+  supportingColor: "#94a3b8",
+  backgroundColor: "#171821",
+};
+
+export const defaultLyricsStyleInheritance: LyricsStyleInheritance = {
+  desktop: { inheritFontFamily: true, inheritColors: true },
+  statusBar: { inheritFontFamily: true, inheritColors: true },
+  listWindow: { inheritFontFamily: true, inheritColors: true },
+  notch: { inheritFontFamily: true, inheritColors: true },
+};
+
+export const defaultStatusBarLyricsAppearance: StatusBarLyricsAppearance = {
+  fontFamily: defaultOverlayStyle.fontFamily,
+  fontSize: 14,
+  fontWeight: 600,
+  textColor: "#a3e635",
+  inactiveColor: "#ecfccb",
+  highlightColor: "#a3e635",
+  width: 220,
+};
+
+export const defaultListLyricsAppearance: ListLyricsAppearance = {
+  fontFamily: defaultOverlayStyle.fontFamily,
+  fontSize: 24,
+  fontWeight: 600,
+  secondaryFontScale: 0.58,
+  lineHeight: 1.45,
+  lineGap: 8,
+  activeColor: "#a3e635",
+  inactiveColor: "#ecfccb",
+  translationColor: "#d9f99d",
+  romanizationColor: "#bef264",
+  activeBackgroundColor: "rgba(148, 163, 184, 0.14)",
+  backgroundColor: "#171821",
+  alignment: "left",
+};
+
+export const defaultNotchLyricsAppearance: NotchLyricsAppearance = {
+  fontFamily: defaultOverlayStyle.fontFamily,
+  fontSize: 18,
+  fontWeight: 700,
+  activeColor: defaultOverlayStyle.activeColor,
+  secondaryColor: "#94a3b8",
+  backgroundColor: "#171821",
+  backgroundOpacity: 0.88,
+  backgroundBlur: 20,
+  borderRadius: 22,
+  maxWidth: 404,
 };

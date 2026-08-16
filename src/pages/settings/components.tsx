@@ -94,7 +94,7 @@ export function SettingsPage({ sections, children }: { sections: SettingsPageSec
       let nextSection = sectionElements[0].id;
 
       if (atBottom) {
-        nextSection = sectionElements.at(-1)?.id ?? nextSection;
+        nextSection = sectionElements[sectionElements.length - 1]?.id ?? nextSection;
       } else {
         for (const element of sectionElements) {
           if (element.getBoundingClientRect().top > activationLine) break;

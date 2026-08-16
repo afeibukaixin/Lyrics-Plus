@@ -19,7 +19,7 @@ import {
   type OverlayStyle,
   type ToolbarPlacement,
 } from "../../shared/types";
-import { useLyrics } from "../lyrics/useLyrics";
+import { useLyricsPresentation } from "../lyrics/useLyricsPresentation";
 import { usePlayback } from "../player/usePlayback";
 import styles from "./Overlay.module.scss";
 
@@ -154,7 +154,7 @@ function KaraokeLine({ line, fallback, positionMs, style }: {
 export default function Overlay() {
   const { t } = useTranslation();
   const playback = usePlayback();
-  const lyrics = useLyrics(playback.snapshot, playback.positionMs, true);
+  const lyrics = useLyricsPresentation(playback.snapshot, playback.positionMs);
   const [style, setStyle] = useState<OverlayStyle>(defaultOverlayStyle);
   const [settings, setSettings] = useState<OverlaySettings>({ visible: true, locked: false });
   const linesRef = useRef<HTMLDivElement>(null);
@@ -165,6 +165,8 @@ export default function Overlay() {
   const fitRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shrinkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unlockFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingOffsetRef = useRef(0);
+  const offsetWriteQueue = useRef<Promise<unknown>>(Promise.resolve());
   const resizeSession = useRef<ActiveResizeSession | null>(null);
   const finishResizeRef = useRef<() => void>(() => undefined);
   const styleRef = useRef(style);
@@ -386,12 +388,26 @@ export default function Overlay() {
   const supportingKey = supportingLines.map((line) => `${line.kind}:${line.text}`).join("|");
   const offsetAvailable = Boolean(lyrics.document);
   const offsetMs = lyrics.document?.offsetMs ?? 0;
+  useEffect(() => {
+    pendingOffsetRef.current = offsetMs;
+  }, [offsetMs]);
   const offsetLabel = offsetAvailable ? formatOffset(offsetMs) : "—";
   const offsetValueTitle = offsetAvailable
     ? offsetMs === 0
       ? t("overlay.toolbar.offsetZeroTitle")
       : t("overlay.toolbar.offsetTitle", { value: formatOffsetMs(offsetMs) })
     : t("overlay.toolbar.noOffset");
+  const setLyricsOffset = (nextOffsetMs: number) => {
+    if (!lyrics.trackKey) return;
+    pendingOffsetRef.current = nextOffsetMs;
+    const trackKey = lyrics.trackKey;
+    offsetWriteQueue.current = offsetWriteQueue.current
+      .then(() => api.setLyricsOffset(trackKey, nextOffsetMs))
+      .catch((error) => reportFrontendError("Failed to update the lyrics offset", error));
+  };
+  const changeLyricsOffset = (deltaMs: number) => {
+    setLyricsOffset(pendingOffsetRef.current + deltaMs);
+  };
   const backgroundLabel = transparentMode
     ? t("overlay.toolbar.backgroundTransparent")
     : t("overlay.toolbar.backgroundVisible");
@@ -872,7 +888,7 @@ export default function Overlay() {
                 variant="ghost"
                 size="icon-sm"
                 disabled={!offsetAvailable}
-                onClick={(event) => void lyrics.changeOffset(event.shiftKey ? -500 : -100)}
+                onClick={(event) => changeLyricsOffset(event.shiftKey ? -500 : -100)}
               ><ClockArrowLeft /></IconButton>
               <IconButton
                 className={styles.offsetValue}
@@ -885,7 +901,7 @@ export default function Overlay() {
                 variant="ghost"
                 size="icon-sm"
                 disabled={!offsetAvailable || offsetMs === 0}
-                onClick={() => void lyrics.setOffset(0)}
+                onClick={() => setLyricsOffset(0)}
               >{offsetLabel}</IconButton>
               <IconButton
                 label={t("overlay.toolbar.advance")}
@@ -893,7 +909,7 @@ export default function Overlay() {
                 variant="ghost"
                 size="icon-sm"
                 disabled={!offsetAvailable}
-                onClick={(event) => void lyrics.changeOffset(event.shiftKey ? 500 : 100)}
+                onClick={(event) => changeLyricsOffset(event.shiftKey ? 500 : 100)}
               ><ClockArrowRight /></IconButton>
             </div>
             <IconButton label={t("overlay.toolbar.toggleLayout", { value: t(`overlay.layout.${style.layout}`) })} tooltip={t("overlay.toolbar.toggleLayoutTitle", { value: t(`overlay.layout.${style.layout}`) })} variant="ghost" size="icon-sm" onClick={() => void updateStyle({

@@ -35,7 +35,7 @@ export function findAlignedAuxiliaryLine(lines: LyricsLine[], currentLine: Lyric
   return nearestDelta <= AUXILIARY_TIMESTAMP_TOLERANCE_MS ? nearest : null;
 }
 
-export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, autoSearch: boolean) {
+export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number) {
   const { t } = useTranslation();
   const trackKey = useMemo(() => trackKeyOf(snapshot), [snapshot]);
   const [document, setDocument] = useState<LyricsDocument | null>(null);
@@ -43,16 +43,12 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, autoSe
   const [searching, setSearching] = useState(false);
   const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const attempted = useRef(new Set<string>());
   const searchGeneration = useRef(0);
   const activeTrackKey = useRef(trackKey);
   const documentRef = useRef<LyricsDocument | null>(null);
   const documentTrackKey = useRef<string | null>(null);
   const pendingOffsetWrites = useRef(new Map<string, PendingOffsetWrite>());
   const offsetWriteQueue = useRef<Promise<void>>(Promise.resolve());
-  const searchRef = useRef<
-    ((allowAutoApply?: boolean, override?: LyricsSearchInput) => Promise<void>) | null
-  >(null);
   activeTrackKey.current = trackKey;
 
   const updateDocument = useCallback((next: LyricsDocument | null, key: string | null = activeTrackKey.current) => {
@@ -130,23 +126,15 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, autoSe
       if (isCurrent()) setSearching(false);
     }
   }, [applyResult, snapshot.album, snapshot.artist, snapshot.durationMs, snapshot.title, t, trackKey]);
-  searchRef.current = search;
-
   useEffect(() => {
-    const generation = ++searchGeneration.current;
+    ++searchGeneration.current;
     setSearching(false);
     setError(null);
     setResults([]);
     updateDocument(null);
     if (!trackKey) return;
-    void loadTrack(trackKey).then((cached) => {
-      if (searchGeneration.current !== generation) return;
-      if (autoSearch && trackKey && !cached && !attempted.current.has(trackKey)) {
-        attempted.current.add(trackKey);
-        void searchRef.current?.(true);
-      }
-    });
-  }, [autoSearch, loadTrack, trackKey, updateDocument]);
+    void loadTrack(trackKey);
+  }, [loadTrack, trackKey, updateDocument]);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;

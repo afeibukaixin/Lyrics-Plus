@@ -1,0 +1,482 @@
+use std::cell::RefCell;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+use objc2::rc::Retained;
+use objc2::runtime::AnyObject;
+use objc2::MainThreadMarker;
+use objc2_app_kit::{
+    NSAttributedStringNSStringDrawing, NSColor, NSFont, NSFontAttributeName, NSFontManager,
+    NSFontTraitMask, NSForegroundColorAttributeName,
+};
+use objc2_foundation::{NSMutableAttributedString, NSPoint, NSRange, NSRect, NSSize, NSString};
+use objc2_quartz_core::{CATextLayer, CATransaction};
+use tauri::Manager;
+use unicode_segmentation::UnicodeSegmentation;
+
+use crate::commands::AppState;
+use crate::lyrics::LyricsWord;
+use crate::TrayMenuState;
+
+const CONTENT_INSET: f64 = 6.0;
+const SCROLL_DELAY: Duration = Duration::from_millis(1_000);
+const SCROLL_SPEED_POINTS_PER_SECOND: f64 = 28.0;
+const STATUS_BAR_FONT_SIZE_MAX: f64 = 18.0;
+const TEXT_LAYER_HEIGHT_PADDING: f64 = 4.0;
+
+thread_local! {
+    static TEXT_LAYER: RefCell<Option<Retained<CATextLayer>>> = const { RefCell::new(None) };
+}
+
+#[derive(Default)]
+struct ScrollState {
+    content_key: String,
+    changed_at: Option<Instant>,
+}
+
+#[derive(Clone)]
+struct HighlightRange {
+    start: usize,
+    length: usize,
+}
+
+struct RenderPayload {
+    text: String,
+    content_key: String,
+    width: f64,
+    font_family: String,
+    font_size: f64,
+    font_weight: u16,
+    base_color: String,
+    highlight_color: String,
+    highlight_ranges: Vec<HighlightRange>,
+    is_playing: bool,
+}
+
+fn scroll_state() -> &'static Mutex<ScrollState> {
+    static STATE: OnceLock<Mutex<ScrollState>> = OnceLock::new();
+    STATE.get_or_init(|| Mutex::new(ScrollState::default()))
+}
+
+fn reset_scroll() {
+    *scroll_state()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = ScrollState::default();
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+fn current_position_ms(snapshot: &crate::player::PlaybackSnapshot) -> u64 {
+    let position = snapshot.position_ms.unwrap_or_default();
+    if snapshot.is_playing {
+        position.saturating_add(now_ms().saturating_sub(snapshot.observed_at_ms))
+    } else {
+        position
+    }
+}
+
+fn highlight_ranges(text: &str, words: &[LyricsWord], position_ms: u64) -> Vec<HighlightRange> {
+    let mut byte_cursor = 0;
+    let mut ranges = Vec::new();
+    for word in words {
+        let Some(relative_start) = text[byte_cursor..].find(&word.text) else {
+            continue;
+        };
+        let start = byte_cursor + relative_start;
+        let word_end = start + word.text.len();
+        byte_cursor = word_end;
+        if position_ms <= word.start_ms {
+            continue;
+        }
+        let highlighted_bytes = if word.end_ms <= word.start_ms || position_ms >= word.end_ms {
+            word.text.len()
+        } else {
+            let grapheme_ends = word
+                .text
+                .grapheme_indices(true)
+                .map(|(index, grapheme)| index + grapheme.len())
+                .collect::<Vec<_>>();
+            let elapsed = position_ms.saturating_sub(word.start_ms) as u128;
+            let duration = word.end_ms.saturating_sub(word.start_ms) as u128;
+            let sung_count = (elapsed * grapheme_ends.len() as u128 / duration) as usize;
+            sung_count
+                .checked_sub(1)
+                .and_then(|index| grapheme_ends.get(index))
+                .copied()
+                .unwrap_or_default()
+        };
+        if highlighted_bytes == 0 {
+            continue;
+        }
+        let end = start + highlighted_bytes;
+        ranges.push(HighlightRange {
+            start: text[..start].encode_utf16().count(),
+            length: text[start..end].encode_utf16().count(),
+        });
+    }
+    ranges
+}
+
+fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
+    let state = app.try_state::<AppState>()?;
+    let config = state.config.snapshot();
+    let preferences = config.lyrics.displays.status_bar;
+    if !preferences.enabled {
+        return None;
+    }
+
+    let playback = state
+        .last_snapshot
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .clone();
+    let playback_key = crate::commands::playback_track_key(&playback);
+    let position_ms = current_position_ms(&playback);
+    let runtime = state
+        .lyrics_runtime
+        .read()
+        .unwrap_or_else(|error| error.into_inner());
+
+    let mut text = playback
+        .title
+        .as_deref()
+        .map(str::trim)
+        .filter(|title| !title.is_empty())
+        .map(|title| format!("♪ {title}"))
+        .unwrap_or_else(|| "Lyrics Plus".into());
+    let track_key = playback_key.as_deref().unwrap_or_default();
+    let mut content_key = format!("{track_key}:fallback:{text}");
+    let mut base_color = preferences.appearance.text_color.clone();
+    let mut highlighted_ranges = Vec::new();
+
+    if runtime.track_key == playback_key {
+        if let Some(document) = runtime.document.as_ref() {
+            let adjusted = (position_ms as i128 + document.offset_ms as i128).max(0) as u64;
+            let current_line = document
+                .tracks
+                .original
+                .lines
+                .iter()
+                .take_while(|line| line.start_ms <= adjusted)
+                .last();
+            if let Some(line) = current_line.filter(|line| !line.text.trim().is_empty()) {
+                text = line.text.trim().to_owned();
+                content_key = format!("{track_key}:line:{}:{text}", line.start_ms);
+                if let Some(words) = line.words.as_deref().filter(|words| !words.is_empty()) {
+                    base_color = preferences.appearance.inactive_color.clone();
+                    highlighted_ranges = highlight_ranges(&text, words, adjusted);
+                } else {
+                    base_color = preferences.appearance.highlight_color.clone();
+                }
+            }
+        }
+    }
+    content_key.push_str(&format!(
+        ":style:{}:{}:{}:{}",
+        preferences.appearance.width,
+        preferences.appearance.font_family,
+        preferences.appearance.font_size,
+        preferences.appearance.font_weight,
+    ));
+
+    Some(RenderPayload {
+        text,
+        content_key,
+        width: preferences.appearance.width as f64,
+        font_family: preferences.appearance.font_family,
+        font_size: preferences.appearance.font_size as f64,
+        font_weight: preferences.appearance.font_weight,
+        base_color,
+        highlight_color: preferences.appearance.highlight_color,
+        highlight_ranges: highlighted_ranges,
+        is_playing: playback.is_playing,
+    })
+}
+
+fn system_font_weight(weight: u16) -> f64 {
+    match weight {
+        0..=449 => 0.0,
+        450..=549 => 0.23,
+        550..=649 => 0.30,
+        650..=749 => 0.40,
+        _ => 0.56,
+    }
+}
+
+fn font_manager_weight(weight: u16) -> isize {
+    match weight {
+        0..=449 => 5,
+        450..=549 => 7,
+        550..=649 => 9,
+        650..=749 => 11,
+        _ => 13,
+    }
+}
+
+fn resolve_font(
+    family_stack: &str,
+    size: f64,
+    weight: u16,
+    mtm: MainThreadMarker,
+) -> Retained<NSFont> {
+    let manager = NSFontManager::sharedFontManager(mtm);
+    for candidate in family_stack.split(',') {
+        let family = candidate.trim().trim_matches(['\'', '"']);
+        if family.is_empty() {
+            continue;
+        }
+        if matches!(
+            family.to_ascii_lowercase().as_str(),
+            "-apple-system" | "system-ui" | "sans-serif"
+        ) {
+            break;
+        }
+        if let Some(font) = manager.fontWithFamily_traits_weight_size(
+            &NSString::from_str(family),
+            NSFontTraitMask::empty(),
+            font_manager_weight(weight),
+            size,
+        ) {
+            return font;
+        }
+    }
+    NSFont::systemFontOfSize_weight(size, system_font_weight(weight))
+}
+
+fn parse_channel(value: &str) -> Option<f64> {
+    let value = value.trim();
+    if let Some(percent) = value.strip_suffix('%') {
+        return Some(percent.trim().parse::<f64>().ok()?.clamp(0.0, 100.0) / 100.0);
+    }
+    Some(value.parse::<f64>().ok()?.clamp(0.0, 255.0) / 255.0)
+}
+
+fn parse_alpha(value: &str) -> Option<f64> {
+    let value = value.trim();
+    if let Some(percent) = value.strip_suffix('%') {
+        return Some(percent.trim().parse::<f64>().ok()?.clamp(0.0, 100.0) / 100.0);
+    }
+    Some(value.parse::<f64>().ok()?.clamp(0.0, 1.0))
+}
+
+fn parse_color(value: &str, fallback: (f64, f64, f64, f64)) -> (f64, f64, f64, f64) {
+    let value = value.trim();
+    if value.eq_ignore_ascii_case("transparent") {
+        return (0.0, 0.0, 0.0, 0.0);
+    }
+    if let Some(hex) = value.strip_prefix('#') {
+        let expanded = match hex.len() {
+            3 | 4 => hex
+                .chars()
+                .flat_map(|character| [character, character])
+                .collect::<String>(),
+            6 | 8 => hex.to_owned(),
+            _ => String::new(),
+        };
+        if matches!(expanded.len(), 6 | 8) {
+            let component = |start| u8::from_str_radix(&expanded[start..start + 2], 16).ok();
+            if let (Some(red), Some(green), Some(blue)) =
+                (component(0), component(2), component(4))
+            {
+                let alpha = if expanded.len() == 8 {
+                    component(6).unwrap_or(255)
+                } else {
+                    255
+                };
+                return (
+                    red as f64 / 255.0,
+                    green as f64 / 255.0,
+                    blue as f64 / 255.0,
+                    alpha as f64 / 255.0,
+                );
+            }
+        }
+    }
+
+    let lower = value.to_ascii_lowercase();
+    if (lower.starts_with("rgb(") || lower.starts_with("rgba(")) && lower.ends_with(')') {
+        let start = lower.find('(').unwrap_or_default() + 1;
+        let values = lower[start..lower.len() - 1]
+            .replace('/', ",")
+            .split(|character: char| character == ',' || character.is_ascii_whitespace())
+            .filter(|part| !part.is_empty())
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        if values.len() >= 3 {
+            if let (Some(red), Some(green), Some(blue)) = (
+                parse_channel(&values[0]),
+                parse_channel(&values[1]),
+                parse_channel(&values[2]),
+            ) {
+                return (
+                    red,
+                    green,
+                    blue,
+                    values.get(3).and_then(|alpha| parse_alpha(alpha)).unwrap_or(1.0),
+                );
+            }
+        }
+    }
+    fallback
+}
+
+fn native_color(value: &str, fallback: (f64, f64, f64, f64)) -> Retained<NSColor> {
+    let (red, green, blue, alpha) = parse_color(value, fallback);
+    NSColor::colorWithSRGBRed_green_blue_alpha(red, green, blue, alpha)
+}
+
+fn scroll_elapsed(content_key: &str, is_playing: bool) -> Duration {
+    let now = Instant::now();
+    let mut state = scroll_state()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    if state.content_key != content_key || !is_playing {
+        state.content_key = content_key.to_owned();
+        state.changed_at = Some(now);
+        return Duration::ZERO;
+    }
+    let changed_at = *state.changed_at.get_or_insert(now);
+    now.saturating_duration_since(changed_at)
+}
+
+fn scroll_offset(content_width: f64, available_width: f64, elapsed: Duration) -> f64 {
+    let maximum = (content_width - available_width).max(0.0);
+    if maximum <= 0.0 || elapsed <= SCROLL_DELAY {
+        return 0.0;
+    }
+    ((elapsed - SCROLL_DELAY).as_secs_f64() * SCROLL_SPEED_POINTS_PER_SECOND).min(maximum)
+}
+
+fn render_on_main(payload: RenderPayload, tray: &tauri::tray::TrayIcon) {
+    let elapsed = scroll_elapsed(&payload.content_key, payload.is_playing);
+    let _ = tray.with_inner_tray_icon(move |inner| {
+        let Some(mtm) = MainThreadMarker::new() else {
+            return;
+        };
+        let Some(status_item) = inner.ns_status_item() else {
+            return;
+        };
+        status_item.setLength(payload.width);
+        let Some(button) = status_item.button(mtm) else {
+            return;
+        };
+        let button_height = button.bounds().size.height;
+        let font_size = payload
+            .font_size
+            .min(STATUS_BAR_FONT_SIZE_MAX)
+            .min((button_height - TEXT_LAYER_HEIGHT_PADDING).max(10.0));
+
+        button.setTitle(&NSString::from_str(""));
+        button.setWantsLayer(true);
+        let Some(host_layer) = button.layer() else {
+            return;
+        };
+        host_layer.setMasksToBounds(true);
+
+        let font = resolve_font(
+            &payload.font_family,
+            font_size,
+            payload.font_weight,
+            mtm,
+        );
+        let base_color = native_color(&payload.base_color, (0.96, 0.98, 1.0, 1.0));
+        let highlight_color = native_color(&payload.highlight_color, (0.64, 0.90, 0.21, 1.0));
+        let string = NSString::from_str(&payload.text);
+        let attributed = NSMutableAttributedString::from_nsstring(&string);
+        let full_range = NSRange::new(0, string.length());
+        let font_object = <NSFont as AsRef<AnyObject>>::as_ref(&font);
+        let base_color_object = <NSColor as AsRef<AnyObject>>::as_ref(&base_color);
+        unsafe {
+            attributed.addAttribute_value_range(NSFontAttributeName, font_object, full_range);
+            attributed.addAttribute_value_range(
+                NSForegroundColorAttributeName,
+                base_color_object,
+                full_range,
+            );
+        }
+        let highlight_object = <NSColor as AsRef<AnyObject>>::as_ref(&highlight_color);
+        for range in payload.highlight_ranges {
+            unsafe {
+                attributed.addAttribute_value_range(
+                    NSForegroundColorAttributeName,
+                    highlight_object,
+                    NSRange::new(range.start, range.length),
+                );
+            }
+        }
+
+        let content_width = attributed.size().width.ceil();
+        let available_width = (payload.width - CONTENT_INSET * 2.0).max(1.0);
+        let offset = scroll_offset(content_width, available_width, elapsed);
+        let layer_height = (font_size + TEXT_LAYER_HEIGHT_PADDING).min(button_height);
+        let origin_x = CONTENT_INSET - offset;
+        let origin_y = ((button_height - layer_height) / 2.0).floor();
+
+        CATransaction::begin();
+        CATransaction::setDisableActions(true);
+        TEXT_LAYER.with(|slot| {
+            let mut slot = slot.borrow_mut();
+            let text_layer = slot.get_or_insert_with(|| {
+                let layer = CATextLayer::layer();
+                layer.setWrapped(false);
+                layer.setContentsScale(2.0);
+                host_layer.addSublayer(&layer);
+                layer
+            });
+            let attributed_object =
+                <NSMutableAttributedString as AsRef<AnyObject>>::as_ref(&attributed);
+            unsafe {
+                text_layer.setString(Some(attributed_object));
+            }
+            text_layer.setFrame(NSRect::new(
+                NSPoint::new(origin_x, origin_y),
+                NSSize::new(content_width.max(1.0), layer_height),
+            ));
+        });
+        CATransaction::commit();
+    });
+}
+
+pub(crate) fn sync(app: &tauri::AppHandle) {
+    let Some(tray_state) = app.try_state::<TrayMenuState>() else {
+        return;
+    };
+    let preferences = app
+        .state::<AppState>()
+        .config
+        .snapshot()
+        .lyrics
+        .displays
+        .status_bar;
+    let _ = tray_state.icon.set_visible(true);
+    let enabled = preferences.enabled;
+    let _ = tray_state.lyrics_icon.with_inner_tray_icon(move |inner| {
+        if let Some(status_item) = inner.ns_status_item() {
+            status_item.setVisible(enabled);
+        }
+    });
+    if let Some(payload) = render_payload(app) {
+        render_on_main(payload, &tray_state.lyrics_icon);
+    } else {
+        reset_scroll();
+    }
+}
+
+pub(crate) fn start(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            let enabled = app
+                .try_state::<AppState>()
+                .is_some_and(|state| state.config.snapshot().lyrics.displays.status_bar.enabled);
+            if enabled {
+                sync(&app);
+            }
+            tokio::time::sleep(Duration::from_millis(if enabled { 50 } else { 500 })).await;
+        }
+    });
+}

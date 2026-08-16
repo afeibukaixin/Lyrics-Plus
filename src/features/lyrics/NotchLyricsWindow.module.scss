@@ -1,0 +1,107 @@
+.shell {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0 8px 8px;
+  background: transparent;
+  font-family: var(--notch-font-family);
+  user-select: none;
+}
+
+.island {
+  width: min(100%, calc(var(--notch-max-width) - 44px));
+  height: 42px;
+  overflow: hidden;
+  padding: 0 18px;
+  border-radius: var(--notch-radius);
+  color: white;
+  background: color-mix(in srgb, var(--notch-background-color) calc(var(--notch-opacity) * 100%), transparent);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 28%);
+  backdrop-filter: blur(var(--notch-background-blur)) saturate(1.25);
+  transition: width 180ms ease, height 180ms ease, border-radius 180ms ease;
+}
+
+.shell[data-has-notch] .island {
+  border-radius: 0 0 var(--notch-radius) var(--notch-radius);
+}
+
+.shell[data-expanded] .island {
+  width: min(100%, var(--notch-max-width));
+  height: 100px;
+  border-radius: calc(var(--notch-radius) + 4px);
+}
+
+.shell[data-expanded][data-has-notch] .island {
+  border-radius: 0 0 calc(var(--notch-radius) + 4px) calc(var(--notch-radius) + 4px);
+}
+
+.compactLine {
+  display: flex;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--notch-active-color);
+  font-size: var(--notch-font-size);
+  font-weight: var(--notch-font-weight);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.compactLine span {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 16px;
+  align-items: center;
+  height: 52px;
+  opacity: 0;
+  transform: translateY(-5px);
+  transition: opacity 140ms ease, transform 180ms ease;
+}
+
+.shell[data-expanded] .details {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.track {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.track strong,
+.track span,
+.details p {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track strong {
+  font-size: 0.75rem;
+}
+
+.track span,
+.details p {
+  color: var(--notch-secondary-color);
+  font-size: 0.6875rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .island,
+  .details {
+    transition: none;
+  }
+}

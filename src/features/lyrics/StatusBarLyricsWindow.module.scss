@@ -1,0 +1,24 @@
+.shell {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: flex-start;
+  padding-inline: 6px;
+  overflow: hidden;
+  color: var(--status-text-color);
+  background: transparent;
+  font-family: var(--status-font-family);
+  font-size: min(var(--status-font-size), 18px);
+  font-weight: var(--status-font-weight);
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.shell span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

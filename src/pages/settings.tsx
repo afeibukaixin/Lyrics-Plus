@@ -10,7 +10,7 @@ import {
 import { listen } from "@tauri-apps/api/event";
 import { NavLink, Outlet, useLocation, useOutletContext } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Bug, CircleAlert, CircleCheck, Download, FileJson, Info, LoaderCircle, Monitor, MonitorUp, Moon, Music2, Palette, Settings2, SlidersHorizontal, Sun, TriangleAlert, X } from "lucide-react";
+import { Bug, CircleAlert, CircleCheck, Download, FileJson, Info, LoaderCircle, Monitor, MonitorUp, Moon, Music2, Palette, Settings2, Sun, TriangleAlert, X } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { IconButton } from "@/components/ui/icon-button";
@@ -71,6 +71,15 @@ export type SettingsOutletContext = {
   setDockIconHidden: ReturnType<typeof useAppConfig>["setDockIconHidden"];
   setSilentStartup: ReturnType<typeof useAppConfig>["setSilentStartup"];
   setOverlayHideWhenNotPlaying: ReturnType<typeof useAppConfig>["setOverlayHideWhenNotPlaying"];
+  setStatusBarLyricsEnabled: ReturnType<typeof useAppConfig>["setStatusBarLyricsEnabled"];
+  setListLyricsVisible: ReturnType<typeof useAppConfig>["setListLyricsVisible"];
+  setListLyricsOptions: ReturnType<typeof useAppConfig>["setListLyricsOptions"];
+  setNotchLyricsVisible: ReturnType<typeof useAppConfig>["setNotchLyricsVisible"];
+  setNotchLyricsPreferences: ReturnType<typeof useAppConfig>["setNotchLyricsPreferences"];
+  setLyricsDisplayPreferences: ReturnType<typeof useAppConfig>["setLyricsDisplayPreferences"];
+  setLyricsBaseAppearance: ReturnType<typeof useAppConfig>["setLyricsBaseAppearance"];
+  setLyricsStyleInheritance: ReturnType<typeof useAppConfig>["setLyricsStyleInheritance"];
+  resetLyricsBaseAppearance: ReturnType<typeof useAppConfig>["resetLyricsBaseAppearance"];
   playback: ReturnType<typeof usePlayback>;
   lyrics: ReturnType<typeof useLyrics>;
   fileInput: RefObject<HTMLInputElement | null>;
@@ -117,10 +126,19 @@ export default function Settings() {
     setDockIconHidden,
     setSilentStartup,
     setOverlayHideWhenNotPlaying,
+    setStatusBarLyricsEnabled,
+    setListLyricsVisible,
+    setListLyricsOptions,
+    setNotchLyricsVisible,
+    setNotchLyricsPreferences,
+    setLyricsDisplayPreferences,
+    setLyricsBaseAppearance,
+    setLyricsStyleInheritance,
+    resetLyricsBaseAppearance,
     syncConfig,
   } = useAppConfig();
   const playback = usePlayback();
-  const lyrics = useLyrics(playback.snapshot, playback.positionMs, false);
+  const lyrics = useLyrics(playback.snapshot, playback.positionMs);
   const fileInput = useRef<HTMLInputElement>(null);
   const providerRows = useRef(new Map<string, HTMLDivElement>());
   const [overlaySettings, setOverlaySettings] = useState<OverlaySettings>({ visible: true, locked: false });
@@ -153,6 +171,10 @@ export default function Settings() {
       cleanupStyleListener();
     };
   }, []);
+
+  useEffect(() => {
+    setStyle((current) => ({ ...current, ...config.overlay.appearance }));
+  }, [config.overlay.appearance]);
 
   useEffect(() => {
     if (!notice) return;
@@ -329,7 +351,6 @@ export default function Settings() {
     if (!target) return;
     const names: Record<SettingsSection, string> = {
       style: t("settings.shell.nav.style"),
-      display: t("settings.shell.nav.display"),
       lyrics: t("settings.shell.nav.lyrics"),
       player: t("settings.shell.nav.player"),
       application: t("settings.shell.nav.application"),
@@ -387,6 +408,15 @@ export default function Settings() {
     setDockIconHidden,
     setSilentStartup,
     setOverlayHideWhenNotPlaying,
+    setStatusBarLyricsEnabled,
+    setListLyricsVisible,
+    setListLyricsOptions,
+    setNotchLyricsVisible,
+    setNotchLyricsPreferences,
+    setLyricsDisplayPreferences,
+    setLyricsBaseAppearance,
+    setLyricsStyleInheritance,
+    resetLyricsBaseAppearance,
     playback,
     lyrics,
     fileInput,
@@ -424,7 +454,6 @@ export default function Settings() {
 
   const primaryNavigation = [
     { to: "/settings/style", label: t("settings.shell.nav.style"), icon: Palette },
-    { to: "/settings/display", label: t("settings.shell.nav.display"), icon: SlidersHorizontal },
     { to: "/settings/lyrics", label: t("settings.shell.nav.lyrics"), icon: Music2 },
     { to: "/settings/player", label: t("settings.shell.nav.player"), icon: MonitorUp, warning: playerHasWarning },
     { to: "/settings/application", label: t("settings.shell.nav.application"), icon: Settings2 },
