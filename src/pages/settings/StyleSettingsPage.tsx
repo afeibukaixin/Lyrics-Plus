@@ -1,7 +1,7 @@
 import { defaultOverlayStyle, secondaryDisplayFlags, secondaryDisplayFromFlags, type LyricsBaseAppearance, type LyricsStyleMode, type OverlayStyle } from "../../shared/types";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown, ListMusic, Monitor, Palette, PanelTop, PanelTopDashed } from "lucide-react";
+import { ChevronDown, ListMusic, Monitor, Palette, PanelTop, PanelTopDashed } from "lucide-react";
 import { api, messageOf } from "../../shared/api";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
@@ -191,7 +191,6 @@ export default function StyleSettingsPage() {
         {modes.map((item) => {
           const Icon = item.icon;
           return <ToggleGroupItem key={item.id} value={item.id} aria-label={item.label}>
-            {mode === item.id && <span className={styles.lyricsModeSelection} aria-hidden="true"><Check /></span>}
             <Icon aria-hidden="true" /><span>{item.label}</span>
           </ToggleGroupItem>;
         })}
@@ -202,7 +201,7 @@ export default function StyleSettingsPage() {
           {visibleColorPresets.map((preset) => {
             const active = preset.id === activeColorPreset?.id;
             return <Button type="button" variant="outline" className={styles.colorPresetButton} data-active={active} aria-pressed={active} key={preset.id} onClick={() => void applyColorPreset(preset)}>
-              <span className={styles.colorPresetPreview} aria-hidden="true">{baseColorKeys.map((key) => <i key={key} style={{ background: baseColorsForPreset(preset)[key] }} />)}</span>
+              <span className={styles.colorPresetPreview} aria-hidden="true">{overlayColorKeys.map((key) => <i key={key} style={{ background: preset.colors[key] }} />)}</span>
               <strong>{t(`settings.overlay.presets.${preset.id}`)}</strong>
             </Button>;
           })}

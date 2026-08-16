@@ -12,6 +12,7 @@ import type {
   LanguagePreference,
   LegalNoticeStatus,
   NativeLanguage,
+  NotchLayoutMetrics,
   LyricsDocument,
   LyricsDisplayPreferences,
   LyricsBaseAppearance,
@@ -78,7 +79,7 @@ export const api = {
     invoke<LyricsDocument | null>("get_cached_lyrics", { trackKey }),
   getLyricsRuntimeSnapshot: () =>
     invoke<LyricsRuntimeSnapshot>("get_lyrics_runtime_snapshot"),
-  getNotchHasSafeArea: () => invoke<boolean>("get_notch_has_safe_area"),
+  getNotchLayoutMetrics: () => invoke<NotchLayoutMetrics>("get_notch_layout_metrics"),
   getLibraryScanStatus: () => invoke<LibraryScanStatus>("get_library_scan_status"),
   rescanLyricsLibrary: () => invoke<LibraryScanStatus>("rescan_lyrics_library"),
   setLyricsDirectory: (path: string) =>
@@ -140,6 +141,8 @@ export const api = {
     invoke<OverlayResizeBounds>("resize_overlay_edge", { edge, mainSize, minimumMainSize }),
   fitOverlayContent: (width: number, height: number) =>
     invoke<boolean>("fit_overlay_content", { width, height }),
+  fitNotchLyricsContent: (width: number, height: number) =>
+    invoke<void>("fit_notch_lyrics_content", { width, height }),
   showMainWindow: () => invoke<void>("show_main_window"),
   showQuickLyricsWindow: () => invoke<void>("show_quick_lyrics_window"),
   resetSettingsSection: (section: SettingsSection) =>
@@ -188,8 +191,6 @@ export const api = {
     invoke<AppConfig>("set_list_lyrics_options", { showTranslation, showRomanization }),
   setNotchLyricsVisible: (visible: boolean) =>
     invoke<AppConfig>("set_notch_lyrics_visible", { visible }),
-  setNotchLyricsPreferences: (fontSize: number, backgroundOpacity: number, expandedOnHover: boolean) =>
-    invoke<AppConfig>("set_notch_lyrics_preferences", { fontSize, backgroundOpacity, expandedOnHover }),
   setLyricsDisplayPreferences: <Mode extends Exclude<LyricsStyleMode, "desktop">>(
     mode: Mode,
     preferences: LyricsDisplayPreferences[Mode],

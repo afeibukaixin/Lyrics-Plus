@@ -12,7 +12,9 @@ mod storage;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
-use commands::{AppState, OverlayOrientation, OverlaySettings, OverlayStyleSettings};
+use commands::{
+    AppState, NotchLayoutMetrics, OverlayOrientation, OverlaySettings, OverlayStyleSettings,
+};
 use config::{ConfigStore, GlobalShortcutSettings};
 use language::UiLanguage;
 pub(crate) use overlay_effect::sync_overlay_vibrancy;
@@ -349,6 +351,22 @@ fn enable_joining_other_apps_fullscreen(_window: &tauri::WebviewWindow) -> tauri
 }
 
 #[cfg(target_os = "macos")]
+fn enable_notch_window_behavior(window: &tauri::WebviewWindow) -> tauri::Result<()> {
+    use objc2_app_kit::{NSStatusWindowLevel, NSWindow};
+
+    enable_joining_other_apps_fullscreen(window)?;
+    let ns_window = window.ns_window()?;
+    let ns_window = unsafe { &*ns_window.cast::<NSWindow>() };
+    ns_window.setLevel(NSStatusWindowLevel);
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn enable_notch_window_behavior(window: &tauri::WebviewWindow) -> tauri::Result<()> {
+    enable_joining_other_apps_fullscreen(window)
+}
+
+#[cfg(target_os = "macos")]
 fn refresh_macos_mouse_tracking(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     use objc2_app_kit::{NSView, NSWindow};
 
@@ -609,29 +627,45 @@ pub(crate) fn position_auxiliary_lyrics_window_default(
 }
 
 #[cfg(target_os = "macos")]
-fn screen_safe_top(monitor: &tauri::Monitor) -> f64 {
+fn screen_notch_layout(monitor: &tauri::Monitor) -> NotchLayoutMetrics {
     use objc2::MainThreadMarker;
     use objc2_app_kit::NSScreen;
 
     let Some(marker) = MainThreadMarker::new() else {
-        return 0.0;
+        return NotchLayoutMetrics::default();
     };
     let monitor_name = monitor.name().map(String::as_str);
     let screens = NSScreen::screens(marker);
+    let metrics_for = |screen: &NSScreen| {
+        let top_inset = screen.safeAreaInsets().top.max(0.0);
+        let left_area = screen.auxiliaryTopLeftArea();
+        let right_area = screen.auxiliaryTopRightArea();
+        let left_edge = left_area.origin.x + left_area.size.width;
+        let center_gap_width = (right_area.origin.x - left_edge).max(0.0);
+        let has_notch = top_inset > 0.0 && center_gap_width > 0.0;
+
+        NotchLayoutMetrics {
+            has_notch,
+            top_inset: if has_notch { top_inset } else { 0.0 },
+            center_gap_width: if has_notch { center_gap_width } else { 0.0 },
+        }
+    };
+
     if let Some(screen) = screens
         .iter()
         .find(|screen| monitor_name.is_some_and(|name| screen.localizedName().to_string() == name))
     {
-        return screen.safeAreaInsets().top;
+        return metrics_for(&screen);
     }
     NSScreen::mainScreen(marker)
-        .map(|screen| screen.safeAreaInsets().top)
-        .unwrap_or(0.0)
+        .as_deref()
+        .map(metrics_for)
+        .unwrap_or_default()
 }
 
 #[cfg(not(target_os = "macos"))]
-fn screen_safe_top(_monitor: &tauri::Monitor) -> f64 {
-    0.0
+fn screen_notch_layout(_monitor: &tauri::Monitor) -> NotchLayoutMetrics {
+    NotchLayoutMetrics::default()
 }
 
 fn preferred_notch_monitor(app: &tauri::AppHandle) -> Option<tauri::Monitor> {
@@ -679,26 +713,25 @@ fn position_notch_window(app: &tauri::AppHandle, window: &tauri::WebviewWindow) 
             }
         }
     }
-    let scale = monitor.scale_factor().max(1.0);
     let width = window.outer_size().map(|size| size.width).unwrap_or(420);
     let monitor_width = monitor.size().width;
     let x = monitor.position().x + monitor_width.saturating_sub(width) as i32 / 2;
-    let safe_top = (screen_safe_top(&monitor) * scale).round() as i32;
-    let y = monitor.position().y + safe_top.max((6.0 * scale).round() as i32);
-    let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+    let _ = window.set_position(tauri::PhysicalPosition::new(x, monitor.position().y));
+    let metrics = screen_notch_layout(&monitor);
     if let Some(state) = app.try_state::<AppState>() {
-        state
-            .notch_has_safe_area
-            .store(safe_top > 0, std::sync::atomic::Ordering::Relaxed);
+        *state
+            .notch_layout_metrics
+            .write()
+            .unwrap_or_else(|error| error.into_inner()) = metrics.clone();
     }
-    let _ = window.emit("notch://safe-area", safe_top > 0);
+    let _ = window.emit("notch://layout", &metrics);
 }
 
 fn schedule_notch_position(app: &tauri::AppHandle, window: &tauri::WebviewWindow) {
     let target = window.clone();
     let handle = app.clone();
     if let Err(error) = window.run_on_main_thread(move || position_notch_window(&handle, &target)) {
-        log::warn!("Failed to schedule notch lyrics positioning: {error}");
+        log::warn!("Failed to schedule Dynamic Island lyrics positioning: {error}");
     }
 }
 
@@ -722,8 +755,9 @@ fn create_notch_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {
         WebviewUrl::App("index.html?view=lyrics-notch".into()),
     )
     .title(UiLanguage::ZhCn.native_labels().notch_title)
-    .inner_size(width, 108.0)
+    .inner_size(width, 124.0)
     .transparent(true)
+    .accept_first_mouse(true)
     .decorations(false)
     .shadow(false)
     .resizable(false)
@@ -734,7 +768,8 @@ fn create_notch_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {
     .skip_taskbar(true)
     .visible(false)
     .build()?;
-    enable_joining_other_apps_fullscreen(&window)?;
+    enable_notch_window_behavior(&window)?;
+    refresh_overlay_mouse_tracking(&window);
     schedule_notch_position(app, &window);
     Ok(())
 }
@@ -779,10 +814,6 @@ fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), Stri
     if displays.notch.enabled && has_track {
         create_notch_lyrics_window(app).map_err(|error| error.to_string())?;
         if let Some(window) = app.get_webview_window("lyrics-notch") {
-            let _ = window.set_size(tauri::LogicalSize::new(
-                displays.notch.appearance.max_width as f64 + 16.0,
-                108.0,
-            ));
             window.show().map_err(|error| error.to_string())?;
             schedule_notch_position(app, &window);
         }
@@ -1485,6 +1516,8 @@ const OVERLAY_POINTER_MONITOR_INTERVAL: Duration = Duration::from_millis(50);
 const UNLOCK_HANDLE_HIDE_DELAY: Duration = Duration::from_millis(200);
 const UNLOCK_HANDLE_HOVER_EVENT: &str = "unlock-handle://hover";
 const OVERLAY_HOVER_EVENT: &str = "overlay://hover";
+const NOTCH_HOVER_EVENT: &str = "notch://hover";
+const NOTCH_HORIZONTAL_WINDOW_PADDING: f64 = 8.0;
 const OVERLAY_TOOLBAR_PLACEMENT_EVENT: &str = "overlay://toolbar-placement";
 
 fn toolbar_placement_after_move(
@@ -1806,6 +1839,7 @@ fn start_overlay_pointer_monitor(app: tauri::AppHandle) {
         let mut last_inside_at: Option<Instant> = None;
         let mut last_handle_hovered: Option<bool> = None;
         let mut last_overlay_hovered: Option<bool> = None;
+        let mut last_notch_hovered: Option<bool> = None;
 
         loop {
             tokio::time::sleep(OVERLAY_POINTER_MONITOR_INTERVAL).await;
@@ -1818,6 +1852,43 @@ fn start_overlay_pointer_monitor(app: tauri::AppHandle) {
                 .read()
                 .unwrap_or_else(|error| error.into_inner())
                 .clone();
+
+            if let Some(notch) = app.get_webview_window("lyrics-notch") {
+                let notch_visible = notch.is_visible().unwrap_or(false);
+                let sampled_notch_hover = notch_visible
+                    && match (
+                        app.cursor_position(),
+                        notch.outer_position(),
+                        notch.outer_size(),
+                        notch.scale_factor(),
+                    ) {
+                        (Ok(cursor), Ok(position), Ok(size), Ok(scale_factor)) => {
+                            let horizontal_padding =
+                                NOTCH_HORIZONTAL_WINDOW_PADDING * scale_factor;
+                            let left = position.x as f64 + horizontal_padding;
+                            let right = position.x as f64 + size.width as f64
+                                - horizontal_padding;
+                            let bottom = position.y as f64 + size.height as f64;
+                            cursor.x >= left
+                                && cursor.x < right
+                                && cursor.y >= position.y as f64
+                                && cursor.y < bottom
+                        }
+                        _ => false,
+                    };
+                let notch_hovered = stable_overlay_hover(
+                    last_notch_hovered,
+                    sampled_notch_hover,
+                    notch_visible && primary_mouse_button_pressed(),
+                );
+                if last_notch_hovered != Some(notch_hovered) {
+                    let _ = notch.emit(NOTCH_HOVER_EVENT, notch_hovered);
+                    last_notch_hovered = Some(notch_hovered);
+                }
+            } else {
+                last_notch_hovered = None;
+            }
+
             let (Some(overlay), Some(handle)) = (
                 app.get_webview_window("lyrics-overlay"),
                 app.get_webview_window("lyrics-unlock-handle"),
@@ -2391,7 +2462,7 @@ pub fn run() {
                 lyrics_runtime: Arc::new(RwLock::new(commands::LyricsRuntimeSnapshot::default())),
                 lyrics_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
                 lyrics_auto_search_attempted: Arc::new(Mutex::new(std::collections::HashSet::new())),
-                notch_has_safe_area: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                notch_layout_metrics: Arc::new(RwLock::new(NotchLayoutMetrics::default())),
                 storage: Arc::new(storage),
                 config,
                 providers: Arc::new(lyrics::provider::ProviderRegistry::new(provider_settings)),
@@ -2513,7 +2584,7 @@ pub fn run() {
             commands::test_provider,
             commands::get_cached_lyrics,
             commands::get_lyrics_runtime_snapshot,
-            commands::get_notch_has_safe_area,
+            commands::get_notch_layout_metrics,
             commands::save_lyrics,
             commands::import_lyrics,
             commands::set_lyrics_offset,
@@ -2532,6 +2603,7 @@ pub fn run() {
             commands::reset_overlay_bounds,
             commands::resize_overlay_edge,
             commands::fit_overlay_content,
+            commands::fit_notch_lyrics_content,
             commands::show_main_window,
             commands::show_quick_lyrics_window,
             commands::get_app_config,
@@ -2558,7 +2630,6 @@ pub fn run() {
             commands::set_list_lyrics_visible,
             commands::set_list_lyrics_options,
             commands::set_notch_lyrics_visible,
-            commands::set_notch_lyrics_preferences,
             commands::set_lyrics_display_preferences,
             commands::set_lyrics_base_appearance,
             commands::set_lyrics_style_inheritance,

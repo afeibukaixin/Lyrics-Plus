@@ -34,14 +34,12 @@
 .settingsHeading p { margin: 0; overflow-wrap: anywhere; }
 .settingsHeading > button { flex: none; max-width: 45%; overflow-wrap: anywhere; }
 .lyricsModeSelector { display: grid; width: 100%; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 0 0 24px; }
-.lyricsModeSelector button { position: relative; min-width: 0; height: 72px; display: flex; flex-direction: column; gap: 7px; border-radius: var(--radius); background: color-mix(in srgb, var(--background) 64%, transparent); color: var(--muted-foreground); }
+.lyricsModeSelector button { min-width: 0; height: 72px; display: flex; flex-direction: column; gap: 7px; border-radius: var(--radius); background: color-mix(in srgb, var(--background) 64%, transparent); color: var(--muted-foreground); }
 .lyricsModeSelector button:hover { border-color: color-mix(in srgb, var(--foreground) 24%, var(--border)); background: var(--accent); color: var(--foreground); }
 .lyricsModeSelector button svg { width: 20px; height: 20px; }
 .lyricsModeSelector button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lyricsModeSelector button[data-pressed] { border-color: color-mix(in srgb, var(--primary) 60%, var(--border)); background: color-mix(in srgb, var(--primary) 12%, var(--background)); color: var(--primary); box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent); }
 .lyricsModeSelector button[data-pressed]:hover { background: color-mix(in srgb, var(--primary) 16%, var(--background)); color: var(--primary); }
-.lyricsModeSelection { position: absolute; top: 7px; right: 7px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--primary); color: var(--primary-foreground); box-shadow: var(--shadow-xs); }
-.lyricsModeSelector button .lyricsModeSelection svg { width: 12px; height: 12px; stroke-width: 3; }
 
 .card { margin-bottom: 24px; overflow: visible; }
 .cardHeader { min-height: 44px; }
@@ -73,7 +71,7 @@
 .colorPresetButton[data-active="true"] { border-color: var(--ring); background: color-mix(in srgb, var(--accent) 72%, transparent); box-shadow: 0 0 0 1px var(--ring); }
 .colorPresetButton strong { min-width: 0; overflow: hidden; color: var(--muted-foreground); font-weight: 500; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .colorPresetButton[data-active="true"] strong { color: var(--foreground); }
-.colorPresetPreview { width: 100%; min-width: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); height: 26px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--foreground) 18%, var(--border)); border-radius: calc(var(--radius) - 5px); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 5%); }
+.colorPresetPreview { width: 100%; min-width: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); height: 26px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--foreground) 18%, var(--border)); border-radius: calc(var(--radius) - 5px); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 5%); }
 .colorPresetPreview i { min-width: 0; }
 .colorPresetActions { display: flex; justify-content: center; padding: 0 16px 12px; }
 .colorPresetActions button { color: var(--muted-foreground); }

@@ -12,6 +12,9 @@ import { ColorRow, RangeRow, SelectRow, SettingsSection, TextRow, ToggleRow } fr
 import { Button } from "@/components/ui/button";
 import styles from "../settings.module.scss";
 import { useTranslation } from "react-i18next";
+import { useCallback, useEffect, useRef } from "react";
+import { reportFrontendError } from "../../shared/debugLog";
+import { emitNotchWidthPreview } from "../../shared/tauriEvent";
 
 type AuxiliaryMode = Exclude<LyricsStyleMode, "desktop">;
 
@@ -61,6 +64,21 @@ export function auxiliarySections(mode: AuxiliaryMode, labels: AuxiliarySectionL
 
 export default function LyricsModeStyleSections({ mode, displays, inheritance, update, updateInheritance, resetPosition }: Props) {
   const { t } = useTranslation();
+  const notchWidthPreviewActiveRef = useRef(false);
+  const cancelNotchWidthPreview = useCallback(() => {
+    if (!notchWidthPreviewActiveRef.current) return;
+    notchWidthPreviewActiveRef.current = false;
+    void emitNotchWidthPreview({ phase: "cancel" }).catch((error) => {
+      reportFrontendError("Failed to cancel the Dynamic Island width preview", error);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (mode !== "notch") cancelNotchWidthPreview();
+  }, [cancelNotchWidthPreview, mode]);
+
+  useEffect(() => () => cancelNotchWidthPreview(), [cancelNotchWidthPreview]);
+
   const fontWeights: Array<[string, string]> = [
     ["400", t("settings.overlay.fontWeightRegular")],
     ["500", t("settings.overlay.fontWeightMedium")],
@@ -132,11 +150,39 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
   const value = displays.notch;
   const appearance = value.appearance;
   const save = (next: NotchLyricsPreferences) => void update("notch", next);
+  const previewMaxWidth = (width: number) => {
+    notchWidthPreviewActiveRef.current = true;
+    void emitNotchWidthPreview({ phase: "update", width }).catch((error) => {
+      reportFrontendError("Failed to preview the Dynamic Island width", error);
+    });
+  };
+  const commitMaxWidth = async (width: number) => {
+    try {
+      await update("notch", patchAppearance(value, { maxWidth: width }));
+    } catch (error) {
+      notchWidthPreviewActiveRef.current = false;
+      void emitNotchWidthPreview({ phase: "cancel" }).catch((emitError) => {
+        reportFrontendError("Failed to cancel the Dynamic Island width preview", emitError);
+      });
+      reportFrontendError("Failed to save the Dynamic Island width", error);
+      throw error;
+    }
+
+    notchWidthPreviewActiveRef.current = false;
+    try {
+      await emitNotchWidthPreview({ phase: "commit", width });
+    } catch (error) {
+      void emitNotchWidthPreview({ phase: "cancel" });
+      reportFrontendError("Failed to finish the Dynamic Island width preview", error);
+    }
+  };
   return <>
     {inheritanceSection}
     <SettingsSection id="mode-state" title={t("settings.style.modeControls.displayInteraction")}>
       <ToggleRow label={t("settings.display.notch.show")} value={value.enabled} onChange={(enabled) => save({ ...value, enabled })} />
-      <ToggleRow label={t("settings.display.notch.expandOnHover")} value={value.expandedOnHover} onChange={(expandedOnHover) => save({ ...value, expandedOnHover })} />
+      <ToggleRow label={t("settings.display.notch.showTwoLines")} value={value.showTwoLines} onChange={(showTwoLines) => save({ ...value, showTwoLines })} />
+      <ToggleRow label={t("settings.display.notch.translation")} value={value.showTranslation} onChange={(showTranslation) => save({ ...value, showTranslation })} />
+      <ToggleRow label={t("settings.display.notch.romanization")} value={value.showRomanization} onChange={(showRomanization) => save({ ...value, showRomanization })} />
       <div className={styles.buttonRow}><Button variant="secondary" size="sm" onClick={() => void resetPosition("notch")}>{t("settings.style.modeControls.resetPosition")}</Button></div>
     </SettingsSection>
     <SettingsSection id="mode-text" title={t("settings.style.modeControls.text")}>
@@ -144,16 +190,26 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
       <RangeRow label={t("settings.overlay.fontSize")} value={appearance.fontSize} min={12} max={32} suffix="px" onChange={(fontSize) => save(patchAppearance(value, { fontSize }))} />
       <SelectRow label={t("settings.overlay.fontWeight")} value={String(appearance.fontWeight)} options={fontWeights} onChange={(fontWeight) => save(patchAppearance(value, { fontWeight: Number(fontWeight) as OverlayFontWeight }))} />
       {!modeInheritance.inheritColors && <>
-        <ColorRow label={t("settings.style.modeControls.primaryColor")} value={appearance.activeColor} onChange={(activeColor) => save(patchAppearance(value, { activeColor }))} />
-        <ColorRow label={t("settings.style.modeControls.secondaryColor")} value={appearance.secondaryColor} onChange={(secondaryColor) => save(patchAppearance(value, { secondaryColor }))} />
+        <ColorRow label={t("settings.style.modeControls.activeLyrics")} value={appearance.activeColor} onChange={(activeColor) => save(patchAppearance(value, { activeColor }))} />
+        <ColorRow label={t("settings.style.modeControls.inactiveLyrics")} value={appearance.inactiveColor} onChange={(inactiveColor) => save(patchAppearance(value, { inactiveColor }))} />
+        <ColorRow label={t("settings.overlay.translationColor")} value={appearance.translationColor} onChange={(translationColor) => save(patchAppearance(value, { translationColor }))} />
+        <ColorRow label={t("settings.overlay.romanizationColor")} value={appearance.romanizationColor} onChange={(romanizationColor) => save(patchAppearance(value, { romanizationColor }))} />
       </>}
     </SettingsSection>
     <SettingsSection id="mode-background" title={t("settings.style.modeControls.backgroundSize")}>
-      {!modeInheritance.inheritColors && <ColorRow label={t("settings.overlay.backgroundColor")} value={appearance.backgroundColor} onChange={(backgroundColor) => save(patchAppearance(value, { backgroundColor }))} />}
-      <RangeRow label={t("settings.overlay.backgroundOpacity")} value={appearance.backgroundOpacity} min={0.2} max={1} step={0.05} suffix="%" displayValue={Math.round(appearance.backgroundOpacity * 100)} onChange={(backgroundOpacity) => save(patchAppearance(value, { backgroundOpacity }))} />
-      <RangeRow label={t("settings.overlay.blur")} value={appearance.backgroundBlur} min={0} max={40} suffix="px" onChange={(backgroundBlur) => save(patchAppearance(value, { backgroundBlur }))} />
       <RangeRow label={t("settings.overlay.backgroundRadius")} value={appearance.borderRadius} min={0} max={40} suffix="px" onChange={(borderRadius) => save(patchAppearance(value, { borderRadius }))} />
-      <RangeRow label={t("settings.style.modeControls.maxWidth")} value={appearance.maxWidth} min={280} max={640} step={10} suffix="px" onChange={(maxWidth) => save(patchAppearance(value, { maxWidth }))} />
+      <RangeRow
+        label={t("settings.style.modeControls.maxWidth")}
+        value={appearance.maxWidth}
+        min={400}
+        max={640}
+        step={10}
+        suffix="px"
+        onChange={(maxWidth) => save(patchAppearance(value, { maxWidth }))}
+        onValuePreview={previewMaxWidth}
+        onValueCommitted={commitMaxWidth}
+        onPreviewCanceled={cancelNotchWidthPreview}
+      />
     </SettingsSection>
   </>;
 }

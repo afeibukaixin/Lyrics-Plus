@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, isTauriRuntime } from "../../shared/api";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
@@ -68,19 +68,34 @@ function materializeLyricsStyleInheritance(config: AppConfig): AppConfig {
     inactiveColor: base.inactiveColor,
     translationColor: base.translationColor,
     romanizationColor: base.romanizationColor,
-    backgroundColor: base.backgroundColor,
   });
   if (inheritance.notch.inheritFontFamily) next.lyrics.displays.notch.appearance.fontFamily = base.fontFamily;
   if (inheritance.notch.inheritColors) Object.assign(next.lyrics.displays.notch.appearance, {
     activeColor: base.activeColor,
-    secondaryColor: base.supportingColor,
+    inactiveColor: base.inactiveColor,
+    translationColor: base.translationColor,
+    romanizationColor: base.romanizationColor,
     backgroundColor: base.backgroundColor,
   });
   return next;
 }
 
+function applyPendingNotchPreferences(
+  config: AppConfig,
+  pending: LyricsDisplayPreferences["notch"] | null,
+): AppConfig {
+  if (!pending) return config;
+  return {
+    ...config,
+    lyrics: {
+      ...config.lyrics,
+      displays: { ...config.lyrics.displays, notch: pending },
+    },
+  };
+}
+
 const defaultConfig: AppConfig = {
-  schemaVersion: 36,
+  schemaVersion: 41,
   app: { theme: "dark", language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, silentStartup: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
@@ -97,7 +112,14 @@ const defaultConfig: AppConfig = {
     displays: {
       statusBar: { enabled: false, appearance: defaultStatusBarLyricsAppearance },
       listWindow: { enabled: false, showTranslation: true, showRomanization: false, appearance: defaultListLyricsAppearance },
-      notch: { enabled: false, monitorId: null, expandedOnHover: true, appearance: defaultNotchLyricsAppearance },
+      notch: {
+        enabled: false,
+        monitorId: null,
+        showTwoLines: false,
+        showTranslation: false,
+        showRomanization: false,
+        appearance: defaultNotchLyricsAppearance,
+      },
     },
     baseAppearance: defaultLyricsBaseAppearance,
     styleInheritance: defaultLyricsStyleInheritance,
@@ -127,7 +149,6 @@ type AppConfigContextValue = {
   setListLyricsVisible: (visible: boolean) => Promise<void>;
   setListLyricsOptions: (showTranslation: boolean, showRomanization: boolean) => Promise<void>;
   setNotchLyricsVisible: (visible: boolean) => Promise<void>;
-  setNotchLyricsPreferences: (fontSize: number, backgroundOpacity: number, expandedOnHover: boolean) => Promise<void>;
   setLyricsDisplayPreferences: <Mode extends Exclude<LyricsStyleMode, "desktop">>(mode: Mode, preferences: LyricsDisplayPreferences[Mode]) => Promise<void>;
   setLyricsBaseAppearance: (appearance: LyricsBaseAppearance) => Promise<void>;
   setLyricsStyleInheritance: (mode: LyricsStyleMode, inheritance: LyricsModeStyleInheritance) => Promise<void>;
@@ -148,16 +169,29 @@ export function AppConfigProvider({
   const [config, setConfig] = useState(defaultConfig);
   const [loaded, setLoaded] = useState(!isTauriRuntime());
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
+  const configRef = useRef(config);
+  configRef.current = config;
+  const notchPreferencesWriteRef = useRef({
+    queue: Promise.resolve() as Promise<void>,
+    version: 0,
+    pending: null as LyricsDisplayPreferences["notch"] | null,
+    confirmed: null as LyricsDisplayPreferences["notch"] | null,
+  });
 
   useEffect(() => {
     document.documentElement.dataset.window = windowType;
     if (!isTauriRuntime()) return;
     void api.getAppConfig().then((value) => {
-      setConfig(value);
+      setConfig(applyPendingNotchPreferences(value, notchPreferencesWriteRef.current.pending));
       setLoaded(true);
     }).catch(() => setLoaded(false));
     return createTauriListenerCleanup(
-      listen<AppConfig>("config://changed", ({ payload }) => setConfig(payload)),
+      listen<AppConfig>("config://changed", ({ payload }) => {
+        setConfig(applyPendingNotchPreferences(
+          payload,
+          notchPreferencesWriteRef.current.pending,
+        ));
+      }),
     );
   }, [windowType]);
 
@@ -178,6 +212,66 @@ export function AppConfigProvider({
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
   }, [config.app.theme]);
+
+  const setLyricsDisplayPreferences = useCallback(async <Mode extends keyof LyricsDisplayPreferences>(
+    mode: Mode,
+    preferences: LyricsDisplayPreferences[Mode],
+  ) => {
+    if (!isTauriRuntime()) {
+      setConfig((current) => materializeLyricsStyleInheritance({
+        ...current,
+        lyrics: {
+          ...current.lyrics,
+          displays: { ...current.lyrics.displays, [mode]: preferences },
+        },
+      }));
+      return;
+    }
+
+    if (mode !== "notch") {
+      setConfig(await api.setLyricsDisplayPreferences(mode, preferences));
+      return;
+    }
+
+    const writes = notchPreferencesWriteRef.current;
+    const notchPreferences = preferences as LyricsDisplayPreferences["notch"];
+    const version = writes.version + 1;
+    writes.version = version;
+    if (!writes.pending) {
+      writes.confirmed = configRef.current.lyrics.displays.notch;
+    }
+    writes.pending = notchPreferences;
+    setConfig((current) => applyPendingNotchPreferences(current, notchPreferences));
+
+    const operation = writes.queue
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          const saved = await api.setLyricsDisplayPreferences("notch", notchPreferences);
+          writes.confirmed = saved.lyrics.displays.notch;
+          if (writes.version !== version) return;
+          writes.pending = null;
+          setConfig(saved);
+        } catch (error) {
+          if (writes.version === version) {
+            writes.pending = null;
+            try {
+              const authoritative = await api.getAppConfig();
+              writes.confirmed = authoritative.lyrics.displays.notch;
+              setConfig(authoritative);
+            } catch {
+              const confirmed = writes.confirmed;
+              if (confirmed) {
+                setConfig((current) => applyPendingNotchPreferences(current, confirmed));
+              }
+            }
+          }
+          throw error;
+        }
+      });
+    writes.queue = operation.then(() => undefined, () => undefined);
+    return operation;
+  }, []);
 
   const value = useMemo<AppConfigContextValue>(() => ({
     config,
@@ -287,26 +381,7 @@ export function AppConfigProvider({
       }
       setConfig(await api.setNotchLyricsVisible(enabled));
     },
-    setNotchLyricsPreferences: async (fontSize, backgroundOpacity, expandedOnHover) => {
-      if (!isTauriRuntime()) {
-        setConfig((current) => ({ ...current, lyrics: { ...current.lyrics, displays: { ...current.lyrics.displays, notch: { ...current.lyrics.displays.notch, expandedOnHover, appearance: { ...current.lyrics.displays.notch.appearance, fontSize, backgroundOpacity } } } } }));
-        return;
-      }
-      setConfig(await api.setNotchLyricsPreferences(fontSize, backgroundOpacity, expandedOnHover));
-    },
-    setLyricsDisplayPreferences: async (mode, preferences) => {
-      if (!isTauriRuntime()) {
-        setConfig((current) => materializeLyricsStyleInheritance({
-          ...current,
-          lyrics: {
-            ...current.lyrics,
-            displays: { ...current.lyrics.displays, [mode]: preferences },
-          },
-        }));
-        return;
-      }
-      setConfig(await api.setLyricsDisplayPreferences(mode, preferences));
-    },
+    setLyricsDisplayPreferences,
     setLyricsBaseAppearance: async (appearance) => {
       if (!isTauriRuntime()) {
         setConfig((current) => materializeLyricsStyleInheritance({
@@ -341,7 +416,7 @@ export function AppConfigProvider({
       setConfig(await api.resetLyricsBaseAppearance());
     },
     syncConfig: setConfig,
-  }), [config, loaded, resolvedTheme]);
+  }), [config, loaded, resolvedTheme, setLyricsDisplayPreferences]);
 
   return <AppConfigContext.Provider value={value}>{children}</AppConfigContext.Provider>;
 }

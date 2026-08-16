@@ -1,6 +1,12 @@
-import type { UnlistenFn } from "@tauri-apps/api/event";
+import { emitTo, type UnlistenFn } from "@tauri-apps/api/event";
 
 type MaybeAsyncUnlistenFn = () => void | Promise<void>;
+
+export const NOTCH_WIDTH_PREVIEW_EVENT = "notch://width-preview";
+
+export type NotchWidthPreviewPayload =
+  | { phase: "update" | "commit"; width: number }
+  | { phase: "cancel" };
 
 export function isTauriRuntime() {
   if (typeof window === "undefined") return false;
@@ -8,6 +14,11 @@ export function isTauriRuntime() {
     __TAURI_INTERNALS__?: { invoke?: unknown; transformCallback?: unknown };
   }).__TAURI_INTERNALS__;
   return typeof internals?.invoke === "function" && typeof internals.transformCallback === "function";
+}
+
+export function emitNotchWidthPreview(payload: NotchWidthPreviewPayload) {
+  if (!isTauriRuntime()) return Promise.resolve();
+  return emitTo("lyrics-notch", NOTCH_WIDTH_PREVIEW_EVENT, payload);
 }
 
 function runUnlisten(unlisten: UnlistenFn) {

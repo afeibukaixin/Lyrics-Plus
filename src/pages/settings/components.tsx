@@ -226,7 +226,76 @@ export function ToggleRow({ label, description, value, disabled = false, onChang
   );
 }
 
-export function RangeRow({ label, description, value, min, max, step = 1, suffix, displayValue, disabled = false, onChange }: { label: string; description?: string; value: number; min: number; max: number; step?: number; suffix: string; displayValue?: number; disabled?: boolean; onChange: (value: number) => void }) {
+type RangeRowProps = {
+  label: string;
+  description?: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  suffix: string;
+  displayValue?: number;
+  disabled?: boolean;
+  onChange: (value: number) => void;
+  onValuePreview?: (value: number) => void;
+  onValueCommitted?: (value: number) => void | Promise<void>;
+  onPreviewCanceled?: () => void;
+};
+
+export function RangeRow({
+  label,
+  description,
+  value,
+  min,
+  max,
+  step = 1,
+  suffix,
+  displayValue,
+  disabled = false,
+  onChange,
+  onValuePreview,
+  onValueCommitted,
+  onPreviewCanceled,
+}: RangeRowProps) {
+  const commitMode = Boolean(onValueCommitted);
+  const [draft, setDraft] = useState(value);
+  const previewingRef = useRef(false);
+  const cancelPreviewRef = useRef(onPreviewCanceled);
+
+  useEffect(() => {
+    cancelPreviewRef.current = onPreviewCanceled;
+  }, [onPreviewCanceled]);
+
+  useEffect(() => {
+    if (!previewingRef.current) setDraft(value);
+  }, [value]);
+
+  useEffect(() => () => {
+    if (previewingRef.current) cancelPreviewRef.current?.();
+  }, []);
+
+  const renderedValue = commitMode ? draft : value;
+  const handleValueChange = (next: number) => {
+    if (!commitMode) {
+      onChange(next);
+      return;
+    }
+    previewingRef.current = true;
+    setDraft(next);
+    onValuePreview?.(next);
+  };
+  const handleValueCommitted = (next: number) => {
+    if (!commitMode || !onValueCommitted) return;
+    previewingRef.current = false;
+    setDraft(next);
+    void Promise.resolve()
+      .then(() => onValueCommitted(next))
+      .catch(() => {
+        setDraft(value);
+        cancelPreviewRef.current?.();
+      });
+  };
+
   return (
     <Field orientation="horizontal" className={styles.settingRow} data-disabled={disabled || undefined}>
       <FieldContent>
@@ -234,8 +303,8 @@ export function RangeRow({ label, description, value, min, max, step = 1, suffix
         {description && <FieldDescription>{description}</FieldDescription>}
       </FieldContent>
       <div className={styles.rangeControl}>
-        <Slider aria-label={label} disabled={disabled} min={min} max={max} step={step} value={value} onValueChange={onChange} />
-        <output className="text-xs text-muted-foreground tabular-nums">{displayValue ?? value}{suffix}</output>
+        <Slider aria-label={label} disabled={disabled} min={min} max={max} step={step} value={renderedValue} onValueChange={handleValueChange} onValueCommitted={handleValueCommitted} />
+        <output className="text-xs text-muted-foreground tabular-nums">{displayValue ?? renderedValue}{suffix}</output>
       </div>
     </Field>
   );

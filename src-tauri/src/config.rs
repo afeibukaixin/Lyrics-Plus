@@ -16,7 +16,7 @@ use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSet
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 36;
+pub const CONFIG_SCHEMA_VERSION: u16 = 41;
 const APP_CONFIG_KEYS: &[&str] = &[
     "theme",
     "language",
@@ -550,7 +550,9 @@ impl Default for ListLyricsAppearance {
 pub struct NotchLyricsPreferences {
     pub enabled: bool,
     pub monitor_id: Option<String>,
-    pub expanded_on_hover: bool,
+    pub show_two_lines: bool,
+    pub show_translation: bool,
+    pub show_romanization: bool,
     pub appearance: NotchLyricsAppearance,
 }
 
@@ -559,7 +561,9 @@ impl Default for NotchLyricsPreferences {
         Self {
             enabled: false,
             monitor_id: None,
-            expanded_on_hover: true,
+            show_two_lines: false,
+            show_translation: false,
+            show_romanization: false,
             appearance: NotchLyricsAppearance::default(),
         }
     }
@@ -572,10 +576,9 @@ pub struct NotchLyricsAppearance {
     pub font_size: u16,
     pub font_weight: u16,
     pub active_color: String,
-    pub secondary_color: String,
-    pub background_color: String,
-    pub background_opacity: f64,
-    pub background_blur: f64,
+    pub inactive_color: String,
+    pub translation_color: String,
+    pub romanization_color: String,
     pub border_radius: f64,
     pub max_width: u16,
 }
@@ -587,12 +590,11 @@ impl Default for NotchLyricsAppearance {
             font_size: 18,
             font_weight: 700,
             active_color: "#a3e635".into(),
-            secondary_color: "#94a3b8".into(),
-            background_color: "#171821".into(),
-            background_opacity: 0.88,
-            background_blur: 20.0,
+            inactive_color: "#ecfccb".into(),
+            translation_color: "#d9f99d".into(),
+            romanization_color: "#bef264".into(),
             border_radius: 22.0,
-            max_width: 404,
+            max_width: 520,
         }
     }
 }
@@ -789,8 +791,9 @@ impl AppConfig {
         }
         if inheritance.notch.inherit_colors {
             notch.active_color = base.active_color;
-            notch.secondary_color = base.supporting_color;
-            notch.background_color = base.background_color;
+            notch.inactive_color = base.inactive_color;
+            notch.translation_color = base.translation_color;
+            notch.romanization_color = base.romanization_color;
         }
     }
 
@@ -872,10 +875,8 @@ impl AppConfig {
         let notch_appearance = &mut self.lyrics.displays.notch.appearance;
         notch_appearance.font_size = notch_appearance.font_size.clamp(12, 32);
         notch_appearance.font_weight = normalize_display_font_weight(notch_appearance.font_weight);
-        notch_appearance.background_opacity = notch_appearance.background_opacity.clamp(0.2, 1.0);
-        notch_appearance.background_blur = notch_appearance.background_blur.clamp(0.0, 40.0);
         notch_appearance.border_radius = notch_appearance.border_radius.clamp(0.0, 40.0);
-        notch_appearance.max_width = notch_appearance.max_width.clamp(280, 640);
+        notch_appearance.max_width = notch_appearance.max_width.clamp(400, 640);
         for (name, color) in [
             ("状态栏文字颜色", status_appearance.text_color.as_str()),
             ("状态栏未唱颜色", status_appearance.inactive_color.as_str()),
@@ -889,9 +890,10 @@ impl AppConfig {
                 list_appearance.active_background_color.as_str(),
             ),
             ("列表窗口背景", list_appearance.background_color.as_str()),
-            ("刘海歌词颜色", notch_appearance.active_color.as_str()),
-            ("刘海辅助颜色", notch_appearance.secondary_color.as_str()),
-            ("刘海背景颜色", notch_appearance.background_color.as_str()),
+            ("灵动岛歌词颜色", notch_appearance.active_color.as_str()),
+            ("灵动岛未激活颜色", notch_appearance.inactive_color.as_str()),
+            ("灵动岛翻译颜色", notch_appearance.translation_color.as_str()),
+            ("灵动岛音译颜色", notch_appearance.romanization_color.as_str()),
         ] {
             if !is_supported_color(color) {
                 return Err(format!("{name}不是有效的颜色值"));
@@ -1083,6 +1085,84 @@ fn migrate_v34_lyrics_base_appearance(user: &mut Value, version: u16) {
     }
 }
 
+fn migrate_v37_notch_width(user: &mut Value, version: u16) {
+    if version >= 37 {
+        return;
+    }
+    let Some(max_width) = user.pointer_mut("/lyrics/displays/notch/appearance/maxWidth") else {
+        return;
+    };
+    if max_width.as_u64() == Some(404) {
+        *max_width = Value::from(640);
+    }
+}
+
+fn migrate_v38_notch_line_count(user: &mut Value, version: u16) {
+    if version >= 38 {
+        return;
+    }
+    let Some(notch) = user
+        .pointer_mut("/lyrics/displays/notch")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    notch.remove("expandedOnHover");
+    notch.insert("showTwoLines".into(), Value::from(false));
+}
+
+fn migrate_v39_notch_supporting_tracks(user: &mut Value, version: u16) {
+    if version >= 39 {
+        return;
+    }
+    let Some(notch) = user
+        .pointer_mut("/lyrics/displays/notch")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    if !notch.contains_key("showTranslation") {
+        notch.insert("showTranslation".into(), Value::from(false));
+    }
+    if !notch.contains_key("showRomanization") {
+        notch.insert("showRomanization".into(), Value::from(false));
+    }
+}
+
+fn migrate_v40_notch_colors(user: &mut Value, version: u16) {
+    if version >= 40 {
+        return;
+    }
+    let Some(appearance) = user
+        .pointer_mut("/lyrics/displays/notch/appearance")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    if let Some(secondary) = appearance.remove("secondaryColor") {
+        for key in ["inactiveColor", "translationColor", "romanizationColor"] {
+            appearance
+                .entry(key.to_string())
+                .or_insert_with(|| secondary.clone());
+        }
+    }
+}
+
+fn migrate_v41_fixed_notch_background(user: &mut Value, version: u16) {
+    if version >= 41 {
+        return;
+    }
+    let Some(appearance) = user
+        .pointer_mut("/lyrics/displays/notch/appearance")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    for key in ["backgroundColor", "backgroundOpacity", "backgroundBlur"] {
+        appearance.remove(key);
+    }
+}
+
 fn migrate_status_bar_status_item_fields(user: &mut Value) {
     let Some(status_bar) = user
         .pointer_mut("/lyrics/displays/statusBar")
@@ -1203,6 +1283,11 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
     }
     migrate_v32_display_appearances(&mut user, version);
     migrate_v34_lyrics_base_appearance(&mut user, version);
+    migrate_v37_notch_width(&mut user, version);
+    migrate_v38_notch_line_count(&mut user, version);
+    migrate_v39_notch_supporting_tracks(&mut user, version);
+    migrate_v40_notch_colors(&mut user, version);
+    migrate_v41_fixed_notch_background(&mut user, version);
     validate_known_fields(&user, raw)?;
     validate_field_types_and_options(&user, raw)?;
     migrate_status_bar_status_item_fields(&mut user);
@@ -1496,7 +1581,14 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                 check_keys(
                     notch,
                     raw,
-                    &["enabled", "monitorId", "expandedOnHover", "appearance"],
+                    &[
+                        "enabled",
+                        "monitorId",
+                        "showTwoLines",
+                        "showTranslation",
+                        "showRomanization",
+                        "appearance",
+                    ],
                 )?;
                 if let Some(appearance) = notch.get("appearance") {
                     check_keys(
@@ -1507,10 +1599,9 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                             "fontSize",
                             "fontWeight",
                             "activeColor",
-                            "secondaryColor",
-                            "backgroundColor",
-                            "backgroundOpacity",
-                            "backgroundBlur",
+                            "inactiveColor",
+                            "translationColor",
+                            "romanizationColor",
                             "borderRadius",
                             "maxWidth",
                         ],
@@ -1654,7 +1745,15 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             "showRomanization",
         ),
         ("/lyrics/displays/notch/enabled", "enabled"),
-        ("/lyrics/displays/notch/expandedOnHover", "expandedOnHover"),
+        ("/lyrics/displays/notch/showTwoLines", "showTwoLines"),
+        (
+            "/lyrics/displays/notch/showTranslation",
+            "showTranslation",
+        ),
+        (
+            "/lyrics/displays/notch/showRomanization",
+            "showRomanization",
+        ),
         (
             "/lyrics/styleInheritance/desktop/inheritFontFamily",
             "inheritFontFamily",
@@ -2036,12 +2135,6 @@ fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftEr
             value.pointer("/lyrics/displays/notch/appearance/fontSize"),
             12.0,
             32.0,
-        ),
-        (
-            "backgroundOpacity",
-            value.pointer("/lyrics/displays/notch/appearance/backgroundOpacity"),
-            0.2,
-            1.0,
         ),
         (
             "opacity",

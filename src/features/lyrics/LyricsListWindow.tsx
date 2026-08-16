@@ -74,7 +74,7 @@ export default function LyricsListWindow() {
       <header className={styles.header}>
         <div className={styles.track}>
           <h1 className="truncate text-xl font-semibold">{title}</h1>
-          <p className="truncate text-sm text-muted-foreground">{artist}</p>
+          <p className="truncate text-sm text-white">{artist}</p>
         </div>
         {lyrics.document && <span className="text-xs text-muted-foreground">{lyrics.document.metadata.source}</span>}
       </header>

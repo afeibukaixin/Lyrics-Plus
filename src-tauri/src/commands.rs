@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
@@ -41,7 +41,7 @@ pub struct AppState {
     pub lyrics_runtime: Arc<RwLock<LyricsRuntimeSnapshot>>,
     pub lyrics_generation: Arc<AtomicU64>,
     pub lyrics_auto_search_attempted: Arc<Mutex<HashSet<String>>>,
-    pub notch_has_safe_area: Arc<AtomicBool>,
+    pub notch_layout_metrics: Arc<RwLock<NotchLayoutMetrics>>,
     pub storage: Arc<Storage>,
     pub config: Arc<ConfigStore>,
     pub providers: Arc<ProviderRegistry>,
@@ -54,6 +54,14 @@ pub struct AppState {
 pub struct LegalNoticeStatus {
     pub current_version: u16,
     pub accepted: bool,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotchLayoutMetrics {
+    pub has_notch: bool,
+    pub top_inset: f64,
+    pub center_gap_width: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -875,8 +883,12 @@ pub fn get_lyrics_runtime_snapshot(state: State<'_, AppState>) -> LyricsRuntimeS
 }
 
 #[tauri::command]
-pub fn get_notch_has_safe_area(state: State<'_, AppState>) -> bool {
-    state.notch_has_safe_area.load(Ordering::Relaxed)
+pub fn get_notch_layout_metrics(state: State<'_, AppState>) -> NotchLayoutMetrics {
+    state
+        .notch_layout_metrics
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .clone()
 }
 
 fn save_and_emit(
@@ -1599,6 +1611,69 @@ pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Re
 }
 
 #[tauri::command]
+pub fn fit_notch_lyrics_content(
+    app: tauri::AppHandle,
+    width: f64,
+    height: f64,
+) -> Result<(), String> {
+    let window = app
+        .get_webview_window("lyrics-notch")
+        .ok_or_else(|| "灵动岛歌词窗口不存在".to_string())?;
+    let scale = window.scale_factor().map_err(|error| error.to_string())?;
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    let monitor = window
+        .current_monitor()
+        .map_err(|error| error.to_string())?
+        .or(window
+            .primary_monitor()
+            .map_err(|error| error.to_string())?)
+        .ok_or_else(|| "无法读取灵动岛歌词所在的显示器".to_string())?;
+    let monitor_position = monitor.position();
+    let monitor_size = monitor.size();
+    let requested_width = if width.is_finite() {
+        width.max(120.0)
+    } else {
+        120.0
+    };
+    let requested_height = if height.is_finite() {
+        height.max(44.0)
+    } else {
+        44.0
+    };
+    let next_size = tauri::PhysicalSize::new(
+        ((requested_width * scale).round() as u32).min(monitor_size.width),
+        ((requested_height * scale).round() as u32).min(monitor_size.height),
+    );
+    let next_position = tauri::PhysicalPosition::new(
+        monitor_position.x
+            + monitor_size.width.saturating_sub(next_size.width) as i32 / 2,
+        monitor_position.y,
+    );
+    let current_size = window.outer_size().map_err(|error| error.to_string())?;
+    let current_position = window.outer_position().map_err(|error| error.to_string())?;
+    let size_changed = current_size.width.abs_diff(next_size.width) > 1
+        || current_size.height.abs_diff(next_size.height) > 1;
+    if size_changed {
+        window
+            .set_size(next_size)
+            .map_err(|error| error.to_string())?;
+    }
+    if current_position != next_position {
+        window
+            .set_position(next_position)
+            .map_err(|error| error.to_string())?;
+    }
+    if size_changed {
+        crate::refresh_overlay_mouse_tracking(&window);
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
     crate::show_main_window_centered(&app)
 }
@@ -2126,23 +2201,6 @@ pub fn set_notch_lyrics_visible(
 }
 
 #[tauri::command]
-pub fn set_notch_lyrics_preferences(
-    app: tauri::AppHandle,
-    font_size: u16,
-    background_opacity: f64,
-    expanded_on_hover: bool,
-    state: State<'_, AppState>,
-) -> Result<AppConfig, String> {
-    let config = state.config.update(|config| {
-        config.lyrics.displays.notch.appearance.font_size = font_size.clamp(12, 32);
-        config.lyrics.displays.notch.appearance.background_opacity =
-            background_opacity.clamp(0.2, 1.0);
-        config.lyrics.displays.notch.expanded_on_hover = expanded_on_hover;
-    })?;
-    finish_display_config_update(&app, config)
-}
-
-#[tauri::command]
 pub fn set_lyrics_display_preferences(
     app: tauri::AppHandle,
     mode: LyricsStyleMode,
@@ -2167,7 +2225,7 @@ pub fn set_lyrics_display_preferences(
         }
         LyricsStyleMode::Notch => {
             let value = serde_json::from_value::<NotchLyricsPreferences>(preferences)
-                .map_err(|error| format!("刘海歌词配置无效：{error}"))?;
+                .map_err(|error| format!("灵动岛歌词配置无效：{error}"))?;
             state
                 .config
                 .update(|config| config.lyrics.displays.notch = value.clone())?

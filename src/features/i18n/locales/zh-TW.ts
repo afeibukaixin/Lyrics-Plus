@@ -54,7 +54,7 @@ export const zhTW = {
     validation: "設定內容無效，請檢查標示的位置。",
   },
   window: {
-    main: "Lyrics Plus", quickLyrics: "快速切換歌詞", overlay: "Lyrics Plus 桌面歌詞", statusBarLyrics: "Lyrics Plus 狀態列歌詞", lyricsList: "Lyrics Plus 列表歌詞", notchLyrics: "Lyrics Plus 瀏海歌詞",
+    main: "Lyrics Plus", quickLyrics: "快速切換歌詞", overlay: "Lyrics Plus 桌面歌詞", statusBarLyrics: "Lyrics Plus 狀態列歌詞", lyricsList: "Lyrics Plus 列表歌詞", notchLyrics: "Lyrics Plus 靈動島歌詞",
     unlockHandle: "解鎖桌面歌詞",
   },
   player: {
@@ -102,6 +102,13 @@ export const zhTW = {
       translationGlyph: "譯", romanizationGlyph: "音", hide: "隱藏桌面歌詞", openSettings: "開啟桌面歌詞設定",
     },
   },
+  notchLyrics: {
+    toolbar: {
+      label: "靈動島歌詞工具列", hide: "隱藏靈動島歌詞", openSettings: "開啟靈動島歌詞設定",
+      minimumFontSize: "字級已是最小值", maximumFontSize: "字級已是最大值", unavailableOffset: "目前沒有可調整偏移的歌詞",
+      unavailableTrack: "{{action}}（目前歌詞暫無{{track}}，資源出現後會自動套用）",
+    },
+  },
   settings: {
     shell: {
       navigation: "設定分類", onThisPage: "本頁目錄", closeToast: "關閉", advanced: "進階工具", resetTitle: "恢復分類預設設定",
@@ -117,11 +124,11 @@ export const zhTW = {
       colorSelect: "選擇{{label}}", presetColors: "{{label}}預設顏色", systemColorPicker: "開啟{{label}}系統取色器", colorValue: "{{label}}顏色值",
       colorPlaceholder: "#ffffff 或 rgba(255,255,255,.8)", capabilitiesHint: "連結歌詞後會顯示翻譯、羅馬拼音和逐字時間軸的可用狀態",
     },
-    style: { title: "歌詞樣式", description: "先設定共用字體與配色，再調整每種歌詞模式。", common: "常用樣式", advanced: "進階樣式", modes: { base: "基礎樣式", desktop: "桌面歌詞", statusBar: "狀態列歌詞", listWindow: "歌詞列表", notch: "瀏海歌詞", selector: "歌詞樣式模式" }, modeControls: { inheritance: "基礎樣式繼承", inheritFontFamily: "跟隨基礎字體", inheritColors: "跟隨基礎配色", baseFont: "基礎字體", baseColors: "基礎配色", supportingColor: "輔助內容顏色", displayPosition: "顯示與位置", text: "文字", backgroundSize: "背景與尺寸", displayContent: "顯示內容", textLayout: "文字與排版", colors: "顏色", displayInteraction: "顯示與互動", locked: "鎖定位置", lockedHint: "鎖定後滑鼠會穿透歌詞視窗", unlockedHint: "解鎖後可直接拖曳歌詞視窗", resetPosition: "重設位置", textColor: "文字顏色", maxWidth: "最大寬度", mainFontSize: "主歌詞字號", mainFontWeight: "主歌詞粗細", secondaryFontSize: "輔助歌詞字號", lineGap: "歌詞間距", alignment: "對齊方式", left: "靠左", center: "置中", right: "靠右", activeLyrics: "目前歌詞", inactiveLyrics: "一般歌詞", supportingLyrics: "翻譯與音譯", activeBackground: "目前行背景", windowBackground: "視窗背景", primaryColor: "主歌詞顏色", secondaryColor: "輔助文字顏色", positionReset: "歌詞視窗位置已重設。" } },
-    display: { title: "顯示與互動", description: "獨立控制桌面、狀態列、列表和瀏海歌詞。", directControlHint: "解鎖後拖曳空白區域即可移動歌詞視窗。", manageShortcuts: "管理全域快速鍵",
+    style: { title: "歌詞樣式", description: "先設定共用字體與配色，再調整每種歌詞模式。", common: "常用樣式", advanced: "進階樣式", modes: { base: "基礎樣式", desktop: "桌面歌詞", statusBar: "狀態列歌詞", listWindow: "歌詞列表", notch: "靈動島歌詞", selector: "歌詞樣式模式" }, modeControls: { inheritance: "基礎樣式繼承", inheritFontFamily: "跟隨基礎字體", inheritColors: "跟隨基礎配色", baseFont: "基礎字體", baseColors: "基礎配色", supportingColor: "輔助內容顏色", displayPosition: "顯示與位置", text: "文字", backgroundSize: "背景與尺寸", displayContent: "顯示內容", textLayout: "文字與排版", colors: "顏色", displayInteraction: "顯示與互動", locked: "鎖定位置", lockedHint: "鎖定後滑鼠會穿透歌詞視窗", unlockedHint: "解鎖後可直接拖曳歌詞視窗", resetPosition: "重設位置", textColor: "文字顏色", maxWidth: "最大寬度", mainFontSize: "主歌詞字號", mainFontWeight: "主歌詞粗細", secondaryFontSize: "輔助歌詞字號", lineGap: "歌詞間距", alignment: "對齊方式", left: "靠左", center: "置中", right: "靠右", activeLyrics: "目前歌詞", inactiveLyrics: "一般歌詞", supportingLyrics: "翻譯與音譯", activeBackground: "目前行背景", windowBackground: "視窗背景", primaryColor: "主歌詞顏色", secondaryColor: "輔助文字顏色", positionReset: "歌詞視窗位置已重設。" } },
+    display: { title: "顯示與互動", description: "獨立控制桌面、狀態列、列表和靈動島歌詞。", directControlHint: "解鎖後拖曳空白區域即可移動歌詞視窗。", manageShortcuts: "管理全域快速鍵",
       statusBar: { title: "狀態列歌詞", show: "顯示狀態列歌詞", showHint: "在 macOS 選單列顯示目前歌詞", width: "歌詞寬度", widthHint: "超出固定寬度的歌詞會自動捲動", textColor: "一般文字顏色", inactiveColor: "未唱文字顏色", highlightColor: "卡拉 OK 高亮顏色" },
       listWindow: { title: "列表歌詞", show: "顯示列表歌詞視窗", showHint: "開啟可捲動的完整歌詞獨立視窗", translation: "顯示翻譯", romanization: "顯示音譯" },
-      notch: { title: "瀏海歌詞", show: "顯示瀏海歌詞", showHint: "吸附主螢幕頂部；無瀏海時顯示為頂部膠囊", expandOnHover: "懸停時展開", fontSize: "字級", backgroundOpacity: "背景透明度" } },
+      notch: { title: "靈動島歌詞", show: "顯示靈動島歌詞", showHint: "吸附螢幕頂部；懸停後展開快捷工具列", showTwoLines: "顯示下一句歌詞", translation: "顯示翻譯", romanization: "顯示音譯", fontSize: "字級" } },
     player: { title: "播放器", description: "查看監聽狀態，並選擇播放來源、系統媒體篩選與播放器跟隨。", startup: "啟動與選單列", silentStartupHint: "啟動時不顯示設定視窗；桌面歌詞、播放器監聽與選單列仍會運作。", idleStatus: "等待播放", attentionStatus: "播放器需要處理", openAutomationSettings: "開啟自動化設定", detectAgain: "重新偵測", useAuto: "切換為智慧選擇" },
     app: {
       title: "應用程式", description: "選擇播放器並管理設定、選單列與快速鍵。", player: "播放器",

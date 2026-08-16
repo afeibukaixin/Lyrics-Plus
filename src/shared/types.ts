@@ -121,6 +121,12 @@ export type LyricsRuntimeSnapshot = {
   error: string | null;
 };
 
+export type NotchLayoutMetrics = {
+  hasNotch: boolean;
+  topInset: number;
+  centerGapWidth: number;
+};
+
 export type LyricsStyleMode = "desktop" | "statusBar" | "listWindow" | "notch";
 
 export type LyricsBaseAppearance = {
@@ -171,10 +177,9 @@ export type NotchLyricsAppearance = {
   fontSize: number;
   fontWeight: OverlayFontWeight;
   activeColor: string;
-  secondaryColor: string;
-  backgroundColor: string;
-  backgroundOpacity: number;
-  backgroundBlur: number;
+  inactiveColor: string;
+  translationColor: string;
+  romanizationColor: string;
   borderRadius: number;
   maxWidth: number;
 };
@@ -193,7 +198,9 @@ export type LyricsDisplayPreferences = {
   notch: {
     enabled: boolean;
     monitorId: string | null;
-    expandedOnHover: boolean;
+    showTwoLines: boolean;
+    showTranslation: boolean;
+    showRomanization: boolean;
     appearance: NotchLyricsAppearance;
   };
 };
@@ -491,10 +498,9 @@ export const defaultNotchLyricsAppearance: NotchLyricsAppearance = {
   fontSize: 18,
   fontWeight: 700,
   activeColor: defaultOverlayStyle.activeColor,
-  secondaryColor: "#94a3b8",
-  backgroundColor: "#171821",
-  backgroundOpacity: 0.88,
-  backgroundBlur: 20,
+  inactiveColor: defaultOverlayStyle.inactiveColor,
+  translationColor: defaultOverlayStyle.translationColor,
+  romanizationColor: defaultOverlayStyle.romanizationColor,
   borderRadius: 22,
-  maxWidth: 404,
+  maxWidth: 640,
 };

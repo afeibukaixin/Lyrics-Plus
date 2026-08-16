@@ -54,7 +54,7 @@ export const enUS = {
     validation: "The configuration is invalid. Check the marked location.",
   },
   window: {
-    main: "Lyrics Plus", quickLyrics: "Quick Lyrics Switcher", overlay: "Lyrics Plus Desktop Lyrics", statusBarLyrics: "Lyrics Plus Menu Bar Lyrics", lyricsList: "Lyrics Plus Lyrics List", notchLyrics: "Lyrics Plus Notch Lyrics",
+    main: "Lyrics Plus", quickLyrics: "Quick Lyrics Switcher", overlay: "Lyrics Plus Desktop Lyrics", statusBarLyrics: "Lyrics Plus Menu Bar Lyrics", lyricsList: "Lyrics Plus Lyrics List", notchLyrics: "Lyrics Plus Dynamic Island Lyrics",
     unlockHandle: "Unlock Desktop Lyrics",
   },
   player: {
@@ -102,6 +102,13 @@ export const enUS = {
       translationGlyph: "T", romanizationGlyph: "R", hide: "Hide desktop lyrics", openSettings: "Open desktop lyrics settings",
     },
   },
+  notchLyrics: {
+    toolbar: {
+      label: "Dynamic Island lyrics toolbar", hide: "Hide Dynamic Island lyrics", openSettings: "Open Dynamic Island lyrics settings",
+      minimumFontSize: "Font size is already at the minimum", maximumFontSize: "Font size is already at the maximum", unavailableOffset: "No lyrics offset is available for the current track",
+      unavailableTrack: "{{action}} (the current lyrics have no {{track}}; the preference will apply when it becomes available)",
+    },
+  },
   settings: {
     shell: {
       navigation: "Settings categories", onThisPage: "On this page", closeToast: "Close", advanced: "Advanced tools", resetTitle: "Restore category defaults",
@@ -119,15 +126,15 @@ export const enUS = {
     },
     style: {
       title: "Lyrics Style", description: "Set shared typography and colors, then refine each lyrics mode.", common: "Common style", advanced: "Advanced style",
-      modes: { base: "Base Style", desktop: "Desktop Lyrics", statusBar: "Menu Bar Lyrics", listWindow: "Lyrics List", notch: "Notch Lyrics", selector: "Lyrics style mode" },
+      modes: { base: "Base Style", desktop: "Desktop Lyrics", statusBar: "Menu Bar Lyrics", listWindow: "Lyrics List", notch: "Dynamic Island Lyrics", selector: "Lyrics style mode" },
       modeControls: { inheritance: "Base Style Inheritance", inheritFontFamily: "Use base font", inheritColors: "Use base colors", baseFont: "Base Font", baseColors: "Base Colors", supportingColor: "Supporting content color", displayPosition: "Display & Position", text: "Text", backgroundSize: "Background & Size", displayContent: "Displayed Content", textLayout: "Text & Layout", colors: "Colors", displayInteraction: "Display & Interaction", locked: "Lock position", lockedHint: "Pointer events pass through the lyrics window while locked", unlockedHint: "Drag the lyrics window directly while unlocked", resetPosition: "Reset Position", textColor: "Text color", maxWidth: "Maximum width", mainFontSize: "Primary font size", mainFontWeight: "Primary font weight", secondaryFontSize: "Supporting font size", lineGap: "Lyric spacing", alignment: "Alignment", left: "Left", center: "Center", right: "Right", activeLyrics: "Current lyrics", inactiveLyrics: "Other lyrics", supportingLyrics: "Translation & Romanization", activeBackground: "Current-line background", windowBackground: "Window background", primaryColor: "Primary lyrics color", secondaryColor: "Supporting text color", positionReset: "Lyrics window position reset." },
     },
     display: {
-      title: "Display & Interaction", description: "Control desktop, menu bar, list, and notch lyrics independently.",
+      title: "Display & Interaction", description: "Control desktop, menu bar, list, and Dynamic Island lyrics independently.",
       directControlHint: "Unlock and drag an empty area to move the lyrics window.", manageShortcuts: "Manage global shortcuts",
       statusBar: { title: "Menu Bar Lyrics", show: "Show menu bar lyrics", showHint: "Show the current lyric in the macOS menu bar", width: "Lyrics width", widthHint: "Lyrics that exceed this fixed width scroll automatically", textColor: "Default text color", inactiveColor: "Unsung text color", highlightColor: "Karaoke highlight color" },
       listWindow: { title: "Lyrics List", show: "Show lyrics list window", showHint: "Open a scrollable, standalone full-lyrics window", translation: "Show translation", romanization: "Show romanization" },
-      notch: { title: "Notch Lyrics", show: "Show notch lyrics", showHint: "Attach to the top of the primary display, with a pill fallback on displays without a notch", expandOnHover: "Expand on hover", fontSize: "Font size", backgroundOpacity: "Background opacity" },
+      notch: { title: "Dynamic Island Lyrics", show: "Show Dynamic Island lyrics", showHint: "Attach to the top of the display and reveal quick controls on hover", showTwoLines: "Show the next lyric line", translation: "Show translation", romanization: "Show romanization", fontSize: "Font size" },
     },
     player: { title: "Player", description: "Review listening status and choose the playback source, System Media filtering, and player following.", startup: "Startup & menu bar", silentStartupHint: "Do not show Settings at launch. Desktop lyrics, player monitoring, and the menu bar keep running.", idleStatus: "Waiting for playback", attentionStatus: "Player needs attention", openAutomationSettings: "Open Automation settings", detectAgain: "Detect again", useAuto: "Switch to automatic" },
     app: {

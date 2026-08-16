@@ -75,7 +75,6 @@ export type SettingsOutletContext = {
   setListLyricsVisible: ReturnType<typeof useAppConfig>["setListLyricsVisible"];
   setListLyricsOptions: ReturnType<typeof useAppConfig>["setListLyricsOptions"];
   setNotchLyricsVisible: ReturnType<typeof useAppConfig>["setNotchLyricsVisible"];
-  setNotchLyricsPreferences: ReturnType<typeof useAppConfig>["setNotchLyricsPreferences"];
   setLyricsDisplayPreferences: ReturnType<typeof useAppConfig>["setLyricsDisplayPreferences"];
   setLyricsBaseAppearance: ReturnType<typeof useAppConfig>["setLyricsBaseAppearance"];
   setLyricsStyleInheritance: ReturnType<typeof useAppConfig>["setLyricsStyleInheritance"];
@@ -130,7 +129,6 @@ export default function Settings() {
     setListLyricsVisible,
     setListLyricsOptions,
     setNotchLyricsVisible,
-    setNotchLyricsPreferences,
     setLyricsDisplayPreferences,
     setLyricsBaseAppearance,
     setLyricsStyleInheritance,
@@ -412,7 +410,6 @@ export default function Settings() {
     setListLyricsVisible,
     setListLyricsOptions,
     setNotchLyricsVisible,
-    setNotchLyricsPreferences,
     setLyricsDisplayPreferences,
     setLyricsBaseAppearance,
     setLyricsStyleInheritance,
