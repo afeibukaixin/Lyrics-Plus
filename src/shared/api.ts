@@ -19,6 +19,7 @@ import type {
   LyricsModeStyleInheritance,
   LyricsMonitor,
   LyricsStyleMode,
+  MusixmatchTokenType,
   LyricsRuntimeSnapshot,
   LibraryScanStatus,
   LyricsSearchInput,
@@ -33,6 +34,8 @@ import type {
   ProviderSettings,
   ProviderSettingsView,
   ProviderStatus,
+  ProviderCredentialView,
+  ProviderCredentialUpdate,
   SearchResponse,
   SettingsResetResponse,
   SettingsSection,
@@ -89,8 +92,13 @@ export const api = {
   openLyricsDirectory: () => invoke<void>("open_lyrics_directory"),
   searchLyrics: (input: LyricsSearchInput) => invoke<SearchResponse>("search_lyrics", { input }),
   getProviderSettings: () => invoke<ProviderSettingsView>("get_provider_settings"),
+  getProviderCredentials: () => invoke<ProviderCredentialView>("get_provider_credentials"),
   setProviderSettings: (settings: ProviderSettings) =>
     invoke<ProviderSettingsView>("set_provider_settings", { settings }),
+  setMusixmatchToken: (tokenType: MusixmatchTokenType, token: string) =>
+    invoke<ProviderCredentialUpdate>("set_musixmatch_token", { tokenType, token }),
+  clearMusixmatchToken: () =>
+    invoke<ProviderCredentialUpdate>("clear_musixmatch_token"),
   testProvider: (providerId: string) =>
     invoke<ProviderStatus>("test_provider", { providerId }),
   saveLyrics: (

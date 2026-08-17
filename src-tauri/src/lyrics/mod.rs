@@ -1,8 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+pub mod amll_ttml;
+pub mod credentials;
 pub mod kugou;
+pub mod kuwo;
 pub mod lrclib;
+pub mod migu;
+pub mod musixmatch;
 pub mod netease;
 pub mod provider;
 pub mod qqmusic;
@@ -96,7 +101,7 @@ pub fn parse_lrc_with_options(
     manual_selected: bool,
 ) -> Result<LyricsDocument, String> {
     let source = source.into();
-    if let Some(lines) = parse_ttml_lyrics(raw) {
+    if let Some(tracks) = parse_ttml_lyrics(raw) {
         return Ok(LyricsDocument {
             metadata: LyricsMetadata {
                 title: None,
@@ -106,11 +111,7 @@ pub fn parse_lrc_with_options(
                 original_format: "ttml".into(),
                 manual_selected,
             },
-            tracks: LyricsTracks {
-                original: LyricsTrack { lines },
-                translation: None,
-                romanization: None,
-            },
+            tracks,
             offset_ms: 0,
             raw: raw.to_string(),
         });
@@ -496,11 +497,13 @@ fn parse_integer_list(raw: &str) -> Vec<u64> {
         .collect()
 }
 
-fn parse_ttml_lyrics(raw: &str) -> Option<Vec<LyricsLine>> {
+fn parse_ttml_lyrics(raw: &str) -> Option<LyricsTracks> {
     if !raw.contains("<tt") || !raw.contains("<p") {
         return None;
     }
     let mut lines = Vec::new();
+    let mut translation_lines = Vec::new();
+    let mut romanization_lines = Vec::new();
     let mut cursor = 0;
     while let Some(relative_open) = raw[cursor..].find("<p") {
         let open = cursor + relative_open;
@@ -519,9 +522,12 @@ fn parse_ttml_lyrics(raw: &str) -> Option<Vec<LyricsLine>> {
             continue;
         };
         let end_ms = xml_time_attribute(header, "end");
-        let words = parse_ttml_spans(body);
+        let main_body = strip_ttml_auxiliary_spans(body);
+        let words = parse_ttml_spans(&main_body);
         let text = if words.is_empty() {
-            decode_xml_text(&strip_xml_tags(body)).trim().to_string()
+            decode_xml_text(&strip_xml_tags(&main_body))
+                .trim()
+                .to_string()
         } else {
             words
                 .iter()
@@ -538,10 +544,82 @@ fn parse_ttml_lyrics(raw: &str) -> Option<Vec<LyricsLine>> {
                 words: (!words.is_empty()).then_some(words),
             });
         }
+        if let Some(text) = ttml_role_text(body, "x-translation") {
+            translation_lines.push(LyricsLine {
+                start_ms,
+                end_ms,
+                text,
+                words: None,
+            });
+        }
+        if let Some(text) = ttml_role_text(body, "x-roman") {
+            romanization_lines.push(LyricsLine {
+                start_ms,
+                end_ms,
+                text,
+                words: None,
+            });
+        }
         cursor = close + 4;
     }
     lines.sort_by_key(|line| line.start_ms);
-    (!lines.is_empty()).then_some(lines)
+    translation_lines.sort_by_key(|line| line.start_ms);
+    romanization_lines.sort_by_key(|line| line.start_ms);
+    (!lines.is_empty()).then_some(LyricsTracks {
+        original: LyricsTrack { lines },
+        translation: (!translation_lines.is_empty()).then_some(LyricsTrack {
+            lines: translation_lines,
+        }),
+        romanization: (!romanization_lines.is_empty()).then_some(LyricsTrack {
+            lines: romanization_lines,
+        }),
+    })
+}
+
+fn strip_ttml_auxiliary_spans(raw: &str) -> String {
+    let mut output = String::new();
+    let mut cursor = 0;
+    while let Some(relative_open) = raw[cursor..].find("<span") {
+        let open = cursor + relative_open;
+        output.push_str(&raw[cursor..open]);
+        let Some(relative_header_end) = raw[open..].find('>') else {
+            output.push_str(&raw[open..]);
+            return output;
+        };
+        let header_end = open + relative_header_end;
+        let header = &raw[open..=header_end];
+        let Some(relative_close) = raw[header_end + 1..].find("</span>") else {
+            output.push_str(&raw[open..]);
+            return output;
+        };
+        let close = header_end + 1 + relative_close + 7;
+        if header.contains("x-translation") || header.contains("x-roman") {
+            cursor = close;
+        } else {
+            output.push_str(&raw[open..close]);
+            cursor = close;
+        }
+    }
+    output.push_str(&raw[cursor..]);
+    output
+}
+
+fn ttml_role_text(raw: &str, role: &str) -> Option<String> {
+    let mut cursor = 0;
+    while let Some(relative_open) = raw[cursor..].find("<span") {
+        let open = cursor + relative_open;
+        let header_end = open + raw[open..].find('>')?;
+        let header = &raw[open..=header_end];
+        let close = header_end + 1 + raw[header_end + 1..].find("</span>")?;
+        if header.contains(role) {
+            let text = decode_xml_text(&strip_xml_tags(&raw[header_end + 1..close]))
+                .trim()
+                .to_string();
+            return (!text.is_empty()).then_some(text);
+        }
+        cursor = close + 7;
+    }
+    None
 }
 
 fn parse_ttml_spans(raw: &str) -> Vec<LyricsWord> {
@@ -599,6 +677,14 @@ fn parse_ttml_time(raw: &str) -> Option<u64> {
             .trim()
             .parse::<f64>()
             .ok()
+            .map(|value| (value * 1000.0).round() as u64);
+    }
+    if !raw.contains(':') {
+        return raw
+            .trim()
+            .parse::<f64>()
+            .ok()
+            .filter(|value| *value >= 0.0)
             .map(|value| (value * 1000.0).round() as u64);
     }
     let parts = raw.split(':').collect::<Vec<_>>();

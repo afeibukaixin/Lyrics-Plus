@@ -2726,7 +2726,13 @@ pub fn run() {
                 notch_visibility: Arc::new(Mutex::new(NotchVisibilityState::default())),
                 storage: Arc::new(storage),
                 config,
-                providers: Arc::new(lyrics::provider::ProviderRegistry::new(provider_settings)),
+                providers: Arc::new(
+                    lyrics::provider::ProviderRegistry::new_with_app_dir(
+                        provider_settings,
+                        &app_dir,
+                    )
+                    .map_err(std::io::Error::other)?,
+                ),
                 system_media: Arc::new(SystemMediaService::default()),
                 http: reqwest::Client::builder()
                     .user_agent(concat!(
@@ -2841,7 +2847,10 @@ pub fn run() {
             commands::set_player_selection,
             commands::search_lyrics,
             commands::get_provider_settings,
+            commands::get_provider_credentials,
             commands::set_provider_settings,
+            commands::set_musixmatch_token,
+            commands::clear_musixmatch_token,
             commands::test_provider,
             commands::get_cached_lyrics,
             commands::get_lyrics_runtime_snapshot,

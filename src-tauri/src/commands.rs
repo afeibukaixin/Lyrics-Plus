@@ -18,6 +18,7 @@ use crate::config::{
     StatusBarLyricsPreferences, SystemMediaFilterMode, ThemePreference,
 };
 use crate::language::UiLanguage;
+use crate::lyrics::credentials::{MusixmatchTokenType, ProviderCredentialView};
 use crate::lyrics::provider::{
     can_auto_apply, LyricsSearchInput, LyricsSearchResult, ProviderRegistry, ProviderSettings,
     ProviderSettingsView, ProviderStatus,
@@ -728,6 +729,13 @@ pub struct ConfigExport {
     pub raw: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderCredentialUpdate {
+    pub credentials: ProviderCredentialView,
+    pub provider_view: ProviderSettingsView,
+}
+
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum OverlayResizeEdge {
@@ -854,6 +862,41 @@ fn prefer_candidate_capabilities(
 #[tauri::command]
 pub fn get_provider_settings(state: State<'_, AppState>) -> ProviderSettingsView {
     state.providers.settings_view()
+}
+
+#[tauri::command]
+pub fn get_provider_credentials(state: State<'_, AppState>) -> ProviderCredentialView {
+    state.providers.credential_view()
+}
+
+#[tauri::command]
+pub fn set_musixmatch_token(
+    token_type: MusixmatchTokenType,
+    token: String,
+    state: State<'_, AppState>,
+) -> Result<ProviderCredentialUpdate, String> {
+    let (credentials, provider_view) = state.providers.set_musixmatch_token(token_type, token)?;
+    state
+        .config
+        .update(|config| config.lyrics.providers = provider_view.settings.clone())?;
+    Ok(ProviderCredentialUpdate {
+        credentials,
+        provider_view,
+    })
+}
+
+#[tauri::command]
+pub fn clear_musixmatch_token(
+    state: State<'_, AppState>,
+) -> Result<ProviderCredentialUpdate, String> {
+    let (credentials, provider_view) = state.providers.clear_musixmatch_token()?;
+    state
+        .config
+        .update(|config| config.lyrics.providers = provider_view.settings.clone())?;
+    Ok(ProviderCredentialUpdate {
+        credentials,
+        provider_view,
+    })
 }
 
 #[tauri::command]
@@ -1690,8 +1733,7 @@ pub fn fit_notch_lyrics_content(
         ((requested_height * scale).round() as u32).min(monitor_size.height),
     );
     let next_position = tauri::PhysicalPosition::new(
-        monitor_position.x
-            + monitor_size.width.saturating_sub(next_size.width) as i32 / 2,
+        monitor_position.x + monitor_size.width.saturating_sub(next_size.width) as i32 / 2,
         monitor_position.y,
     );
     let current_size = window.outer_size().map_err(|error| error.to_string())?;

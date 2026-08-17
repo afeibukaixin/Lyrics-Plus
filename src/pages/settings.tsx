@@ -42,6 +42,8 @@ import {
   type OverlayStyle,
   type ProviderSettings,
   type ProviderSettingsView,
+  type ProviderCredentialView,
+  type MusixmatchTokenType,
   type SettingsSection,
   type ThemePreference,
 } from "../shared/types";
@@ -58,6 +60,7 @@ type ProviderDragState = {
   positions: Array<{ top: number; center: number }>;
 };
 
+const providerDragHysteresisPx = 6;
 const themeCycle: readonly ThemePreference[] = ["dark", "light", "system"];
 
 export type SettingsOutletContext = {
@@ -86,6 +89,7 @@ export type SettingsOutletContext = {
   overlaySettings: OverlaySettings;
   style: OverlayStyle;
   providerView: ProviderSettingsView | null;
+  providerCredentials: ProviderCredentialView | null;
   testingProvider: string | null;
   resettingSection: SettingsSection | null;
   confirmingReset: SettingsSection | null;
@@ -97,6 +101,8 @@ export type SettingsOutletContext = {
   setVisible: (visible: boolean) => Promise<void>;
   setLocked: (locked: boolean) => Promise<void>;
   saveProviderSettings: (settings: ProviderSettings) => Promise<boolean>;
+  saveMusixmatchToken: (tokenType: MusixmatchTokenType, token: string) => Promise<boolean>;
+  clearMusixmatchToken: () => Promise<boolean>;
   beginProviderDrag: (providerId: string, sourceIndex: number, event: ReactPointerEvent<HTMLButtonElement>) => void;
   continueProviderDrag: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   finishProviderDrag: (event: ReactPointerEvent<HTMLButtonElement>) => void;
@@ -142,6 +148,7 @@ export default function Settings() {
   const [overlaySettings, setOverlaySettings] = useState<OverlaySettings>({ visible: true, locked: false });
   const [style, setStyle] = useState<OverlayStyle>(defaultOverlayStyle);
   const [providerView, setProviderView] = useState<ProviderSettingsView | null>(null);
+  const [providerCredentials, setProviderCredentials] = useState<ProviderCredentialView | null>(null);
   const [testingProvider, setTestingProvider] = useState<string | null>(null);
   const [resettingSection, setResettingSection] = useState<SettingsSection | null>(null);
   const [confirmingReset, setConfirmingReset] = useState<SettingsSection | null>(null);
@@ -158,6 +165,7 @@ export default function Settings() {
     void api.getOverlaySettings().then(setOverlaySettings).catch((value) => setError(messageOf(value)));
     void api.getOverlayStyle().then(setStyle).catch((value) => setError(messageOf(value)));
     void api.getProviderSettings().then(setProviderView).catch((value) => setError(messageOf(value)));
+    void api.getProviderCredentials().then(setProviderCredentials).catch((value) => setError(messageOf(value)));
     const cleanupSettingsListener = createTauriListenerCleanup(
       listen<OverlaySettings>("overlay://settings", ({ payload }) => setOverlaySettings(payload)),
     );
@@ -232,6 +240,30 @@ export default function Settings() {
     }
   };
 
+  const saveMusixmatchToken = async (tokenType: MusixmatchTokenType, token: string) => {
+    try {
+      const update = await api.setMusixmatchToken(tokenType, token);
+      setProviderCredentials(update.credentials);
+      setProviderView(update.providerView);
+      return true;
+    } catch (value) {
+      setError(messageOf(value));
+      return false;
+    }
+  };
+
+  const clearMusixmatchToken = async () => {
+    try {
+      const update = await api.clearMusixmatchToken();
+      setProviderCredentials(update.credentials);
+      setProviderView(update.providerView);
+      return true;
+    } catch (value) {
+      setError(messageOf(value));
+      return false;
+    }
+  };
+
   const moveProvider = async (sourceId: string, targetId: string) => {
     if (!providerView || sourceId === targetId || savingProviderOrder) return;
     const previous = providerView;
@@ -279,20 +311,28 @@ export default function Settings() {
     if (!providerDrag || providerDrag.pointerId !== event.pointerId) return;
     event.preventDefault();
     const currentY = event.clientY;
-    const draggedCenter = providerDrag.positions[providerDrag.sourceIndex].center + currentY - providerDrag.startY;
-    let targetIndex = providerDrag.sourceIndex;
-    if (draggedCenter > providerDrag.positions[providerDrag.sourceIndex].center) {
-      for (let index = providerDrag.sourceIndex + 1; index < providerDrag.positions.length; index += 1) {
-        if (draggedCenter > providerDrag.positions[index].center) targetIndex = index;
+    setProviderDrag((current) => {
+      if (!current || current.pointerId !== event.pointerId) return current;
+      const movement = currentY - current.currentY;
+      if (movement === 0) return current;
+      const sourceCenter = current.positions[current.sourceIndex].center;
+      const draggedCenter = sourceCenter + currentY - current.startY;
+      let targetIndex = current.targetIndex;
+      if (movement > 0) {
+        while (targetIndex < current.positions.length - 1) {
+          const boundaryIndex = targetIndex < current.sourceIndex ? targetIndex : targetIndex + 1;
+          if (draggedCenter <= current.positions[boundaryIndex].center + providerDragHysteresisPx) break;
+          targetIndex += 1;
+        }
+      } else {
+        while (targetIndex > 0) {
+          const boundaryIndex = targetIndex > current.sourceIndex ? targetIndex : targetIndex - 1;
+          if (draggedCenter >= current.positions[boundaryIndex].center - providerDragHysteresisPx) break;
+          targetIndex -= 1;
+        }
       }
-    } else {
-      for (let index = providerDrag.sourceIndex - 1; index >= 0; index -= 1) {
-        if (draggedCenter < providerDrag.positions[index].center) targetIndex = index;
-      }
-    }
-    setProviderDrag((current) => current && current.pointerId === event.pointerId
-      ? { ...current, currentY, targetIndex }
-      : current);
+      return { ...current, currentY, targetIndex };
+    });
   };
 
   const finishProviderDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -421,6 +461,7 @@ export default function Settings() {
     overlaySettings,
     style,
     providerView,
+    providerCredentials,
     testingProvider,
     resettingSection,
     confirmingReset,
@@ -432,6 +473,8 @@ export default function Settings() {
     setVisible,
     setLocked,
     saveProviderSettings,
+    saveMusixmatchToken,
+    clearMusixmatchToken,
     beginProviderDrag,
     continueProviderDrag,
     finishProviderDrag,

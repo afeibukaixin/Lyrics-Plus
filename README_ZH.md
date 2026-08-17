@@ -37,7 +37,8 @@ Apple Music 和 Spotify 可能会请求“自动化”权限。播放器跟随�
 
 ## 歌词搜索与歌词库
 
-- 并发搜索 LRCLIB、酷狗、QQ 音乐和网易云音乐。
+- 并发搜索 LRCLIB、酷狗、QQ 音乐、网易云音乐、酷我音乐、AMLL TTML、咪咕音乐和 Musixmatch。
+- Musixmatch 默认通过非官方 Desktop 接口自动获取匿名 Token；用户也可以填写 Desktop Token 或官方 Developer API Key。Token 保存在独立的本机凭据文件中，不随应用配置导出。
 - 调整或禁用歌词源，选择智能或严格排序，测试歌词源状态，并设置自动匹配相似度。
 - 根据歌名、歌手、专辑、时长和内容能力对候选结果排序，支持标题过滤和繁简中文匹配。
 - 在可用时显示同步 LRC、翻译、音译和逐字时间轴。

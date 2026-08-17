@@ -1,4 +1,4 @@
-import type { LibraryScanStatus, ProviderSettings, ProviderStatus } from "../../shared/types";
+import type { LibraryScanStatus, MusixmatchTokenType, ProviderSettings, ProviderStatus } from "../../shared/types";
 import type { TFunction } from "i18next";
 import { useEffect, useState, type FormEvent } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -10,7 +10,7 @@ import { createTauriListenerCleanup } from "../../shared/tauriEvent";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
 import { PageHeader, RangeRow, SettingsPage, SettingsSection } from "./components";
-import { GripVertical, X } from "lucide-react";
+import { GripVertical, Settings2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
@@ -19,6 +19,11 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Switch } from "@/components/ui/switch";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+
+const defaultAmllBaseUrl = "https://amlldb.bikonoo.com";
 
 const defaultTitleFilterKeywords = [
   "feat", "ft", "featuring", "主题曲", "片头曲", "片尾曲",
@@ -36,14 +41,22 @@ export default function LyricsSettingsPage() {
   const [libraryDir, setLibraryDir] = useState<string | null>(null);
   const [scanStatus, setScanStatus] = useState<LibraryScanStatus | null>(null);
   const [changingDirectory, setChangingDirectory] = useState(false);
+  const [providerConfig, setProviderConfig] = useState<"musixmatch" | "amll_ttml" | null>(null);
+  const [musixmatchTokenDraft, setMusixmatchTokenDraft] = useState("");
+  const [musixmatchTokenType, setMusixmatchTokenType] = useState<MusixmatchTokenType>("desktopUserToken");
+  const [amllBaseUrlDraft, setAmllBaseUrlDraft] = useState("");
+  const [savingProviderConfig, setSavingProviderConfig] = useState(false);
   const {
-    playback, lyrics, fileInput, providerRows, providerView, testingProvider,
+    playback, lyrics, fileInput, providerRows, providerView, providerCredentials, testingProvider,
     resettingSection, confirmingReset, providerDrag, savingProviderOrder,
-    saveProviderSettings, beginProviderDrag, continueProviderDrag, finishProviderDrag,
+    saveProviderSettings, saveMusixmatchToken, clearMusixmatchToken,
+    beginProviderDrag, continueProviderDrag, finishProviderDrag,
     setProviderDrag, providerDragTransform, toggleProvider, testProviders, handleFile,
     resetSection, setError,
   } = useSettingsContext();
   const normalizedTitleFilterDraft = titleFilterDraft.trim();
+  const normalizedTokenDraft = musixmatchTokenDraft.trim();
+  const normalizedAmllBaseUrlDraft = amllBaseUrlDraft.trim().replace(/\/+$/, "");
   const titleFilterError = !normalizedTitleFilterDraft
     ? null
     : normalizedTitleFilterDraft.length > 64
@@ -108,6 +121,46 @@ export default function LyricsSettingsPage() {
     }
   };
 
+  const openProviderConfig = (providerId: string) => {
+    if (providerId !== "musixmatch" && providerId !== "amll_ttml") return;
+    setMusixmatchTokenDraft("");
+    setMusixmatchTokenType(providerCredentials?.musixmatchTokenType ?? "desktopUserToken");
+    setAmllBaseUrlDraft(providerView?.settings.amllBaseUrl ?? defaultAmllBaseUrl);
+    setProviderConfig(providerId);
+  };
+
+  const saveMusixmatch = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!normalizedTokenDraft || savingProviderConfig) return;
+    setSavingProviderConfig(true);
+    const saved = await saveMusixmatchToken(musixmatchTokenType, normalizedTokenDraft);
+    setSavingProviderConfig(false);
+    if (saved) {
+      setMusixmatchTokenDraft("");
+      setProviderConfig(null);
+    }
+  };
+
+  const clearMusixmatch = async () => {
+    if (savingProviderConfig) return;
+    setSavingProviderConfig(true);
+    const cleared = await clearMusixmatchToken();
+    setSavingProviderConfig(false);
+    if (cleared) setMusixmatchTokenDraft("");
+  };
+
+  const saveAmllBaseUrl = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!providerView || !normalizedAmllBaseUrlDraft || savingProviderConfig) return;
+    setSavingProviderConfig(true);
+    const saved = await saveProviderSettings({
+      ...providerView.settings,
+      amllBaseUrl: normalizedAmllBaseUrlDraft,
+    });
+    setSavingProviderConfig(false);
+    if (saved) setProviderConfig(null);
+  };
+
   const scanActive = scanStatus?.phase === "discovering" || scanStatus?.phase === "indexing";
   const scanProgress = scanStatus?.phase === "indexing" && scanStatus.total
     ? Math.round(scanStatus.processed / scanStatus.total * 100)
@@ -162,10 +215,40 @@ export default function LyricsSettingsPage() {
         return <Item variant="muted" className={styles.provider} data-dragging={providerDrag?.providerId === provider.id} key={provider.id} ref={(element) => { if (element) providerRows.current.set(provider.id, element); else providerRows.current.delete(provider.id); }} style={{ transform: providerDragTransform(index) }}>
           <ItemMedia><Button type="button" variant="ghost" size="icon-sm" className={styles.dragHandle} aria-label={`${status?.name ?? provider.id} #${index + 1}`} disabled={savingProviderOrder} onPointerDown={(event) => beginProviderDrag(provider.id, index, event)} onPointerMove={continueProviderDrag} onPointerUp={finishProviderDrag} onPointerCancel={() => setProviderDrag(null)} onLostPointerCapture={() => setProviderDrag(null)}><GripVertical /></Button></ItemMedia>
           <Badge variant="outline">#{index + 1}</Badge>
-          <ItemContent><ItemTitle>{status?.name ?? provider.id}</ItemTitle><ItemDescription className={styles.providerStatus} data-health={status?.health ?? "unknown"}>{healthLabel(status, t)}</ItemDescription></ItemContent>
-          <ItemActions><Switch aria-label={status?.name ?? provider.id} checked={provider.enabled} onCheckedChange={() => toggleProvider(provider.id)} /><Button variant="secondary" size="sm" disabled={testingProvider !== null} onClick={() => void testProviders([provider.id])}>{testingProvider === provider.id || testingProvider === "*" ? t("common.actions.testing") : t("common.actions.test")}</Button></ItemActions>
+          <ItemContent><ItemTitle>{status?.name ?? provider.id}</ItemTitle><ItemDescription className={styles.providerStatus} data-health={status?.health ?? "unknown"} title={status?.message ?? undefined}>{healthLabel(status, t)}{status?.message ? ` · ${status.message}` : ""}</ItemDescription></ItemContent>
+          <ItemActions>
+            {(provider.id === "musixmatch" || provider.id === "amll_ttml") && <IconButton label={t("settings.lyrics.providerConfig.configure", { source: status?.name ?? provider.id })} tooltip={t("settings.lyrics.providerConfig.configure", { source: status?.name ?? provider.id })} variant="ghost" size="icon-sm" onClick={() => openProviderConfig(provider.id)}><Settings2 /></IconButton>}
+            <Switch aria-label={status?.name ?? provider.id} checked={provider.enabled} onCheckedChange={() => toggleProvider(provider.id)} />
+            <Button variant="secondary" size="sm" disabled={testingProvider !== null} onClick={() => void testProviders([provider.id])}>{testingProvider === provider.id || testingProvider === "*" ? t("common.actions.testing") : t("common.actions.test")}</Button>
+          </ItemActions>
         </Item>;
       })}</ItemGroup>
     </SettingsSection>
+    <Dialog open={providerConfig !== null} onOpenChange={(open) => { if (!open && !savingProviderConfig) setProviderConfig(null); }}>
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto">
+        {providerConfig === "musixmatch" ? <form onSubmit={(event) => void saveMusixmatch(event)}>
+          <DialogHeader><DialogTitle>{t("settings.lyrics.providerConfig.musixmatchTitle")}</DialogTitle><DialogDescription>{t("settings.lyrics.providerConfig.musixmatchDescription")}</DialogDescription></DialogHeader>
+          <FieldGroup className={styles.providerConfigFields}>
+            <Field><FieldLabel htmlFor="musixmatch-token-type">{t("settings.lyrics.providerConfig.tokenType")}</FieldLabel><Select items={[{ value: "desktopUserToken", label: t("settings.lyrics.providerConfig.desktopToken") }, { value: "developerApiKey", label: t("settings.lyrics.providerConfig.developerApiKey") }]} value={musixmatchTokenType} onValueChange={(value) => setMusixmatchTokenType(value as MusixmatchTokenType)}><SelectTrigger id="musixmatch-token-type"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="desktopUserToken">{t("settings.lyrics.providerConfig.desktopToken")}</SelectItem><SelectItem value="developerApiKey">{t("settings.lyrics.providerConfig.developerApiKey")}</SelectItem></SelectGroup></SelectContent></Select><FieldDescription>{t(`settings.lyrics.providerConfig.${musixmatchTokenType === "desktopUserToken" ? "desktopTokenHint" : "developerApiKeyHint"}`)}</FieldDescription></Field>
+            <Field><FieldLabel htmlFor="musixmatch-token">{t("settings.lyrics.providerConfig.token")}</FieldLabel><Input id="musixmatch-token" type="password" autoComplete="off" value={musixmatchTokenDraft} onChange={(event) => setMusixmatchTokenDraft(event.target.value)} placeholder={providerCredentials?.musixmatchConfigured ? t("settings.lyrics.providerConfig.tokenConfigured") : t("settings.lyrics.providerConfig.tokenPlaceholder")} /><FieldDescription>{providerCredentials?.musixmatchConfigured ? t("settings.lyrics.providerConfig.configuredStatus") : t("settings.lyrics.providerConfig.notConfiguredStatus")} · {providerCredentials?.musixmatchConfigured ? t("settings.lyrics.providerConfig.configuredHint") : t("settings.lyrics.providerConfig.tokenHint")}</FieldDescription></Field>
+          </FieldGroup>
+          <DialogFooter>
+            {providerCredentials?.musixmatchConfigured && <Button type="button" variant="destructive" disabled={savingProviderConfig} onClick={() => void clearMusixmatch()}>{t("settings.lyrics.providerConfig.clearToken")}</Button>}
+            <Button type="button" variant="secondary" disabled={testingProvider !== null} onClick={() => void testProviders(["musixmatch"])}>{testingProvider === "musixmatch" ? t("common.actions.testing") : t("common.actions.test")}</Button>
+            <Button disabled={!normalizedTokenDraft || savingProviderConfig}>{t("common.actions.save")}</Button>
+          </DialogFooter>
+        </form> : providerConfig === "amll_ttml" ? <form onSubmit={(event) => void saveAmllBaseUrl(event)}>
+          <DialogHeader><DialogTitle>{t("settings.lyrics.providerConfig.amllTitle")}</DialogTitle><DialogDescription>{t("settings.lyrics.providerConfig.amllDescription")}</DialogDescription></DialogHeader>
+          <FieldGroup className={styles.providerConfigFields}>
+            <Field><FieldLabel htmlFor="amll-base-url">{t("settings.lyrics.providerConfig.baseUrl")}</FieldLabel><Input id="amll-base-url" inputMode="url" value={amllBaseUrlDraft} onChange={(event) => setAmllBaseUrlDraft(event.target.value)} /><FieldDescription>{t("settings.lyrics.providerConfig.baseUrlHint")}</FieldDescription></Field>
+          </FieldGroup>
+          <DialogFooter>
+            <Button type="button" variant="ghost" disabled={savingProviderConfig} onClick={() => setAmllBaseUrlDraft(defaultAmllBaseUrl)}>{t("common.actions.resetDefault")}</Button>
+            <Button type="button" variant="secondary" disabled={testingProvider !== null} onClick={() => void testProviders(["amll_ttml"])}>{testingProvider === "amll_ttml" ? t("common.actions.testing") : t("common.actions.test")}</Button>
+            <Button disabled={!normalizedAmllBaseUrlDraft || savingProviderConfig}>{t("common.actions.save")}</Button>
+          </DialogFooter>
+        </form> : null}
+      </DialogContent>
+    </Dialog>
   </SettingsPage>;
 }

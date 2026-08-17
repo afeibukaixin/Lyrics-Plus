@@ -262,6 +262,19 @@ export type ProviderSettings = {
   providers: ProviderPreference[];
   autoApplyThreshold: number;
   titleFilterKeywords: string[];
+  amllBaseUrl: string;
+};
+
+export type ProviderCredentialView = {
+  musixmatchConfigured: boolean;
+  musixmatchTokenType: MusixmatchTokenType | null;
+};
+
+export type MusixmatchTokenType = "desktopUserToken" | "developerApiKey";
+
+export type ProviderCredentialUpdate = {
+  credentials: ProviderCredentialView;
+  providerView: ProviderSettingsView;
 };
 
 export type ProviderHealth = "unknown" | "available" | "degraded" | "unavailable";

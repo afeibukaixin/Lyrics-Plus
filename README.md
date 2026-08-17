@@ -37,7 +37,8 @@ Apple Music and Spotify may ask for Automation permission. Player following may 
 
 ## Lyrics Search and Library
 
-- Search LRCLIB, Kugou, QQMusic, and Netease concurrently.
+- Search LRCLIB, Kugou, QQMusic, Netease, Kuwo, AMLL TTML, Migu, and Musixmatch concurrently.
+- Musixmatch uses the unofficial Desktop interface with an automatically obtained anonymous token by default. Users can optionally provide a Desktop token or official Developer API key; tokens stay in a separate local credentials file and are excluded from configuration exports.
 - Reorder or disable providers, choose smart or strict provider ordering, test provider health, and set an automatic match threshold.
 - Rank candidates using title, artist, album, duration, and capability information, with title filters and simplified/traditional Chinese matching.
 - Display synchronized LRC, translations, romanization, and word-level timing when available.

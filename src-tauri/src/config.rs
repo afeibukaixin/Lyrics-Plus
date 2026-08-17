@@ -16,7 +16,7 @@ use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSet
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 44;
+pub const CONFIG_SCHEMA_VERSION: u16 = 45;
 const APP_CONFIG_KEYS: &[&str] = &[
     "theme",
     "language",
@@ -72,6 +72,9 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             }
             line if line.starts_with("      \"titleFilterKeywords\":") => {
                 Some(("      ", ConfigComment::TitleFilterKeywords))
+            }
+            line if line.starts_with("      \"amllBaseUrl\":") => {
+                Some(("      ", ConfigComment::AmllBaseUrl))
             }
             line if line.starts_with("      \"mode\":") => {
                 Some(("      ", ConfigComment::ProviderMode))
@@ -1033,6 +1036,22 @@ fn migrate_v13_provider_defaults(settings: &mut ProviderSettings) {
     }
 }
 
+fn migrate_v45_provider_sources(settings: &mut ProviderSettings) {
+    for (id, enabled) in [
+        ("kuwo", true),
+        ("amll_ttml", true),
+        ("migu", true),
+        ("musixmatch", false),
+    ] {
+        if !settings.providers.iter().any(|provider| provider.id == id) {
+            settings.providers.push(crate::lyrics::provider::ProviderPreference {
+                id: id.into(),
+                enabled,
+            });
+        }
+    }
+}
+
 fn migrate_legacy_overlay_layout(
     user: &mut Value,
     version: u16,
@@ -1383,6 +1402,9 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
     if version < 14 {
         migrate_v13_provider_defaults(&mut config.lyrics.providers);
     }
+    if version < 45 {
+        migrate_v45_provider_sources(&mut config.lyrics.providers);
+    }
     let config = config.normalized().map_err(|message| {
         let key = if message.contains("歌词源") {
             "providers"
@@ -1571,6 +1593,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                     "providers",
                     "autoApplyThreshold",
                     "titleFilterKeywords",
+                    "amllBaseUrl",
                 ],
             )?;
             if let Some(items) = providers.get("providers").and_then(Value::as_array) {
@@ -2082,6 +2105,18 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             .ok_or_else(|| error_at_key(raw, "fontFamily", "fontFamily 必须是字符串"))?;
         if font_family.trim().is_empty() {
             return Err(error_at_key(raw, "fontFamily", "fontFamily 不能为空"));
+        }
+    }
+    if let Some(candidate) = value.pointer("/lyrics/providers/amllBaseUrl") {
+        let base_url = candidate.as_str().ok_or_else(|| {
+            error_at_key(raw, "amllBaseUrl", "amllBaseUrl 必须是字符串")
+        })?;
+        if base_url.trim().is_empty() {
+            return Err(error_at_key(
+                raw,
+                "amllBaseUrl",
+                "amllBaseUrl 不能为空",
+            ));
         }
     }
     for key in [
@@ -2743,7 +2778,7 @@ mod tests {
             }"#,
         )
         .unwrap();
-        assert_eq!(parsed.config.lyrics.providers.providers.len(), 4);
+        assert_eq!(parsed.config.lyrics.providers.providers.len(), 8);
         assert_eq!(parsed.config.lyrics.providers.providers[0].id, "lrclib");
         assert!(parsed.config.lyrics.providers.providers[0].enabled);
         assert!(parsed.config.lyrics.providers.providers[1..]

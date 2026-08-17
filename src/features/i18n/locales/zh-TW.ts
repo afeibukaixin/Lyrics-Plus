@@ -176,6 +176,12 @@ export const zhTW = {
       directory: "歌詞目錄", advanced: "進階歌詞設定", rescan: "重新掃描", restartScan: "重新開始掃描", scanDiscovering: "正在探索歌詞檔案…", scanDiscovered: "已發現 {{discovered}} 個，略過 {{skipped}} 個", scanIndexing: "正在建立索引 {{processed}} / {{total}}", scanLiveStats: "新增 {{added}} · 更新 {{updated}} · 未變更 {{unchanged}} · 失敗 {{failed}}", scanCompleted: "掃描完成", scanSummary: "新增 {{added}} · 更新 {{updated}} · 未變更 {{unchanged}} · 移除 {{removed}} · 略過 {{skipped}} · 失敗 {{failed}}", scanFailed: "掃描失敗",
       health: { unknown: "尚未測試", available: "可用", degraded: "部分可用", unavailable: "無法使用" },
       healthHint: { unknown: "尚未測試連線", available: "連線正常", degraded: "部分功能可用", unavailable: "無法連線" },
+      providerConfig: {
+        configure: "設定{{source}}", musixmatchTitle: "設定 Musixmatch", musixmatchDescription: "預設會自動使用匿名 Desktop Token；也可以填寫自己的 Desktop Token 或 Developer API Key。手動憑證只會儲存在本機獨立憑證檔案中，不會隨應用程式設定匯出。",
+        tokenType: "Token 類型", desktopToken: "Desktop Token", developerApiKey: "Developer API Key", desktopTokenHint: "填寫 Musixmatch Desktop usertoken。", developerApiKeyHint: "填寫 Musixmatch Developer API 提供的 apikey。",
+        token: "Token", tokenPlaceholder: "輸入 Musixmatch Token", tokenConfigured: "已設定，輸入新值即可取代", configuredStatus: "已設定手動憑證", notConfiguredStatus: "匿名模式", configuredHint: "應用程式不會在介面中顯示 Token 原文；手動憑證失效時不會自動退回匿名模式。", tokenHint: "未填寫時會自動取得匿名 Desktop Token。", clearToken: "恢復匿名模式",
+        amllTitle: "設定 AMLL TTML", amllDescription: "設定 AMLL TTML DB 儲存庫鏡像根網址。鏡像必須保留上游索引和 TTML 相對路徑結構。", baseUrl: "鏡像根網址", baseUrlHint: "支援 http 或 https；儲存時會自動移除末尾斜線。",
+      },
       noResults: "已啟用的歌詞來源目前找不到同步歌詞",
     },
     overlay: {

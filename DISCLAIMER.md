@@ -18,7 +18,9 @@ Lyrics Plus only provides software features for searching, parsing, caching, imp
 
 When an online lyrics provider is enabled, matching information such as track title, artist, album, and duration may be sent to the selected third-party service. The providers determine their own content, availability, accuracy, licensing, terms, and data-handling practices.
 
-Lyrics Plus is not affiliated with, an agent of, or endorsed by Apple Music, Spotify, LRCLIB, Kugou, QQMusic, Netease, or any other media or lyrics service. Provider availability and search results can change without notice.
+Lyrics Plus is not affiliated with, an agent of, or endorsed by Apple Music, Spotify, LRCLIB, Kugou, QQMusic, Netease, Kuwo, AMLL TTML, Migu, Musixmatch, or any other media or lyrics service. Provider availability and search results can change without notice.
+
+The Musixmatch anonymous mode uses an unofficial Desktop interface. It may become unavailable, require captcha verification, or change without notice. Users are responsible for complying with the applicable service terms when using anonymous or manually supplied credentials.
 
 ## Permissions and Player Integration
 

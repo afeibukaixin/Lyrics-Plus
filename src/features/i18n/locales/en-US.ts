@@ -184,6 +184,12 @@ export const enUS = {
       directory: "Lyrics folder", advanced: "Advanced lyrics settings", rescan: "Rescan", restartScan: "Restart scan", scanDiscovering: "Discovering lyric files…", scanDiscovered: "{{discovered}} discovered, {{skipped}} skipped", scanIndexing: "Indexing {{processed}} / {{total}}", scanLiveStats: "{{added}} added · {{updated}} updated · {{unchanged}} unchanged · {{failed}} failed", scanCompleted: "Scan complete", scanSummary: "{{added}} added · {{updated}} updated · {{unchanged}} unchanged · {{removed}} removed · {{skipped}} skipped · {{failed}} failed", scanFailed: "Scan failed",
       health: { unknown: "Not tested", available: "Available", degraded: "Partially available", unavailable: "Unavailable" },
       healthHint: { unknown: "Connection not tested", available: "Connection is healthy", degraded: "Some features are available", unavailable: "Connection unavailable" },
+      providerConfig: {
+        configure: "Configure {{source}}", musixmatchTitle: "Configure Musixmatch", musixmatchDescription: "An anonymous Desktop token is used automatically by default. You can also provide a Desktop token or Developer API key. Manual credentials stay in a separate local credentials file and are excluded from configuration exports.",
+        tokenType: "Token type", desktopToken: "Desktop Token", developerApiKey: "Developer API Key", desktopTokenHint: "Enter a Musixmatch Desktop usertoken.", developerApiKeyHint: "Enter the apikey issued by the Musixmatch Developer API.",
+        token: "Token", tokenPlaceholder: "Enter a Musixmatch token", tokenConfigured: "Configured; enter a new value to replace it", configuredStatus: "Manual credentials configured", notConfiguredStatus: "Anonymous mode", configuredHint: "Lyrics Plus never reveals the saved token. Invalid manual credentials do not fall back automatically.", tokenHint: "An anonymous Desktop token is obtained automatically when this field is empty.", clearToken: "Use Anonymous Mode",
+        amllTitle: "Configure AMLL TTML", amllDescription: "Set the AMLL TTML DB repository mirror root. The mirror must preserve the upstream index and relative TTML paths.", baseUrl: "Mirror Root URL", baseUrlHint: "Supports HTTP or HTTPS. A trailing slash is removed when saved.",
+      },
       noResults: "Enabled providers did not find synchronized lyrics",
     },
     overlay: {

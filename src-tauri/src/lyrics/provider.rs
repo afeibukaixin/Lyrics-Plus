@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
+use std::path::Path;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, OnceLock, RwLock, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -10,14 +11,30 @@ use strsim::normalized_levenshtein;
 use zhhz::{Config, Converter};
 
 use super::kugou::KugouProvider;
+use super::kuwo::KuwoProvider;
 use super::lrclib::LrcLibProvider;
+use super::migu::MiguProvider;
+use super::musixmatch::MusixmatchProvider;
 use super::netease::NeteaseProvider;
 use super::qqmusic::QqMusicProvider;
+use super::{
+    amll_ttml::AmllTtmlProvider,
+    credentials::{MusixmatchTokenType, ProviderCredentialStore, ProviderCredentialView},
+};
 
 pub const LRCLIB_DISPLAY_NAME: &str = "LRCLIB";
 pub const KUGOU_DISPLAY_NAME: &str = "Kugou";
 pub const QQMUSIC_DISPLAY_NAME: &str = "QQMusic";
 pub const NETEASE_DISPLAY_NAME: &str = "Netease";
+pub const KUWO_DISPLAY_NAME: &str = "Kuwo";
+pub const AMLL_DISPLAY_NAME: &str = "AMLL TTML";
+pub const MIGU_DISPLAY_NAME: &str = "Migu";
+pub const MUSIXMATCH_DISPLAY_NAME: &str = "Musixmatch";
+pub const DEFAULT_AMLL_BASE_URL: &str = "https://amlldb.bikonoo.com";
+const LEGACY_AMLL_BASE_URLS: [&str; 2] = [
+    "https://cdn.jsdelivr.net/gh/Steve-xmh/amll-ttml-db@main",
+    "https://github.com/amll-dev/amll-ttml-db/raw/refs/heads/main",
+];
 
 pub type ProviderFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, ProviderError>> + Send + 'a>>;
@@ -47,6 +64,8 @@ pub enum ProviderErrorKind {
     Network,
     Http,
     InvalidResponse,
+    Configuration,
+    Unauthorized,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -159,6 +178,8 @@ pub struct ProviderSettings {
     pub auto_apply_threshold: u8,
     #[serde(default = "default_title_filter_keywords")]
     pub title_filter_keywords: Vec<String>,
+    #[serde(default = "default_amll_base_url")]
+    pub amll_base_url: String,
 }
 
 const MAX_TITLE_FILTER_KEYWORDS: usize = 32;
@@ -188,6 +209,10 @@ fn default_title_filter_keywords() -> Vec<String> {
     .collect()
 }
 
+fn default_amll_base_url() -> String {
+    DEFAULT_AMLL_BASE_URL.into()
+}
+
 impl Default for ProviderSettings {
     fn default() -> Self {
         Self {
@@ -201,6 +226,7 @@ impl Default for ProviderSettings {
                 .collect(),
             auto_apply_threshold: default_auto_apply_threshold(),
             title_filter_keywords: default_title_filter_keywords(),
+            amll_base_url: default_amll_base_url(),
         }
     }
 }
@@ -254,7 +280,8 @@ pub trait LyricsProvider: Send + Sync {
 
 pub struct ProviderRegistry {
     providers: Vec<Box<dyn LyricsProvider>>,
-    settings: RwLock<ProviderSettings>,
+    settings: Arc<RwLock<ProviderSettings>>,
+    credentials: Arc<ProviderCredentialStore>,
     statuses: RwLock<HashMap<String, ProviderStatus>>,
     in_flight: Mutex<HashMap<SearchKey, Weak<SearchFlight>>>,
     timeout: Duration,
@@ -268,11 +295,33 @@ impl Default for ProviderRegistry {
 
 impl ProviderRegistry {
     pub fn new(settings: ProviderSettings) -> Self {
+        Self::build(settings, Arc::new(ProviderCredentialStore::memory()), None)
+    }
+
+    pub fn new_with_app_dir(settings: ProviderSettings, app_dir: &Path) -> Result<Self, String> {
+        let credentials = Arc::new(ProviderCredentialStore::load(app_dir)?);
+        Ok(Self::build(
+            settings,
+            credentials,
+            Some(app_dir.join("cache").join("amll-index.json")),
+        ))
+    }
+
+    fn build(
+        mut settings: ProviderSettings,
+        credentials: Arc<ProviderCredentialStore>,
+        amll_cache_path: Option<std::path::PathBuf>,
+    ) -> Self {
+        let settings = Arc::new(RwLock::new(settings));
         let providers: Vec<Box<dyn LyricsProvider>> = vec![
             Box::new(NeteaseProvider),
             Box::new(QqMusicProvider),
             Box::new(KugouProvider),
             Box::new(LrcLibProvider),
+            Box::new(KuwoProvider),
+            Box::new(AmllTtmlProvider::new(settings.clone(), amll_cache_path)),
+            Box::new(MiguProvider),
+            Box::new(MusixmatchProvider::new(credentials.clone())),
         ];
         let statuses = providers
             .iter()
@@ -291,7 +340,8 @@ impl ProviderRegistry {
             .collect();
         Self {
             providers,
-            settings: RwLock::new(settings),
+            settings,
+            credentials,
             statuses: RwLock::new(statuses),
             in_flight: Mutex::new(HashMap::new()),
             timeout: Duration::from_secs(8),
@@ -319,6 +369,38 @@ impl ProviderRegistry {
             .write()
             .unwrap_or_else(|error| error.into_inner()) = settings;
         Ok(self.settings_view())
+    }
+
+    pub fn credential_view(&self) -> ProviderCredentialView {
+        self.credentials.view()
+    }
+
+    pub fn set_musixmatch_token(
+        &self,
+        token_type: MusixmatchTokenType,
+        token: String,
+    ) -> Result<(ProviderCredentialView, ProviderSettingsView), String> {
+        let credentials = self.credentials.set_musixmatch_token(token_type, token)?;
+        let mut settings = self
+            .settings
+            .write()
+            .unwrap_or_else(|error| error.into_inner());
+        if let Some(provider) = settings
+            .providers
+            .iter_mut()
+            .find(|provider| provider.id == "musixmatch")
+        {
+            provider.enabled = true;
+        }
+        drop(settings);
+        Ok((credentials, self.settings_view()))
+    }
+
+    pub fn clear_musixmatch_token(
+        &self,
+    ) -> Result<(ProviderCredentialView, ProviderSettingsView), String> {
+        let credentials = self.credentials.clear_musixmatch_token()?;
+        Ok((credentials, self.settings_view()))
     }
 
     pub async fn search(
@@ -413,23 +495,33 @@ impl ProviderRegistry {
             }
         }
 
-        results.sort_by(|left, right| match settings.mode {
-            ProviderOrderMode::Strict => priority
-                .get(left.provider_id.as_str())
-                .cmp(&priority.get(right.provider_id.as_str()))
-                .then_with(|| right.score.total_cmp(&left.score)),
+        match settings.mode {
+            ProviderOrderMode::Strict => results.sort_by(|left, right| {
+                priority
+                    .get(left.provider_id.as_str())
+                    .cmp(&priority.get(right.provider_id.as_str()))
+                    .then_with(|| right.score.total_cmp(&left.score))
+            }),
             ProviderOrderMode::Smart => {
-                let score_delta = (left.score - right.score).abs();
-                if score_delta > 0.035 {
-                    right.score.total_cmp(&left.score)
-                } else {
-                    priority
-                        .get(left.provider_id.as_str())
-                        .cmp(&priority.get(right.provider_id.as_str()))
-                        .then_with(|| right.score.total_cmp(&left.score))
+                results.sort_by(|left, right| right.score.total_cmp(&left.score));
+                let mut band_start = 0;
+                while band_start < results.len() {
+                    let band_score = results[band_start].score;
+                    let band_len = results[band_start..]
+                        .iter()
+                        .take_while(|result| band_score - result.score <= 0.035)
+                        .count();
+                    let band_end = band_start + band_len;
+                    results[band_start..band_end].sort_by(|left, right| {
+                        priority
+                            .get(left.provider_id.as_str())
+                            .cmp(&priority.get(right.provider_id.as_str()))
+                            .then_with(|| right.score.total_cmp(&left.score))
+                    });
+                    band_start = band_end;
                 }
             }
-        });
+        }
         deduplicate(&mut results);
         results.truncate(24);
         if !any_success && !errors.is_empty() {
@@ -537,12 +629,16 @@ fn report_status(report: &ProviderSearchReport) -> (ProviderHealth, Option<Strin
     (ProviderHealth::Available, Some(message))
 }
 
-fn provider_definitions() -> [(&'static str, &'static str); 4] {
+fn provider_definitions() -> [(&'static str, &'static str); 8] {
     [
         ("lrclib", LRCLIB_DISPLAY_NAME),
         ("kugou", KUGOU_DISPLAY_NAME),
         ("qqmusic", QQMUSIC_DISPLAY_NAME),
         ("netease", NETEASE_DISPLAY_NAME),
+        ("kuwo", KUWO_DISPLAY_NAME),
+        ("amll_ttml", AMLL_DISPLAY_NAME),
+        ("migu", MIGU_DISPLAY_NAME),
+        ("musixmatch", MUSIXMATCH_DISPLAY_NAME),
     ]
 }
 
@@ -566,6 +662,11 @@ pub(crate) fn validate_settings(settings: &ProviderSettings) -> Result<(), Strin
     if !settings.providers.iter().any(|provider| provider.enabled) {
         return Err("请至少启用一个歌词源".into());
     }
+    let amll_url = reqwest::Url::parse(settings.amll_base_url.trim())
+        .map_err(|_| "AMLL TTML 镜像地址必须是有效的绝对 URL".to_string())?;
+    if !matches!(amll_url.scheme(), "http" | "https") {
+        return Err("AMLL TTML 镜像地址只支持 http 或 https".into());
+    }
     prepare_title_filter_keywords(&settings.title_filter_keywords)?;
     Ok(())
 }
@@ -573,6 +674,14 @@ pub(crate) fn validate_settings(settings: &ProviderSettings) -> Result<(), Strin
 pub(crate) fn normalize_settings(settings: &mut ProviderSettings) -> Result<(), String> {
     for keyword in &mut settings.title_filter_keywords {
         *keyword = keyword.trim().to_string();
+    }
+    settings.amll_base_url = settings
+        .amll_base_url
+        .trim()
+        .trim_end_matches('/')
+        .to_string();
+    if LEGACY_AMLL_BASE_URLS.contains(&settings.amll_base_url.as_str()) {
+        settings.amll_base_url = DEFAULT_AMLL_BASE_URL.into();
     }
     validate_settings(settings)?;
     complete_settings(settings);
@@ -612,7 +721,7 @@ fn complete_settings(settings: &mut ProviderSettings) {
         if !settings.providers.iter().any(|provider| provider.id == id) {
             settings.providers.push(ProviderPreference {
                 id: id.into(),
-                enabled: false,
+                enabled: true,
             });
         }
     }
@@ -1055,7 +1164,16 @@ mod tests {
                 .iter()
                 .map(|provider| provider.id.as_str())
                 .collect::<Vec<_>>(),
-            vec!["lrclib", "kugou", "qqmusic", "netease"]
+            vec![
+                "lrclib",
+                "kugou",
+                "qqmusic",
+                "netease",
+                "kuwo",
+                "amll_ttml",
+                "migu",
+                "musixmatch",
+            ]
         );
     }
 
@@ -1073,11 +1191,28 @@ mod tests {
                 })
                 .collect(),
             title_filter_keywords: default_title_filter_keywords(),
+            amll_base_url: default_amll_base_url(),
         };
 
         let view = registry.set_settings(settings.clone()).unwrap();
+        let provider_ids = view
+            .settings
+            .providers
+            .iter()
+            .map(|provider| provider.id.as_str())
+            .collect::<Vec<_>>();
 
-        assert_eq!(view.settings, settings);
+        assert_eq!(
+            &provider_ids[..settings.providers.len()],
+            ["netease", "qqmusic", "kugou", "lrclib"]
+        );
+        assert_eq!(
+            &provider_ids[settings.providers.len()..],
+            ["kuwo", "amll_ttml", "migu", "musixmatch"]
+        );
+        assert!(view.settings.providers[settings.providers.len()..]
+            .iter()
+            .all(|provider| provider.enabled));
     }
 
     fn mock_registry(mode: ProviderOrderMode, netease_fails: bool) -> ProviderRegistry {
@@ -1095,6 +1230,7 @@ mod tests {
                 },
             ],
             title_filter_keywords: default_title_filter_keywords(),
+            amll_base_url: default_amll_base_url(),
         };
         let statuses = ["lrclib", "netease"]
             .into_iter()
@@ -1134,7 +1270,8 @@ mod tests {
                     delay: Duration::ZERO,
                 }),
             ],
-            settings: RwLock::new(settings),
+            settings: Arc::new(RwLock::new(settings)),
+            credentials: Arc::new(ProviderCredentialStore::memory()),
             statuses: RwLock::new(statuses),
             in_flight: Mutex::new(HashMap::new()),
             timeout: Duration::from_millis(100),
@@ -1153,7 +1290,7 @@ mod tests {
                 calls: None,
                 delay: Duration::ZERO,
             })],
-            settings: RwLock::new(ProviderSettings {
+            settings: Arc::new(RwLock::new(ProviderSettings {
                 mode: ProviderOrderMode::Smart,
                 auto_apply_threshold: 60,
                 providers: vec![ProviderPreference {
@@ -1161,7 +1298,9 @@ mod tests {
                     enabled: true,
                 }],
                 title_filter_keywords: default_title_filter_keywords(),
-            }),
+                amll_base_url: default_amll_base_url(),
+            })),
+            credentials: Arc::new(ProviderCredentialStore::memory()),
             statuses: RwLock::new(HashMap::from([(
                 "lrclib".into(),
                 ProviderStatus {
@@ -1189,13 +1328,14 @@ mod tests {
                 calls: Some(calls),
                 delay: Duration::from_millis(20),
             })],
-            settings: RwLock::new(ProviderSettings {
+            settings: Arc::new(RwLock::new(ProviderSettings {
                 providers: vec![ProviderPreference {
                     id: "lrclib".into(),
                     enabled: true,
                 }],
                 ..ProviderSettings::default()
-            }),
+            })),
+            credentials: Arc::new(ProviderCredentialStore::memory()),
             statuses: RwLock::new(HashMap::from([(
                 "lrclib".into(),
                 ProviderStatus {
@@ -1380,6 +1520,7 @@ mod tests {
                         })
                         .collect(),
                     title_filter_keywords: default_title_filter_keywords(),
+                    amll_base_url: default_amll_base_url(),
                 };
                 let registry = ProviderRegistry::new(settings);
                 let outcome = registry.search(&client, &input).await.unwrap();
