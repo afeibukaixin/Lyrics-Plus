@@ -192,6 +192,14 @@ export type NotchLyricsAppearance = {
   maxWidth: number;
 };
 
+export type LyricsMonitor = {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  isPrimary: boolean;
+};
+
 export type LyricsDisplayPreferences = {
   statusBar: {
     enabled: boolean;

@@ -17,6 +17,7 @@ import type {
   LyricsDisplayPreferences,
   LyricsBaseAppearance,
   LyricsModeStyleInheritance,
+  LyricsMonitor,
   LyricsStyleMode,
   LyricsRuntimeSnapshot,
   LibraryScanStatus,
@@ -80,6 +81,7 @@ export const api = {
   getLyricsRuntimeSnapshot: () =>
     invoke<LyricsRuntimeSnapshot>("get_lyrics_runtime_snapshot"),
   getNotchLayoutMetrics: () => invoke<NotchLayoutMetrics>("get_notch_layout_metrics"),
+  getLyricsMonitors: () => invoke<LyricsMonitor[]>("get_lyrics_monitors"),
   getLibraryScanStatus: () => invoke<LibraryScanStatus>("get_library_scan_status"),
   rescanLyricsLibrary: () => invoke<LibraryScanStatus>("rescan_lyrics_library"),
   setLyricsDirectory: (path: string) =>

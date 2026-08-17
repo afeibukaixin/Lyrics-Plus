@@ -65,6 +65,16 @@ pub struct NotchLayoutMetrics {
     pub center_gap_width: f64,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LyricsMonitor {
+    pub id: String,
+    pub name: String,
+    pub width: u32,
+    pub height: u32,
+    pub is_primary: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct OverlaySettings {
@@ -893,6 +903,33 @@ pub fn get_notch_layout_metrics(state: State<'_, AppState>) -> NotchLayoutMetric
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .clone()
+}
+
+#[tauri::command]
+pub fn get_lyrics_monitors(app: tauri::AppHandle) -> Result<Vec<LyricsMonitor>, String> {
+    let primary_id = app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .map(|monitor| crate::notch_monitor_id(&monitor));
+    app.available_monitors()
+        .map_err(|error| error.to_string())
+        .map(|monitors| {
+            monitors
+                .into_iter()
+                .map(|monitor| {
+                    let id = crate::notch_monitor_id(&monitor);
+                    let size = monitor.size();
+                    LyricsMonitor {
+                        is_primary: primary_id.as_deref() == Some(id.as_str()),
+                        id,
+                        name: monitor.name().cloned().unwrap_or_default(),
+                        width: size.width,
+                        height: size.height,
+                    }
+                })
+                .collect()
+        })
 }
 
 fn save_and_emit(

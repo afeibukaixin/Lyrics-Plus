@@ -2,6 +2,7 @@ import type {
   ListLyricsPreferences,
   LyricsDisplayPreferences,
   LyricsModeStyleInheritance,
+  LyricsMonitor,
   LyricsStyleInheritance,
   LyricsStyleMode,
   NotchLyricsPreferences,
@@ -12,9 +13,10 @@ import { ColorRow, RangeRow, SelectRow, SettingsSection, TextRow, ToggleRow } fr
 import { Button } from "@/components/ui/button";
 import styles from "../settings.module.scss";
 import { useTranslation } from "react-i18next";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { reportFrontendError } from "../../shared/debugLog";
 import { emitNotchWidthPreview } from "../../shared/tauriEvent";
+import { api, isTauriRuntime } from "../../shared/api";
 
 type AuxiliaryMode = Exclude<LyricsStyleMode, "desktop">;
 
@@ -64,6 +66,7 @@ export function auxiliarySections(mode: AuxiliaryMode, labels: AuxiliarySectionL
 
 export default function LyricsModeStyleSections({ mode, displays, inheritance, update, updateInheritance, resetPosition }: Props) {
   const { t } = useTranslation();
+  const [notchMonitors, setNotchMonitors] = useState<LyricsMonitor[]>([]);
   const notchWidthPreviewActiveRef = useRef(false);
   const cancelNotchWidthPreview = useCallback(() => {
     if (!notchWidthPreviewActiveRef.current) return;
@@ -78,6 +81,24 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
   }, [cancelNotchWidthPreview, mode]);
 
   useEffect(() => () => cancelNotchWidthPreview(), [cancelNotchWidthPreview]);
+
+  useEffect(() => {
+    if (mode !== "notch" || !isTauriRuntime()) {
+      setNotchMonitors([]);
+      return;
+    }
+    let active = true;
+    void api.getLyricsMonitors()
+      .then((monitors) => {
+        if (active) setNotchMonitors(monitors);
+      })
+      .catch(() => {
+        if (active) setNotchMonitors([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [mode]);
 
   const fontWeights: Array<[string, string]> = [
     ["400", t("settings.overlay.fontWeightRegular")],
@@ -152,6 +173,14 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
   const value = displays.notch;
   const appearance = value.appearance;
   const save = (next: NotchLyricsPreferences) => void update("notch", next);
+  const selectedMonitorId = notchMonitors.some((monitor) => monitor.id === value.monitorId)
+    ? value.monitorId ?? ""
+    : notchMonitors.find((monitor) => monitor.isPrimary)?.id ?? notchMonitors[0]?.id ?? "";
+  const monitorOptions: Array<[string, string]> = notchMonitors.map((monitor, index) => {
+    const name = monitor.name || t("settings.display.notch.displayFallback", { index: index + 1 });
+    const primary = monitor.isPrimary ? ` · ${t("settings.display.notch.primaryDisplay")}` : "";
+    return [monitor.id, `${name} · ${monitor.width}×${monitor.height}${primary}`];
+  });
   const previewMaxWidth = (width: number) => {
     notchWidthPreviewActiveRef.current = true;
     void emitNotchWidthPreview({ phase: "update", width }).catch((error) => {
@@ -182,6 +211,7 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
     {inheritanceSection}
     <SettingsSection id="mode-state" title={t("settings.style.modeControls.displayInteraction")}>
       <ToggleRow label={t("settings.display.notch.show")} value={value.enabled} onChange={(enabled) => save({ ...value, enabled })} />
+      {notchMonitors.length >= 2 && selectedMonitorId && <SelectRow label={t("settings.display.notch.display")} value={selectedMonitorId} options={monitorOptions} onChange={(monitorId) => save({ ...value, monitorId })} />}
       <ToggleRow label={t("settings.display.notch.autoHide")} description={t("settings.display.notch.autoHideHint")} value={value.hideWhenNotPlaying} onChange={(hideWhenNotPlaying) => save({ ...value, hideWhenNotPlaying })} />
       <ToggleRow label={t("settings.display.notch.showTwoLines")} value={value.showTwoLines} onChange={(showTwoLines) => save({ ...value, showTwoLines })} />
       <ToggleRow label={t("settings.display.notch.translation")} value={value.showTranslation} onChange={(showTranslation) => save({ ...value, showTranslation })} />

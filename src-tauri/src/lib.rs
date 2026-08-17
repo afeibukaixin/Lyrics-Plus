@@ -869,7 +869,7 @@ fn preferred_notch_monitor(app: &tauri::AppHandle) -> Option<tauri::Monitor> {
         .or_else(|| monitors.into_iter().next())
 }
 
-fn notch_monitor_id(monitor: &tauri::Monitor) -> String {
+pub(crate) fn notch_monitor_id(monitor: &tauri::Monitor) -> String {
     let position = monitor.position();
     let size = monitor.size();
     format!(
@@ -2846,6 +2846,7 @@ pub fn run() {
             commands::get_cached_lyrics,
             commands::get_lyrics_runtime_snapshot,
             commands::get_notch_layout_metrics,
+            commands::get_lyrics_monitors,
             commands::save_lyrics,
             commands::import_lyrics,
             commands::set_lyrics_offset,
