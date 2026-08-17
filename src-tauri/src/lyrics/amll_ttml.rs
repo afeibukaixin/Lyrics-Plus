@@ -2,10 +2,12 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 
 use futures::future::join_all;
 use reqwest::header::{ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
 use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex as AsyncMutex;
 
 use super::parse_lrc_with_options;
 use super::provider::{
@@ -20,6 +22,7 @@ const INDEX_PATHS: [&str; 4] = [
     "am-lyrics/index.jsonl",
     "spotify-lyrics/index.jsonl",
 ];
+const INDEX_REFRESH_INTERVAL: Duration = Duration::from_secs(15 * 60);
 
 #[derive(Debug, Clone)]
 struct AmllEntry {
@@ -50,10 +53,16 @@ struct CachedIndex {
     body: String,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 struct CachedManifest {
     indexes: Vec<CachedIndex>,
+}
+
+struct MemoryIndexCache {
+    base_url: String,
+    refreshed_at: Instant,
+    manifest: CachedManifest,
 }
 
 enum IndexFetch {
@@ -65,6 +74,8 @@ enum IndexFetch {
 pub struct AmllTtmlProvider {
     settings: Arc<RwLock<ProviderSettings>>,
     cache_path: Option<PathBuf>,
+    memory_cache: RwLock<Option<MemoryIndexCache>>,
+    refresh_lock: AsyncMutex<()>,
 }
 
 impl AmllTtmlProvider {
@@ -72,6 +83,8 @@ impl AmllTtmlProvider {
         Self {
             settings,
             cache_path,
+            memory_cache: RwLock::new(None),
+            refresh_lock: AsyncMutex::new(()),
         }
     }
 }
@@ -154,6 +167,14 @@ impl AmllTtmlProvider {
         client: &reqwest::Client,
         base_url: &str,
     ) -> Result<(Vec<(String, String)>, Option<String>), ProviderError> {
+        if let Some(indexes) = self.fresh_memory_indexes(base_url) {
+            return Ok((indexes, None));
+        }
+        let _refresh_guard = self.refresh_lock.lock().await;
+        if let Some(indexes) = self.fresh_memory_indexes(base_url) {
+            return Ok((indexes, None));
+        }
+
         let mut cache = self.read_cache().unwrap_or_default();
         let mut indexes = Vec::new();
         let mut failures = Vec::new();
@@ -233,6 +254,14 @@ impl AmllTtmlProvider {
             ));
         }
         self.write_cache(&cache);
+        *self
+            .memory_cache
+            .write()
+            .unwrap_or_else(|error| error.into_inner()) = Some(MemoryIndexCache {
+            base_url: base_url.to_string(),
+            refreshed_at: Instant::now(),
+            manifest: cache.clone(),
+        });
         let warning = (!failures.is_empty()).then(|| {
             format!(
                 "部分索引更新失败，已使用可用索引或缓存：{}",
@@ -313,6 +342,17 @@ impl AmllTtmlProvider {
             .and_then(|raw| serde_json::from_str(&raw).ok())
     }
 
+    fn fresh_memory_indexes(&self, base_url: &str) -> Option<Vec<(String, String)>> {
+        let cache = self
+            .memory_cache
+            .read()
+            .unwrap_or_else(|error| error.into_inner());
+        let cached = cache.as_ref().filter(|cached| {
+            cached.base_url == base_url && cached.refreshed_at.elapsed() < INDEX_REFRESH_INTERVAL
+        })?;
+        Some(manifest_indexes(&cached.manifest))
+    }
+
     fn write_cache(&self, cache: &CachedManifest) {
         let Some(path) = &self.cache_path else {
             return;
@@ -339,6 +379,14 @@ impl AmllTtmlProvider {
             message: message.into(),
         }
     }
+}
+
+fn manifest_indexes(cache: &CachedManifest) -> Vec<(String, String)> {
+    cache
+        .indexes
+        .iter()
+        .map(|index| (index.path.clone(), index.body.clone()))
+        .collect()
 }
 
 fn header_value(response: &reqwest::Response, name: reqwest::header::HeaderName) -> Option<String> {
