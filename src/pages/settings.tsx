@@ -529,7 +529,7 @@ export default function Settings() {
         <SidebarContent>
           <SidebarGroup>
             <SidebarGroupContent>
-              <SidebarMenu>
+              <SidebarMenu className="gap-1">
                 {primaryNavigation.map((item) => {
                   const Icon = item.icon;
                   return (
@@ -549,7 +549,7 @@ export default function Settings() {
           <SidebarGroup className="p-0">
             <SidebarGroupLabel>{t("settings.shell.advanced")}</SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu>
+              <SidebarMenu className="gap-1">
                 {advancedNavigation.map((item) => {
                   const Icon = item.icon;
                   return <SidebarMenuItem key={item.to}><SidebarMenuButton render={<NavLink to={item.to} />} isActive={location.pathname === item.to} tooltip={item.label}><Icon aria-hidden="true" /><span>{item.label}</span></SidebarMenuButton></SidebarMenuItem>;
