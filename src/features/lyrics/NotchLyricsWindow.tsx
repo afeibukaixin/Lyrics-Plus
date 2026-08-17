@@ -986,7 +986,7 @@ export default function NotchLyricsWindow() {
               <IconButton label={supportingToggleTitle(t("common.feature.translation"), notch.showTranslation, translationAvailable)} tooltip={supportingToggleTitle(t("common.feature.translation"), notch.showTranslation, translationAvailable)} variant="ghost" size="icon-sm" className={styles.trackToggle} data-available={translationAvailable} data-on={notch.showTranslation} aria-pressed={notch.showTranslation} onClick={() => patchNotch({ showTranslation: !notchRef.current.showTranslation })}>{t("overlay.toolbar.translationGlyph")}</IconButton>
               <IconButton label={supportingToggleTitle(t("common.feature.romanization"), notch.showRomanization, romanizationAvailable)} tooltip={supportingToggleTitle(t("common.feature.romanization"), notch.showRomanization, romanizationAvailable)} variant="ghost" size="icon-sm" className={styles.trackToggle} data-available={romanizationAvailable} data-on={notch.showRomanization} aria-pressed={notch.showRomanization} onClick={() => patchNotch({ showRomanization: !notchRef.current.showRomanization })}>{t("overlay.toolbar.romanizationGlyph")}</IconButton>
               <IconButton label={t("notchLyrics.toolbar.hide")} variant="ghost" size="icon-sm" onClick={() => void api.setNotchLyricsVisible(false)}><EyeOff /></IconButton>
-              <IconButton label={t("notchLyrics.toolbar.openSettings")} variant="ghost" size="icon-sm" onClick={() => void api.showMainWindow()}><Settings /></IconButton>
+              <IconButton label={t("notchLyrics.toolbar.openSettings")} variant="ghost" size="icon-sm" onClick={() => void api.showLyricsStyleSettings("notch")}><Settings /></IconButton>
               </div>
             </div>
           </div>

@@ -268,7 +268,7 @@ export default function LyricsListWindow() {
           data-on={options.showRomanization}
           onClick={() => void updatePreferences({ ...options, showRomanization: !options.showRomanization })}
         >{t("overlay.toolbar.romanizationGlyph")}</IconButton>
-        <IconButton label={t("lyricsList.toolbar.openSettings")} variant="ghost" size="icon-sm" onClick={() => void api.showListLyricsSettings()}><Settings /></IconButton>
+        <IconButton label={t("lyricsList.toolbar.openSettings")} variant="ghost" size="icon-sm" onClick={() => void api.showLyricsStyleSettings("listWindow")}><Settings /></IconButton>
         <IconButton
           label={options.alwaysOnTop ? t("lyricsList.toolbar.unpin") : t("lyricsList.toolbar.pin")}
           variant="ghost"

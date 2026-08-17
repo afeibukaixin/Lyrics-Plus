@@ -955,7 +955,7 @@ export default function Overlay() {
               onClick={() => toggleSupportingTrack("romanization")}
             >{t("overlay.toolbar.romanizationGlyph")}</IconButton>
             <IconButton label={t("overlay.toolbar.hide")} variant="ghost" size="icon-sm" onClick={() => void api.setOverlayVisible(false)}><EyeOff /></IconButton>
-            <IconButton label={t("overlay.toolbar.openSettings")} variant="ghost" size="icon-sm" onClick={() => void api.showMainWindow()}><Settings /></IconButton>
+            <IconButton label={t("overlay.toolbar.openSettings")} variant="ghost" size="icon-sm" onClick={() => void api.showLyricsStyleSettings("desktop")}><Settings /></IconButton>
           </div>
         </>
       )}

@@ -144,7 +144,8 @@ export const api = {
   fitNotchLyricsContent: (width: number, height: number) =>
     invoke<void>("fit_notch_lyrics_content", { width, height }),
   showMainWindow: () => invoke<void>("show_main_window"),
-  showListLyricsSettings: () => invoke<void>("show_list_lyrics_settings"),
+  showLyricsStyleSettings: (mode: LyricsStyleMode) =>
+    invoke<void>("show_lyrics_style_settings", { mode }),
   showQuickLyricsWindow: () => invoke<void>("show_quick_lyrics_window"),
   resetSettingsSection: (section: SettingsSection) =>
     invoke<SettingsResetResponse>("reset_settings_section", { section }),

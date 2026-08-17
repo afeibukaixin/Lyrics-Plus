@@ -1682,10 +1682,6 @@ pub(crate) fn show_main_window_centered(app: &tauri::AppHandle) -> Result<(), St
     show_main_window_at(app, Some("#/settings"))
 }
 
-pub(crate) fn show_list_lyrics_settings(app: &tauri::AppHandle) -> Result<(), String> {
-    show_main_window_at(app, Some("#/settings/style?mode=listWindow"))
-}
-
 fn should_show_main_window(notice_accepted: bool, silent_startup: bool) -> bool {
     !notice_accepted || !silent_startup
 }
@@ -2837,7 +2833,7 @@ pub fn run() {
             commands::fit_overlay_content,
             commands::fit_notch_lyrics_content,
             commands::show_main_window,
-            commands::show_list_lyrics_settings,
+            commands::show_lyrics_style_settings,
             commands::show_quick_lyrics_window,
             commands::get_app_config,
             commands::set_theme,

@@ -1683,8 +1683,18 @@ pub fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn show_list_lyrics_settings(app: tauri::AppHandle) -> Result<(), String> {
-    crate::show_list_lyrics_settings(&app)
+pub fn show_lyrics_style_settings(
+    app: tauri::AppHandle,
+    mode: LyricsStyleMode,
+) -> Result<(), String> {
+    let mode = match mode {
+        LyricsStyleMode::Desktop => "desktop",
+        LyricsStyleMode::StatusBar => "statusBar",
+        LyricsStyleMode::ListWindow => "listWindow",
+        LyricsStyleMode::Notch => "notch",
+    };
+    let route = format!("#/settings/style?mode={mode}");
+    crate::show_main_window_at(&app, Some(&route))
 }
 
 #[tauri::command]
