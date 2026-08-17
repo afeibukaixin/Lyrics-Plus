@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useTranslation } from "react-i18next";
 import { Monitor, Moon, Plus, Sun } from "lucide-react";
@@ -74,12 +74,17 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
   } = useSettingsContext();
   const { t } = useTranslation();
   const [recording, setRecording] = useState<ShortcutAction | null>(null);
+  const shortcutRecorderRefs = useRef<Partial<Record<ShortcutAction, HTMLButtonElement | null>>>({});
   const [savingShortcut, setSavingShortcut] = useState(false);
   const [shortcutStatus, setShortcutStatus] = useState<GlobalShortcutStatus | null>(null);
   const [savingApplications, setSavingApplications] = useState(false);
   const [savingFollower, setSavingFollower] = useState(false);
   const [followerStatus, setFollowerStatus] = useState<PlayerFollowerServiceState | null>(null);
   const [applicationIcons, setApplicationIcons] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (recording) shortcutRecorderRefs.current[recording]?.focus();
+  }, [recording]);
 
   useEffect(() => {
     void api.getGlobalShortcutStatus().then(setShortcutStatus).catch(() => setShortcutStatus(null));
@@ -333,7 +338,7 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
         const active = recording === action;
         const isDefault = config.app.shortcuts[action] === defaultGlobalShortcuts[action];
         return <div className={styles.shortcutRow} key={action}><span>{t(`settings.app.${action}`)}</span><div className={styles.shortcutControls}>
-          <Button autoFocus={active} variant="outline" size="sm" className={styles.shortcutRecorder} aria-pressed={active} data-recording={active} disabled={savingShortcut} onClick={() => setRecording(active ? null : action)} onKeyDown={(event) => {
+          <Button ref={(element) => { shortcutRecorderRefs.current[action] = element; }} variant="outline" size="sm" className={styles.shortcutRecorder} aria-pressed={active} data-recording={active} disabled={savingShortcut} onClick={() => setRecording(active ? null : action)} onKeyDown={(event) => {
             if (!active) return;
             event.preventDefault();
             if (event.key === "Escape") return setRecording(null);
