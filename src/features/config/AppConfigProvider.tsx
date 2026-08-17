@@ -95,12 +95,15 @@ function applyPendingNotchPreferences(
 }
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 45,
+  schemaVersion: 46,
   app: { theme: "dark", language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, silentStartup: false, autoCheckUpdates: true, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
       mode: "smart",
       autoApplyThreshold: 60,
+      preferCapabilities: false,
+      matchWeights: { title: 39, artist: 36, album: 8, duration: 17 },
+      normalizeChinese: true,
       titleFilterKeywords: defaultTitleFilterKeywords,
       amllBaseUrl: "https://amlldb.bikonoo.com",
       providers: [

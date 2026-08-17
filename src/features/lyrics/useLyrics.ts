@@ -95,7 +95,7 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number) {
   }, [snapshot.artist, snapshot.title, trackKey, updateDocument]);
 
   const search = useCallback(async (
-    allowAutoApply = false,
+    force = false,
     override?: LyricsSearchInput,
   ) => {
     const input = override ?? {
@@ -104,28 +104,30 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number) {
       album: snapshot.album,
       durationMs: snapshot.durationMs,
     };
-    if (!input.title.trim() || !input.artist.trim()) return;
+    if (!trackKey || !input.title.trim() || !input.artist.trim()) return null;
     const generation = ++searchGeneration.current;
     const key = trackKey;
     const isCurrent = () => searchGeneration.current === generation && activeTrackKey.current === key;
     setSearching(true);
     setError(null);
     try {
-      const response = await api.searchLyrics(input);
-      if (!isCurrent()) return;
+      const response = await api.searchLyrics(trackKey, input, force);
+      if (!isCurrent()) return null;
       setResults(response.results);
       setProviderStatuses(response.providerStatuses);
-      if (allowAutoApply && response.autoApply && response.results[0]) {
-        await applyResult(response.results[0], false);
+      if (response.error) {
+        setError(response.error);
       } else if (response.results.length === 0) {
         setError(t("settings.lyrics.noResults"));
       }
+      return response;
     } catch (searchError) {
       if (isCurrent()) setError(messageOf(searchError));
+      return null;
     } finally {
       if (isCurrent()) setSearching(false);
     }
-  }, [applyResult, snapshot.album, snapshot.artist, snapshot.durationMs, snapshot.title, t, trackKey]);
+  }, [snapshot.album, snapshot.artist, snapshot.durationMs, snapshot.title, t, trackKey]);
   useEffect(() => {
     ++searchGeneration.current;
     setSearching(false);
@@ -246,8 +248,8 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number) {
     currentTranslation,
     currentRomanization,
     adjustedPositionMs: positionMs + (document?.offsetMs ?? 0),
-    search: () => search(false),
-    searchWith: (input: LyricsSearchInput) => search(false, input),
+    search: (force = false) => search(force),
+    searchWith: (input: LyricsSearchInput, force = false) => search(force, input),
     applyResult,
     importRaw,
     changeOffset,

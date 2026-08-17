@@ -90,7 +90,8 @@ export const api = {
   setLyricsDirectory: (path: string) =>
     invoke<LibraryScanStatus>("set_lyrics_directory", { path }),
   openLyricsDirectory: () => invoke<void>("open_lyrics_directory"),
-  searchLyrics: (input: LyricsSearchInput) => invoke<SearchResponse>("search_lyrics", { input }),
+  searchLyrics: (trackKey: string, input: LyricsSearchInput, force = false) =>
+    invoke<SearchResponse>("search_lyrics", { trackKey, input, force }),
   getProviderSettings: () => invoke<ProviderSettingsView>("get_provider_settings"),
   getProviderCredentials: () => invoke<ProviderCredentialView>("get_provider_credentials"),
   setProviderSettings: (settings: ProviderSettings) =>

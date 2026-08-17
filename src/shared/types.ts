@@ -248,6 +248,7 @@ export type SearchResponse = {
   autoApply: boolean;
   results: LyricsSearchResult[];
   providerStatuses: ProviderStatus[];
+  error: string | null;
 };
 
 export type ProviderOrderMode = "smart" | "strict";
@@ -257,10 +258,20 @@ export type ProviderPreference = {
   enabled: boolean;
 };
 
+export type MatchWeights = {
+  title: number;
+  artist: number;
+  album: number;
+  duration: number;
+};
+
 export type ProviderSettings = {
   mode: ProviderOrderMode;
   providers: ProviderPreference[];
   autoApplyThreshold: number;
+  preferCapabilities: boolean;
+  matchWeights: MatchWeights;
+  normalizeChinese: boolean;
   titleFilterKeywords: string[];
   amllBaseUrl: string;
 };

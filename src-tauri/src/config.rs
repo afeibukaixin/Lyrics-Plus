@@ -16,7 +16,7 @@ use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSet
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 45;
+pub const CONFIG_SCHEMA_VERSION: u16 = 46;
 const APP_CONFIG_KEYS: &[&str] = &[
     "theme",
     "language",
@@ -1592,10 +1592,20 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                     "mode",
                     "providers",
                     "autoApplyThreshold",
+                    "preferCapabilities",
+                    "matchWeights",
+                    "normalizeChinese",
                     "titleFilterKeywords",
                     "amllBaseUrl",
                 ],
             )?;
+            if let Some(match_weights) = providers.get("matchWeights") {
+                check_keys(
+                    match_weights,
+                    raw,
+                    &["title", "artist", "album", "duration"],
+                )?;
+            }
             if let Some(items) = providers.get("providers").and_then(Value::as_array) {
                 for item in items {
                     check_keys(item, raw, &["id", "enabled"])?;
@@ -1904,6 +1914,8 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             "/overlay/appearance/autoCenterWithTranslationOrRomanization",
             "autoCenterWithTranslationOrRomanization",
         ),
+        ("/lyrics/providers/preferCapabilities", "preferCapabilities"),
+        ("/lyrics/providers/normalizeChinese", "normalizeChinese"),
     ] {
         if value
             .pointer(pointer)
@@ -2240,6 +2252,30 @@ fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftEr
         (
             "autoApplyThreshold",
             value.pointer("/lyrics/providers/autoApplyThreshold"),
+            0.0,
+            100.0,
+        ),
+        (
+            "title",
+            value.pointer("/lyrics/providers/matchWeights/title"),
+            0.0,
+            100.0,
+        ),
+        (
+            "artist",
+            value.pointer("/lyrics/providers/matchWeights/artist"),
+            0.0,
+            100.0,
+        ),
+        (
+            "album",
+            value.pointer("/lyrics/providers/matchWeights/album"),
+            0.0,
+            100.0,
+        ),
+        (
+            "duration",
+            value.pointer("/lyrics/providers/matchWeights/duration"),
             0.0,
             100.0,
         ),

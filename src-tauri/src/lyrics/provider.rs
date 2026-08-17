@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -82,6 +83,52 @@ impl std::fmt::Display for ProviderError {
     }
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(default, rename_all = "camelCase")]
+pub struct MatchWeights {
+    pub title: u8,
+    pub artist: u8,
+    pub album: u8,
+    pub duration: u8,
+}
+
+impl MatchWeights {
+    fn total(self) -> u16 {
+        u16::from(self.title)
+            + u16::from(self.artist)
+            + u16::from(self.album)
+            + u16::from(self.duration)
+    }
+}
+
+impl Default for MatchWeights {
+    fn default() -> Self {
+        Self {
+            title: 39,
+            artist: 36,
+            album: 8,
+            duration: 17,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ScoringSettings {
+    title_filter_keywords: Vec<String>,
+    match_weights: MatchWeights,
+    normalize_chinese: bool,
+}
+
+impl Default for ScoringSettings {
+    fn default() -> Self {
+        Self {
+            title_filter_keywords: Vec::new(),
+            match_weights: MatchWeights::default(),
+            normalize_chinese: default_normalize_chinese(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LyricsSearchInput {
@@ -90,7 +137,7 @@ pub struct LyricsSearchInput {
     pub album: Option<String>,
     pub duration_ms: Option<u64>,
     #[serde(skip)]
-    pub(crate) title_filter_keywords: Arc<Vec<String>>,
+    pub(crate) scoring: Arc<ScoringSettings>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -176,6 +223,12 @@ pub struct ProviderSettings {
     pub providers: Vec<ProviderPreference>,
     #[serde(default = "default_auto_apply_threshold")]
     pub auto_apply_threshold: u8,
+    #[serde(default)]
+    pub prefer_capabilities: bool,
+    #[serde(default)]
+    pub match_weights: MatchWeights,
+    #[serde(default = "default_normalize_chinese")]
+    pub normalize_chinese: bool,
     #[serde(default = "default_title_filter_keywords")]
     pub title_filter_keywords: Vec<String>,
     #[serde(default = "default_amll_base_url")]
@@ -187,6 +240,10 @@ const MAX_TITLE_FILTER_KEYWORD_LENGTH: usize = 64;
 
 const fn default_auto_apply_threshold() -> u8 {
     60
+}
+
+const fn default_normalize_chinese() -> bool {
+    true
 }
 
 fn default_title_filter_keywords() -> Vec<String> {
@@ -225,6 +282,9 @@ impl Default for ProviderSettings {
                 })
                 .collect(),
             auto_apply_threshold: default_auto_apply_threshold(),
+            prefer_capabilities: false,
+            match_weights: MatchWeights::default(),
+            normalize_chinese: default_normalize_chinese(),
             title_filter_keywords: default_title_filter_keywords(),
             amll_base_url: default_amll_base_url(),
         }
@@ -243,6 +303,8 @@ pub struct ProviderSearchOutcome {
     pub results: Vec<LyricsSearchResult>,
     pub statuses: Vec<ProviderStatus>,
     pub auto_apply_threshold: u8,
+    pub prefer_capabilities: bool,
+    pub error: Option<String>,
 }
 
 type SearchFlight = tokio::sync::OnceCell<Result<ProviderSearchOutcome, String>>;
@@ -254,16 +316,18 @@ struct SearchKey {
     album: Option<String>,
     duration_ms: Option<u64>,
     settings: ProviderSettings,
+    revision: u64,
 }
 
 impl SearchKey {
-    fn new(input: &LyricsSearchInput, settings: ProviderSettings) -> Self {
+    fn new(input: &LyricsSearchInput, settings: ProviderSettings, revision: u64) -> Self {
         Self {
             title: input.title.trim().into(),
             artist: input.artist.trim().into(),
             album: input.album.as_deref().map(str::trim).map(str::to_owned),
             duration_ms: input.duration_ms,
             settings,
+            revision,
         }
     }
 }
@@ -284,6 +348,7 @@ pub struct ProviderRegistry {
     credentials: Arc<ProviderCredentialStore>,
     statuses: RwLock<HashMap<String, ProviderStatus>>,
     in_flight: Mutex<HashMap<SearchKey, Weak<SearchFlight>>>,
+    revision: AtomicU64,
     timeout: Duration,
 }
 
@@ -308,7 +373,7 @@ impl ProviderRegistry {
     }
 
     fn build(
-        mut settings: ProviderSettings,
+        settings: ProviderSettings,
         credentials: Arc<ProviderCredentialStore>,
         amll_cache_path: Option<std::path::PathBuf>,
     ) -> Self {
@@ -344,6 +409,7 @@ impl ProviderRegistry {
             credentials,
             statuses: RwLock::new(statuses),
             in_flight: Mutex::new(HashMap::new()),
+            revision: AtomicU64::new(0),
             timeout: Duration::from_secs(8),
         }
     }
@@ -368,6 +434,7 @@ impl ProviderRegistry {
             .settings
             .write()
             .unwrap_or_else(|error| error.into_inner()) = settings;
+        self.revision.fetch_add(1, Ordering::SeqCst);
         Ok(self.settings_view())
     }
 
@@ -393,6 +460,7 @@ impl ProviderRegistry {
             provider.enabled = true;
         }
         drop(settings);
+        self.revision.fetch_add(1, Ordering::SeqCst);
         Ok((credentials, self.settings_view()))
     }
 
@@ -400,6 +468,7 @@ impl ProviderRegistry {
         &self,
     ) -> Result<(ProviderCredentialView, ProviderSettingsView), String> {
         let credentials = self.credentials.clear_musixmatch_token()?;
+        self.revision.fetch_add(1, Ordering::SeqCst);
         Ok((credentials, self.settings_view()))
     }
 
@@ -413,7 +482,11 @@ impl ProviderRegistry {
             .read()
             .unwrap_or_else(|error| error.into_inner())
             .clone();
-        let key = SearchKey::new(input, settings.clone());
+        let key = SearchKey::new(
+            input,
+            settings.clone(),
+            self.revision.load(Ordering::SeqCst),
+        );
         let flight = {
             let mut in_flight = self
                 .in_flight
@@ -460,11 +533,20 @@ impl ProviderRegistry {
         if enabled.is_empty() {
             return Err("请至少启用一个歌词源".into());
         }
+        let enabled_ids = enabled
+            .iter()
+            .map(|provider| provider.id().to_owned())
+            .collect::<Vec<_>>();
 
         let mut scoring_input = input.clone();
-        scoring_input.title_filter_keywords = Arc::new(prepare_title_filter_keywords(
-            &settings.title_filter_keywords,
-        )?);
+        scoring_input.scoring = Arc::new(ScoringSettings {
+            title_filter_keywords: prepare_title_filter_keywords_with_normalization(
+                &settings.title_filter_keywords,
+                settings.normalize_chinese,
+            )?,
+            match_weights: settings.match_weights,
+            normalize_chinese: settings.normalize_chinese,
+        });
         let scoring_input = &scoring_input;
         let jobs = enabled.iter().map(|provider| async move {
             let outcome =
@@ -524,15 +606,13 @@ impl ProviderRegistry {
         }
         deduplicate(&mut results);
         results.truncate(24);
-        if !any_success && !errors.is_empty() {
-            Err(errors.join("；"))
-        } else {
-            Ok(ProviderSearchOutcome {
-                results,
-                statuses: self.statuses(),
-                auto_apply_threshold: settings.auto_apply_threshold,
-            })
-        }
+        Ok(ProviderSearchOutcome {
+            results,
+            statuses: self.statuses_for(&enabled_ids),
+            auto_apply_threshold: settings.auto_apply_threshold,
+            prefer_capabilities: settings.prefer_capabilities,
+            error: (!any_success && !errors.is_empty()).then(|| errors.join("；")),
+        })
     }
 
     pub async fn test_provider(
@@ -550,7 +630,7 @@ impl ProviderRegistry {
             artist: "周杰伦".into(),
             album: None,
             duration_ms: Some(269_000),
-            title_filter_keywords: Arc::default(),
+            scoring: Arc::default(),
         };
         match tokio::time::timeout(self.timeout, provider.search(client, &input)).await {
             Ok(Ok(report)) => {
@@ -589,6 +669,17 @@ impl ProviderRegistry {
             .providers
             .iter()
             .filter_map(|preference| statuses.get(&preference.id).cloned())
+            .collect()
+    }
+
+    fn statuses_for(&self, provider_ids: &[String]) -> Vec<ProviderStatus> {
+        let statuses = self
+            .statuses
+            .read()
+            .unwrap_or_else(|error| error.into_inner());
+        provider_ids
+            .iter()
+            .filter_map(|provider_id| statuses.get(provider_id).cloned())
             .collect()
     }
 
@@ -646,6 +737,20 @@ pub(crate) fn validate_settings(settings: &ProviderSettings) -> Result<(), Strin
     if settings.auto_apply_threshold > 100 {
         return Err("自动匹配相似度必须在 0–100 之间".into());
     }
+    if [
+        settings.match_weights.title,
+        settings.match_weights.artist,
+        settings.match_weights.album,
+        settings.match_weights.duration,
+    ]
+    .into_iter()
+    .any(|weight| weight > 100)
+    {
+        return Err("歌词匹配重要度必须在 0–100 之间".into());
+    }
+    if settings.match_weights.total() == 0 {
+        return Err("歌词匹配重要度不能全部为 0".into());
+    }
     let known = provider_definitions()
         .into_iter()
         .map(|(id, _)| id)
@@ -667,7 +772,10 @@ pub(crate) fn validate_settings(settings: &ProviderSettings) -> Result<(), Strin
     if !matches!(amll_url.scheme(), "http" | "https") {
         return Err("AMLL TTML 镜像地址只支持 http 或 https".into());
     }
-    prepare_title_filter_keywords(&settings.title_filter_keywords)?;
+    prepare_title_filter_keywords_with_normalization(
+        &settings.title_filter_keywords,
+        settings.normalize_chinese,
+    )?;
     Ok(())
 }
 
@@ -688,7 +796,15 @@ pub(crate) fn normalize_settings(settings: &mut ProviderSettings) -> Result<(), 
     Ok(())
 }
 
+#[cfg(test)]
 fn prepare_title_filter_keywords(keywords: &[String]) -> Result<Vec<String>, String> {
+    prepare_title_filter_keywords_with_normalization(keywords, true)
+}
+
+fn prepare_title_filter_keywords_with_normalization(
+    keywords: &[String],
+    normalize_chinese: bool,
+) -> Result<Vec<String>, String> {
     if keywords.len() > MAX_TITLE_FILTER_KEYWORDS {
         return Err(format!("标题屏蔽内容最多 {MAX_TITLE_FILTER_KEYWORDS} 条"));
     }
@@ -707,7 +823,7 @@ fn prepare_title_filter_keywords(keywords: &[String]) -> Result<Vec<String>, Str
                     index + 1
                 ));
             }
-            let keyword = simplify(keyword);
+            let keyword = normalize_case(keyword, normalize_chinese);
             if !seen.insert(keyword.clone()) {
                 return Err(format!("第 {} 条标题屏蔽内容重复", index + 1));
             }
@@ -758,8 +874,21 @@ fn simplify(value: &str) -> String {
         .to_lowercase()
 }
 
+fn normalize_case(value: &str, normalize_chinese: bool) -> String {
+    if normalize_chinese {
+        simplify(value)
+    } else {
+        value.to_lowercase()
+    }
+}
+
+#[cfg(test)]
 fn normalise(value: &str) -> String {
-    simplify(value)
+    normalise_with_options(value, true)
+}
+
+fn normalise_with_options(value: &str, normalize_chinese: bool) -> String {
+    normalize_case(value, normalize_chinese)
         .chars()
         .filter(|character| character.is_alphanumeric())
         .collect()
@@ -817,8 +946,13 @@ fn work_title_start(title: &str, before: usize) -> Option<usize> {
         .max()
 }
 
+#[cfg(test)]
 fn filter_title(value: &str, keywords: &[String]) -> String {
-    let mut title = simplify(value);
+    filter_title_with_options(value, keywords, true)
+}
+
+fn filter_title_with_options(value: &str, keywords: &[String], normalize_chinese: bool) -> String {
+    let mut title = normalize_case(value, normalize_chinese);
     for keyword in keywords {
         while let Some((start, end)) = keyword_position(&title, keyword) {
             if let Some((open, close)) = enclosing_bracket_range(&title, start, end) {
@@ -839,15 +973,34 @@ fn filter_title(value: &str, keywords: &[String]) -> String {
 }
 
 pub fn score_candidate(input: &LyricsSearchInput, result: &LyricsSearchResult) -> f64 {
+    let scoring = &input.scoring;
     let title = normalized_levenshtein(
-        &normalise(&filter_title(&input.title, &input.title_filter_keywords)),
-        &normalise(&filter_title(&result.title, &input.title_filter_keywords)),
+        &normalise_with_options(
+            &filter_title_with_options(
+                &input.title,
+                &scoring.title_filter_keywords,
+                scoring.normalize_chinese,
+            ),
+            scoring.normalize_chinese,
+        ),
+        &normalise_with_options(
+            &filter_title_with_options(
+                &result.title,
+                &scoring.title_filter_keywords,
+                scoring.normalize_chinese,
+            ),
+            scoring.normalize_chinese,
+        ),
     );
-    let artist = normalized_levenshtein(&normalise(&input.artist), &normalise(&result.artist));
+    let artist = normalized_levenshtein(
+        &normalise_with_options(&input.artist, scoring.normalize_chinese),
+        &normalise_with_options(&result.artist, scoring.normalize_chinese),
+    );
     let album = match (&input.album, &result.album) {
-        (Some(expected), Some(actual)) => {
-            normalized_levenshtein(&normalise(expected), &normalise(actual))
-        }
+        (Some(expected), Some(actual)) => normalized_levenshtein(
+            &normalise_with_options(expected, scoring.normalize_chinese),
+            &normalise_with_options(actual, scoring.normalize_chinese),
+        ),
         _ => 0.6,
     };
     let duration = match (input.duration_ms, result.duration_ms) {
@@ -857,10 +1010,12 @@ pub fn score_candidate(input: &LyricsSearchInput, result: &LyricsSearchResult) -
         }
         _ => 0.6,
     };
-    (title * 0.39
-        + artist * 0.36
-        + album * 0.08
-        + duration * 0.17
+    let weights = scoring.match_weights;
+    let weight_total = f64::from(weights.total());
+    (title * f64::from(weights.title) / weight_total
+        + artist * f64::from(weights.artist) / weight_total
+        + album * f64::from(weights.album) / weight_total
+        + duration * f64::from(weights.duration) / weight_total
         + if result.synced { 0.04 } else { 0.0 })
     .clamp(0.0, 1.0)
 }
@@ -958,7 +1113,7 @@ mod tests {
             artist: "Adele".into(),
             album: Some("25".into()),
             duration_ms: Some(295_000),
-            title_filter_keywords: Arc::default(),
+            scoring: Arc::default(),
         };
         assert!(score_candidate(&input, &result("lrclib", 0.0, "line")) > 0.98);
     }
@@ -976,14 +1131,14 @@ mod tests {
             artist: "蕭敬騰".into(),
             album: Some("愛的時刻".into()),
             duration_ms: Some(295_000),
-            title_filter_keywords: Arc::default(),
+            scoring: Arc::default(),
         };
         let simplified = LyricsSearchInput {
             title: "爱上你不是我决定".into(),
             artist: "萧敬腾".into(),
             album: Some("爱的时刻".into()),
             duration_ms: Some(295_000),
-            title_filter_keywords: Arc::default(),
+            scoring: Arc::default(),
         };
         let mut candidate = result("lrclib", 0.0, "line");
         candidate.title = simplified.title.clone();
@@ -1037,7 +1192,10 @@ mod tests {
             artist: "OneRepublic".into(),
             album: None,
             duration_ms: Some(240_000),
-            title_filter_keywords: keywords.clone(),
+            scoring: Arc::new(ScoringSettings {
+                title_filter_keywords: keywords.as_ref().clone(),
+                ..ScoringSettings::default()
+            }),
         };
         let mut candidate = result("lrclib", 0.0, "line");
         candidate.title = "All For You".into();
@@ -1183,6 +1341,9 @@ mod tests {
         let settings = ProviderSettings {
             mode: ProviderOrderMode::Smart,
             auto_apply_threshold: 60,
+            prefer_capabilities: false,
+            match_weights: MatchWeights::default(),
+            normalize_chinese: true,
             providers: ["netease", "qqmusic", "kugou", "lrclib"]
                 .into_iter()
                 .map(|id| ProviderPreference {
@@ -1219,6 +1380,9 @@ mod tests {
         let settings = ProviderSettings {
             mode,
             auto_apply_threshold: 60,
+            prefer_capabilities: false,
+            match_weights: MatchWeights::default(),
+            normalize_chinese: true,
             providers: vec![
                 ProviderPreference {
                     id: "lrclib".into(),
@@ -1293,6 +1457,9 @@ mod tests {
             settings: Arc::new(RwLock::new(ProviderSettings {
                 mode: ProviderOrderMode::Smart,
                 auto_apply_threshold: 60,
+                prefer_capabilities: false,
+                match_weights: MatchWeights::default(),
+                normalize_chinese: true,
                 providers: vec![ProviderPreference {
                     id: "lrclib".into(),
                     enabled: true,
@@ -1363,7 +1530,7 @@ mod tests {
                         artist: "Adele".into(),
                         album: None,
                         duration_ms: None,
-                        title_filter_keywords: Arc::default(),
+                        scoring: Arc::default(),
                     },
                 )
                 .await
@@ -1393,7 +1560,7 @@ mod tests {
                         artist: "Adele".into(),
                         album: None,
                         duration_ms: None,
-                        title_filter_keywords: Arc::default(),
+                        scoring: Arc::default(),
                     },
                 )
                 .await
@@ -1418,7 +1585,7 @@ mod tests {
                         artist: "Artist".into(),
                         album: None,
                         duration_ms: None,
-                        title_filter_keywords: Arc::default(),
+                        scoring: Arc::default(),
                     },
                 )
                 .await
@@ -1441,7 +1608,7 @@ mod tests {
                 artist: "Adele".into(),
                 album: None,
                 duration_ms: None,
-                title_filter_keywords: Arc::default(),
+                scoring: Arc::default(),
             };
             let strict = mock_registry(ProviderOrderMode::Strict, false)
                 .search(&client, &input)
@@ -1469,7 +1636,7 @@ mod tests {
                 artist: "Adele".into(),
                 album: None,
                 duration_ms: None,
-                title_filter_keywords: Arc::default(),
+                scoring: Arc::default(),
             };
 
             let (first, second) = tokio::join!(
@@ -1506,12 +1673,15 @@ mod tests {
                 artist: "周杰伦".into(),
                 album: Some("叶惠美".into()),
                 duration_ms: Some(269_000),
-                title_filter_keywords: Arc::default(),
+                scoring: Arc::default(),
             };
             for target in ["netease", "qqmusic", "kugou", "lrclib"] {
                 let settings = ProviderSettings {
                     mode: ProviderOrderMode::Smart,
                     auto_apply_threshold: 60,
+                    prefer_capabilities: false,
+                    match_weights: MatchWeights::default(),
+                    normalize_chinese: true,
                     providers: provider_definitions()
                         .into_iter()
                         .map(|(id, _)| ProviderPreference {

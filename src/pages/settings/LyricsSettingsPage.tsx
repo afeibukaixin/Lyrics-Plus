@@ -1,4 +1,4 @@
-import type { LibraryScanStatus, MusixmatchTokenType, ProviderSettings, ProviderStatus } from "../../shared/types";
+import type { LibraryScanStatus, MatchWeights, MusixmatchTokenType, ProviderSettings, ProviderStatus } from "../../shared/types";
 import type { TFunction } from "i18next";
 import { useEffect, useState, type FormEvent } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -9,7 +9,7 @@ import { api, isTauriRuntime, messageOf } from "../../shared/api";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
-import { PageHeader, RangeRow, SettingsPage, SettingsSection } from "./components";
+import { PageHeader, RangeRow, SettingsPage, SettingsSection, ToggleRow } from "./components";
 import { GripVertical, Settings2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,9 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input";
 
 const defaultAmllBaseUrl = "https://amlldb.bikonoo.com";
+const defaultMatchWeights: MatchWeights = { title: 39, artist: 36, album: 8, duration: 17 };
+const matchWeightKeys = ["title", "artist", "album", "duration"] as const;
+type MatchWeightKey = (typeof matchWeightKeys)[number];
 
 const defaultTitleFilterKeywords = [
   "feat", "ft", "featuring", "主题曲", "片头曲", "片尾曲",
@@ -46,12 +49,14 @@ export default function LyricsSettingsPage() {
   const [musixmatchTokenType, setMusixmatchTokenType] = useState<MusixmatchTokenType>("desktopUserToken");
   const [amllBaseUrlDraft, setAmllBaseUrlDraft] = useState("");
   const [savingProviderConfig, setSavingProviderConfig] = useState(false);
+  const [matchWeightsDraft, setMatchWeightsDraft] = useState<MatchWeights>(defaultMatchWeights);
+  const [savingMatchRules, setSavingMatchRules] = useState(false);
   const {
     playback, lyrics, fileInput, providerRows, providerView, providerCredentials, testingProvider,
     resettingSection, confirmingReset, providerDrag, savingProviderOrder,
     saveProviderSettings, saveMusixmatchToken, clearMusixmatchToken,
     beginProviderDrag, continueProviderDrag, finishProviderDrag,
-    setProviderDrag, providerDragTransform, toggleProvider, testProviders, handleFile,
+    setProviderDrag, providerDragTransform, toggleProvider, testProviders, testAllProviders, handleFile,
     resetSection, setError,
   } = useSettingsContext();
   const normalizedTitleFilterDraft = titleFilterDraft.trim();
@@ -66,6 +71,10 @@ export default function LyricsSettingsPage() {
         : (providerView?.settings.titleFilterKeywords.length ?? 0) >= 32
           ? t("settings.lyrics.titleFilterLimit")
           : null;
+
+  useEffect(() => {
+    if (providerView) setMatchWeightsDraft(providerView.settings.matchWeights);
+  }, [providerView]);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -161,24 +170,65 @@ export default function LyricsSettingsPage() {
     if (saved) setProviderConfig(null);
   };
 
+  const previewMatchWeight = (key: MatchWeightKey, value: number) => {
+    setMatchWeightsDraft((current) => ({ ...current, [key]: value }));
+  };
+
+  const updateNormalizeChinese = async (normalizeChinese: boolean) => {
+    if (!providerView || savingMatchRules) return;
+    setSavingMatchRules(true);
+    await saveProviderSettings({ ...providerView.settings, normalizeChinese });
+    setSavingMatchRules(false);
+  };
+
+  const updatePreferCapabilities = async (preferCapabilities: boolean) => {
+    if (!providerView || savingMatchRules) return;
+    setSavingMatchRules(true);
+    await saveProviderSettings({ ...providerView.settings, preferCapabilities });
+    setSavingMatchRules(false);
+  };
+
+  const commitMatchWeight = async (key: MatchWeightKey, value: number) => {
+    if (!providerView) return;
+    const previous = providerView.settings.matchWeights;
+    const matchWeights = { ...previous, [key]: value };
+    const total = matchWeightKeys.reduce((sum, item) => sum + matchWeights[item], 0);
+    if (total === 0) {
+      setError(t("settings.lyrics.matchWeightsEmpty"));
+      setMatchWeightsDraft(previous);
+      throw new Error("match weights cannot all be zero");
+    }
+    setSavingMatchRules(true);
+    const saved = await saveProviderSettings({ ...providerView.settings, matchWeights });
+    setSavingMatchRules(false);
+    if (!saved) {
+      setMatchWeightsDraft(previous);
+      throw new Error("failed to save match weights");
+    }
+  };
+
+  const matchWeightTotal = matchWeightKeys.reduce((sum, key) => sum + matchWeightsDraft[key], 0);
+  const matchWeightPercentage = (key: MatchWeightKey) => {
+    if (matchWeightTotal === 0) return "0";
+    const percentage = matchWeightsDraft[key] / matchWeightTotal * 100;
+    return Number.isInteger(percentage) ? percentage.toFixed(0) : percentage.toFixed(1);
+  };
+
   const scanActive = scanStatus?.phase === "discovering" || scanStatus?.phase === "indexing";
   const scanProgress = scanStatus?.phase === "indexing" && scanStatus.total
     ? Math.round(scanStatus.processed / scanStatus.total * 100)
     : 0;
   const sections = [
-    { id: "lyrics-auto-match", label: t("settings.lyrics.autoMatch") },
     { id: "lyrics-current-track", label: t("settings.lyrics.currentTrack") },
     { id: "lyrics-directory", label: t("settings.lyrics.directory") },
+    { id: "lyrics-auto-match", label: t("settings.lyrics.autoMatch") },
+    { id: "lyrics-match-rules", label: t("settings.lyrics.matchRules") },
     { id: "lyrics-title-filters", label: t("settings.lyrics.titleFilters") },
     { id: "lyrics-provider-priority", label: t("settings.lyrics.providerPriority") },
   ];
 
   return <SettingsPage sections={sections}>
     <PageHeader title={t("settings.lyrics.title")} description={t("settings.lyrics.description")} onReset={() => void resetSection("lyrics")} resetting={resettingSection === "lyrics"} confirming={confirmingReset === "lyrics"} />
-    <SettingsSection id="lyrics-auto-match" title={t("settings.lyrics.autoMatch")}>
-      <RangeRow label={t("settings.lyrics.threshold")} value={providerView?.settings.autoApplyThreshold ?? 60} min={0} max={100} suffix="%" onChange={(autoApplyThreshold) => { if (providerView) void saveProviderSettings({ ...providerView.settings, autoApplyThreshold }); }} />
-      <p className={styles.cardHint}>{t("settings.lyrics.thresholdHint")}</p>
-    </SettingsSection>
     <SettingsSection id="lyrics-current-track" title={t("settings.lyrics.currentTrack")}>
       <div className={styles.currentTrack}><div><strong>{playback.snapshot.title ?? t("settings.lyrics.noTrack")}</strong><small>{playback.snapshot.artist ?? "—"}</small></div><em>{lyrics.document ? localizedSource(lyrics.document.metadata.source, t) : t("settings.lyrics.notAssociated")}</em></div>
       <div className={styles.buttonRow}>
@@ -203,12 +253,22 @@ export default function LyricsSettingsPage() {
         <Button variant="secondary" size="sm" disabled={!libraryDir} onClick={() => void rescanLibrary()}>{scanActive ? t("settings.lyrics.restartScan") : t("settings.lyrics.rescan")}</Button>
       </div>
     </SettingsSection>
+    <SettingsSection id="lyrics-auto-match" title={t("settings.lyrics.autoMatch")}>
+      <RangeRow label={t("settings.lyrics.threshold")} value={providerView?.settings.autoApplyThreshold ?? 60} min={0} max={100} suffix="%" onChange={(autoApplyThreshold) => { if (providerView) void saveProviderSettings({ ...providerView.settings, autoApplyThreshold }); }} />
+      <p className={styles.cardHint}>{t("settings.lyrics.thresholdHint")}</p>
+    </SettingsSection>
+    <SettingsSection id="lyrics-match-rules" title={t("settings.lyrics.matchRules")}>
+      <ToggleRow label={t("settings.lyrics.preferCapabilities")} description={t("settings.lyrics.preferCapabilitiesHint")} value={providerView?.settings.preferCapabilities ?? false} disabled={!providerView || savingMatchRules} onChange={updatePreferCapabilities} />
+      <ToggleRow label={t("settings.lyrics.normalizeChinese")} description={t("settings.lyrics.normalizeChineseHint")} value={providerView?.settings.normalizeChinese ?? true} disabled={!providerView || savingMatchRules} onChange={updateNormalizeChinese} />
+      {matchWeightKeys.map((key) => <RangeRow key={key} label={t(`settings.lyrics.matchWeight.${key}`)} value={providerView?.settings.matchWeights[key] ?? defaultMatchWeights[key]} min={0} max={100} suffix="" disabled={!providerView || savingMatchRules} onChange={() => undefined} onValuePreview={(value) => previewMatchWeight(key, value)} onValueCommitted={(value) => commitMatchWeight(key, value)} onPreviewCanceled={() => setMatchWeightsDraft(providerView?.settings.matchWeights ?? defaultMatchWeights)} />)}
+      <p className={styles.cardHint}>{t("settings.lyrics.matchWeightSummary", { title: matchWeightPercentage("title"), artist: matchWeightPercentage("artist"), album: matchWeightPercentage("album"), duration: matchWeightPercentage("duration") })}<br />{t("settings.lyrics.matchRulesHint")}</p>
+    </SettingsSection>
     <SettingsSection id="lyrics-title-filters" title={t("settings.lyrics.titleFilters")} trailing={<Button variant="ghost" size="sm" disabled={savingTitleFilters} onClick={() => void (providerView && saveProviderSettings({ ...providerView.settings, titleFilterKeywords: defaultTitleFilterKeywords }))}>{t("settings.lyrics.restoreTitleFilters")}</Button>}>
       <p className={styles.cardHint}>{t("settings.lyrics.titleFiltersHint")}</p>
       <div className={styles.titleFilters}>{providerView?.settings.titleFilterKeywords.length ? providerView.settings.titleFilterKeywords.map((keyword, index) => <Badge variant="secondary" className={styles.titleFilter} key={`${keyword}-${index}`}><span>{keyword}</span><IconButton label={`${t("common.actions.remove")} ${keyword}`} variant="ghost" size="icon-sm" disabled={savingTitleFilters} onClick={() => void removeTitleFilter(index)}><X /></IconButton></Badge>) : <p>{t("settings.lyrics.titleFiltersEmpty")}</p>}</div>
       <form className={styles.titleFilterForm} onSubmit={(event) => void addTitleFilter(event)}><InputGroup><InputGroupInput aria-invalid={Boolean(titleFilterError)} placeholder={t("settings.lyrics.titleFilterPlaceholder")} value={titleFilterDraft} onChange={(event) => setTitleFilterDraft(event.target.value)} /><InputGroupAddon align="inline-end"><Button size="sm" disabled={!providerView || !normalizedTitleFilterDraft || Boolean(titleFilterError) || savingTitleFilters}>{t("settings.lyrics.addTitleFilter")}</Button></InputGroupAddon></InputGroup>{titleFilterError && <small role="alert">{titleFilterError}</small>}</form>
     </SettingsSection>
-    <SettingsSection id="lyrics-provider-priority" title={t("settings.lyrics.providerPriority")} trailing={providerView && <div className={styles.shortcutControls}><Button variant="secondary" size="sm" disabled={!providerView.settings.providers.length || testingProvider !== null} onClick={() => void testProviders(providerView.settings.providers.map((provider) => provider.id))}>{testingProvider === "*" ? t("common.actions.testing") : t("common.actions.testAll")}</Button><Select disabled={savingProviderOrder} items={[{ value: "strict", label: t("settings.lyrics.strict") }, { value: "smart", label: t("settings.lyrics.smart") }]} value={providerView.settings.mode} onValueChange={(mode) => void saveProviderSettings({ ...providerView.settings, mode: mode as ProviderSettings["mode"] })}><SelectTrigger className="w-32" aria-label={t("settings.lyrics.providerPriority")}><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="strict">{t("settings.lyrics.strict")}</SelectItem><SelectItem value="smart">{t("settings.lyrics.smart")}</SelectItem></SelectGroup></SelectContent></Select></div>}>
+    <SettingsSection id="lyrics-provider-priority" title={t("settings.lyrics.providerPriority")} trailing={providerView && <div className={styles.shortcutControls}><Button variant="secondary" size="sm" disabled={!lyrics.trackKey || !providerView.settings.providers.some((provider) => provider.enabled) || testingProvider !== null} onClick={() => void testAllProviders()}>{testingProvider === "*" ? t("common.actions.testing") : t("common.actions.testAll")}</Button><Select disabled={savingProviderOrder} items={[{ value: "strict", label: t("settings.lyrics.strict") }, { value: "smart", label: t("settings.lyrics.smart") }]} value={providerView.settings.mode} onValueChange={(mode) => void saveProviderSettings({ ...providerView.settings, mode: mode as ProviderSettings["mode"] })}><SelectTrigger className="w-32" aria-label={t("settings.lyrics.providerPriority")}><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="strict">{t("settings.lyrics.strict")}</SelectItem><SelectItem value="smart">{t("settings.lyrics.smart")}</SelectItem></SelectGroup></SelectContent></Select></div>}>
       <p className={styles.cardHint}>{providerView?.settings.mode === "smart" ? t("settings.lyrics.smartHint") : t("settings.lyrics.strictHint")}</p>
       <ItemGroup className={styles.providers} data-dragging={Boolean(providerDrag)}>{providerView?.settings.providers.map((provider, index) => {
         const status = providerView.statuses.find((item) => item.providerId === provider.id);

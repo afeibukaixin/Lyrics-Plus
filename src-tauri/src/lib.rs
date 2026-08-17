@@ -2721,7 +2721,7 @@ pub fn run() {
                 last_snapshot: Arc::new(RwLock::new(player::PlaybackSnapshot::empty())),
                 lyrics_runtime: Arc::new(RwLock::new(commands::LyricsRuntimeSnapshot::default())),
                 lyrics_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
-                lyrics_auto_search_attempted: Arc::new(Mutex::new(std::collections::HashSet::new())),
+                lyrics_search_session: Arc::new(Mutex::new(commands::LyricsSearchSession::default())),
                 notch_layout_metrics: Arc::new(RwLock::new(NotchLayoutMetrics::default())),
                 notch_visibility: Arc::new(Mutex::new(NotchVisibilityState::default())),
                 storage: Arc::new(storage),

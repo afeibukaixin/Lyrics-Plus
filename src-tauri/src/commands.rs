@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -41,7 +41,7 @@ pub struct AppState {
     pub last_snapshot: Arc<RwLock<PlaybackSnapshot>>,
     pub lyrics_runtime: Arc<RwLock<LyricsRuntimeSnapshot>>,
     pub lyrics_generation: Arc<AtomicU64>,
-    pub lyrics_auto_search_attempted: Arc<Mutex<HashSet<String>>>,
+    pub lyrics_search_session: Arc<Mutex<LyricsSearchSession>>,
     pub notch_layout_metrics: Arc<RwLock<NotchLayoutMetrics>>,
     pub(crate) notch_visibility: Arc<Mutex<crate::NotchVisibilityState>>,
     pub storage: Arc<Storage>,
@@ -357,12 +357,62 @@ pub struct SaveLyricsInput {
     pub manual_selected: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchResponse {
     pub auto_apply: bool,
     pub results: Vec<LyricsSearchResult>,
     pub provider_statuses: Vec<ProviderStatus>,
+    pub error: Option<String>,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct LyricsSearchRequestKey {
+    title: String,
+    artist: String,
+    album: Option<String>,
+    duration_ms: Option<u64>,
+}
+
+impl LyricsSearchRequestKey {
+    fn new(input: &LyricsSearchInput) -> Self {
+        Self {
+            title: input.title.trim().to_owned(),
+            artist: input.artist.trim().to_owned(),
+            album: input
+                .album
+                .as_deref()
+                .map(str::trim)
+                .filter(|album| !album.is_empty())
+                .map(str::to_owned),
+            duration_ms: input.duration_ms,
+        }
+    }
+}
+
+type LyricsSearchFlight = tokio::sync::OnceCell<Result<SearchResponse, String>>;
+const LYRICS_SEARCH_INVALIDATED: &str = "当前歌词搜索已失效";
+
+pub struct LyricsSearchSession {
+    activation: u64,
+    track_key: Option<String>,
+    request_id: u64,
+    request_key: Option<LyricsSearchRequestKey>,
+    completed: Option<Result<SearchResponse, String>>,
+    in_flight: Option<Arc<LyricsSearchFlight>>,
+}
+
+impl Default for LyricsSearchSession {
+    fn default() -> Self {
+        Self {
+            activation: 0,
+            track_key: None,
+            request_id: 0,
+            request_key: None,
+            completed: None,
+            in_flight: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
@@ -435,6 +485,118 @@ fn publish_lyrics_runtime(app: &tauri::AppHandle, snapshot: LyricsRuntimeSnapsho
     }
     let _ = app.emit("lyrics://runtime-changed", &snapshot);
     crate::sync_lyrics_surfaces(app);
+}
+
+fn reset_lyrics_search_session(state: &AppState, track_key: Option<String>) {
+    let mut session = state
+        .lyrics_search_session
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    session.activation = session.activation.wrapping_add(1);
+    session.track_key = track_key;
+    session.request_id = 0;
+    session.request_key = None;
+    session.completed = None;
+    session.in_flight = None;
+}
+
+fn invalidate_lyrics_search_session(state: &AppState) {
+    let track_key = state
+        .lyrics_search_session
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .track_key
+        .clone();
+    reset_lyrics_search_session(state, track_key);
+}
+
+async fn perform_lyrics_search(
+    state: &AppState,
+    input: &LyricsSearchInput,
+) -> Result<SearchResponse, String> {
+    let mut outcome = state.providers.search(&state.http, input).await?;
+    let secondary_display = state
+        .overlay_style
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .secondary_display;
+    if outcome.prefer_capabilities {
+        prefer_candidate_capabilities(&mut outcome.results, secondary_display);
+    }
+    Ok(SearchResponse {
+        auto_apply: can_auto_apply(&outcome.results, outcome.auto_apply_threshold),
+        results: outcome.results,
+        provider_statuses: outcome.statuses,
+        error: outcome.error,
+    })
+}
+
+async fn search_lyrics_for_session(
+    state: &AppState,
+    track_key: &str,
+    input: LyricsSearchInput,
+    force: bool,
+) -> Result<SearchResponse, String> {
+    if input.title.trim().is_empty() || input.artist.trim().is_empty() {
+        return Err("搜索歌词需要歌曲名和歌手".into());
+    }
+
+    let request_key = LyricsSearchRequestKey::new(&input);
+    let (activation, request_id, flight) = {
+        let mut session = state
+            .lyrics_search_session
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if session.track_key.as_deref() != Some(track_key) {
+            return Err("当前歌曲已发生变化".into());
+        }
+        if !force {
+            if let Some(completed) = &session.completed {
+                return completed.clone();
+            }
+            if let Some(flight) = &session.in_flight {
+                (session.activation, session.request_id, flight.clone())
+            } else {
+                session.request_id = session.request_id.wrapping_add(1);
+                session.request_key = Some(request_key);
+                let flight = Arc::new(LyricsSearchFlight::new());
+                session.in_flight = Some(flight.clone());
+                (session.activation, session.request_id, flight)
+            }
+        } else if session.request_key.as_ref() == Some(&request_key) {
+            if let Some(flight) = &session.in_flight {
+                (session.activation, session.request_id, flight.clone())
+            } else {
+                session.request_id = session.request_id.wrapping_add(1);
+                session.completed = None;
+                let flight = Arc::new(LyricsSearchFlight::new());
+                session.in_flight = Some(flight.clone());
+                (session.activation, session.request_id, flight)
+            }
+        } else {
+            session.request_id = session.request_id.wrapping_add(1);
+            session.request_key = Some(request_key);
+            session.completed = None;
+            let flight = Arc::new(LyricsSearchFlight::new());
+            session.in_flight = Some(flight.clone());
+            (session.activation, session.request_id, flight)
+        }
+    };
+
+    let result = flight
+        .get_or_init(|| perform_lyrics_search(state, &input))
+        .await
+        .clone();
+    let mut session = state
+        .lyrics_search_session
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    if session.activation != activation || session.request_id != request_id {
+        return Err(LYRICS_SEARCH_INVALIDATED.into());
+    }
+    session.completed = Some(result.clone());
+    session.in_flight = None;
+    result
 }
 
 pub(crate) fn set_runtime_document_if_active(
@@ -511,6 +673,7 @@ pub(crate) fn sync_lyrics_runtime(app: &tauri::AppHandle, playback: &PlaybackSna
     }
 
     let generation = state.lyrics_generation.fetch_add(1, Ordering::SeqCst) + 1;
+    reset_lyrics_search_session(&state, next_key.clone());
     let Some(track_key) = next_key else {
         publish_lyrics_runtime(app, LyricsRuntimeSnapshot::default());
         return;
@@ -562,11 +725,6 @@ pub(crate) fn sync_lyrics_runtime(app: &tauri::AppHandle, playback: &PlaybackSna
             Ok(None) => {}
         }
 
-        let first_attempt = state
-            .lyrics_auto_search_attempted
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .insert(track_key.clone());
         let (Some(title), Some(artist)) = (playback.title.clone(), playback.artist.clone()) else {
             if current() {
                 publish_lyrics_runtime(
@@ -581,41 +739,33 @@ pub(crate) fn sync_lyrics_runtime(app: &tauri::AppHandle, playback: &PlaybackSna
             }
             return;
         };
-        if !first_attempt {
-            if current() {
-                publish_lyrics_runtime(
-                    &worker_app,
-                    LyricsRuntimeSnapshot {
-                        track_key: Some(track_key),
-                        document: None,
-                        status: LyricsRuntimeStatus::NotFound,
-                        error: None,
-                    },
-                );
-            }
-            return;
-        }
 
         let input = LyricsSearchInput {
             title: title.clone(),
             artist: artist.clone(),
             album: playback.album.clone(),
             duration_ms: playback.duration_ms,
-            title_filter_keywords: Arc::default(),
+            scoring: Arc::default(),
         };
-        match state.providers.search(&state.http, &input).await {
-            Ok(mut outcome) => {
+        match search_lyrics_for_session(&state, &track_key, input, false).await {
+            Ok(response) => {
                 if !current() {
                     return;
                 }
-                let secondary_display = state
-                    .overlay_style
-                    .read()
-                    .unwrap_or_else(|error| error.into_inner())
-                    .secondary_display;
-                prefer_candidate_capabilities(&mut outcome.results, secondary_display);
-                let document = if can_auto_apply(&outcome.results, outcome.auto_apply_threshold) {
-                    outcome.results.first().and_then(|result| {
+                if let Some(error) = response.error {
+                    publish_lyrics_runtime(
+                        &worker_app,
+                        LyricsRuntimeSnapshot {
+                            track_key: Some(track_key),
+                            document: None,
+                            status: LyricsRuntimeStatus::Error,
+                            error: Some(error),
+                        },
+                    );
+                    return;
+                }
+                let document = if response.auto_apply {
+                    response.results.first().and_then(|result| {
                         state
                             .storage
                             .save(SaveRequest {
@@ -652,6 +802,15 @@ pub(crate) fn sync_lyrics_runtime(app: &tauri::AppHandle, playback: &PlaybackSna
                     );
                 }
             }
+            Err(error) if current() && error == LYRICS_SEARCH_INVALIDATED => publish_lyrics_runtime(
+                &worker_app,
+                LyricsRuntimeSnapshot {
+                    track_key: Some(track_key),
+                    document: None,
+                    status: LyricsRuntimeStatus::NotFound,
+                    error: None,
+                },
+            ),
             Err(error) if current() => publish_lyrics_runtime(
                 &worker_app,
                 LyricsRuntimeSnapshot {
@@ -801,24 +960,12 @@ pub fn set_player_selection(
 
 #[tauri::command]
 pub async fn search_lyrics(
+    track_key: String,
     input: LyricsSearchInput,
+    force: bool,
     state: State<'_, AppState>,
 ) -> Result<SearchResponse, String> {
-    if input.title.trim().is_empty() || input.artist.trim().is_empty() {
-        return Err("搜索歌词需要歌曲名和歌手".into());
-    }
-    let mut outcome = state.providers.search(&state.http, &input).await?;
-    let secondary_display = state
-        .overlay_style
-        .read()
-        .unwrap_or_else(|error| error.into_inner())
-        .secondary_display;
-    prefer_candidate_capabilities(&mut outcome.results, secondary_display);
-    Ok(SearchResponse {
-        auto_apply: can_auto_apply(&outcome.results, outcome.auto_apply_threshold),
-        results: outcome.results,
-        provider_statuses: outcome.statuses,
-    })
+    search_lyrics_for_session(&state, &track_key, input, force).await
 }
 
 fn prefer_candidate_capabilities(
@@ -828,14 +975,8 @@ fn prefer_candidate_capabilities(
     if results.len() < 2 {
         return;
     }
-    let top_score = results
-        .iter()
-        .map(|result| result.score)
-        .fold(0.0_f64, f64::max);
-    let cutoff = top_score - 0.04;
-    results.sort_by_key(|result| {
-        let outside_quality_window = result.score < cutoff;
-        let capability_rank = match secondary_display {
+    let capability_rank = |result: &LyricsSearchResult| {
+        let secondary_rank = match secondary_display {
             SecondaryDisplayMode::Translation => u8::from(!result.has_translation),
             SecondaryDisplayMode::Romanization => u8::from(!result.has_romanization),
             SecondaryDisplayMode::TranslationRomanization => {
@@ -851,12 +992,30 @@ fn prefer_candidate_capabilities(
             }
             SecondaryDisplayMode::Legacy | SecondaryDisplayMode::Next => 0,
         };
-        (
-            outside_quality_window,
-            u8::from(!result.has_word_timing),
-            capability_rank,
-        )
-    });
+        (u8::from(!result.has_word_timing), secondary_rank)
+    };
+
+    let mut ranked = results.iter().cloned().enumerate().collect::<Vec<_>>();
+
+    let mut band_start = 0;
+    while band_start < ranked.len() {
+        let band_score = ranked[band_start].1.score;
+        let band_len = ranked[band_start..]
+            .iter()
+            .take_while(|(_, result)| (band_score - result.score).abs() <= 0.04 + f64::EPSILON)
+            .count();
+        let band_end = band_start + band_len;
+        ranked[band_start..band_end].sort_by(|(left_index, left), (right_index, right)| {
+            capability_rank(left)
+                .cmp(&capability_rank(right))
+                .then_with(|| left_index.cmp(right_index))
+        });
+        band_start = band_end;
+    }
+
+    for (target, (_, result)) in results.iter_mut().zip(ranked) {
+        *target = result;
+    }
 }
 
 #[tauri::command]
@@ -879,6 +1038,7 @@ pub fn set_musixmatch_token(
     state
         .config
         .update(|config| config.lyrics.providers = provider_view.settings.clone())?;
+    invalidate_lyrics_search_session(&state);
     Ok(ProviderCredentialUpdate {
         credentials,
         provider_view,
@@ -893,6 +1053,7 @@ pub fn clear_musixmatch_token(
     state
         .config
         .update(|config| config.lyrics.providers = provider_view.settings.clone())?;
+    invalidate_lyrics_search_session(&state);
     Ok(ProviderCredentialUpdate {
         credentials,
         provider_view,
@@ -908,6 +1069,7 @@ pub fn set_provider_settings(
     state
         .config
         .update(|config| config.lyrics.providers = view.settings.clone())?;
+    invalidate_lyrics_search_session(&state);
     Ok(view)
 }
 
@@ -2537,6 +2699,7 @@ fn apply_app_config(
     state
         .providers
         .set_settings(saved.lyrics.providers.clone())?;
+    invalidate_lyrics_search_session(&state);
     *state
         .selection
         .write()
@@ -2690,6 +2853,7 @@ pub fn reset_settings_section(
             state
                 .config
                 .update(|config| config.lyrics.providers = view.settings)?;
+            invalidate_lyrics_search_session(&state);
         }
         SettingsSection::Player => {
             update_player_selection(&app, PlayerSelection::Auto)?;

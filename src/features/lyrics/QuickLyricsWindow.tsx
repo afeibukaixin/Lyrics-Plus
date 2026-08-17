@@ -86,7 +86,7 @@ export default function QuickLyricsWindow() {
     setNotice(null);
 
     if (normalized(title) === normalized(playback.snapshot.title)) {
-      await lyrics.search();
+      await lyrics.search(true);
       return;
     }
 
@@ -95,7 +95,7 @@ export default function QuickLyricsWindow() {
       artist,
       album: playback.snapshot.album ?? null,
       durationMs: playback.snapshot.durationMs ?? null,
-    });
+    }, true);
   };
 
   const selectAndApply = async (result: LyricsSearchResult) => {

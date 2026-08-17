@@ -110,6 +110,7 @@ export type SettingsOutletContext = {
   providerDragTransform: (index: number) => string | undefined;
   toggleProvider: (id: string) => void;
   testProviders: (providerIds: string[]) => Promise<void>;
+  testAllProviders: () => Promise<void>;
   handleFile: (file?: File) => Promise<void>;
   resetSection: (target: SettingsSection) => Promise<void>;
   resetOverlayBounds: () => Promise<void>;
@@ -374,6 +375,30 @@ export default function Settings() {
     } catch (value) { setError(messageOf(value)); } finally { setTestingProvider(null); }
   };
 
+  const testAllProviders = async () => {
+    if (testingProvider || !lyrics.trackKey) return;
+    setTestingProvider("*");
+    try {
+      const response = await lyrics.search();
+      if (!response) return;
+      setProviderView((current) => current ? {
+        ...current,
+        statuses: current.statuses.map((item) => {
+          const provider = current.settings.providers.find((candidate) => candidate.id === item.providerId);
+          if (!provider?.enabled) {
+            return { ...item, health: "unknown" as const, message: t("settings.lyrics.notParticipated"), checkedAtMs: null };
+          }
+          return response.providerStatuses.find((status) => status.providerId === item.providerId) ?? item;
+        }),
+      } : current);
+      if (response.error) setError(response.error);
+    } catch (value) {
+      setError(messageOf(value));
+    } finally {
+      setTestingProvider(null);
+    }
+  };
+
   const handleFile = async (file?: File) => {
     if (!file) return;
     await lyrics.importRaw(await file.text());
@@ -482,6 +507,7 @@ export default function Settings() {
     providerDragTransform,
     toggleProvider,
     testProviders,
+    testAllProviders,
     handleFile,
     resetSection,
     resetOverlayBounds,
