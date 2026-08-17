@@ -2474,7 +2474,9 @@ impl ConfigStore {
         migrate_legacy_provider_order(&mut value.lyrics.providers);
         let bool_preference =
             |key: &str| storage.get_preference(key).unwrap_or(None).as_deref() == Some("true");
-        value.overlay.visible = bool_preference("overlay.visible");
+        if let Some(visible) = storage.get_preference("overlay.visible").unwrap_or(None) {
+            value.overlay.visible = visible == "true";
+        }
         value.overlay.locked =
             bool_preference("overlay.locked") || bool_preference("overlay.passthrough");
         let last_monitor = storage
