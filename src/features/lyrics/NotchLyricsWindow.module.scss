@@ -46,6 +46,7 @@
 
 .metadata {
   display: grid;
+  position: relative;
   min-height: max(32px, var(--notch-top-inset));
   grid-template-columns: minmax(0, 1fr) var(--notch-center-gap) minmax(0, 1fr);
   align-items: center;
@@ -53,6 +54,45 @@
   padding: 0 16px;
   font-size: clamp(11px, var(--notch-font-size), 14px);
   line-height: 1;
+}
+
+.brandCapsule {
+  display: flex;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  box-sizing: border-box;
+  width: min(120px, calc(var(--notch-center-gap) - 8px));
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  overflow: hidden;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #111;
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 18%);
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+}
+
+.brandCapsule img {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 5px;
+}
+
+.brandCapsule span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .metadata strong,

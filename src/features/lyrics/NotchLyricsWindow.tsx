@@ -24,6 +24,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import appIconUrl from "../../../src-tauri/icons/32x32.png";
 import { IconButton } from "@/components/ui/icon-button";
 import { api, isTauriRuntime } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
@@ -923,6 +924,12 @@ export default function NotchLyricsWindow() {
                   {playback.snapshot.artist ?? ""}
                 </OverflowText>
               </span>
+              {layout.hasNotch && (
+                <div aria-hidden="true" className={styles.brandCapsule}>
+                  <img alt="" draggable={false} src={appIconUrl} />
+                  <span>Lyrics Plus</span>
+                </div>
+              )}
             </header>
             {primaryLine && (
               <div className={styles.currentLine} key={`${primaryLine.startMs}:${primaryLine.text}`}>
