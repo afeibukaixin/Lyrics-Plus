@@ -183,7 +183,7 @@
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transform: translateY(-7px);
+  transform: translateY(-2px);
 }
 
 .toolbarRevealInner {
@@ -222,13 +222,13 @@
 .toolbar > :global(button),
 .toolbar > .offsetControl {
   opacity: 0;
-  transform: translateY(-5px) scale(.96);
+  transform: translateY(-3px);
 }
 
 .shell[data-expanded] .toolbar > :global(button),
 .shell[data-expanded] .toolbar > .offsetControl {
   opacity: 1;
-  transform: translateY(0) scale(1);
+  transform: translateY(0);
 }
 
 .toolbar :global(button) {

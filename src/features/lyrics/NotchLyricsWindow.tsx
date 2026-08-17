@@ -50,7 +50,7 @@ const LOOP_MARQUEE_HOME_PAUSE_MS = 900;
 const LYRIC_MARQUEE_SPEED_PX_PER_SECOND = 35;
 const DEFAULT_LYRIC_MARQUEE_DURATION_MS = 4_000;
 const MIN_LYRIC_MARQUEE_DURATION_MS = 100;
-const HOVER_COLLAPSE_DELAY_MS = 300;
+const HOVER_COLLAPSE_DELAY_MS = 140;
 const NOTCH_MAX_WIDTH = 640;
 const WINDOW_HORIZONTAL_PADDING = 16;
 const TOOLBAR_HORIZONTAL_PADDING = 24;
@@ -240,8 +240,7 @@ export default function NotchLyricsWindow() {
   const toolbarRef = useRef<HTMLDivElement>(null);
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const presenceTimelineRef = useRef<gsap.core.Timeline | null>(null);
-  const widthFlipRef = useRef<gsap.core.Timeline | null>(null);
-  const jellyTimelineRef = useRef<gsap.core.Timeline | null>(null);
+  const widthFlipRef = useRef<gsap.core.Animation | null>(null);
   const toolbarMotionRef = useRef<gsap.core.Animation | null>(null);
   const pendingWindowShrinkRef = useRef(false);
   const expandedRef = useRef(false);
@@ -418,23 +417,20 @@ export default function NotchLyricsWindow() {
 
   const finishWidthMotion = useCallback(() => {
     widthFlipRef.current = null;
-    jellyTimelineRef.current = null;
     toolbarMotionRef.current = null;
     widthMotionActiveRef.current = false;
     setWidthMotionActive(false);
     const island = islandRef.current;
-    const surface = islandSurfaceRef.current;
     const toolbarReveal = toolbarRevealRef.current;
-    const toolbarItems = toolbarRef.current ? Array.from(toolbarRef.current.children) : [];
-    if (island) gsap.set(island, { clearProps: "willChange" });
-    if (surface) {
-      gsap.set(surface, {
-        clearProps: "willChange,borderBottomLeftRadius,borderBottomRightRadius",
+    if (island) {
+      gsap.set(island, {
+        clearProps: "width,height,transform,position,top,left,willChange",
       });
     }
-    if (toolbarReveal) gsap.set(toolbarReveal, { clearProps: "opacity,visibility,transform" });
-    if (toolbarItems.length > 0) {
-      gsap.set(toolbarItems, { clearProps: "opacity,visibility,transform" });
+    if (toolbarReveal) {
+      gsap.set(toolbarReveal, {
+        clearProps: "opacity,visibility,transform,height,gridTemplateRows,overflow",
+      });
     }
     if (!pendingWindowShrinkRef.current) return;
     pendingWindowShrinkRef.current = false;
@@ -443,37 +439,19 @@ export default function NotchLyricsWindow() {
 
   const cancelWidthMotion = useCallback((preserveVisualState = false) => {
     widthFlipRef.current?.kill();
-    jellyTimelineRef.current?.kill();
     toolbarMotionRef.current?.kill();
     widthFlipRef.current = null;
-    jellyTimelineRef.current = null;
     toolbarMotionRef.current = null;
     const island = islandRef.current;
-    const surface = islandSurfaceRef.current;
     const toolbarReveal = toolbarRevealRef.current;
-    const toolbarItems = toolbarRef.current ? Array.from(toolbarRef.current.children) : [];
     if (island && !preserveVisualState) {
       Flip.killFlipsOf(island);
       gsap.set(island, { clearProps: "width,height,transform,position,top,left,willChange" });
     }
-    if (
-      !preserveVisualState
-      && surface
-      && islandVisibleRef.current
-      && !visibilityMotionActiveRef.current
-    ) {
-      gsap.set(surface, { scaleY: 1 });
-    }
-    if (surface && !preserveVisualState) {
-      gsap.set(surface, {
-        clearProps: "willChange,borderBottomLeftRadius,borderBottomRightRadius",
-      });
-    }
     if (toolbarReveal && !preserveVisualState) {
-      gsap.set(toolbarReveal, { clearProps: "opacity,visibility,transform" });
-    }
-    if (toolbarItems.length > 0 && !preserveVisualState) {
-      gsap.set(toolbarItems, { clearProps: "opacity,visibility,transform" });
+      gsap.set(toolbarReveal, {
+        clearProps: "opacity,visibility,transform,height,gridTemplateRows,overflow",
+      });
     }
     pendingWindowShrinkRef.current = false;
     widthMotionActiveRef.current = false;
@@ -589,110 +567,126 @@ export default function NotchLyricsWindow() {
     else timeline.reverse();
   }), [contextSafe, finishVisibilityMotion]);
 
-  const performWidthFlip = useMemo(() => contextSafe((nextExpanded: boolean, withJelly = true) => {
+  const performWidthFlip = useMemo(() => contextSafe((nextExpanded: boolean) => {
     const island = islandRef.current;
-    const surface = islandSurfaceRef.current;
-    if (!island || !surface) {
+    if (!island) {
       finishWidthMotion();
       return;
     }
 
-    const state = Flip.getState(island);
-    flushSync(() => {
-      if (nextExpanded) fitWindow(true);
-      setExpandedState(nextExpanded);
-    });
+    const toolbarReveal = toolbarRevealRef.current;
+    let collapseHeight = 0;
+    let collapseStartWidth = 0;
+    if (toolbarReveal && !reducedMotionRef.current) {
+      if (nextExpanded) {
+        gsap.set(toolbarReveal, {
+          autoAlpha: Number(gsap.getProperty(toolbarReveal, "opacity")),
+          y: Number(gsap.getProperty(toolbarReveal, "y")),
+        });
+      } else {
+        const currentIslandHeight = island.getBoundingClientRect().height;
+        const fullToolbarHeight = toolbarReveal.getBoundingClientRect().height;
+        const contentHeight = contentRef.current?.getBoundingClientRect().height
+          ?? Math.max(0, currentIslandHeight - fullToolbarHeight);
+        collapseHeight = Math.min(
+          fullToolbarHeight,
+          Math.max(0, currentIslandHeight - contentHeight),
+        );
+        if (collapseHeight > 0) {
+          gsap.set(toolbarReveal, {
+            height: collapseHeight,
+            gridTemplateRows: "1fr",
+            overflow: "hidden",
+          });
+        }
+      }
+    }
 
+    if (nextExpanded) {
+      const state = Flip.getState(island);
+      gsap.set(island, {
+        clearProps: "width,height,transform,position,top,left",
+      });
+      if (toolbarReveal) {
+        gsap.set(toolbarReveal, { clearProps: "height,gridTemplateRows,overflow" });
+      }
+      flushSync(() => {
+        fitWindow(true);
+        setExpandedState(true);
+      });
+      if (reducedMotionRef.current) {
+        finishWidthMotion();
+        return;
+      }
+
+      gsap.set(island, { willChange: "transform" });
+      widthFlipRef.current = Flip.from(state, {
+        duration: 0.22,
+        ease: "power3.out",
+        scale: false,
+        simple: true,
+        onComplete: finishWidthMotion,
+      });
+      if (toolbarReveal) {
+        toolbarMotionRef.current = gsap.to(toolbarReveal, {
+          autoAlpha: 1,
+          y: 0,
+          duration: 0.16,
+          ease: "power2.out",
+        });
+      }
+      return;
+    }
+
+    collapseStartWidth = island.getBoundingClientRect().width;
+    gsap.set(island, {
+      clearProps: "width,height,transform,position,top,left",
+    });
+    flushSync(() => setExpandedState(false));
     if (reducedMotionRef.current) {
       finishWidthMotion();
       return;
     }
 
-    gsap.set(island, { willChange: "width,height" });
-    widthFlipRef.current = Flip.from(state, {
-      duration: nextExpanded ? 0.3 : 0.24,
-      ease: "power3.inOut",
-      scale: false,
-      simple: true,
-      onComplete: finishWidthMotion,
+    const collapseTargetWidth = island.getBoundingClientRect().width;
+    gsap.set(island, { width: collapseStartWidth, willChange: "width" });
+    widthFlipRef.current = gsap.to(island, {
+      width: collapseTargetWidth,
+      duration: 0.22,
+      ease: "power2.inOut",
+      onComplete: collapseHeight <= 0 ? finishWidthMotion : undefined,
     });
-
-    if (withJelly) {
-      const radius = notchRef.current.appearance.borderRadius + (nextExpanded ? 4 : 0);
-      gsap.set(surface, { willChange: "transform,border-radius" });
-      jellyTimelineRef.current = gsap.timeline()
-        .to(surface, {
-          scaleY: nextExpanded ? 0.965 : 1.018,
-          duration: 0.07,
-          ease: "power2.out",
-        }, 0)
-        .to(surface, {
-          scaleY: nextExpanded ? 1.025 : 0.975,
-          duration: 0.13,
-          ease: "back.out(1.35)",
-        }, 0.06)
-        .to(surface, { scaleY: 1, duration: 0.1, ease: "power2.out" }, 0.2)
-        .to(surface, {
-          borderBottomLeftRadius: radius,
-          borderBottomRightRadius: radius,
-          duration: nextExpanded ? 0.3 : 0.24,
-          ease: "power3.inOut",
-        }, 0);
-    }
-
-    if (nextExpanded) {
-      const toolbarReveal = toolbarRevealRef.current;
-      const toolbarItems = toolbarRef.current ? Array.from(toolbarRef.current.children) : [];
-      if (toolbarReveal) {
-        toolbarMotionRef.current = gsap.timeline()
-          .to(toolbarReveal, {
-            autoAlpha: 1,
-            y: 0,
-            duration: 0.2,
-            ease: "back.out(1.2)",
-          }, 0.05)
-          .to(toolbarItems, {
-            autoAlpha: 1,
-            y: 0,
-            scale: 1,
-            duration: 0.14,
-            stagger: { each: 0.008, from: "center" },
-            ease: "back.out(1.25)",
-          }, 0.07);
-      }
+    if (toolbarReveal && collapseHeight > 0) {
+      toolbarMotionRef.current = gsap.to(toolbarReveal, {
+        height: 0,
+        duration: 0.22,
+        ease: "power2.inOut",
+        onComplete: finishWidthMotion,
+      });
     }
   }), [contextSafe, finishWidthMotion, fitWindow, setExpandedState]);
 
-  const animateExpanded = useMemo(() => contextSafe((nextExpanded: boolean, withJelly = true) => {
+  const animateExpanded = useMemo(() => contextSafe((nextExpanded: boolean) => {
     cancelWidthMotion(true);
     pendingWindowShrinkRef.current = !nextExpanded;
     widthMotionActiveRef.current = true;
     setWidthMotionActive(true);
 
     const toolbarReveal = toolbarRevealRef.current;
-    const toolbarItems = toolbarRef.current ? Array.from(toolbarRef.current.children) : [];
     if (!nextExpanded && !reducedMotionRef.current && toolbarReveal) {
       toolbarMotionRef.current = gsap.timeline({
-        onComplete: () => performWidthFlip(false, withJelly),
+        onComplete: () => performWidthFlip(false),
       })
-        .to(toolbarItems, {
-          autoAlpha: 0,
-          y: -5,
-          scale: 0.96,
-          duration: 0.08,
-          stagger: { each: 0.006, from: "edges" },
-          ease: "power2.in",
-        }, 0)
         .to(toolbarReveal, {
           autoAlpha: 0,
-          y: -7,
-          duration: 0.1,
-          ease: "power2.in",
+          y: -2,
+          duration: 0.16,
+          ease: "sine.inOut",
         }, 0);
       return;
     }
 
-    performWidthFlip(nextExpanded, withJelly);
+    performWidthFlip(nextExpanded);
   }), [cancelWidthMotion, contextSafe, performWidthFlip]);
 
   const expandIsland = useCallback(() => {
@@ -734,7 +728,7 @@ export default function NotchLyricsWindow() {
     if (!visible) {
       clearCollapseTimers();
       if (expandedRef.current || widthMotionActiveRef.current) {
-        animateExpanded(false, false);
+        animateExpanded(false);
       }
     }
     animateIslandVisibility(visible);
