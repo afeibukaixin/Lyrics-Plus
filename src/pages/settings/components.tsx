@@ -178,9 +178,10 @@ export function SettingsSection({ id, title, trailing, children }: { id: string;
   );
 }
 
-export function ApplicationList({ applications, icons, busy, emptyLabel, removeLabel, onRemove }: {
+export function ApplicationList({ applications, icons, names, busy, emptyLabel, removeLabel, onRemove }: {
   applications: RegisteredApplication[];
   icons: Record<string, string>;
+  names: Record<string, string>;
   busy: boolean;
   emptyLabel: string;
   removeLabel: string;
@@ -199,17 +200,20 @@ export function ApplicationList({ applications, icons, busy, emptyLabel, removeL
 
   return (
     <ItemGroup className={styles.applicationList}>
-      {applications.map((application) => (
-        <Item variant="muted" className={styles.applicationItem} key={application.bundleId}>
-          <ItemMedia variant={icons[application.bundleId] ? "image" : "icon"}>
-            {icons[application.bundleId] ? <img alt="" src={icons[application.bundleId]} /> : <Music2 />}
-          </ItemMedia>
-          <ItemContent className={styles.applicationContent}><ItemTitle className={styles.applicationName} title={application.name}>{application.name}</ItemTitle></ItemContent>
-          <ItemActions>
-            <IconButton label={`${removeLabel} ${application.name}`} tooltip={removeLabel} variant="ghost" size="icon-sm" disabled={busy} onClick={() => onRemove(application.bundleId)}><X /></IconButton>
-          </ItemActions>
-        </Item>
-      ))}
+      {applications.map((application) => {
+        const displayName = names[application.bundleId] ?? application.name;
+        return (
+          <Item variant="muted" className={styles.applicationItem} key={application.bundleId}>
+            <ItemMedia variant={icons[application.bundleId] ? "image" : "icon"}>
+              {icons[application.bundleId] ? <img alt="" src={icons[application.bundleId]} /> : <Music2 />}
+            </ItemMedia>
+            <ItemContent className={styles.applicationContent}><ItemTitle className={styles.applicationName} title={displayName}>{displayName}</ItemTitle></ItemContent>
+            <ItemActions>
+              <IconButton label={`${removeLabel} ${displayName}`} tooltip={removeLabel} variant="ghost" size="icon-sm" disabled={busy} onClick={() => onRemove(application.bundleId)}><X /></IconButton>
+            </ItemActions>
+          </Item>
+        );
+      })}
     </ItemGroup>
   );
 }

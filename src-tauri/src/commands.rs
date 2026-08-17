@@ -1778,6 +1778,10 @@ fn localized_application_name(_path: &Path) -> Option<String> {
     None
 }
 
+fn application_display_name(name: String) -> String {
+    name.strip_suffix(".app").unwrap_or(&name).to_owned()
+}
+
 fn resolve_registered_application(path: &Path) -> Result<RegisteredApplication, String> {
     if !path.is_dir() || path.extension().and_then(|value| value.to_str()) != Some("app") {
         return Err(format!("不是有效的 .app：{}", path.display()));
@@ -1797,7 +1801,10 @@ fn resolve_registered_application(path: &Path) -> Result<RegisteredApplication, 
                 .map(|value| value.to_string_lossy().into_owned())
         })
         .unwrap_or_else(|| bundle_id.clone());
-    Ok(RegisteredApplication { name, bundle_id })
+    Ok(RegisteredApplication {
+        name: application_display_name(name),
+        bundle_id,
+    })
 }
 
 #[tauri::command]

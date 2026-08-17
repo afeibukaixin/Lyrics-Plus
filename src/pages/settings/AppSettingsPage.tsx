@@ -81,6 +81,7 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
   const [savingFollower, setSavingFollower] = useState(false);
   const [followerStatus, setFollowerStatus] = useState<PlayerFollowerServiceState | null>(null);
   const [applicationIcons, setApplicationIcons] = useState<Record<string, string>>({});
+  const [applicationNames, setApplicationNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (recording) shortcutRecorderRefs.current[recording]?.focus();
@@ -92,15 +93,35 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
 
   useEffect(() => {
     void api.getPlayerFollowerServiceStatus().then(setFollowerStatus).catch(() => setFollowerStatus("not_found"));
+    let disposed = false;
     const bundleIds = [...new Set([
       ...config.app.systemMediaApplications.map((application) => application.bundleId),
       ...(config.app.playerFollowerApplication ? [config.app.playerFollowerApplication.bundleId] : []),
     ])];
     if (bundleIds.length === 0) {
       setApplicationIcons({});
-      return;
+      setApplicationNames({});
+      return () => { disposed = true; };
     }
-    void api.getApplicationIcons(bundleIds).then(setApplicationIcons).catch(() => setApplicationIcons({}));
+    void api.getApplicationIcons(bundleIds).then((icons) => {
+      if (!disposed) setApplicationIcons(icons);
+    }).catch(() => {
+      if (!disposed) setApplicationIcons({});
+    });
+    void Promise.all(bundleIds.map(async (bundleId) => {
+      try {
+        const application = await api.resolveApplicationByBundleId(bundleId);
+        return [bundleId, application.name] as const;
+      } catch {
+        return null;
+      }
+    })).then((applications) => {
+      if (disposed) return;
+      setApplicationNames(Object.fromEntries(
+        applications.filter((application): application is readonly [string, string] => application !== null),
+      ));
+    });
+    return () => { disposed = true; };
   }, [config.app.playerFollowerApplication?.bundleId, config.app.systemMediaApplications]);
 
   const saveApplications = async (applications: typeof config.app.systemMediaApplications) => {
@@ -287,6 +308,7 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
       <ApplicationList
         applications={config.app.systemMediaApplications}
         icons={applicationIcons}
+        names={applicationNames}
         busy={savingApplications}
         emptyLabel={t(systemMediaAllowlist ? "settings.app.systemApplicationsAllowlistEmpty" : "settings.app.systemApplicationsBlocklistEmpty")}
         removeLabel={t("common.actions.remove")}
@@ -301,7 +323,7 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
           <Button variant="outline" size="sm" disabled={savingFollower || followerUnavailable} onClick={() => void chooseFollower()}><Plus />{t("settings.app.choosePlayerFollower")}</Button>
         </div>
       </div>
-      <ApplicationList applications={config.app.playerFollowerApplication ? [config.app.playerFollowerApplication] : []} icons={applicationIcons} busy={savingFollower || followerUnavailable} emptyLabel={t("settings.app.playerFollowerEmpty")} removeLabel={t("common.actions.remove")} onRemove={() => void clearFollower()} />
+      <ApplicationList applications={config.app.playerFollowerApplication ? [config.app.playerFollowerApplication] : []} icons={applicationIcons} names={applicationNames} busy={savingFollower || followerUnavailable} emptyLabel={t("settings.app.playerFollowerEmpty")} removeLabel={t("common.actions.remove")} onRemove={() => void clearFollower()} />
       {followerStatus === "unsupported" && <p className={styles.cardHint} data-error="true">{t("settings.app.playerFollowerUnsupported")}</p>}
       {(followerStatus === "not_found" || followerStatus === "not_registered") && config.app.playerFollowerApplication && <div className={styles.systemApplicationsToolbar}>
         <p className={styles.cardHint} data-error="true">{t(followerStatus === "not_found" ? "settings.app.playerFollowerNotFound" : "settings.app.playerFollowerNotRegistered")}</p>
