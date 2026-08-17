@@ -99,6 +99,7 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
       {inheritanceSection}
       <SettingsSection id="mode-state" title={t("settings.style.modeControls.displayInteraction")}>
         <ToggleRow label={t("settings.display.statusBar.show")} value={value.enabled} onChange={(enabled) => save({ ...value, enabled })} />
+        <ToggleRow label={t("settings.display.statusBar.autoHide")} description={t("settings.display.statusBar.autoHideHint")} value={value.hideWhenNotPlaying} onChange={(hideWhenNotPlaying) => save({ ...value, hideWhenNotPlaying })} />
         <RangeRow label={t("settings.display.statusBar.width")} description={t("settings.display.statusBar.widthHint")} value={appearance.width} min={120} max={360} step={5} suffix=" pt" onChange={(width) => save(patchAppearance(value, { width }))} />
       </SettingsSection>
       <SettingsSection id="mode-text" title={t("settings.style.modeControls.text")}>
@@ -181,6 +182,7 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
     {inheritanceSection}
     <SettingsSection id="mode-state" title={t("settings.style.modeControls.displayInteraction")}>
       <ToggleRow label={t("settings.display.notch.show")} value={value.enabled} onChange={(enabled) => save({ ...value, enabled })} />
+      <ToggleRow label={t("settings.display.notch.autoHide")} description={t("settings.display.notch.autoHideHint")} value={value.hideWhenNotPlaying} onChange={(hideWhenNotPlaying) => save({ ...value, hideWhenNotPlaying })} />
       <ToggleRow label={t("settings.display.notch.showTwoLines")} value={value.showTwoLines} onChange={(showTwoLines) => save({ ...value, showTwoLines })} />
       <ToggleRow label={t("settings.display.notch.translation")} value={value.showTranslation} onChange={(showTranslation) => save({ ...value, showTranslation })} />
       <ToggleRow label={t("settings.display.notch.romanization")} value={value.showRomanization} onChange={(showRomanization) => save({ ...value, showRomanization })} />

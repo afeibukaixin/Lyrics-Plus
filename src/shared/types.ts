@@ -195,6 +195,7 @@ export type NotchLyricsAppearance = {
 export type LyricsDisplayPreferences = {
   statusBar: {
     enabled: boolean;
+    hideWhenNotPlaying: boolean;
     appearance: StatusBarLyricsAppearance;
   };
   listWindow: {
@@ -206,6 +207,7 @@ export type LyricsDisplayPreferences = {
   };
   notch: {
     enabled: boolean;
+    hideWhenNotPlaying: boolean;
     monitorId: string | null;
     showTwoLines: boolean;
     showTranslation: boolean;

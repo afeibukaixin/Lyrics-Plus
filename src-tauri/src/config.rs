@@ -16,7 +16,7 @@ use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSet
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 43;
+pub const CONFIG_SCHEMA_VERSION: u16 = 44;
 const APP_CONFIG_KEYS: &[&str] = &[
     "theme",
     "language",
@@ -469,6 +469,7 @@ impl Default for LyricsDisplayPreferences {
 #[serde(default, rename_all = "camelCase")]
 pub struct StatusBarLyricsPreferences {
     pub enabled: bool,
+    pub hide_when_not_playing: bool,
     pub appearance: StatusBarLyricsAppearance,
 }
 
@@ -476,6 +477,7 @@ impl Default for StatusBarLyricsPreferences {
     fn default() -> Self {
         Self {
             enabled: false,
+            hide_when_not_playing: false,
             appearance: StatusBarLyricsAppearance::default(),
         }
     }
@@ -576,6 +578,7 @@ impl Default for ListLyricsAppearance {
 #[serde(default, rename_all = "camelCase")]
 pub struct NotchLyricsPreferences {
     pub enabled: bool,
+    pub hide_when_not_playing: bool,
     pub monitor_id: Option<String>,
     pub show_two_lines: bool,
     pub show_translation: bool,
@@ -587,6 +590,7 @@ impl Default for NotchLyricsPreferences {
     fn default() -> Self {
         Self {
             enabled: false,
+            hide_when_not_playing: false,
             monitor_id: None,
             show_two_lines: false,
             show_translation: false,
@@ -1583,6 +1587,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                     raw,
                     &[
                         "enabled",
+                        "hideWhenNotPlaying",
                         // Accepted only so older configurations can be migrated.
                         "showTrayIcon",
                         "locked",
@@ -1656,6 +1661,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                     raw,
                     &[
                         "enabled",
+                        "hideWhenNotPlaying",
                         "monitorId",
                         "showTwoLines",
                         "showTranslation",
@@ -1804,6 +1810,10 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         ("/overlay/hideWhenNotPlaying", "hideWhenNotPlaying"),
         ("/lyrics/displays/statusBar/enabled", "enabled"),
         (
+            "/lyrics/displays/statusBar/hideWhenNotPlaying",
+            "hideWhenNotPlaying",
+        ),
+        (
             "/lyrics/displays/statusBar/showTrayIcon",
             "showTrayIcon",
         ),
@@ -1822,6 +1832,10 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             "showRomanization",
         ),
         ("/lyrics/displays/notch/enabled", "enabled"),
+        (
+            "/lyrics/displays/notch/hideWhenNotPlaying",
+            "hideWhenNotPlaying",
+        ),
         ("/lyrics/displays/notch/showTwoLines", "showTwoLines"),
         (
             "/lyrics/displays/notch/showTranslation",

@@ -916,9 +916,16 @@ fn create_notch_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {
 fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), String> {
     let state = app.state::<AppState>();
     let displays = state.config.snapshot().lyrics.displays;
+    let playback = state
+        .last_snapshot
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .clone();
     #[cfg(not(target_os = "macos"))]
     {
-        if displays.status_bar.enabled {
+        let show_status_bar = displays.status_bar.enabled
+            && (!displays.status_bar.hide_when_not_playing || playback.is_playing);
+        if show_status_bar {
             create_status_bar_lyrics_window(app).map_err(|error| error.to_string())?;
             if let Some(window) = app.get_webview_window("lyrics-status-bar") {
                 let appearance = &displays.status_bar.appearance;
@@ -947,14 +954,14 @@ fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), Stri
         window.hide().map_err(|error| error.to_string())?;
     }
 
-    let has_track = state
-        .last_snapshot
-        .read()
-        .unwrap_or_else(|error| error.into_inner())
+    let has_track = playback
         .title
         .as_deref()
         .is_some_and(|title| !title.trim().is_empty());
-    if displays.notch.enabled && has_track {
+    let show_notch = displays.notch.enabled
+        && has_track
+        && (!displays.notch.hide_when_not_playing || playback.is_playing);
+    if show_notch {
         create_notch_lyrics_window(app).map_err(|error| error.to_string())?;
         if let Some(window) = app.get_webview_window("lyrics-notch") {
             window.show().map_err(|error| error.to_string())?;

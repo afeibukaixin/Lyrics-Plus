@@ -139,6 +139,9 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .clone();
+    if preferences.hide_when_not_playing && !playback.is_playing {
+        return None;
+    }
     let playback_key = crate::commands::playback_track_key(&playback);
     let position_ms = current_position_ms(&playback);
     let runtime = state
@@ -487,21 +490,15 @@ pub(crate) fn sync(app: &tauri::AppHandle) {
     let Some(tray_state) = app.try_state::<TrayMenuState>() else {
         return;
     };
-    let preferences = app
-        .state::<AppState>()
-        .config
-        .snapshot()
-        .lyrics
-        .displays
-        .status_bar;
+    let payload = render_payload(app);
     let _ = tray_state.icon.set_visible(true);
-    let enabled = preferences.enabled;
+    let visible = payload.is_some();
     let _ = tray_state.lyrics_icon.with_inner_tray_icon(move |inner| {
         if let Some(status_item) = inner.ns_status_item() {
-            status_item.setVisible(enabled);
+            status_item.setVisible(visible);
         }
     });
-    if let Some(payload) = render_payload(app) {
+    if let Some(payload) = payload {
         render_on_main(payload, &tray_state.lyrics_icon);
     } else {
         reset_scroll();
