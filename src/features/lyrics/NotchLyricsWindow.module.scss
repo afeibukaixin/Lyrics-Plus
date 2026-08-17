@@ -13,26 +13,35 @@
 .island {
   width: min(100%, var(--notch-max-width));
   overflow: hidden;
+}
+
+.islandSurface {
+  overflow: hidden;
   border-radius: 0 0 var(--notch-radius) var(--notch-radius);
   color: white;
   background: #000;
-  transition:
-    width 160ms cubic-bezier(.2, .8, .2, 1),
-    border-radius 160ms cubic-bezier(.2, .8, .2, 1);
-  will-change: width, border-radius;
-}
-
-.shell[data-width-preview] .island {
-  transition: border-radius 160ms cubic-bezier(.2, .8, .2, 1);
+  clip-path: inset(0 46% round 999px);
+  transform: scaleY(.04);
+  transform-origin: top center;
 }
 
 .shell[data-expanded] .island {
   width: min(100%, var(--notch-expanded-width));
+}
+
+.shell[data-expanded] .islandSurface {
   border-radius: 0 0 calc(var(--notch-radius) + 4px) calc(var(--notch-radius) + 4px);
+}
+
+.shell:not([data-island-visible]) .island {
+  pointer-events: none;
 }
 
 .content {
   min-width: 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
 }
 
 .metadata {
@@ -132,12 +141,9 @@
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
   transform: translateY(-7px);
-  transition:
-    grid-template-rows 160ms cubic-bezier(.22, 1.18, .36, 1),
-    opacity 120ms ease,
-    transform 160ms cubic-bezier(.22, 1.18, .36, 1);
 }
 
 .toolbarRevealInner {
@@ -148,6 +154,7 @@
 .shell[data-expanded] .toolbarReveal {
   grid-template-rows: 1fr;
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
   transform: translateY(0);
 }
@@ -176,9 +183,6 @@
 .toolbar > .offsetControl {
   opacity: 0;
   transform: translateY(-5px) scale(.96);
-  transition:
-    opacity 120ms ease,
-    transform 160ms cubic-bezier(.22, 1.28, .36, 1);
 }
 
 .shell[data-expanded] .toolbar > :global(button),
@@ -186,15 +190,6 @@
   opacity: 1;
   transform: translateY(0) scale(1);
 }
-
-.shell[data-expanded] .toolbar > :nth-child(1) { transition-delay: 0ms; }
-.shell[data-expanded] .toolbar > :nth-child(2) { transition-delay: 8ms; }
-.shell[data-expanded] .toolbar > :nth-child(3) { transition-delay: 14ms; }
-.shell[data-expanded] .toolbar > :nth-child(4) { transition-delay: 20ms; }
-.shell[data-expanded] .toolbar > :nth-child(5) { transition-delay: 26ms; }
-.shell[data-expanded] .toolbar > :nth-child(6) { transition-delay: 32ms; }
-.shell[data-expanded] .toolbar > :nth-child(7) { transition-delay: 38ms; }
-.shell[data-expanded] .toolbar > :nth-child(8) { transition-delay: 44ms; }
 
 .toolbar :global(button) {
   color: inherit;
@@ -205,6 +200,11 @@
     background-color 110ms ease,
     box-shadow 110ms ease,
     transform 110ms ease;
+}
+
+.shell[data-width-motion] .toolbar > :global(button),
+.shell[data-width-motion] .toolbar > .offsetControl {
+  transition: none;
 }
 
 .toolbar .trackToggle[data-on="true"] {
@@ -324,12 +324,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .island,
   .karaokeWordFill,
-  .toolbarReveal,
-  .toolbar > :global(button),
-  .toolbar > .offsetControl {
+  .toolbar :global(button) {
     transition: none;
+  }
+
+  .shell:not([data-island-visible]) .islandSurface {
+    opacity: 0;
   }
 
   .toolbar :global(button:hover:not([aria-disabled="true"])),

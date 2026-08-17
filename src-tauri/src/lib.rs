@@ -43,6 +43,19 @@ pub(crate) const LEGAL_NOTICE_VERSION: u16 = 1;
 pub(crate) const LEGAL_NOTICE_PREFERENCE: &str = "legal.notice.acceptedVersion";
 const LIST_LYRICS_DEFAULT_WIDTH: f64 = 520.0;
 const LIST_LYRICS_DEFAULT_HEIGHT: f64 = 720.0;
+const NOTCH_VISIBILITY_TRANSITION_EVENT: &str = "notch://visibility-transition";
+const NOTCH_EXIT_ANIMATION_DURATION: Duration = Duration::from_millis(400);
+
+#[derive(Default)]
+pub(crate) struct NotchVisibilityState {
+    target_visible: bool,
+    generation: u64,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct NotchVisibilityTransitionPayload {
+    visible: bool,
+}
 
 pub(crate) fn legal_notice_accepted(storage: &storage::Storage) -> Result<bool, String> {
     Ok(storage
@@ -961,14 +974,78 @@ fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), Stri
     let show_notch = displays.notch.enabled
         && has_track
         && (!displays.notch.hide_when_not_playing || playback.is_playing);
+    let (visibility_changed, visibility_generation) = {
+        let mut visibility = state
+            .notch_visibility
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if visibility.target_visible != show_notch {
+            visibility.target_visible = show_notch;
+            visibility.generation = visibility.generation.wrapping_add(1);
+            (true, visibility.generation)
+        } else {
+            (false, visibility.generation)
+        }
+    };
     if show_notch {
         create_notch_lyrics_window(app).map_err(|error| error.to_string())?;
         if let Some(window) = app.get_webview_window("lyrics-notch") {
-            window.show().map_err(|error| error.to_string())?;
+            let was_visible = window.is_visible().unwrap_or(false);
+            if !was_visible {
+                window.show().map_err(|error| error.to_string())?;
+            }
+            if visibility_changed || !was_visible {
+                let _ = window.emit(
+                    NOTCH_VISIBILITY_TRANSITION_EVENT,
+                    NotchVisibilityTransitionPayload { visible: true },
+                );
+            }
             schedule_notch_position(app, &window);
         }
-    } else if let Some(window) = app.get_webview_window("lyrics-notch") {
-        window.hide().map_err(|error| error.to_string())?;
+    } else if visibility_changed {
+        if let Some(window) = app.get_webview_window("lyrics-notch") {
+            if window.is_visible().unwrap_or(false) {
+                let _ = window.emit(
+                    NOTCH_VISIBILITY_TRANSITION_EVENT,
+                    NotchVisibilityTransitionPayload { visible: false },
+                );
+                let handle = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(NOTCH_EXIT_ANIMATION_DURATION).await;
+                    let state = handle.state::<AppState>();
+                    let transition_is_current = {
+                        let visibility = state
+                            .notch_visibility
+                            .lock()
+                            .unwrap_or_else(|error| error.into_inner());
+                        !visibility.target_visible
+                            && visibility.generation == visibility_generation
+                    };
+                    if !transition_is_current {
+                        return;
+                    }
+
+                    let displays = state.config.snapshot().lyrics.displays;
+                    let playback = state
+                        .last_snapshot
+                        .read()
+                        .unwrap_or_else(|error| error.into_inner())
+                        .clone();
+                    let has_track = playback
+                        .title
+                        .as_deref()
+                        .is_some_and(|title| !title.trim().is_empty());
+                    let should_still_hide = !displays.notch.enabled
+                        || !has_track
+                        || (displays.notch.hide_when_not_playing && !playback.is_playing);
+                    if should_still_hide {
+                        if let Some(window) = handle.get_webview_window("lyrics-notch") {
+                            let _ = window.hide();
+                        }
+                    }
+                });
+            }
+        }
     }
     sync_tray_lyrics_display_checked(app);
     Ok(())
@@ -2617,6 +2694,7 @@ pub fn run() {
                 lyrics_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
                 lyrics_auto_search_attempted: Arc::new(Mutex::new(std::collections::HashSet::new())),
                 notch_layout_metrics: Arc::new(RwLock::new(NotchLayoutMetrics::default())),
+                notch_visibility: Arc::new(Mutex::new(NotchVisibilityState::default())),
                 storage: Arc::new(storage),
                 config,
                 providers: Arc::new(lyrics::provider::ProviderRegistry::new(provider_settings)),

@@ -42,6 +42,7 @@ pub struct AppState {
     pub lyrics_generation: Arc<AtomicU64>,
     pub lyrics_auto_search_attempted: Arc<Mutex<HashSet<String>>>,
     pub notch_layout_metrics: Arc<RwLock<NotchLayoutMetrics>>,
+    pub(crate) notch_visibility: Arc<Mutex<crate::NotchVisibilityState>>,
     pub storage: Arc<Storage>,
     pub config: Arc<ConfigStore>,
     pub providers: Arc<ProviderRegistry>,

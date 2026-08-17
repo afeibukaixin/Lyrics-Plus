@@ -3,10 +3,13 @@ import { emitTo, type UnlistenFn } from "@tauri-apps/api/event";
 type MaybeAsyncUnlistenFn = () => void | Promise<void>;
 
 export const NOTCH_WIDTH_PREVIEW_EVENT = "notch://width-preview";
+export const NOTCH_VISIBILITY_TRANSITION_EVENT = "notch://visibility-transition";
 
 export type NotchWidthPreviewPayload =
   | { phase: "update" | "commit"; width: number }
   | { phase: "cancel" };
+
+export type NotchVisibilityTransitionPayload = { visible: boolean };
 
 export function isTauriRuntime() {
   if (typeof window === "undefined") return false;
