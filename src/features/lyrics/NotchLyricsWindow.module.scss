@@ -13,7 +13,7 @@
 .island {
   width: min(100%, var(--notch-max-width));
   overflow: hidden;
-  border-radius: var(--notch-radius);
+  border-radius: 0 0 var(--notch-radius) var(--notch-radius);
   color: white;
   background: #000;
   transition:
@@ -28,14 +28,6 @@
 
 .shell[data-expanded] .island {
   width: min(100%, var(--notch-expanded-width));
-  border-radius: calc(var(--notch-radius) + 4px);
-}
-
-.shell[data-has-notch] .island {
-  border-radius: 0 0 var(--notch-radius) var(--notch-radius);
-}
-
-.shell[data-expanded][data-has-notch] .island {
   border-radius: 0 0 calc(var(--notch-radius) + 4px) calc(var(--notch-radius) + 4px);
 }
 
