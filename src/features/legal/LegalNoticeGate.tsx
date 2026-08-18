@@ -11,7 +11,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const READ_SECONDS = 10;
+const READ_SECONDS = 3;
 const languageOptions = supportedLanguages.map((code) => ({
   code,
   label: languageRegistry[code].nativeLabel,
