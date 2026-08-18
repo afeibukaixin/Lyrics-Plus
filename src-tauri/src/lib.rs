@@ -814,12 +814,37 @@ pub(crate) fn position_auxiliary_lyrics_window_default(
 fn screen_notch_layout(monitor: &tauri::Monitor) -> NotchLayoutMetrics {
     use objc2::MainThreadMarker;
     use objc2_app_kit::NSScreen;
+    use objc2_core_graphics::{CGDisplayBounds, CGDisplayPixelsHigh, CGDisplayPixelsWide};
+    use objc2_foundation::{NSNumber, NSString};
 
     let Some(marker) = MainThreadMarker::new() else {
         return NotchLayoutMetrics::default();
     };
     let monitor_name = monitor.name().map(String::as_str);
+    let monitor_position = monitor.position();
+    let monitor_size = monitor.size();
     let screens = NSScreen::screens(marker);
+    let screen_matches_monitor = |screen: &NSScreen| {
+        let description = screen.deviceDescription();
+        let screen_number_key = NSString::from_str("NSScreenNumber");
+        let Some(display_id) = description
+            .objectForKey(&screen_number_key)
+            .and_then(|value| value.downcast_ref::<NSNumber>().map(NSNumber::unsignedIntValue))
+        else {
+            return false;
+        };
+        let bounds = CGDisplayBounds(display_id);
+        let scale_factor = screen.backingScaleFactor();
+        let x = (bounds.origin.x * scale_factor).round() as i32;
+        let y = (bounds.origin.y * scale_factor).round() as i32;
+        let width = (CGDisplayPixelsWide(display_id) as f64 * scale_factor).round() as u32;
+        let height = (CGDisplayPixelsHigh(display_id) as f64 * scale_factor).round() as u32;
+
+        monitor_position.x == x
+            && monitor_position.y == y
+            && monitor_size.width == width
+            && monitor_size.height == height
+    };
     let metrics_for = |screen: &NSScreen| {
         let top_inset = screen.safeAreaInsets().top.max(0.0);
         let left_area = screen.auxiliaryTopLeftArea();
@@ -835,16 +860,20 @@ fn screen_notch_layout(monitor: &tauri::Monitor) -> NotchLayoutMetrics {
         }
     };
 
+    if let Some(screen) = screens.iter().find(|screen| screen_matches_monitor(screen)) {
+        return metrics_for(&screen);
+    }
     if let Some(screen) = screens
         .iter()
         .find(|screen| monitor_name.is_some_and(|name| screen.localizedName().to_string() == name))
     {
         return metrics_for(&screen);
     }
-    NSScreen::mainScreen(marker)
-        .as_deref()
-        .map(metrics_for)
-        .unwrap_or_default()
+    let mut available = screens.iter();
+    match (available.next(), available.next()) {
+        (Some(screen), None) => metrics_for(&screen),
+        _ => NotchLayoutMetrics::default(),
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
