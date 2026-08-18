@@ -8,9 +8,11 @@ import {
   type SetStateAction,
 } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { useGSAP } from "@gsap/react";
+import { gsap } from "gsap";
 import { NavLink, Outlet, useLocation, useOutletContext } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Bug, CircleAlert, CircleCheck, Download, FileJson, Info, LoaderCircle, Monitor, MonitorUp, Moon, Music2, Palette, Settings2, Sun, TriangleAlert, X } from "lucide-react";
+import { Bug, CircleAlert, Download, FileJson, Info, LoaderCircle, Monitor, MonitorUp, Moon, Music2, Palette, RotateCw, Settings2, Sun, TriangleAlert, X } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { IconButton } from "@/components/ui/icon-button";
@@ -50,6 +52,8 @@ import {
 import styles from "./settings.module.scss";
 import { rememberSettingsPath } from "../router/settingsRoute";
 
+gsap.registerPlugin(useGSAP);
+
 type ProviderDragState = {
   providerId: string;
   pointerId: number;
@@ -62,6 +66,98 @@ type ProviderDragState = {
 
 const providerDragHysteresisPx = 6;
 const themeCycle: readonly ThemePreference[] = ["dark", "light", "system"];
+
+function clampUpdateProgress(value: number) {
+  return Math.max(0, Math.min(100, value));
+}
+
+function UpdateProgressRing({ value }: { value: number }) {
+  const initialValueRef = useRef(clampUpdateProgress(value));
+  const rootRef = useRef<HTMLSpanElement>(null);
+  const indicatorRef = useRef<SVGCircleElement>(null);
+  const valueRef = useRef<HTMLSpanElement>(null);
+  const progressStateRef = useRef({ value: initialValueRef.current });
+  const progressTweenRef = useRef<gsap.core.Tween | null>(null);
+  const reducedMotionRef = useRef(false);
+
+  useGSAP(() => {
+    const media = gsap.matchMedia();
+    media.add({
+      reduceMotion: "(prefers-reduced-motion: reduce)",
+      allowMotion: "(prefers-reduced-motion: no-preference)",
+    }, (context) => {
+      reducedMotionRef.current = Boolean(context.conditions?.reduceMotion);
+      if (reducedMotionRef.current && progressTweenRef.current) {
+        const tween = progressTweenRef.current;
+        tween.progress(1);
+        tween.kill();
+        progressTweenRef.current = null;
+      }
+    });
+    return () => media.revert();
+  }, { scope: rootRef });
+
+  useGSAP(() => {
+    const indicator = indicatorRef.current;
+    const valueElement = valueRef.current;
+    if (!indicator || !valueElement) return;
+
+    const target = clampUpdateProgress(value);
+    const renderProgress = () => {
+      const progress = clampUpdateProgress(progressStateRef.current.value);
+      indicator.style.strokeDashoffset = String(100 - progress);
+      valueElement.textContent = `${Math.round(progress)}%`;
+    };
+
+    renderProgress();
+    if (reducedMotionRef.current) {
+      progressTweenRef.current?.kill();
+      progressTweenRef.current = null;
+      progressStateRef.current.value = target;
+      renderProgress();
+      return;
+    }
+
+    const tween = gsap.to(progressStateRef.current, {
+      value: target,
+      duration: 0.35,
+      ease: "power1.out",
+      overwrite: "auto",
+      onUpdate: renderProgress,
+      onComplete: () => {
+        renderProgress();
+        if (progressTweenRef.current === tween) progressTweenRef.current = null;
+      },
+    });
+    progressTweenRef.current = tween;
+    return () => {
+      tween.kill();
+      if (progressTweenRef.current === tween) progressTweenRef.current = null;
+    };
+  }, { dependencies: [value], scope: rootRef });
+
+  return (
+    <span ref={rootRef} className={styles.updateProgressVisual} aria-hidden="true">
+      <svg className="size-full" viewBox="0 0 32 32" shapeRendering="geometricPrecision" focusable="false">
+        <circle className={styles.updateProgressTrack} cx="16" cy="16" r="13" pathLength="100" strokeWidth="3" />
+        <circle
+          ref={indicatorRef}
+          className={styles.updateProgressIndicator}
+          cx="16"
+          cy="16"
+          r="13"
+          pathLength="100"
+          strokeDasharray="100"
+          strokeDashoffset="100"
+          strokeLinecap="butt"
+          strokeWidth="3"
+          transform="rotate(-90 16 16)"
+        />
+      </svg>
+      <span ref={valueRef} className={styles.updateStatusValue}>{Math.round(initialValueRef.current)}%</span>
+    </span>
+  );
+}
 
 export type SettingsOutletContext = {
   config: ReturnType<typeof useAppConfig>["config"];
@@ -543,11 +639,19 @@ export default function Settings() {
     : updateStatus === "installing"
       ? { icon: LoaderCircle, label: t("settings.about.updateCard.installing") }
       : updateStatus === "ready"
-        ? { icon: CircleCheck, label: t("settings.about.updateCard.ready") }
+        ? { icon: RotateCw, label: t("settings.about.updateCard.ready") }
         : updateStatus === "error"
           ? { icon: CircleAlert, label: t("settings.about.updateCard.error") }
           : null;
   const UpdateIndicatorIcon = updateIndicator?.icon;
+  const updateIndicatorAction = t(updateStatus === "ready" ? "settings.about.updateCard.restart" : "settings.about.updateCard.open");
+  const updateIndicatorLabel = updateIndicator
+    ? [
+      updateIndicator.label,
+      updateStatus === "downloading" && progressPercentage !== null ? `${progressPercentage}%` : null,
+      updateIndicatorAction,
+    ].filter(Boolean).join(" · ")
+    : "";
 
   return (
     <SidebarProvider className={styles.shell} style={{ "--sidebar-width": "11.5rem", "--sidebar-width-icon": "3.5rem" } as React.CSSProperties}>
@@ -592,34 +696,22 @@ export default function Settings() {
           <IconButton label={themeToggleLabel} tooltip={themeToggleLabel} variant="ghost" size="icon" onClick={() => void setTheme(nextTheme).catch((value) => setError(messageOf(value)))}>
             <ThemeToggleIcon />
           </IconButton>
-          {updateIndicator && UpdateIndicatorIcon && (
-            <button className={styles.updateStatusCard} data-status={updateStatus} type="button" onClick={openUpdateDialog} aria-label={`${updateIndicator.label} · ${t("settings.about.updateCard.open")}`}>
-              <span className={styles.updateStatusTitle}>
-                <UpdateIndicatorIcon aria-hidden="true" />
-                <span>{updateIndicator.label}</span>
-              </span>
-              {updateStatus === "downloading" ? (
-                <>
-                  <strong>{progressPercentage === null ? "…" : `${progressPercentage}%`}</strong>
-                  <span
-                    className={styles.updateStatusProgress}
-                    data-indeterminate={progressPercentage === null ? "true" : undefined}
-                    role="progressbar"
-                    aria-label={t("settings.about.downloadProgress")}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={progressPercentage ?? undefined}
-                  >
-                    <i style={progressPercentage === null ? undefined : { width: `${progressPercentage}%` }} />
-                  </span>
-                </>
-              ) : updateStatus === "installing" ? (
-                <span className={styles.updateStatusProgress} data-indeterminate="true" role="progressbar" aria-label={updateIndicator.label}><i /></span>
-              ) : (
-                <small>{t("settings.about.updateCard.open")}</small>
-              )}
-            </button>
-          )}
+          {updateIndicator && UpdateIndicatorIcon ? (
+            <IconButton
+              className={styles.updateStatusButton}
+              data-progress={updateStatus === "downloading" && progressPercentage !== null ? "true" : undefined}
+              data-status={updateStatus}
+              label={updateIndicatorLabel}
+              tooltip={updateIndicatorLabel}
+              variant="outline"
+              size="icon"
+              onClick={openUpdateDialog}
+            >
+              {updateStatus === "downloading" && progressPercentage !== null
+                ? <UpdateProgressRing value={progressPercentage} />
+                : <UpdateIndicatorIcon />}
+            </IconButton>
+          ) : null}
         </div>
         <div className={styles.content} data-settings-scroll-root>
           {error && <Alert className={styles.inlineError}><span>{error}</span><IconButton label={t("settings.shell.closeToast")} variant="ghost" size="icon-sm" onClick={() => setError(null)}><X /></IconButton></Alert>}

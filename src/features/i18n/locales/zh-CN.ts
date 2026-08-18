@@ -163,7 +163,7 @@ export const zhCN = {
       downloadingTitle: "正在下载更新", downloadingHint: "下载期间可以继续查看更新说明。", installingTitle: "正在安装更新", installingHint: "请保持 Lyrics Plus 运行，安装通常只需要一点时间。",
       releaseNotes: "本次更新", noReleaseNotes: "此版本没有提供更新说明。", downloadProgress: "更新下载进度", downloadedSize: "{{downloaded}} / {{total}}", downloadedUnknownSize: "已下载 {{downloaded}}",
       restartTitle: "更新已准备好", restartHint: "版本 {{version}} 已安装，重启 Lyrics Plus 后生效。", restartNow: "立即重启", restartLater: "稍后", restartError: "无法重启 Lyrics Plus，请稍后手动重新打开应用。", retryUpdate: "重新尝试", updateReadyToast: "更新已安装，重启后生效。",
-      updateCard: { downloading: "正在下载", installing: "正在安装", ready: "更新完成", error: "更新失败", open: "点击查看" },
+      updateCard: { downloading: "正在下载", installing: "正在安装", ready: "已完成", error: "更新失败", open: "点击查看", restart: "点击重启" },
       status: { checking: "正在检查更新…", available: "发现新版本 {{version}}，本次已暂不安装。", downloading: "正在下载更新…", installing: "正在安装更新…", ready: "更新已安装，重启后生效。", latest: "当前已是最新版本。", error: "更新失败。", idle: "" },
       project: "开源项目", projectHint: "Lyrics Plus 是采用 MIT License 发布的免费开源项目。", links: { github: "GitHub 项目", releases: "版本发布", issues: "问题反馈" },
       license: "许可与版权", licenseHint: "应用代码采用 MIT License；歌词和其他音乐内容的权利归相应权利人所有。",

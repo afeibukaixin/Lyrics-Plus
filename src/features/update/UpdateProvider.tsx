@@ -32,7 +32,41 @@ type UpdateContextValue = {
 };
 
 const UpdateContext = createContext<UpdateContextValue | null>(null);
-const updatePreview = import.meta.env.DEV && new URLSearchParams(window.location.search).get("update-preview") === "1";
+const updatePreviewParam = import.meta.env.DEV
+  ? new URLSearchParams(window.location.search).get("update-preview")
+  : null;
+const updatePreviewMode = updatePreviewParam === "1" ? "available" : updatePreviewParam;
+const updatePreview = updatePreviewMode !== null;
+const updatePreviewReleaseNotes = `Lyrics Plus v2.1.0
+
+中文
+
+歌词来源与匹配
+- 新增酷我、咪咕、Musixmatch 和 AMLL TTML 歌词源。
+- 支持 Musixmatch 本地凭据管理、AMLL 服务地址配置和 AMLL 歌词索引缓存。
+- 完善歌词源管理、候选排序、匹配权重、自动匹配阈值和标题过滤。
+
+歌词显示
+- 优化逐字歌词动画与双语歌词的对齐效果。
+- 改进长歌词换行，避免窗口缩放时出现截断。
+- 增加多显示器环境下的窗口位置恢复能力。
+
+设置与交互
+- 重做应用内更新状态按钮和更新详情弹窗。
+- 下载进度改用 SVG 圆环，并通过平滑动画同步百分比。
+- 优化键盘导航、焦点状态以及减少动态效果模式。
+
+稳定性
+- 修复切换播放器后歌词状态偶尔未刷新的问题。
+- 修复系统从睡眠恢复后媒体会话失联的问题。
+- 改进网络超时、失败重试和错误提示。
+
+English
+
+- Added more lyric providers and matching options.
+- Improved word-by-word animation and translated lyric alignment.
+- Refined update progress, keyboard navigation, and error handling.
+- Fixed several player reconnection and window restoration issues.`;
 
 function waitForPreviewStep(duration: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, duration));
@@ -71,13 +105,36 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!updatePreview) return;
-    setCurrentVersion("1.1.0");
-    setAvailableVersion("1.2.0");
-    setReleaseNotes("• 全新的应用内更新界面\n• 显示真实下载进度与文件大小\n• 安装完成后可选择立即或稍后重启\n• 优化多语言提示与键盘操作");
-    setStatus("available");
+    setCurrentVersion("2.0.0");
+    setAvailableVersion("2.1.0");
+    setReleaseNotes(updatePreviewReleaseNotes);
+    setError(null);
+    setDownloadedBytes(0);
+    setTotalBytes(null);
+
+    if (updatePreviewMode === "downloading") {
+      setTotalBytes(100 * 1024 * 1024);
+      setDownloadedBytes(52 * 1024 * 1024);
+      setStatus("downloading");
+    } else if (updatePreviewMode === "downloading-unknown") {
+      setDownloadedBytes(32 * 1024 * 1024);
+      setStatus("downloading");
+    } else if (updatePreviewMode === "installing") {
+      setTotalBytes(100 * 1024 * 1024);
+      setDownloadedBytes(100 * 1024 * 1024);
+      setStatus("installing");
+    } else if (updatePreviewMode === "ready") {
+      setStatus("ready");
+    } else if (updatePreviewMode === "error") {
+      setError(t("settings.about.updateError"));
+      setStatus("error");
+    } else {
+      setStatus("available");
+    }
+
     dialogOpenRef.current = true;
     setDialogOpen(true);
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     dialogOpenRef.current = dialogOpen;
@@ -148,12 +205,12 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
     let contentLength: number | null = null;
     try {
       if (updatePreview) {
-        contentLength = 100;
+        contentLength = 100 * 1024 * 1024;
         setTotalBytes(contentLength);
         for (const downloaded of [8, 19, 34, 52, 71, 86, 100]) {
           await waitForPreviewStep(420);
           if (!mountedRef.current) return;
-          setDownloadedBytes(downloaded);
+          setDownloadedBytes(downloaded * 1024 * 1024);
         }
         setStatus("installing");
         await waitForPreviewStep(1_200);
@@ -269,9 +326,9 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
           <strong className="text-primary">{t("settings.about.version", { version: availableVersion ?? "—" })}</strong>
         </div>
 
-        <section className="mx-[22px] min-h-0 overflow-hidden border-t border-border" aria-labelledby="update-notes-title">
+        <section className="mx-[22px] grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden border-t border-border" aria-labelledby="update-notes-title">
           <h2 className="m-0 py-2.5 text-sm font-medium" id="update-notes-title">{t("settings.about.releaseNotes")}</h2>
-          <ScrollArea className="max-h-[220px]"><div className="whitespace-pre-wrap pb-3 text-sm leading-relaxed text-muted-foreground">{releaseNotes || t("settings.about.noReleaseNotes")}</div></ScrollArea>
+          <ScrollArea className="h-full min-h-0 max-h-[220px]"><div className="whitespace-pre-wrap pb-3 pr-3 text-sm leading-relaxed text-muted-foreground">{releaseNotes || t("settings.about.noReleaseNotes")}</div></ScrollArea>
         </section>
 
         {(status === "downloading" || status === "installing") && (
