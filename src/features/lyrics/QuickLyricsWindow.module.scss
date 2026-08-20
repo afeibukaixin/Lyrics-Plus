@@ -39,6 +39,14 @@
 .panelTitle > [data-slot="card-title"] { display: flex; align-items: center; gap: 8px; }
 .panelTitle > [data-slot="card-action"] { align-self: center; }
 .resultList { min-height: 100%; gap: 2px; padding: 6px; }
+.groupLabel {
+  padding: 6px 8px 3px;
+  color: var(--muted-foreground);
+  font-size: .6875rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
 .resultList > button {
   width: 100%;
   min-height: 44px;

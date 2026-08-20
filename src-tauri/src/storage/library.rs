@@ -178,6 +178,18 @@ pub(super) fn initialize_schema(connection: &Connection) -> rusqlite::Result<()>
         "has_romanization",
         "INTEGER NOT NULL DEFAULT 0",
     )?;
+    let added_app_owned = ensure_column(
+        connection,
+        "lyric_files",
+        "app_owned",
+        "INTEGER NOT NULL DEFAULT 1",
+    )?;
+    if added_app_owned {
+        connection.execute(
+            "UPDATE lyric_files SET app_owned=0 WHERE source='本地文件'",
+            [],
+        )?;
+    }
     Ok(())
 }
 
@@ -448,8 +460,9 @@ fn index_file_if_changed(
             "INSERT INTO lyric_files
                (content_path, title, artist, source, original_format, manual_selected,
                 content_hash, folder_id, managed, file_size, modified_at_ms, duration_ms,
-                file_fingerprint, has_translation, has_word_timing, has_romanization, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6, NULL, 1, ?7, ?8, ?9, ?10, ?11, ?12, ?13, unixepoch())
+                file_fingerprint, has_translation, has_word_timing, has_romanization,
+                app_owned, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6, NULL, 1, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 0, unixepoch())
              ON CONFLICT(content_path) DO UPDATE SET
                title=excluded.title, artist=excluded.artist,
                source=CASE WHEN lyric_files.managed=1 AND lyric_files.source!='本地文件'

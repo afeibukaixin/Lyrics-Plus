@@ -76,8 +76,24 @@ export default function QuickLyricsWindow() {
     () => lyrics.results.find((result) => resultKey(result) === selectedKey) ?? null,
     [lyrics.results, selectedKey],
   );
+  const localResults = useMemo(
+    () => lyrics.results.filter((result) => result.providerId === "local"),
+    [lyrics.results],
+  );
+  const onlineResults = useMemo(
+    () => lyrics.results.filter((result) => result.providerId !== "local"),
+    [lyrics.results],
+  );
 
-  const isCurrent = (result: LyricsSearchResult) => result.lyrics.trim() === lyrics.document?.raw.trim();
+  const isCurrent = (result: LyricsSearchResult) => {
+    const document = lyrics.document;
+    if (!document) return false;
+    if (result.providerId === "local") {
+      return document.metadata.source === "本地文件";
+    }
+    return document.metadata.source === result.source
+      && result.lyrics.trim() === document.raw.trim();
+  };
 
   const searchLyrics = async () => {
     const title = searchTitle.trim();
@@ -139,10 +155,40 @@ export default function QuickLyricsWindow() {
             <CardTitle>{t("quickLyrics.candidates")} <Badge variant="secondary">{lyrics.results.length}</Badge></CardTitle>
           </CardHeader>
           <CardContent className="min-h-0 px-0"><ScrollArea className="h-full min-h-0"><ItemGroup className={styles.resultList}>
-            {lyrics.results.map((result, index) => {
+            {localResults.length > 0 && <div className={styles.groupLabel}>{t("quickLyrics.localCandidates")}</div>}
+            {localResults.map((result, index) => {
               const key = resultKey(result);
               const current = isCurrent(result);
               const recommended = !current && index === 0;
+              const capabilities = [
+                result.synced && t("common.feature.synced"),
+                result.hasWordTiming && t("common.feature.wordTiming"),
+                result.hasTranslation && t("common.feature.hasTranslation"),
+                result.hasRomanization && t("common.feature.romanization"),
+              ].filter(Boolean) as string[];
+              const songSummary = [
+                result.title,
+                result.artist,
+                formatTime(result.durationMs),
+              ].filter(Boolean).join(" · ");
+              return (
+                <Item size="xs" className={cn("h-auto justify-start", styles.resultItem)} render={<Button variant="ghost" type="button" disabled={Boolean(applyingKey)} />} key={key} data-current={current} data-selected={key === selectedKey} onClick={() => void selectAndApply(result)}>
+                  <ItemContent className={styles.resultContent}>
+                    <div className={styles.resultHeading}><span className={styles.songSummary} title={songSummary}>{songSummary}</span>{(current || recommended) && <Badge variant={current ? "default" : "secondary"}>{current ? t("quickLyrics.current") : t("quickLyrics.recommended")}</Badge>}</div>
+                    <div className={styles.resultDetails}>
+                      <span className={cn(styles.sourceName, "text-xs text-muted-foreground")} title={localizedSource(result.source, t)}>{localizedSource(result.source, t)}</span>
+                      {capabilities.length > 0 && <div className={styles.capabilities}>{capabilities.map((capability) => <Badge variant="outline" key={capability}>{capability}</Badge>)}</div>}
+                    </div>
+                  </ItemContent>
+                  <ItemActions><Badge variant="outline">{Math.round(result.score * 100)}%</Badge></ItemActions>
+                </Item>
+              );
+            })}
+            {onlineResults.length > 0 && <div className={styles.groupLabel}>{t("quickLyrics.onlineCandidates")}</div>}
+            {onlineResults.map((result, index) => {
+              const key = resultKey(result);
+              const current = isCurrent(result);
+              const recommended = !current && localResults.length === 0 && index === 0;
               const capabilities = [
                 result.synced && t("common.feature.synced"),
                 result.hasWordTiming && t("common.feature.wordTiming"),

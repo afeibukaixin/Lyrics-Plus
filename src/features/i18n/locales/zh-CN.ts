@@ -71,7 +71,7 @@ export const zhCN = {
     title: "快速切换歌词", noTrack: "没有正在播放的歌曲",
     noTrackHint: "播放歌曲后可快速搜索并切换歌词",
     searchLabel: "按歌名搜索歌词", searchPlaceholder: "输入歌名，歌手、专辑和时长沿用当前歌曲",
-    candidates: "候选歌词", current: "当前", recommended: "推荐", searchingCandidates: "正在搜索候选歌词",
+    candidates: "候选歌词", localCandidates: "本地歌词", onlineCandidates: "在线歌词", current: "当前", recommended: "推荐", searchingCandidates: "正在搜索候选歌词",
     noCandidates: "暂无候选歌词", autoSearchHint: "播放歌曲后会自动搜索所有已启用来源。",
     preview: "歌词浏览", applying: "正在应用这份歌词…", selectCandidate: "选择候选歌词",
     rawHint: "这里会显示未经处理的原始 LRC 内容。", switched: "已切换为 {{source}} 的歌词",

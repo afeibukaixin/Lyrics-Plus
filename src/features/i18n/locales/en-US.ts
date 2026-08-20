@@ -73,7 +73,7 @@ export const enUS = {
     title: "Quick Lyrics Switcher", noTrack: "Nothing is playing",
     noTrackHint: "Play a song to search and switch lyrics",
     searchLabel: "Search lyrics by title", searchPlaceholder: "Enter a title; artist, album, and duration stay tied to the current track",
-    candidates: "Candidates", current: "Current", recommended: "Recommended", searchingCandidates: "Searching for lyric candidates",
+    candidates: "Candidates", localCandidates: "Local lyrics", onlineCandidates: "Online lyrics", current: "Current", recommended: "Recommended", searchingCandidates: "Searching for lyric candidates",
     noCandidates: "No lyric candidates", autoSearchHint: "All enabled providers are searched automatically during playback.",
     preview: "Lyrics Preview", applying: "Applying these lyrics…", selectCandidate: "Select a lyric candidate",
     rawHint: "The unprocessed LRC source appears here.", switched: "Switched to lyrics from {{source}}",

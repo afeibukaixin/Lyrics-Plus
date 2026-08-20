@@ -352,6 +352,22 @@ pub struct ProviderRegistry {
     timeout: Duration,
 }
 
+fn with_scoring_settings(
+    input: &LyricsSearchInput,
+    settings: &ProviderSettings,
+) -> Result<LyricsSearchInput, String> {
+    let mut scoring_input = input.clone();
+    scoring_input.scoring = Arc::new(ScoringSettings {
+        title_filter_keywords: prepare_title_filter_keywords_with_normalization(
+            &settings.title_filter_keywords,
+            settings.normalize_chinese,
+        )?,
+        match_weights: settings.match_weights,
+        normalize_chinese: settings.normalize_chinese,
+    });
+    Ok(scoring_input)
+}
+
 impl Default for ProviderRegistry {
     fn default() -> Self {
         Self::new(ProviderSettings::default())
@@ -507,6 +523,21 @@ impl ProviderRegistry {
             .clone()
     }
 
+    pub(crate) fn local_search_context(
+        &self,
+        input: &LyricsSearchInput,
+    ) -> Result<(LyricsSearchInput, u8), String> {
+        let settings = self
+            .settings
+            .read()
+            .unwrap_or_else(|error| error.into_inner())
+            .clone();
+        Ok((
+            with_scoring_settings(input, &settings)?,
+            settings.auto_apply_threshold,
+        ))
+    }
+
     async fn search_once(
         &self,
         client: &reqwest::Client,
@@ -538,15 +569,7 @@ impl ProviderRegistry {
             .map(|provider| provider.id().to_owned())
             .collect::<Vec<_>>();
 
-        let mut scoring_input = input.clone();
-        scoring_input.scoring = Arc::new(ScoringSettings {
-            title_filter_keywords: prepare_title_filter_keywords_with_normalization(
-                &settings.title_filter_keywords,
-                settings.normalize_chinese,
-            )?,
-            match_weights: settings.match_weights,
-            normalize_chinese: settings.normalize_chinese,
-        });
+        let scoring_input = with_scoring_settings(input, &settings)?;
         let scoring_input = &scoring_input;
         let jobs = enabled.iter().map(|provider| async move {
             let outcome =

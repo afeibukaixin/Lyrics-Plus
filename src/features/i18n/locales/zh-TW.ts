@@ -73,7 +73,7 @@ export const zhTW = {
     title: "快速切換歌詞", noTrack: "目前沒有歌曲正在播放",
     noTrackHint: "播放歌曲後即可快速搜尋並切換歌詞",
     searchLabel: "依歌名搜尋歌詞", searchPlaceholder: "輸入歌名，歌手、專輯與長度將沿用目前歌曲",
-    candidates: "候選歌詞", current: "目前使用", recommended: "推薦", searchingCandidates: "正在搜尋候選歌詞",
+    candidates: "候選歌詞", localCandidates: "本機歌詞", onlineCandidates: "線上歌詞", current: "目前使用", recommended: "推薦", searchingCandidates: "正在搜尋候選歌詞",
     noCandidates: "目前沒有候選歌詞", autoSearchHint: "播放歌曲後會自動搜尋所有已啟用的來源。",
     preview: "歌詞瀏覽", applying: "正在套用這份歌詞…", selectCandidate: "請選擇候選歌詞",
     rawHint: "這裡會顯示未經處理的原始 LRC 內容。", switched: "已切換為 {{source}} 的歌詞",

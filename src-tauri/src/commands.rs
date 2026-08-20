@@ -28,7 +28,7 @@ use crate::player::{
     run_with_timeout, PlaybackSnapshot, PlayerKind, PlayerSelection, SystemMediaService,
 };
 use crate::storage::library::LibraryScanStatus;
-use crate::storage::{SaveKind, SaveRequest, Storage};
+use crate::storage::{SaveKind, SaveRequest, Storage, LOCAL_PROVIDER_ID};
 
 pub struct AppState {
     pub runtime_started: Mutex<bool>,
@@ -514,21 +514,90 @@ async fn perform_lyrics_search(
     state: &AppState,
     input: &LyricsSearchInput,
 ) -> Result<SearchResponse, String> {
-    let mut outcome = state.providers.search(&state.http, input).await?;
+    let (local_result, provider_result) = tokio::join!(
+        search_local_lyrics(state, input),
+        state.providers.search(&state.http, input),
+    );
+    let (mut local_results, auto_apply_threshold) = local_result?;
+    let mut outcome = match provider_result {
+        Ok(outcome) => Some(outcome),
+        Err(_error) if !local_results.is_empty() => None,
+        Err(error) => return Err(error),
+    };
     let secondary_display = state
         .overlay_style
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .secondary_display;
-    if outcome.prefer_capabilities {
-        prefer_candidate_capabilities(&mut outcome.results, secondary_display);
+    if outcome
+        .as_ref()
+        .is_some_and(|outcome| outcome.prefer_capabilities)
+    {
+        prefer_candidate_capabilities(&mut local_results, secondary_display);
+        if let Some(outcome) = &mut outcome {
+            prefer_candidate_capabilities(&mut outcome.results, secondary_display);
+        }
     }
+    let auto_apply = if local_results.is_empty() {
+        outcome.as_ref().is_some_and(|outcome| {
+            can_auto_apply(&outcome.results, outcome.auto_apply_threshold)
+        })
+    } else {
+        can_auto_apply_local(&local_results, auto_apply_threshold)
+    };
+    let had_local_results = !local_results.is_empty();
+    let mut seen_lyrics = local_results
+        .iter()
+        .map(|result| lyric_content_key(&result.lyrics))
+        .collect::<std::collections::HashSet<_>>();
+    let mut online_results = outcome
+        .as_mut()
+        .map(|outcome| std::mem::take(&mut outcome.results))
+        .unwrap_or_default();
+    online_results.retain(|result| seen_lyrics.insert(lyric_content_key(&result.lyrics)));
+    local_results.append(&mut online_results);
     Ok(SearchResponse {
-        auto_apply: can_auto_apply(&outcome.results, outcome.auto_apply_threshold),
-        results: outcome.results,
-        provider_statuses: outcome.statuses,
-        error: outcome.error,
+        auto_apply,
+        results: local_results,
+        provider_statuses: outcome
+            .as_ref()
+            .map(|outcome| outcome.statuses.clone())
+            .unwrap_or_default(),
+        error: (!had_local_results)
+            .then(|| outcome.and_then(|outcome| outcome.error))
+            .flatten(),
     })
+}
+
+async fn search_local_lyrics(
+    state: &AppState,
+    input: &LyricsSearchInput,
+) -> Result<(Vec<LyricsSearchResult>, u8), String> {
+    let (input, threshold) = state.providers.local_search_context(input)?;
+    let storage = state.storage.clone();
+    let results = tauri::async_runtime::spawn_blocking(move || storage.search_local_lyrics(&input))
+        .await
+        .map_err(|error| format!("本地歌词搜索任务失败：{error}"))??;
+    Ok((results, threshold))
+}
+
+fn can_auto_apply_local(results: &[LyricsSearchResult], threshold_percent: u8) -> bool {
+    let Some(first) = results.first() else {
+        return false;
+    };
+    if !can_auto_apply(std::slice::from_ref(first), threshold_percent) {
+        return false;
+    }
+    results
+        .get(1)
+        .is_none_or(|second| first.score - second.score >= 0.05)
+}
+
+fn lyric_content_key(lyrics: &str) -> String {
+    lyrics
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect()
 }
 
 async fn search_lyrics_for_session(
@@ -637,26 +706,19 @@ fn reload_active_lyrics_runtime(app: &tauri::AppHandle) {
     let Some(state) = app.try_state::<AppState>() else {
         return;
     };
-    let runtime = state
-        .lyrics_runtime
+    let playback = state
+        .last_snapshot
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .clone();
-    let track_key = runtime.track_key;
-    let Some(track_key) = track_key else {
-        return;
-    };
-    match state.storage.load(&track_key) {
-        Ok(Some(document)) => set_runtime_document_if_active(app, &track_key, Some(document)),
-        Ok(None) if runtime.status != LyricsRuntimeStatus::Loading => {
-            set_runtime_document_if_active(app, &track_key, None);
-        }
-        Ok(None) => {}
-        Err(error) => log::warn!("Failed to refresh the active lyrics runtime: {error}"),
-    }
+    sync_lyrics_runtime_inner(app, &playback, true);
 }
 
 pub(crate) fn sync_lyrics_runtime(app: &tauri::AppHandle, playback: &PlaybackSnapshot) {
+    sync_lyrics_runtime_inner(app, playback, false);
+}
+
+fn sync_lyrics_runtime_inner(app: &tauri::AppHandle, playback: &PlaybackSnapshot, force: bool) {
     let Some(state) = app.try_state::<AppState>() else {
         return;
     };
@@ -667,7 +729,7 @@ pub(crate) fn sync_lyrics_runtime(app: &tauri::AppHandle, playback: &PlaybackSna
         .unwrap_or_else(|error| error.into_inner())
         .track_key
         .clone();
-    if current_key == next_key {
+    if !force && current_key == next_key {
         crate::sync_lyrics_surfaces(app);
         return;
     }
@@ -747,6 +809,40 @@ pub(crate) fn sync_lyrics_runtime(app: &tauri::AppHandle, playback: &PlaybackSna
             duration_ms: playback.duration_ms,
             scoring: Arc::default(),
         };
+        if let Ok((local_results, auto_apply_threshold)) = search_local_lyrics(&state, &input).await
+        {
+            if can_auto_apply_local(&local_results, auto_apply_threshold) {
+                let result = &local_results[0];
+                let document = state
+                    .storage
+                    .associate_local_lyrics(SaveRequest {
+                        track_key: &track_key,
+                        title: &title,
+                        artist: &artist,
+                        source: &result.source,
+                        raw: &result.lyrics,
+                        provider_id: Some(LOCAL_PROVIDER_ID),
+                        provider_item_id: Some(&result.id),
+                        kind: SaveKind::Automatic,
+                    })
+                    .ok();
+                if let Some(document) = document {
+                    let _ = worker_app.emit("lyrics://changed", &track_key);
+                    if current() {
+                        publish_lyrics_runtime(
+                            &worker_app,
+                            LyricsRuntimeSnapshot {
+                                track_key: Some(track_key),
+                                document: Some(document),
+                                status: LyricsRuntimeStatus::Ready,
+                                error: None,
+                            },
+                        );
+                    }
+                    return;
+                }
+            }
+        }
         match search_lyrics_for_session(&state, &track_key, input, false).await {
             Ok(response) => {
                 if !current() {
@@ -766,19 +862,21 @@ pub(crate) fn sync_lyrics_runtime(app: &tauri::AppHandle, playback: &PlaybackSna
                 }
                 let document = if response.auto_apply {
                     response.results.first().and_then(|result| {
-                        state
-                            .storage
-                            .save(SaveRequest {
-                                track_key: &track_key,
-                                title: &title,
-                                artist: &artist,
-                                source: &result.source,
-                                raw: &result.lyrics,
-                                provider_id: Some(&result.provider_id),
-                                provider_item_id: Some(&result.id),
-                                kind: SaveKind::Automatic,
-                            })
-                            .ok()
+                        let request = SaveRequest {
+                            track_key: &track_key,
+                            title: &title,
+                            artist: &artist,
+                            source: &result.source,
+                            raw: &result.lyrics,
+                            provider_id: Some(&result.provider_id),
+                            provider_item_id: Some(&result.id),
+                            kind: SaveKind::Automatic,
+                        };
+                        if result.provider_id == LOCAL_PROVIDER_ID {
+                            state.storage.associate_local_lyrics(request).ok()
+                        } else {
+                            state.storage.save(request).ok()
+                        }
                     })
                 } else {
                     None
@@ -1143,7 +1241,7 @@ fn save_and_emit(
     input: SaveLyricsInput,
     kind: SaveKind,
 ) -> Result<LyricsDocument, String> {
-    let document = state.storage.save(SaveRequest {
+    let request = SaveRequest {
         track_key: &input.track_key,
         title: &input.title,
         artist: &input.artist,
@@ -1152,7 +1250,12 @@ fn save_and_emit(
         provider_id: input.provider_id.as_deref(),
         provider_item_id: input.provider_item_id.as_deref(),
         kind,
-    })?;
+    };
+    let document = if input.provider_id.as_deref() == Some(LOCAL_PROVIDER_ID) {
+        state.storage.associate_local_lyrics(request)?
+    } else {
+        state.storage.save(request)?
+    };
     app.emit("lyrics://changed", &input.track_key)
         .map_err(|error| error.to_string())?;
     set_runtime_document_if_active(app, &input.track_key, Some(document.clone()));
