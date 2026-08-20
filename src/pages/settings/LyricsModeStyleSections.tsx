@@ -1,4 +1,5 @@
 import type {
+  CompactKaraokeStyle,
   ListLyricsPreferences,
   LyricsDisplayPreferences,
   LyricsModeStyleInheritance,
@@ -127,6 +128,7 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
         {!modeInheritance.inheritFontFamily && <TextRow label={t("settings.overlay.fontFamily")} value={appearance.fontFamily} emptyValue={appearance.fontFamily} onChange={(fontFamily) => save(patchAppearance(value, { fontFamily }))} />}
         <RangeRow label={t("settings.overlay.fontSize")} value={appearance.fontSize} min={10} max={18} suffix=" pt" onChange={(fontSize) => save(patchAppearance(value, { fontSize }))} />
         <SelectRow label={t("settings.overlay.fontWeight")} value={String(appearance.fontWeight)} options={fontWeights} onChange={(fontWeight) => save(patchAppearance(value, { fontWeight: Number(fontWeight) as OverlayFontWeight }))} />
+        <SelectRow label={t("settings.overlay.karaoke")} value={appearance.karaokeStyle} options={[["sweep", t("settings.overlay.karaokeSweep")], ["highlight", t("settings.overlay.karaokeHighlight")]]} onChange={(karaokeStyle) => save(patchAppearance(value, { karaokeStyle: karaokeStyle as CompactKaraokeStyle }))} />
         {!modeInheritance.inheritColors && <>
           <ColorRow label={t("settings.display.statusBar.textColor")} description={t("settings.display.statusBar.textColorHint")} value={appearance.textColor} onChange={(textColor) => save(patchAppearance(value, { textColor }))} />
           <ColorRow label={t("settings.display.statusBar.highlightColor")} description={t("settings.display.statusBar.highlightColorHint")} value={appearance.highlightColor} onChange={(highlightColor) => save(patchAppearance(value, { highlightColor }))} />
@@ -222,6 +224,7 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
       {!modeInheritance.inheritFontFamily && <TextRow label={t("settings.overlay.fontFamily")} value={appearance.fontFamily} emptyValue={appearance.fontFamily} onChange={(fontFamily) => save(patchAppearance(value, { fontFamily }))} />}
       <RangeRow label={t("settings.overlay.fontSize")} value={appearance.fontSize} min={12} max={32} suffix="px" onChange={(fontSize) => save(patchAppearance(value, { fontSize }))} />
       <SelectRow label={t("settings.overlay.fontWeight")} value={String(appearance.fontWeight)} options={fontWeights} onChange={(fontWeight) => save(patchAppearance(value, { fontWeight: Number(fontWeight) as OverlayFontWeight }))} />
+      <SelectRow label={t("settings.overlay.karaoke")} value={appearance.karaokeStyle} options={[["sweep", t("settings.overlay.karaokeSweep")], ["highlight", t("settings.overlay.karaokeHighlight")]]} onChange={(karaokeStyle) => save(patchAppearance(value, { karaokeStyle: karaokeStyle as CompactKaraokeStyle }))} />
       {!modeInheritance.inheritColors && <>
         <ColorRow label={t("settings.display.notch.activeColor")} description={t("settings.display.notch.activeColorHint")} value={appearance.activeColor} onChange={(activeColor) => save(patchAppearance(value, { activeColor }))} />
         <ColorRow label={t("settings.display.notch.inactiveColor")} description={t("settings.display.notch.inactiveColorHint")} value={appearance.inactiveColor} onChange={(inactiveColor) => save(patchAppearance(value, { inactiveColor }))} />

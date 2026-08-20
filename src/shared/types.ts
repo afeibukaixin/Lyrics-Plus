@@ -135,6 +135,8 @@ export type NotchLayoutMetrics = {
 
 export type LyricsStyleMode = "desktop" | "statusBar" | "listWindow" | "notch";
 
+export type CompactKaraokeStyle = "sweep" | "highlight";
+
 export type LyricsBaseAppearance = {
   fontFamily: string;
   activeColor: string;
@@ -159,6 +161,7 @@ export type StatusBarLyricsAppearance = {
   textColor: string;
   inactiveColor: string;
   highlightColor: string;
+  karaokeStyle: CompactKaraokeStyle;
   width: number;
 };
 
@@ -188,6 +191,7 @@ export type NotchLyricsAppearance = {
   inactiveColor: string;
   translationColor: string;
   romanizationColor: string;
+  karaokeStyle: CompactKaraokeStyle;
   borderRadius: number;
   maxWidth: number;
 };
@@ -517,6 +521,7 @@ export const defaultStatusBarLyricsAppearance: StatusBarLyricsAppearance = {
   textColor: "#a3e635",
   inactiveColor: "#ecfccb",
   highlightColor: "#a3e635",
+  karaokeStyle: "sweep",
   width: 220,
 };
 
@@ -546,6 +551,7 @@ export const defaultNotchLyricsAppearance: NotchLyricsAppearance = {
   inactiveColor: defaultOverlayStyle.inactiveColor,
   translationColor: defaultOverlayStyle.translationColor,
   romanizationColor: defaultOverlayStyle.romanizationColor,
+  karaokeStyle: "sweep",
   borderRadius: 22,
   maxWidth: 640,
 };

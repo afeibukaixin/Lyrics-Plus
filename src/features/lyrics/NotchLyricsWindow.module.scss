@@ -359,6 +359,10 @@
   will-change: clip-path;
 }
 
+.karaokeText[data-karaoke="highlight"] .karaokeWordFill {
+  clip-path: inset(0);
+}
+
 .shell:not([data-has-notch]) .metadata {
   grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr);
 }

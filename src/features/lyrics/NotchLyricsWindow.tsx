@@ -38,7 +38,7 @@ import {
   type NotchWidthPreviewPayload,
 } from "../../shared/tauriEvent";
 import { useLyricsPresentation } from "./useLyricsPresentation";
-import type { LyricsLine, NotchLayoutMetrics } from "../../shared/types";
+import type { CompactKaraokeStyle, LyricsLine, NotchLayoutMetrics } from "../../shared/types";
 import styles from "./NotchLyricsWindow.module.scss";
 
 gsap.registerPlugin(useGSAP, Flip);
@@ -187,12 +187,12 @@ function OverflowText({ children, contentKey, paused, align = "left", behavior =
   );
 }
 
-function KaraokeLine({ line, positionMs }: { line: LyricsLine; positionMs: number }) {
+function KaraokeLine({ line, positionMs, karaokeStyle }: { line: LyricsLine; positionMs: number; karaokeStyle: CompactKaraokeStyle }) {
   const words = line.words?.filter((word) => word.text.length > 0) ?? [];
   if (words.length === 0) return <span>{line.text}</span>;
 
   return (
-    <span className={styles.karaokeText}>
+    <span className={styles.karaokeText} data-karaoke={karaokeStyle}>
       {words.map((word, index) => {
         const duration = Math.max(0, word.endMs - word.startMs);
         const progress = positionMs <= word.startMs
@@ -934,7 +934,7 @@ export default function NotchLyricsWindow() {
                   maxDurationMs={lyricMarqueeTimeLimitMs}
                   paused={marqueePaused}
                 >
-                  <KaraokeLine line={primaryLine} positionMs={lyrics.adjustedPositionMs} />
+                  <KaraokeLine line={primaryLine} positionMs={lyrics.adjustedPositionMs} karaokeStyle={appearance.karaokeStyle} />
                 </OverflowText>
               </div>
             )}

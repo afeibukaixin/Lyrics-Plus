@@ -16,7 +16,7 @@ use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSet
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 46;
+pub const CONFIG_SCHEMA_VERSION: u16 = 47;
 const APP_CONFIG_KEYS: &[&str] = &[
     "theme",
     "language",
@@ -450,6 +450,14 @@ pub struct LyricsStyleInheritance {
     pub notch: LyricsModeStyleInheritance,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CompactKaraokeStyle {
+    #[default]
+    Sweep,
+    Highlight,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct LyricsDisplayPreferences {
@@ -495,6 +503,7 @@ pub struct StatusBarLyricsAppearance {
     pub text_color: String,
     pub inactive_color: String,
     pub highlight_color: String,
+    pub karaoke_style: CompactKaraokeStyle,
     #[serde(alias = "maxWidth")]
     pub width: u16,
 }
@@ -508,6 +517,7 @@ impl Default for StatusBarLyricsAppearance {
             text_color: "#a3e635".into(),
             inactive_color: "#ecfccb".into(),
             highlight_color: "#a3e635".into(),
+            karaoke_style: CompactKaraokeStyle::Sweep,
             width: 220,
         }
     }
@@ -613,6 +623,7 @@ pub struct NotchLyricsAppearance {
     pub inactive_color: String,
     pub translation_color: String,
     pub romanization_color: String,
+    pub karaoke_style: CompactKaraokeStyle,
     pub border_radius: f64,
     pub max_width: u16,
 }
@@ -627,6 +638,7 @@ impl Default for NotchLyricsAppearance {
             inactive_color: "#ecfccb".into(),
             translation_color: "#d9f99d".into(),
             romanization_color: "#bef264".into(),
+            karaoke_style: CompactKaraokeStyle::Sweep,
             border_radius: 22.0,
             max_width: 520,
         }
@@ -1639,6 +1651,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                             "textColor",
                             "inactiveColor",
                             "highlightColor",
+                            "karaokeStyle",
                             "width",
                             // Legacy floating-window fields remain valid input.
                             "backgroundColor",
@@ -1714,6 +1727,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                             "inactiveColor",
                             "translationColor",
                             "romanizationColor",
+                            "karaokeStyle",
                             "borderRadius",
                             "maxWidth",
                         ],
@@ -2022,6 +2036,16 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             "/lyrics/displays/listWindow/appearance/backgroundMode",
             "backgroundMode",
             &["solid", "transparent"] as &[&str],
+        ),
+        (
+            "/lyrics/displays/statusBar/appearance/karaokeStyle",
+            "karaokeStyle",
+            &["sweep", "highlight"] as &[&str],
+        ),
+        (
+            "/lyrics/displays/notch/appearance/karaokeStyle",
+            "karaokeStyle",
+            &["sweep", "highlight"] as &[&str],
         ),
         (
             "/overlay/appearance/backgroundMode",

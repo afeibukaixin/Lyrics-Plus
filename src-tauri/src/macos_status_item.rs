@@ -15,6 +15,7 @@ use tauri::Manager;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::commands::AppState;
+use crate::config::CompactKaraokeStyle;
 use crate::lyrics::LyricsWord;
 use crate::TrayMenuState;
 
@@ -183,8 +184,15 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
                     .filter(|duration_ms| *duration_ms > 0)
                     .map(Duration::from_millis);
                 if let Some(words) = line.words.as_deref().filter(|words| !words.is_empty()) {
-                    base_color = preferences.appearance.inactive_color.clone();
-                    highlighted_ranges = highlight_ranges(&text, words, adjusted);
+                    match preferences.appearance.karaoke_style {
+                        CompactKaraokeStyle::Sweep => {
+                            base_color = preferences.appearance.inactive_color.clone();
+                            highlighted_ranges = highlight_ranges(&text, words, adjusted);
+                        }
+                        CompactKaraokeStyle::Highlight => {
+                            base_color = preferences.appearance.highlight_color.clone();
+                        }
+                    }
                 } else {
                     base_color = preferences.appearance.highlight_color.clone();
                 }
