@@ -1469,6 +1469,7 @@ fn start_player_monitor(app: tauri::AppHandle) {
                     .write()
                     .unwrap_or_else(|e| e.into_inner()) = snapshot.clone();
                 *state.auto_player.write().unwrap_or_else(|e| e.into_inner()) = next_auto_player;
+                state.spectrum.sync_snapshot(&app, &snapshot);
             }
             let _ = app.emit("playback://snapshot", &snapshot);
             commands::sync_lyrics_runtime(&app, &snapshot);
@@ -2748,6 +2749,7 @@ pub fn run() {
                     ..OverlayPlacementState::default()
                 })),
                 last_snapshot: Arc::new(RwLock::new(player::PlaybackSnapshot::empty())),
+                spectrum: Arc::new(player::PlaybackSpectrumService::default()),
                 lyrics_runtime: Arc::new(RwLock::new(commands::LyricsRuntimeSnapshot::default())),
                 lyrics_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
                 lyrics_search_session: Arc::new(Mutex::new(commands::LyricsSearchSession::default())),
@@ -2794,6 +2796,11 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                if let Some(state) = window.app_handle().try_state::<AppState>() {
+                    state.spectrum.unsubscribe(&window.app_handle(), window.label());
+                }
+            }
             if window.label() == "main" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     let runtime_started = window
@@ -2872,6 +2879,11 @@ pub fn run() {
             commands::accept_legal_notice,
             commands::quit_application,
             commands::get_playback_snapshot,
+            commands::control_playback,
+            commands::get_playback_artwork,
+            commands::start_playback_spectrum,
+            commands::stop_playback_spectrum,
+            commands::get_playback_spectrum_state,
             commands::get_player_selection,
             commands::set_player_selection,
             commands::search_lyrics,

@@ -4,6 +4,12 @@ export type { SupportedLanguage } from "./languages";
 
 export type PlayerKind = "apple_music" | "spotify" | "system";
 export type PlayerSelection = "auto" | PlayerKind;
+export type PlaybackAction =
+  | "play"
+  | "pause"
+  | "toggle_play_pause"
+  | "previous"
+  | "next";
 export type SystemMediaFilterMode = "allowlist" | "blocklist";
 export type PlaybackErrorCode =
   | "waiting"
@@ -76,10 +82,57 @@ export type PlaybackSnapshot = {
   album: string | null;
   sourceAppName: string | null;
   sourceAppBundleId: string | null;
+  artworkId: string | null;
   durationMs: number | null;
   positionMs: number | null;
   observedAtMs: number;
   errorCode: PlaybackErrorCode | null;
+  error: string | null;
+};
+
+export type PlaybackArtwork = {
+  id: string;
+  mimeType: string;
+  dataBase64: string;
+};
+
+export type PlaybackSpectrumStatus =
+  | "idle"
+  | "waiting"
+  | "starting"
+  | "running"
+  | "permission_denied"
+  | "unsupported"
+  | "unavailable";
+
+export type PlaybackSpectrumBands = [
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+];
+
+export type PlaybackSpectrumFrame = {
+  bands: PlaybackSpectrumBands;
+  sourceAppBundleId: string | null;
+  observedAtMs: number;
+};
+
+export type PlaybackSpectrumState = {
+  status: PlaybackSpectrumStatus;
+  sourceAppBundleId: string | null;
   error: string | null;
 };
 

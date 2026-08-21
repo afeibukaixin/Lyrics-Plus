@@ -7,7 +7,9 @@ use wait_timeout::ChildExt;
 use crate::config::{is_dedicated_player_bundle_id, RegisteredApplication, SystemMediaFilterMode};
 
 pub(crate) mod automation;
+mod spectrum;
 mod system;
+pub use spectrum::{PlaybackSpectrumService, PlaybackSpectrumState};
 pub use system::SystemMediaService;
 
 const PROCESS_TIMEOUT_ERROR: &str = "Process timed out";
@@ -43,6 +45,24 @@ pub enum PlaybackErrorCode {
     Unavailable,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PlaybackAction {
+    Play,
+    Pause,
+    TogglePlayPause,
+    Previous,
+    Next,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaybackArtwork {
+    pub id: String,
+    pub mime_type: String,
+    pub data_base64: String,
+}
+
 impl PlayerSelection {
     pub fn preferred_kind(self) -> Option<PlayerKind> {
         match self {
@@ -75,6 +95,7 @@ pub struct PlaybackSnapshot {
     pub album: Option<String>,
     pub source_app_name: Option<String>,
     pub source_app_bundle_id: Option<String>,
+    pub artwork_id: Option<String>,
     pub duration_ms: Option<u64>,
     pub position_ms: Option<u64>,
     pub observed_at_ms: u64,
@@ -94,6 +115,7 @@ impl Default for PlaybackSnapshot {
             album: None,
             source_app_name: None,
             source_app_bundle_id: None,
+            artwork_id: None,
             duration_ms: None,
             position_ms: None,
             observed_at_ms: 0,
@@ -127,6 +149,7 @@ impl PlaybackSnapshot {
             album: None,
             source_app_name: None,
             source_app_bundle_id: None,
+            artwork_id: None,
             duration_ms: None,
             position_ms: None,
             observed_at_ms: now_ms(),
@@ -186,6 +209,62 @@ pub(crate) fn run_with_timeout(mut command: Command, timeout: Duration) -> Resul
             let _ = child.wait();
             Err(PROCESS_TIMEOUT_ERROR.into())
         }
+    }
+}
+
+pub(crate) fn control_playback(
+    action: PlaybackAction,
+    selection: PlayerSelection,
+    snapshot: &PlaybackSnapshot,
+    system_media: &SystemMediaService,
+) -> Result<(), String> {
+    let player = selection.preferred_kind().or(snapshot.player);
+    let Some(player) = player else {
+        return Err("当前没有可控制的播放器".into());
+    };
+    if selection == PlayerSelection::Auto && (!snapshot.is_running || snapshot.error_code.is_some())
+    {
+        return Err(snapshot
+            .error
+            .clone()
+            .unwrap_or_else(|| "当前播放器不可用".into()));
+    }
+
+    match player {
+        PlayerKind::AppleMusic | PlayerKind::Spotify => automation::control(player, action),
+        PlayerKind::System => system_media.control(action),
+    }
+}
+
+fn attach_system_artwork(snapshot: &mut PlaybackSnapshot, system: &PlaybackSnapshot) {
+    if snapshot.player == Some(PlayerKind::System)
+        || system.player != Some(PlayerKind::System)
+        || system.artwork_id.is_none()
+    {
+        return;
+    }
+    let expected_bundle_id = match snapshot.player {
+        Some(PlayerKind::AppleMusic) => "com.apple.Music",
+        Some(PlayerKind::Spotify) => "com.spotify.client",
+        _ => return,
+    };
+    if system.source_app_bundle_id.as_deref() != Some(expected_bundle_id) {
+        return;
+    }
+    let same_title = match (snapshot.title.as_deref(), system.title.as_deref()) {
+        (Some(left), Some(right)) => {
+            normalized_track_component(left) == normalized_track_component(right)
+        }
+        _ => false,
+    };
+    let same_artist = match (snapshot.artist.as_deref(), system.artist.as_deref()) {
+        (Some(left), Some(right)) => {
+            normalized_track_component(left) == normalized_track_component(right)
+        }
+        _ => false,
+    };
+    if same_title && same_artist {
+        snapshot.artwork_id = system.artwork_id.clone();
     }
 }
 
@@ -473,25 +552,28 @@ pub fn query_selected_player(
     system_media_filter_mode: SystemMediaFilterMode,
     system_media_applications: &[RegisteredApplication],
 ) -> (PlaybackSnapshot, Option<PlayerKind>) {
-    match selection {
+    let system_snapshot = system_media.snapshot();
+    let (mut snapshot, next_auto_player) = match selection {
         PlayerSelection::AppleMusic => (automation::snapshot(PlayerKind::AppleMusic), None),
         PlayerSelection::Spotify => (automation::snapshot(PlayerKind::Spotify), None),
         PlayerSelection::System => (
             filter_system_source(
-                system_media.snapshot(),
+                system_snapshot.clone(),
                 system_media_filter_mode,
                 system_media_applications,
             ),
             None,
         ),
         PlayerSelection::Auto => query_auto_player(
-            system_media.snapshot(),
+            system_snapshot.clone(),
             previous_auto_player,
             system_media_filter_mode,
             system_media_applications,
             automation::snapshot,
         ),
-    }
+    };
+    attach_system_artwork(&mut snapshot, &system_snapshot);
+    (snapshot, next_auto_player)
 }
 
 fn query_auto_player(

@@ -4,5 +4,7 @@
 <dict>
   <key>NSAppleEventsUsageDescription</key>
   <string>Lyrics Plus 需要读取 Apple Music 与 Spotify 的当前歌曲和播放进度，以同步显示歌词。</string>
+  <key>NSAudioCaptureUsageDescription</key>
+  <string>Lyrics Plus 需要读取当前播放器的音频频谱，以驱动歌词界面的音频动画。</string>
 </dict>
 </plist>

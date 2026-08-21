@@ -15,6 +15,7 @@ name = "lyrics_plus_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
+cc = "1.2"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
@@ -35,6 +36,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 strsim = "0.11"
 tokio = { version = "1", features = ["macros", "sync", "time"] }
 wait-timeout = "0.2"
+rustfft = "6"
 zhhz = "0.8.2"
 tauri-plugin-updater = "2.10.0"
 tauri-plugin-process = "2"

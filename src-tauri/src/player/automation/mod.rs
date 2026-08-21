@@ -9,7 +9,9 @@ use objc2_core_services::{kAEDontReconnect, kAEWaitReply, AEKeyword, AppleEvent}
 use objc2_foundation::{NSAppleEventDescriptor, NSError, NSNumber, NSObjectProtocol, NSString};
 use objc2_scripting_bridge::{SBApplication, SBApplicationDelegate, SBObject};
 
-use super::{ensure_track_id, now_ms, PlaybackErrorCode, PlaybackSnapshot, PlayerKind};
+use super::{
+    ensure_track_id, now_ms, PlaybackAction, PlaybackErrorCode, PlaybackSnapshot, PlayerKind,
+};
 
 mod apple_music;
 mod spotify;
@@ -24,6 +26,10 @@ const DURATION: AEKeyword = u32::from_be_bytes(*b"pDur");
 const PLAYING: u32 = u32::from_be_bytes(*b"kPSP");
 const STOPPED: u32 = u32::from_be_bytes(*b"kPSS");
 const REQUEST_TIMEOUT_TICKS: i64 = 3 * 60;
+
+// Music.sdef / Spotify.sdef 的播放控制命令都使用相同的事件 ID，事件类不同。
+const MUSIC_EVENT_CLASS: AEKeyword = u32::from_be_bytes(*b"hook");
+const SPOTIFY_EVENT_CLASS: AEKeyword = u32::from_be_bytes(*b"spfy");
 
 #[derive(Debug, Clone)]
 pub(super) struct AutomationError {
@@ -178,6 +184,24 @@ impl AutomationSession<'_> {
     pub(super) fn current_track(&self) -> Result<Option<Retained<SBObject>>, AutomationError> {
         self.object(self.app, CURRENT_TRACK)
     }
+
+    pub(super) fn control(
+        &self,
+        event_class: AEKeyword,
+        event_id: AEKeyword,
+    ) -> Result<(), AutomationError> {
+        self.delegate.reset();
+        let _: Option<Retained<AnyObject>> =
+            unsafe { msg_send![self.app, sendEvent: event_class, id: event_id, parameters: 0_u32] };
+        if let Some(error) = self.delegate.take_error() {
+            return Err(error);
+        }
+        let error: Option<Retained<NSError>> = unsafe { msg_send![self.app, lastError] };
+        if let Some(error) = error {
+            return Err(AutomationError::from_nserror(&error));
+        }
+        Ok(())
+    }
 }
 
 pub(super) fn with_application<T>(
@@ -218,6 +242,25 @@ pub(crate) fn snapshot(kind: PlayerKind) -> PlaybackSnapshot {
         PlayerKind::Spotify => spotify::snapshot(),
         PlayerKind::System => unreachable!("system playback uses SystemMediaService"),
     }
+}
+
+pub(crate) fn control(kind: PlayerKind, action: PlaybackAction) -> Result<(), String> {
+    let (bundle_id, event_class) = match kind {
+        PlayerKind::AppleMusic => ("com.apple.Music", MUSIC_EVENT_CLASS),
+        PlayerKind::Spotify => ("com.spotify.client", SPOTIFY_EVENT_CLASS),
+        PlayerKind::System => return Err("系统媒体播放器不使用应用自动化控制".into()),
+    };
+    let event_id = match (kind, action) {
+        (_, PlaybackAction::Play) => u32::from_be_bytes(*b"Play"),
+        (_, PlaybackAction::Pause) => u32::from_be_bytes(*b"Paus"),
+        (_, PlaybackAction::TogglePlayPause) => u32::from_be_bytes(*b"PlPs"),
+        (_, PlaybackAction::Previous) => u32::from_be_bytes(*b"Prev"),
+        (_, PlaybackAction::Next) => u32::from_be_bytes(*b"Next"),
+    };
+    with_application(bundle_id, REQUEST_TIMEOUT_TICKS, |session| {
+        session.control(event_class, event_id)
+    })
+    .map_err(|error| error.user_message())
 }
 
 fn query(

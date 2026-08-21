@@ -25,7 +25,9 @@ use crate::lyrics::provider::{
 };
 use crate::lyrics::LyricsDocument;
 use crate::player::{
-    run_with_timeout, PlaybackSnapshot, PlayerKind, PlayerSelection, SystemMediaService,
+    control_playback as control_player, run_with_timeout, PlaybackAction, PlaybackArtwork,
+    PlaybackSnapshot, PlaybackSpectrumService, PlaybackSpectrumState, PlayerKind, PlayerSelection,
+    SystemMediaService,
 };
 use crate::storage::library::LibraryScanStatus;
 use crate::storage::{SaveKind, SaveRequest, Storage, LOCAL_PROVIDER_ID};
@@ -39,6 +41,7 @@ pub struct AppState {
     pub overlay_monitor: Arc<RwLock<Option<String>>>,
     pub overlay_placement: Arc<Mutex<crate::OverlayPlacementState>>,
     pub last_snapshot: Arc<RwLock<PlaybackSnapshot>>,
+    pub spectrum: Arc<PlaybackSpectrumService>,
     pub lyrics_runtime: Arc<RwLock<LyricsRuntimeSnapshot>>,
     pub lyrics_generation: Arc<AtomicU64>,
     pub lyrics_search_session: Arc<Mutex<LyricsSearchSession>>,
@@ -1016,6 +1019,58 @@ pub fn get_playback_snapshot(state: State<'_, AppState>) -> PlaybackSnapshot {
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .clone()
+}
+
+#[tauri::command]
+pub fn control_playback(action: PlaybackAction, state: State<'_, AppState>) -> Result<(), String> {
+    let snapshot = state
+        .last_snapshot
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .clone();
+    let selection = *state
+        .selection
+        .read()
+        .unwrap_or_else(|error| error.into_inner());
+    control_player(action, selection, &snapshot, &state.system_media)
+}
+
+#[tauri::command]
+pub fn get_playback_artwork(
+    artwork_id: String,
+    state: State<'_, AppState>,
+) -> Result<Option<PlaybackArtwork>, String> {
+    state.system_media.artwork(&artwork_id)
+}
+
+#[tauri::command]
+pub fn start_playback_spectrum(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    state: State<'_, AppState>,
+) -> PlaybackSpectrumState {
+    let snapshot = state
+        .last_snapshot
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .clone();
+    state
+        .spectrum
+        .subscribe(&app, window.label(), &snapshot)
+}
+
+#[tauri::command]
+pub fn stop_playback_spectrum(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    state: State<'_, AppState>,
+) {
+    state.spectrum.unsubscribe(&app, window.label());
+}
+
+#[tauri::command]
+pub fn get_playback_spectrum_state(state: State<'_, AppState>) -> PlaybackSpectrumState {
+    state.spectrum.state()
 }
 
 #[tauri::command]

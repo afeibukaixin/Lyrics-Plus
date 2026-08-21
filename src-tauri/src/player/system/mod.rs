@@ -3,26 +3,29 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc, OnceLock, RwLock,
+    Arc, Mutex, OnceLock, RwLock,
 };
 use std::time::{Duration, Instant, SystemTime};
 
-use media_remote::{NowPlayingInfo, NowPlayingPerl, Subscription};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use image::ImageFormat;
+use media_remote::{Controller, NowPlayingInfo, NowPlayingPerl, Subscription};
 use serde_json::Value;
 
 use super::{
-    normalized_track_component, now_ms, run_with_timeout, PlaybackErrorCode, PlaybackSnapshot,
-    PlayerKind,
+    normalized_track_component, now_ms, run_with_timeout, PlaybackAction, PlaybackArtwork,
+    PlaybackErrorCode, PlaybackSnapshot, PlayerKind,
 };
 
 mod compat;
 
 pub struct SystemMediaService {
     player: OnceLock<Result<AdapterClient, String>>,
+    artwork_cache: Mutex<Option<PlaybackArtwork>>,
 }
 
 struct AdapterClient {
-    _player: NowPlayingPerl,
+    player: NowPlayingPerl,
     latest: Arc<RwLock<Option<TimedInfo>>>,
     resync_requested: Arc<AtomicBool>,
     script_path: PathBuf,
@@ -39,6 +42,7 @@ impl Default for SystemMediaService {
     fn default() -> Self {
         Self {
             player: OnceLock::new(),
+            artwork_cache: Mutex::new(None),
         }
     }
 }
@@ -61,7 +65,7 @@ impl SystemMediaService {
                         .unwrap_or_else(|error| error.into_inner()) = next;
                     resync_for_listener.store(true, Ordering::SeqCst);
                 });
-                // ponytail: media-remote 0.3.7 未暴露 Perl 控制命令；固定版本并定位它刚创建的临时目录，上游开放 API 后删除此兼容层。
+                // 适配器的 get 脚本仍用于刷新精确进度；固定版本并定位它刚创建的临时目录，避免自行维护资源副本。
                 let directory = adapter_directories()
                     .into_iter()
                     .find(|path| !existing.contains(path))
@@ -85,7 +89,7 @@ impl SystemMediaService {
                     });
                 }
                 Ok(AdapterClient {
-                    _player: player,
+                    player,
                     latest,
                     resync_requested,
                     script_path,
@@ -113,13 +117,97 @@ impl SystemMediaService {
             .read()
             .unwrap_or_else(|error| error.into_inner())
             .clone();
-        info.as_ref().map(snapshot_from_info).unwrap_or_else(|| {
+        let snapshot = info.as_ref().map(snapshot_from_info).unwrap_or_else(|| {
             PlaybackSnapshot::unavailable_with_code(
                 Some(PlayerKind::System),
                 PlaybackErrorCode::Waiting,
                 "未检测到系统正在播放的媒体".into(),
             )
-        })
+        });
+        self.invalidate_artwork_cache(&snapshot);
+        snapshot
+    }
+
+    fn invalidate_artwork_cache(&self, snapshot: &PlaybackSnapshot) {
+        let current_id = snapshot.artwork_id.as_deref();
+        let mut cache = self
+            .artwork_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if cache
+            .as_ref()
+            .is_some_and(|artwork| Some(artwork.id.as_str()) != current_id)
+        {
+            *cache = None;
+        }
+    }
+
+    pub fn control(&self, action: PlaybackAction) -> Result<(), String> {
+        let player = self.player()?;
+        let accepted = match action {
+            PlaybackAction::Play => player.player.play(),
+            PlaybackAction::Pause => player.player.pause(),
+            PlaybackAction::TogglePlayPause => player.player.toggle(),
+            PlaybackAction::Previous => player.player.previous(),
+            PlaybackAction::Next => player.player.next(),
+        };
+        if accepted {
+            Ok(())
+        } else {
+            Err("系统媒体播放器未接受控制命令".into())
+        }
+    }
+
+    pub fn artwork(&self, artwork_id: &str) -> Result<Option<PlaybackArtwork>, String> {
+        let current = self.snapshot();
+        if current.artwork_id.as_deref() != Some(artwork_id) {
+            return Ok(None);
+        }
+
+        {
+            let cache = self
+                .artwork_cache
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            if cache
+                .as_ref()
+                .is_some_and(|artwork| artwork.id == artwork_id)
+            {
+                return Ok((*cache).clone());
+            }
+        }
+
+        let player = self.player()?;
+        let latest = player
+            .latest
+            .read()
+            .unwrap_or_else(|error| error.into_inner())
+            .clone();
+        let Some(timed) = latest.as_ref() else {
+            return Ok(None);
+        };
+        if snapshot_from_info(timed).artwork_id.as_deref() != Some(artwork_id) {
+            return Ok(None);
+        }
+        let image = timed.info.album_cover.clone();
+        let Some(image) = image else {
+            return Ok(None);
+        };
+
+        let mut encoded = std::io::Cursor::new(Vec::new());
+        image
+            .write_to(&mut encoded, ImageFormat::Png)
+            .map_err(|error| format!("封面编码失败：{error}"))?;
+        let artwork = PlaybackArtwork {
+            id: artwork_id.to_string(),
+            mime_type: "image/png".into(),
+            data_base64: BASE64.encode(encoded.into_inner()),
+        };
+        *self
+            .artwork_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner()) = Some(artwork.clone());
+        Ok(Some(artwork))
     }
 }
 
@@ -272,6 +360,7 @@ fn snapshot_from_info(timed: &TimedInfo) -> PlaybackSnapshot {
             .map(|duration| position.min(duration))
             .unwrap_or(position)
     });
+    let artwork_id = info.album_cover.as_ref().and(track_id.as_ref()).cloned();
     PlaybackSnapshot {
         player: Some(PlayerKind::System),
         is_running: true,
@@ -282,6 +371,7 @@ fn snapshot_from_info(timed: &TimedInfo) -> PlaybackSnapshot {
         album: info.album.clone(),
         source_app_name: info.bundle_name.clone(),
         source_app_bundle_id: info.bundle_id.clone(),
+        artwork_id,
         duration_ms,
         position_ms,
         observed_at_ms: now_ms(),
