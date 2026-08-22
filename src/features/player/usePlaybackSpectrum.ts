@@ -20,12 +20,16 @@ const initialState: PlaybackSpectrumState = {
 /**
  * 频谱是独立的懒加载能力；只有真正使用这个 hook 的界面才会申请系统音频权限。
  */
-export function usePlaybackSpectrum() {
+export function usePlaybackSpectrum(enabled = true) {
   const [bands, setBands] = useState<PlaybackSpectrumBands>(silentBands);
   const [state, setState] = useState<PlaybackSpectrumState>(initialState);
 
   useEffect(() => {
-    if (!isTauriRuntime()) return;
+    if (!enabled || !isTauriRuntime()) {
+      setBands(silentBands);
+      setState(initialState);
+      return;
+    }
     return playerService.subscribeSpectrum(
       (frame) => {
         setBands(frame.bands);
@@ -39,7 +43,7 @@ export function usePlaybackSpectrum() {
         if (next.status !== "running") setBands(silentBands);
       },
     );
-  }, []);
+  }, [enabled]);
 
   return {
     bands,

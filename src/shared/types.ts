@@ -190,6 +190,8 @@ export type LyricsStyleMode = "desktop" | "statusBar" | "listWindow" | "notch";
 
 export type CompactKaraokeStyle = "sweep" | "highlight";
 
+export type NotchSlotContent = "empty" | "title" | "artist" | "artwork" | "spectrum";
+
 export type LyricsBaseAppearance = {
   fontFamily: string;
   activeColor: string;
@@ -247,6 +249,7 @@ export type NotchLyricsAppearance = {
   karaokeStyle: CompactKaraokeStyle;
   borderRadius: number;
   maxWidth: number;
+  expandedMaxWidth: number;
 };
 
 export type LyricsMonitor = {
@@ -274,7 +277,10 @@ export type LyricsDisplayPreferences = {
     enabled: boolean;
     hideWhenNotPlaying: boolean;
     monitorId: string | null;
-    showTwoLines: boolean;
+    showLyrics: boolean;
+    leftSlot: NotchSlotContent;
+    rightSlot: NotchSlotContent;
+    layout: "single" | "double";
     showTranslation: boolean;
     showRomanization: boolean;
     appearance: NotchLyricsAppearance;
@@ -606,5 +612,6 @@ export const defaultNotchLyricsAppearance: NotchLyricsAppearance = {
   romanizationColor: defaultOverlayStyle.romanizationColor,
   karaokeStyle: "sweep",
   borderRadius: 22,
-  maxWidth: 640,
+  maxWidth: 360,
+  expandedMaxWidth: 520,
 };

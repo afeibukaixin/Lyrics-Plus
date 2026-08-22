@@ -9,36 +9,36 @@ import {
   type ReactNode,
 } from "react";
 import { flushSync } from "react-dom";
+import type { TFunction } from "i18next";
 import { listen } from "@tauri-apps/api/event";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import { Flip } from "gsap/Flip";
 import {
-  ClockArrowLeft,
-  ClockArrowRight,
-  EyeOff,
-  Minus,
-  PanelsTopBottom,
-  PanelTop,
-  Plus,
-  Settings,
+  Pause,
+  Play,
+  SkipBack,
+  SkipForward,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import appIconUrl from "../../../src-tauri/icons/32x32.png";
 import { IconButton } from "@/components/ui/icon-button";
+import { Slider } from "@/components/ui/slider";
 import { api, isTauriRuntime } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
 import { useAppConfig } from "../config/AppConfigProvider";
 import { usePlayback } from "../player/usePlayback";
+import { usePlaybackSpectrum } from "../player/usePlaybackSpectrum";
 import {
   createTauriListenerCleanup,
   NOTCH_VISIBILITY_TRANSITION_EVENT,
   NOTCH_WIDTH_PREVIEW_EVENT,
+  type NotchWidthPreviewTarget,
   type NotchVisibilityTransitionPayload,
   type NotchWidthPreviewPayload,
 } from "../../shared/tauriEvent";
 import { useLyricsPresentation } from "./useLyricsPresentation";
-import type { CompactKaraokeStyle, LyricsLine, NotchLayoutMetrics } from "../../shared/types";
+import type { CompactKaraokeStyle, LyricsLine, NotchLayoutMetrics, NotchSlotContent, PlaybackSpectrumBands } from "../../shared/types";
 import styles from "./NotchLyricsWindow.module.scss";
 
 gsap.registerPlugin(useGSAP, Flip);
@@ -54,7 +54,7 @@ const HOVER_COLLAPSE_DELAY_MS = 140;
 const NOTCH_MAX_WIDTH = 640;
 const WINDOW_HORIZONTAL_PADDING = 16;
 const TOOLBAR_HORIZONTAL_PADDING = 24;
-const TOOLBAR_VERTICAL_SPACE = 46;
+const NO_NOTCH_TOP_GAP = 6;
 
 const emptyLayout: NotchLayoutMetrics = {
   hasNotch: false,
@@ -62,15 +62,81 @@ const emptyLayout: NotchLayoutMetrics = {
   centerGapWidth: 0,
 };
 
-function formatOffset(offsetMs: number) {
-  if (offsetMs === 0) return "0s";
-  const seconds = (Math.abs(offsetMs) / 1000).toFixed(3).replace(/\.?0+$/, "");
-  return `${offsetMs > 0 ? "+" : "−"}${seconds}s`;
+function formatPlaybackTime(valueMs: number | null) {
+  const totalSeconds = Math.max(0, Math.floor((valueMs ?? 0) / 1_000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
 }
 
-function formatOffsetMs(offsetMs: number) {
-  if (offsetMs === 0) return "0ms";
-  return `${offsetMs > 0 ? "+" : "−"}${Math.abs(offsetMs)}ms`;
+function SpectrumBars({ bands }: { bands: PlaybackSpectrumBands }) {
+  return (
+    <span className={styles.spectrum} aria-hidden="true">
+      {bands.slice(0, 8).map((band, index) => (
+        <span className={styles.spectrumBar} key={index} style={{ "--spectrum-level": `${Math.max(12, Math.round(band * 100))}%` } as CSSProperties} />
+      ))}
+    </span>
+  );
+}
+
+type PlaybackController = ReturnType<typeof usePlayback>;
+
+function ExpandedPlayer({ playback, t }: { playback: PlaybackController; t: TFunction }) {
+  const trackKey = playback.snapshot.trackId ?? "fallback";
+  const durationMs = playback.snapshot.durationMs ?? 0;
+  const canSeek = durationMs > 0 && Boolean(playback.snapshot.player);
+  const [draftPositionMs, setDraftPositionMs] = useState<number | null>(null);
+  const positionMs = durationMs > 0
+    ? Math.min(durationMs, Math.max(0, draftPositionMs ?? playback.positionMs))
+    : 0;
+
+  useEffect(() => {
+    setDraftPositionMs(null);
+  }, [trackKey]);
+
+  const commitPosition = (value: number) => {
+    const nextPosition = Math.min(durationMs, Math.max(0, Math.round(value)));
+    setDraftPositionMs(nextPosition);
+    void playback.seekTo(nextPosition)
+      .catch(() => undefined)
+      .finally(() => setDraftPositionMs(null));
+  };
+
+  return (
+    <div className={styles.player}>
+      <div className={styles.playerMetadata}>
+        <div className={styles.playerArtwork}>
+          <img alt="" draggable={false} src={playback.artworkUrl ?? appIconUrl} />
+        </div>
+        <div className={styles.playerTrack}>
+          <strong title={playback.snapshot.title ?? undefined}>{playback.snapshot.title ?? "Lyrics Plus"}</strong>
+          <span title={playback.snapshot.artist ?? undefined}>{playback.snapshot.artist ?? ""}</span>
+        </div>
+      </div>
+      <div className={styles.playerProgress}>
+        <div className={styles.playerTimes}>
+          <span>{formatPlaybackTime(positionMs)}</span>
+          <span>−{formatPlaybackTime(Math.max(0, durationMs - positionMs))}</span>
+        </div>
+        <Slider
+          aria-label={t("notchLyrics.player.seek")}
+          className={styles.playerSlider}
+          disabled={!canSeek || playback.isControlling}
+          max={Math.max(1, durationMs)}
+          min={0}
+          onValueChange={(value) => setDraftPositionMs(Number(value))}
+          onValueCommitted={(value) => commitPosition(Number(value))}
+          step={1_000}
+          value={positionMs}
+        />
+      </div>
+      <div className={styles.playerControls} role="group" aria-label={t("notchLyrics.player.label")}>
+        <IconButton label={t("notchLyrics.player.previous")} variant="ghost" size="icon-sm" onClick={() => void playback.previousTrack().catch(() => undefined)}><SkipBack /></IconButton>
+        <IconButton className={styles.playerPrimaryControl} label={playback.snapshot.isPlaying ? t("notchLyrics.player.pause") : t("notchLyrics.player.play")} variant="ghost" size="icon" onClick={() => void playback.togglePlayPause().catch(() => undefined)}>{playback.snapshot.isPlaying ? <Pause /> : <Play />}</IconButton>
+        <IconButton label={t("notchLyrics.player.next")} variant="ghost" size="icon-sm" onClick={() => void playback.nextTrack().catch(() => undefined)}><SkipForward /></IconButton>
+      </div>
+    </div>
+  );
 }
 
 function OverflowText({ children, contentKey, paused, align = "left", behavior = "loop", maxDurationMs = null }: {
@@ -217,27 +283,23 @@ function KaraokeLine({ line, positionMs, karaokeStyle }: { line: LyricsLine; pos
 
 export default function NotchLyricsWindow() {
   const { t } = useTranslation();
-  const { config, setLyricsDisplayPreferences } = useAppConfig();
+  const { config } = useAppConfig();
   const playback = usePlayback();
   const lyrics = useLyricsPresentation(playback.snapshot, playback.positionMs);
   const [layout, setLayout] = useState(emptyLayout);
   const [expanded, setExpanded] = useState(false);
   const [expandedWidth, setExpandedWidth] = useState(0);
   const [previewWidth, setPreviewWidth] = useState<number | null>(null);
+  const [previewTarget, setPreviewTarget] = useState<NotchWidthPreviewTarget | null>(null);
   const [previewActive, setPreviewActive] = useState(false);
   const [widthMotionActive, setWidthMotionActive] = useState(false);
   const [islandVisible, setIslandVisible] = useState(() => !isTauriRuntime());
   const [visibilityMotionActive, setVisibilityMotionActive] = useState(isTauriRuntime);
-  const [offsetPreview, setOffsetPreview] = useState<{
-    trackKey: string;
-    offsetMs: number;
-  } | null>(null);
   const shellRef = useRef<HTMLElement>(null);
   const islandRef = useRef<HTMLElement>(null);
   const islandSurfaceRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const toolbarRevealRef = useRef<HTMLDivElement>(null);
-  const toolbarRef = useRef<HTMLDivElement>(null);
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const presenceTimelineRef = useRef<gsap.core.Timeline | null>(null);
   const widthFlipRef = useRef<gsap.core.Animation | null>(null);
@@ -250,17 +312,28 @@ export default function NotchLyricsWindow() {
   const reducedMotionRef = useRef(false);
   const previewActiveRef = useRef(false);
   const previewWidthRef = useRef<number | null>(null);
+  const previewTargetRef = useRef<NotchWidthPreviewTarget | null>(null);
   const latestHoverRef = useRef(false);
   const notchRef = useRef(config.lyrics.displays.notch);
   const lastFitRequestRef = useRef<string | null>(null);
-  const lastObservedGeometryRef = useRef({ contentHeight: -1, toolbarWidth: -1 });
-  const pendingOffsetRef = useRef(0);
-  const offsetWriteQueue = useRef<Promise<void>>(Promise.resolve());
-  const offsetWriteVersionRef = useRef(0);
+  const lastObservedGeometryRef = useRef({ contentHeight: -1, playerWidth: -1 });
   const applyHoverStateRef = useRef<(hovered: boolean) => void>(() => undefined);
   const notch = config.lyrics.displays.notch;
   const appearance = notch.appearance;
-  const effectiveWidth = previewWidth ?? appearance.maxWidth;
+  const usesSpectrum = notch.leftSlot === "spectrum" || notch.rightSlot === "spectrum";
+  const spectrum = usePlaybackSpectrum(usesSpectrum);
+  const effectiveWidth = previewTarget === "collapsed" && previewWidth !== null
+    ? previewWidth
+    : appearance.maxWidth;
+  const effectiveExpandedMaxWidth = Math.min(
+    NOTCH_MAX_WIDTH,
+    Math.max(
+      effectiveWidth,
+      previewTarget === "expanded" && previewWidth !== null
+        ? previewWidth
+        : appearance.expandedMaxWidth,
+    ),
+  );
   const marqueePaused = previewActive || widthMotionActive || visibilityMotionActive;
   const originalLines = lyrics.document?.tracks.original.lines ?? [];
   const beforeFirstLine = lyrics.activeIndex < 0;
@@ -275,7 +348,7 @@ export default function NotchLyricsWindow() {
       : []),
   ];
   const selectedSupportingLine = selectedSupportingLines[0];
-  const supportingLines = !notch.showTwoLines
+  const supportingLines = notch.layout !== "double"
     ? []
     : selectedSupportingLine
       ? [selectedSupportingLine]
@@ -289,103 +362,33 @@ export default function NotchLyricsWindow() {
       currentLineDisplayEndMs - lyrics.currentLine.startMs,
     )
     : null;
-  const translationAvailable = Boolean(lyrics.document?.tracks.translation);
-  const romanizationAvailable = Boolean(lyrics.document?.tracks.romanization);
-  const offsetAvailable = Boolean(lyrics.document && lyrics.trackKey);
-  const runtimeOffsetMs = lyrics.document?.offsetMs ?? 0;
-  const runtimeOffsetRef = useRef({ trackKey: lyrics.trackKey, offsetMs: runtimeOffsetMs });
-  runtimeOffsetRef.current = { trackKey: lyrics.trackKey, offsetMs: runtimeOffsetMs };
-  const offsetMs = offsetPreview?.trackKey === lyrics.trackKey
-    ? offsetPreview.offsetMs
-    : runtimeOffsetMs;
-  const fontAtMinimum = appearance.fontSize <= 12;
-  const fontAtMaximum = appearance.fontSize >= 32;
-  const offsetResetUnavailable = !offsetAvailable || offsetMs === 0;
-  const offsetLabel = offsetAvailable ? formatOffset(offsetMs) : "—";
-  const offsetValueTitle = offsetAvailable
-    ? offsetMs === 0
-      ? t("overlay.toolbar.offsetZeroTitle")
-      : t("overlay.toolbar.offsetTitle", { value: formatOffsetMs(offsetMs) })
-    : t("overlay.toolbar.noOffset");
-  const layoutValue = t(`overlay.layout.${notch.showTwoLines ? "double" : "single"}`);
-
   useLayoutEffect(() => {
     notchRef.current = notch;
   }, [notch]);
 
-  useEffect(() => {
-    if (offsetPreview?.trackKey === lyrics.trackKey) {
-      if (offsetPreview.offsetMs === runtimeOffsetMs) setOffsetPreview(null);
-      return;
-    }
-    pendingOffsetRef.current = runtimeOffsetMs;
-  }, [lyrics.trackKey, offsetPreview, runtimeOffsetMs]);
-
-  useEffect(() => {
-    offsetWriteVersionRef.current += 1;
-    setOffsetPreview(null);
-    pendingOffsetRef.current = runtimeOffsetMs;
-  }, [lyrics.trackKey]);
-
-  const saveNotch = useCallback((next: typeof notch) => {
-    notchRef.current = next;
-    void setLyricsDisplayPreferences("notch", next).catch((error) => {
-      reportFrontendError("Failed to update Dynamic Island lyrics preferences", error);
-    });
-  }, [setLyricsDisplayPreferences]);
-
-  const patchNotch = useCallback((patch: Partial<typeof notch>) => {
-    saveNotch({ ...notchRef.current, ...patch });
-  }, [saveNotch]);
-
-  const patchAppearance = useCallback((patch: Partial<typeof appearance>) => {
-    const current = notchRef.current;
-    saveNotch({ ...current, appearance: { ...current.appearance, ...patch } });
-  }, [saveNotch]);
-
-  const setLyricsOffset = (nextOffsetMs: number) => {
-    if (!lyrics.trackKey) return;
-    const version = offsetWriteVersionRef.current + 1;
-    offsetWriteVersionRef.current = version;
-    pendingOffsetRef.current = nextOffsetMs;
-    const trackKey = lyrics.trackKey;
-    setOffsetPreview({ trackKey, offsetMs: nextOffsetMs });
-    const operation = offsetWriteQueue.current
-      .then(() => api.setLyricsOffset(trackKey, nextOffsetMs));
-    offsetWriteQueue.current = operation.then(
-      () => undefined,
-      (error) => {
-        if (offsetWriteVersionRef.current === version) {
-          setOffsetPreview(null);
-          if (runtimeOffsetRef.current.trackKey === trackKey) {
-            pendingOffsetRef.current = runtimeOffsetRef.current.offsetMs;
-          }
-        }
-        reportFrontendError("Failed to update the Dynamic Island lyrics offset", error);
-      },
-    );
-  };
-
-  const changeLyricsOffset = (deltaMs: number) => {
-    setLyricsOffset(pendingOffsetRef.current + deltaMs);
-  };
-
   const fitWindow = useCallback((
     nextExpanded: boolean,
     collapsedWidthOverride?: number,
-    reservedWidth?: number,
   ) => {
-    const content = contentRef.current;
-    const toolbar = toolbarRef.current;
-    if (!content || !toolbar) return;
+    const content = nextExpanded ? toolbarRevealRef.current : contentRef.current;
+    if (!content) return;
     const collapsedWidth = collapsedWidthOverride ?? notchRef.current.appearance.maxWidth;
-    const toolbarWidth = Math.ceil(toolbar.scrollWidth + TOOLBAR_HORIZONTAL_PADDING);
-    const nextExpandedWidth = Math.max(collapsedWidth, toolbarWidth);
+    const expandedMaxWidth = Math.min(
+      NOTCH_MAX_WIDTH,
+      Math.max(
+        collapsedWidth,
+        previewTargetRef.current === "expanded" && previewWidthRef.current !== null
+          ? previewWidthRef.current
+          : notchRef.current.appearance.expandedMaxWidth,
+      ),
+    );
+    const contentWidth = Math.ceil(content.scrollWidth + (nextExpanded ? TOOLBAR_HORIZONTAL_PADDING : 0));
+    const nextExpandedWidth = Math.min(expandedMaxWidth, Math.max(collapsedWidth, contentWidth));
     setExpandedWidth(nextExpandedWidth);
     if (!isTauriRuntime()) return;
-    const contentWidth = reservedWidth ?? (nextExpanded ? nextExpandedWidth : collapsedWidth);
-    const width = contentWidth + WINDOW_HORIZONTAL_PADDING;
-    const height = Math.ceil(content.scrollHeight + (nextExpanded ? TOOLBAR_VERTICAL_SPACE : 0));
+    const requestedWidth = nextExpanded ? nextExpandedWidth : collapsedWidth;
+    const width = requestedWidth + WINDOW_HORIZONTAL_PADDING;
+    const height = Math.ceil(content.scrollHeight + (layout.hasNotch ? 0 : NO_NOTCH_TOP_GAP));
     const requestKey = `${width}:${height}`;
     if (lastFitRequestRef.current === requestKey) return;
     lastFitRequestRef.current = requestKey;
@@ -393,17 +396,24 @@ export default function NotchLyricsWindow() {
       if (lastFitRequestRef.current === requestKey) lastFitRequestRef.current = null;
       reportFrontendError("Failed to fit the Dynamic Island lyrics window", error);
     });
-  }, []);
+  }, [layout.hasNotch]);
 
   useLayoutEffect(() => {
     if (!previewActiveRef.current) fitWindow(expandedRef.current);
-  }, [appearance.maxWidth, fitWindow]);
+  }, [appearance.expandedMaxWidth, appearance.maxWidth, fitWindow]);
 
   useEffect(() => {
-    if (previewActive || previewWidth === null || previewWidth !== appearance.maxWidth) return;
+    const committedWidth = previewTarget === "collapsed"
+      ? appearance.maxWidth
+      : previewTarget === "expanded"
+        ? appearance.expandedMaxWidth
+        : null;
+    if (previewActive || previewTarget === null || previewWidth === null || previewWidth !== committedWidth) return;
     previewWidthRef.current = null;
+    previewTargetRef.current = null;
     setPreviewWidth(null);
-  }, [appearance.maxWidth, previewActive, previewWidth]);
+    setPreviewTarget(null);
+  }, [appearance.expandedMaxWidth, appearance.maxWidth, previewActive, previewTarget, previewWidth]);
 
   const setExpandedState = useCallback((next: boolean) => {
     expandedRef.current = next;
@@ -734,9 +744,23 @@ export default function NotchLyricsWindow() {
     animateIslandVisibility(visible);
   }, [animateExpanded, animateIslandVisibility, clearCollapseTimers]);
 
-  const supportingToggleTitle = (track: string, enabled: boolean, available: boolean) => {
-    const action = enabled ? t("overlay.toolbar.hideTrack", { track }) : t("overlay.toolbar.showTrack", { track });
-    return available ? action : t("notchLyrics.toolbar.unavailableTrack", { action, track });
+  const renderSlot = (slot: NotchSlotContent, side: "left" | "right") => {
+    const align = side === "left" ? "left" : "right";
+    if (slot === "empty") return null;
+    if (slot === "artwork") {
+      return <img className={styles.slotArtwork} alt="" draggable={false} src={playback.artworkUrl ?? appIconUrl} />;
+    }
+    if (slot === "spectrum") return <SpectrumBars bands={spectrum.bands} />;
+    const value = slot === "title" ? playback.snapshot.title ?? "Lyrics Plus" : playback.snapshot.artist ?? "";
+    return (
+      <OverflowText
+        align={align}
+        contentKey={`${playback.snapshot.trackId ?? "fallback"}:${slot}:${value}`}
+        paused={marqueePaused}
+      >
+        {value}
+      </OverflowText>
+    );
   };
 
   useEffect(() => {
@@ -794,32 +818,37 @@ export default function NotchLyricsWindow() {
         if (payload.phase === "update") {
           const startingPreview = !previewActiveRef.current;
           previewActiveRef.current = true;
+          previewTargetRef.current = payload.target;
           previewWidthRef.current = payload.width;
           setPreviewActive(true);
+          setPreviewTarget(payload.target);
           setPreviewWidth(payload.width);
           if (startingPreview) {
             clearCollapseTimers();
             cancelWidthMotion();
-            const toolbarWidth = Math.ceil(
-              (toolbarRef.current?.scrollWidth ?? 0) + TOOLBAR_HORIZONTAL_PADDING,
-            );
-            fitWindow(
-              expandedRef.current,
-              payload.width,
-              Math.max(NOTCH_MAX_WIDTH, toolbarWidth),
-            );
           }
+          fitWindow(
+            expandedRef.current,
+            payload.target === "collapsed" ? payload.width : undefined,
+          );
           return;
         }
 
         previewActiveRef.current = false;
         setPreviewActive(false);
         if (payload.phase === "commit") {
+          previewTargetRef.current = payload.target;
           previewWidthRef.current = payload.width;
+          setPreviewTarget(payload.target);
           setPreviewWidth(payload.width);
-          fitWindow(expandedRef.current, payload.width);
+          fitWindow(
+            expandedRef.current,
+            payload.target === "collapsed" ? payload.width : undefined,
+          );
         } else {
+          previewTargetRef.current = null;
           previewWidthRef.current = null;
+          setPreviewTarget(null);
           setPreviewWidth(null);
           fitWindow(expandedRef.current);
         }
@@ -830,21 +859,33 @@ export default function NotchLyricsWindow() {
 
   useLayoutEffect(() => {
     const content = contentRef.current;
-    const toolbar = toolbarRef.current;
-    if (!content || !toolbar) return;
+    const player = toolbarRevealRef.current;
+    if (!content || !player) return;
     let frame = 0;
     const measure = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         const contentHeight = Math.ceil(content.scrollHeight);
-        const toolbarWidth = Math.ceil(toolbar.scrollWidth);
+        const playerWidth = Math.ceil(player.scrollWidth);
         const previous = lastObservedGeometryRef.current;
-        if (previous.contentHeight === contentHeight && previous.toolbarWidth === toolbarWidth) return;
-        lastObservedGeometryRef.current = { contentHeight, toolbarWidth };
+        if (previous.contentHeight === contentHeight && previous.playerWidth === playerWidth) return;
+        lastObservedGeometryRef.current = { contentHeight, playerWidth };
         if (previewActiveRef.current) {
-          setExpandedWidth(Math.max(
-            previewWidthRef.current ?? notchRef.current.appearance.maxWidth,
-            toolbarWidth + TOOLBAR_HORIZONTAL_PADDING,
+          const collapsedWidth = previewTargetRef.current === "collapsed"
+            ? previewWidthRef.current ?? notchRef.current.appearance.maxWidth
+            : notchRef.current.appearance.maxWidth;
+          const expandedMaxWidth = Math.min(
+            NOTCH_MAX_WIDTH,
+            Math.max(
+              collapsedWidth,
+              previewTargetRef.current === "expanded"
+                ? previewWidthRef.current ?? notchRef.current.appearance.expandedMaxWidth
+                : notchRef.current.appearance.expandedMaxWidth,
+            ),
+          );
+          setExpandedWidth(Math.min(
+            expandedMaxWidth,
+            Math.max(collapsedWidth, playerWidth + TOOLBAR_HORIZONTAL_PADDING),
           ));
           return;
         }
@@ -853,7 +894,7 @@ export default function NotchLyricsWindow() {
     };
     const observer = new ResizeObserver(measure);
     observer.observe(content);
-    observer.observe(toolbar);
+    observer.observe(player);
     measure();
     return () => {
       cancelAnimationFrame(frame);
@@ -884,7 +925,7 @@ export default function NotchLyricsWindow() {
         "--notch-romanization-color": appearance.romanizationColor,
         "--notch-radius": `${appearance.borderRadius}px`,
         "--notch-max-width": `${effectiveWidth}px`,
-        "--notch-expanded-width": `${Math.max(effectiveWidth, expandedWidth)}px`,
+        "--notch-expanded-width": `${Math.min(effectiveExpandedMaxWidth, Math.max(effectiveWidth, expandedWidth || effectiveWidth))}px`,
         "--notch-top-inset": `${layout.topInset}px`,
         "--notch-center-gap": `${layout.centerGapWidth}px`,
       } as CSSProperties}
@@ -900,24 +941,9 @@ export default function NotchLyricsWindow() {
         <div className={styles.islandSurface} ref={islandSurfaceRef}>
           <div className={styles.content} ref={contentRef}>
             <header className={styles.metadata}>
-              <strong title={playback.snapshot.title ?? undefined}>
-                <OverflowText
-                  contentKey={`${playback.snapshot.trackId ?? "fallback"}:title:${playback.snapshot.title ?? ""}`}
-                  paused={marqueePaused}
-                >
-                  {playback.snapshot.title ?? "Lyrics Plus"}
-                </OverflowText>
-              </strong>
+              <div className={styles.slot} data-side="left" data-slot={notch.leftSlot}>{renderSlot(notch.leftSlot, "left")}</div>
               <span className={styles.notchGap} aria-hidden="true" />
-              <span className={styles.artist} title={playback.snapshot.artist ?? undefined}>
-                <OverflowText
-                  align="right"
-                  contentKey={`${playback.snapshot.trackId ?? "fallback"}:artist:${playback.snapshot.artist ?? ""}`}
-                  paused={marqueePaused}
-                >
-                  {playback.snapshot.artist ?? ""}
-                </OverflowText>
-              </span>
+              <div className={styles.slot} data-side="right" data-slot={notch.rightSlot}>{renderSlot(notch.rightSlot, "right")}</div>
               {layout.hasNotch && (
                 <div aria-hidden="true" className={styles.brandCapsule}>
                   <img alt="" draggable={false} src={appIconUrl} />
@@ -925,7 +951,7 @@ export default function NotchLyricsWindow() {
                 </div>
               )}
             </header>
-            {primaryLine && (
+            {notch.showLyrics && primaryLine && (
               <div className={styles.currentLine} key={`${primaryLine.startMs}:${primaryLine.text}`}>
                 <OverflowText
                   align="center"
@@ -938,7 +964,7 @@ export default function NotchLyricsWindow() {
                 </OverflowText>
               </div>
             )}
-            {supportingLines.map(({ kind, line }) => (
+            {notch.showLyrics && supportingLines.map(({ kind, line }) => (
               <div className={styles.supportingLine} data-kind={kind} key={`${kind}:${line.startMs}:${line.text}`}>
                 <OverflowText
                   align="center"
@@ -954,41 +980,7 @@ export default function NotchLyricsWindow() {
           </div>
           <div className={styles.toolbarReveal} ref={toolbarRevealRef}>
             <div className={styles.toolbarRevealInner}>
-              <div className={styles.toolbar} role="toolbar" aria-label={t("notchLyrics.toolbar.label")} ref={toolbarRef}>
-              <IconButton label={t("overlay.toolbar.decreaseFont")} tooltip={fontAtMinimum ? t("notchLyrics.toolbar.minimumFontSize") : undefined} variant="ghost" size="icon-sm" aria-disabled={fontAtMinimum} onClick={() => {
-                if (fontAtMinimum) return;
-                patchAppearance({ fontSize: Math.max(12, notchRef.current.appearance.fontSize - 2) });
-              }}><Minus /></IconButton>
-              <IconButton label={t("overlay.toolbar.increaseFont")} tooltip={fontAtMaximum ? t("notchLyrics.toolbar.maximumFontSize") : undefined} variant="ghost" size="icon-sm" aria-disabled={fontAtMaximum} onClick={() => {
-                if (fontAtMaximum) return;
-                patchAppearance({ fontSize: Math.min(32, notchRef.current.appearance.fontSize + 2) });
-              }}><Plus /></IconButton>
-              <div className={styles.offsetControl} role="group" aria-label={t("overlay.toolbar.offsetGroup", { value: offsetAvailable ? formatOffsetMs(offsetMs) : t("overlay.toolbar.unavailable") })}>
-                <IconButton label={t("overlay.toolbar.delay")} tooltip={offsetAvailable ? t("overlay.toolbar.delayTitle") : t("notchLyrics.toolbar.unavailableOffset")} variant="ghost" size="icon-sm" aria-disabled={!offsetAvailable} onClick={(event) => {
-                  if (!offsetAvailable) return;
-                  changeLyricsOffset(event.shiftKey ? -500 : -100);
-                }}><ClockArrowLeft /></IconButton>
-                <IconButton className={styles.offsetValue} label={!offsetAvailable ? t("overlay.toolbar.noOffset") : offsetMs === 0 ? t("overlay.toolbar.zeroOffset") : t("overlay.toolbar.offsetReset", { value: formatOffsetMs(offsetMs) })} tooltip={offsetValueTitle} variant="ghost" size="icon-sm" aria-disabled={offsetResetUnavailable} onClick={() => {
-                  if (offsetResetUnavailable) return;
-                  setLyricsOffset(0);
-                }}>{offsetLabel}</IconButton>
-                <IconButton label={t("overlay.toolbar.advance")} tooltip={offsetAvailable ? t("overlay.toolbar.advanceTitle") : t("notchLyrics.toolbar.unavailableOffset")} variant="ghost" size="icon-sm" aria-disabled={!offsetAvailable} onClick={(event) => {
-                  if (!offsetAvailable) return;
-                  changeLyricsOffset(event.shiftKey ? 500 : 100);
-                }}><ClockArrowRight /></IconButton>
-              </div>
-              <IconButton
-                label={t("overlay.toolbar.toggleLayout", { value: layoutValue })}
-                tooltip={t("overlay.toolbar.toggleLayoutTitle", { value: layoutValue })}
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => patchNotch({ showTwoLines: !notchRef.current.showTwoLines })}
-              >{notch.showTwoLines ? <PanelsTopBottom /> : <PanelTop />}</IconButton>
-              <IconButton label={supportingToggleTitle(t("common.feature.translation"), notch.showTranslation, translationAvailable)} tooltip={supportingToggleTitle(t("common.feature.translation"), notch.showTranslation, translationAvailable)} variant="ghost" size="icon-sm" className={styles.trackToggle} data-available={translationAvailable} data-on={notch.showTranslation} aria-pressed={notch.showTranslation} onClick={() => patchNotch({ showTranslation: !notchRef.current.showTranslation })}>{t("overlay.toolbar.translationGlyph")}</IconButton>
-              <IconButton label={supportingToggleTitle(t("common.feature.romanization"), notch.showRomanization, romanizationAvailable)} tooltip={supportingToggleTitle(t("common.feature.romanization"), notch.showRomanization, romanizationAvailable)} variant="ghost" size="icon-sm" className={styles.trackToggle} data-available={romanizationAvailable} data-on={notch.showRomanization} aria-pressed={notch.showRomanization} onClick={() => patchNotch({ showRomanization: !notchRef.current.showRomanization })}>{t("overlay.toolbar.romanizationGlyph")}</IconButton>
-              <IconButton label={t("notchLyrics.toolbar.hide")} variant="ghost" size="icon-sm" onClick={() => void api.setNotchLyricsVisible(false)}><EyeOff /></IconButton>
-              <IconButton label={t("notchLyrics.toolbar.openSettings")} variant="ghost" size="icon-sm" onClick={() => void api.showLyricsStyleSettings("notch")}><Settings /></IconButton>
-              </div>
+              <ExpandedPlayer playback={playback} t={t} />
             </div>
           </div>
         </div>

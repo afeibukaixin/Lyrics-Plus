@@ -132,12 +132,12 @@ export function usePlayback() {
     }
   };
 
-  const runControl = useCallback((action: PlaybackAction) => {
+  const runPlayerOperation = useCallback((task: () => Promise<void>) => {
     if (controlPromiseRef.current) return controlPromiseRef.current;
     setControlError(null);
     setIsControlling(true);
     const operation = Promise.resolve()
-      .then(() => playerService.control(action))
+      .then(task)
       .catch((error) => {
         setControlError(messageOf(error));
         throw error;
@@ -149,6 +149,14 @@ export function usePlayback() {
     controlPromiseRef.current = operation;
     return operation;
   }, []);
+
+  const runControl = useCallback((action: PlaybackAction) => {
+    return runPlayerOperation(() => playerService.control(action));
+  }, [runPlayerOperation]);
+
+  const seekTo = useCallback((positionMs: number) => {
+    return runPlayerOperation(() => playerService.seek(positionMs));
+  }, [runPlayerOperation]);
 
   const play = useCallback(() => runControl("play"), [runControl]);
   const pause = useCallback(() => runControl("pause"), [runControl]);
@@ -178,6 +186,7 @@ export function usePlayback() {
     togglePlayPause,
     previousTrack,
     nextTrack,
+    seekTo,
     isControlling,
     controlError,
     clearControlError,

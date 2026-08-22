@@ -2,12 +2,17 @@
   display: flex;
   width: 100%;
   height: 100%;
+  box-sizing: border-box;
   align-items: flex-start;
   justify-content: center;
   padding: 0 8px;
   background: transparent;
   font-family: var(--notch-font-family);
   user-select: none;
+}
+
+.shell:not([data-has-notch]) {
+  padding-top: 6px;
 }
 
 .island {
@@ -23,6 +28,10 @@
   clip-path: inset(0 46% round 999px);
   transform: scaleY(.04);
   transform-origin: top center;
+}
+
+.shell:not([data-has-notch]) .islandSurface {
+  border-radius: var(--notch-radius);
 }
 
 .shell[data-expanded] .island {
@@ -42,6 +51,10 @@
   opacity: 0;
   visibility: hidden;
   transform: translateY(-4px);
+}
+
+.shell[data-expanded] .content {
+  display: none;
 }
 
 .metadata {
@@ -95,20 +108,55 @@
   text-overflow: ellipsis;
 }
 
-.metadata strong,
-.artist {
+.slot {
   min-width: 0;
 }
 
-.metadata strong {
+.slot[data-side="left"] {
   color: white;
   font-weight: 650;
   text-align: left;
 }
 
-.artist {
+.slot[data-side="right"] {
   color: white;
   text-align: right;
+}
+
+.slotArtwork {
+  display: block;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  object-fit: cover;
+  box-shadow: 0 1px 5px rgb(0 0 0 / 25%);
+}
+
+.slot[data-side="right"] .slotArtwork {
+  margin-left: auto;
+}
+
+.spectrum {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 2px;
+  vertical-align: middle;
+}
+
+.slot[data-side="right"] .spectrum {
+  justify-content: flex-end;
+}
+
+.spectrumBar {
+  display: block;
+  width: 3px;
+  height: var(--spectrum-level, 12%);
+  min-height: 4px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: .8;
+  transition: height 90ms ease;
 }
 
 .notchGap {
@@ -189,6 +237,108 @@
 .toolbarRevealInner {
   min-height: 0;
   overflow: hidden;
+}
+
+.player {
+  width: min(100%, var(--notch-expanded-width));
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 18px 22px 14px;
+  color: white;
+}
+
+.playerMetadata {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 16px;
+}
+
+.playerArtwork {
+  width: 74px;
+  height: 74px;
+  flex: none;
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 10%);
+}
+
+.playerArtwork img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.playerTrack {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.playerTrack strong,
+.playerTrack span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playerTrack strong {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.playerTrack span {
+  color: rgb(255 255 255 / 62%);
+  font-size: 15px;
+}
+
+.playerProgress {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 18px;
+}
+
+.playerTimes {
+  display: flex;
+  justify-content: space-between;
+  color: rgb(255 255 255 / 62%);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.playerSlider {
+  color: white;
+}
+
+.playerSlider [data-slot="slider"] {
+  --color-primary: rgb(255 255 255 / 86%);
+}
+
+.playerControls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 44px;
+  margin-top: 14px;
+}
+
+.playerControls :global(button) {
+  color: white;
+}
+
+.playerControls .playerPrimaryControl {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+}
+
+.playerControls :global(button:hover:not([aria-disabled="true"])) {
+  background: rgb(255 255 255 / 14%);
 }
 
 .shell[data-expanded] .toolbarReveal {
@@ -369,7 +519,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .karaokeWordFill,
-  .toolbar :global(button) {
+  .toolbar :global(button),
+  .spectrumBar {
     transition: none;
   }
 

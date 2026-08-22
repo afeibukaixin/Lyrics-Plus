@@ -25,9 +25,9 @@ use crate::lyrics::provider::{
 };
 use crate::lyrics::LyricsDocument;
 use crate::player::{
-    control_playback as control_player, run_with_timeout, PlaybackAction, PlaybackArtwork,
-    PlaybackSnapshot, PlaybackSpectrumService, PlaybackSpectrumState, PlayerKind, PlayerSelection,
-    SystemMediaService,
+    control_playback as control_player, run_with_timeout, seek_playback as seek_player,
+    PlaybackAction, PlaybackArtwork, PlaybackSnapshot, PlaybackSpectrumService,
+    PlaybackSpectrumState, PlayerKind, PlayerSelection, SystemMediaService,
 };
 use crate::storage::library::LibraryScanStatus;
 use crate::storage::{SaveKind, SaveRequest, Storage, LOCAL_PROVIDER_ID};
@@ -1036,6 +1036,20 @@ pub fn control_playback(action: PlaybackAction, state: State<'_, AppState>) -> R
 }
 
 #[tauri::command]
+pub fn seek_playback(position_ms: u64, state: State<'_, AppState>) -> Result<(), String> {
+    let snapshot = state
+        .last_snapshot
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .clone();
+    let selection = *state
+        .selection
+        .read()
+        .unwrap_or_else(|error| error.into_inner());
+    seek_player(position_ms, selection, &snapshot, &state.system_media)
+}
+
+#[tauri::command]
 pub fn get_playback_artwork(
     artwork_id: String,
     state: State<'_, AppState>,
@@ -2038,6 +2052,7 @@ pub fn fit_notch_lyrics_content(
         .ok_or_else(|| "无法读取灵动岛歌词所在的显示器".to_string())?;
     let monitor_position = monitor.position();
     let monitor_size = monitor.size();
+    let metrics = crate::screen_notch_layout(&monitor);
     let requested_width = if width.is_finite() {
         width.max(120.0)
     } else {
@@ -2054,7 +2069,12 @@ pub fn fit_notch_lyrics_content(
     );
     let next_position = tauri::PhysicalPosition::new(
         monitor_position.x + monitor_size.width.saturating_sub(next_size.width) as i32 / 2,
-        monitor_position.y,
+        monitor_position.y
+            + if metrics.has_notch {
+                0
+            } else {
+                (6.0 * scale).round() as i32
+            },
     );
     let current_size = window.outer_size().map_err(|error| error.to_string())?;
     let current_position = window.outer_position().map_err(|error| error.to_string())?;

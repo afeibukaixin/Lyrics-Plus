@@ -236,6 +236,35 @@ pub(crate) fn control_playback(
     }
 }
 
+pub(crate) fn seek_playback(
+    position_ms: u64,
+    selection: PlayerSelection,
+    snapshot: &PlaybackSnapshot,
+    system_media: &SystemMediaService,
+) -> Result<(), String> {
+    let player = selection.preferred_kind().or(snapshot.player);
+    let Some(player) = player else {
+        return Err("当前没有可控制的播放器".into());
+    };
+    if selection == PlayerSelection::Auto && (!snapshot.is_running || snapshot.error_code.is_some())
+    {
+        return Err(snapshot
+            .error
+            .clone()
+            .unwrap_or_else(|| "当前播放器不可用".into()));
+    }
+    let duration_ms = snapshot
+        .duration_ms
+        .filter(|duration| *duration > 0)
+        .ok_or_else(|| "当前媒体没有可用的播放时长".to_string())?;
+    let position_ms = position_ms.min(duration_ms);
+
+    match player {
+        PlayerKind::AppleMusic | PlayerKind::Spotify => automation::seek(player, position_ms),
+        PlayerKind::System => system_media.seek(position_ms),
+    }
+}
+
 fn attach_system_artwork(snapshot: &mut PlaybackSnapshot, system: &PlaybackSnapshot) {
     if snapshot.player == Some(PlayerKind::System)
         || system.player != Some(PlayerKind::System)

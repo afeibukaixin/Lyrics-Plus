@@ -6,6 +6,7 @@ import type {
   LyricsMonitor,
   LyricsStyleInheritance,
   LyricsStyleMode,
+  NotchSlotContent,
   NotchLyricsPreferences,
   OverlayFontWeight,
   StatusBarLyricsPreferences,
@@ -16,7 +17,7 @@ import styles from "../settings.module.scss";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { reportFrontendError } from "../../shared/debugLog";
-import { emitNotchWidthPreview } from "../../shared/tauriEvent";
+import { emitNotchWidthPreview, type NotchWidthPreviewTarget } from "../../shared/tauriEvent";
 import { api, isTauriRuntime } from "../../shared/api";
 
 type AuxiliaryMode = Exclude<LyricsStyleMode, "desktop">;
@@ -45,7 +46,7 @@ type AuxiliarySectionLabels = {
   displayInteraction: string;
 };
 
-export function auxiliarySections(mode: AuxiliaryMode, labels: AuxiliarySectionLabels) {
+export function auxiliarySections(mode: AuxiliaryMode, labels: AuxiliarySectionLabels, notchLyricsEnabled = true) {
   if (mode === "statusBar") return [
     { id: "mode-inheritance", label: labels.inheritance },
     { id: "mode-state", label: labels.displayInteraction },
@@ -56,6 +57,10 @@ export function auxiliarySections(mode: AuxiliaryMode, labels: AuxiliarySectionL
     { id: "mode-state", label: labels.displayContent },
     { id: "mode-text", label: labels.textLayout },
     { id: "mode-colors", label: labels.colors },
+  ];
+  if (mode === "notch" && !notchLyricsEnabled) return [
+    { id: "mode-state", label: labels.displayInteraction },
+    { id: "mode-background", label: labels.backgroundSize },
   ];
   return [
     { id: "mode-inheritance", label: labels.inheritance },
@@ -175,6 +180,13 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
   const value = displays.notch;
   const appearance = value.appearance;
   const save = (next: NotchLyricsPreferences) => void update("notch", next);
+  const slotOptions: Array<[NotchSlotContent, string]> = [
+    ["empty", t("settings.display.notch.slotEmpty")],
+    ["title", t("settings.display.notch.slotTitle")],
+    ["artist", t("settings.display.notch.slotArtist")],
+    ["artwork", t("settings.display.notch.slotArtwork")],
+    ["spectrum", t("settings.display.notch.slotSpectrum")],
+  ];
   const selectedMonitorId = notchMonitors.some((monitor) => monitor.id === value.monitorId)
     ? value.monitorId ?? ""
     : notchMonitors.find((monitor) => monitor.isPrimary)?.id ?? notchMonitors[0]?.id ?? "";
@@ -183,15 +195,21 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
     const primary = monitor.isPrimary ? ` · ${t("settings.display.notch.primaryDisplay")}` : "";
     return [monitor.id, `${name} · ${monitor.width}×${monitor.height}${primary}`];
   });
-  const previewMaxWidth = (width: number) => {
+  const previewWidth = (target: NotchWidthPreviewTarget, width: number) => {
     notchWidthPreviewActiveRef.current = true;
-    void emitNotchWidthPreview({ phase: "update", width }).catch((error) => {
+    void emitNotchWidthPreview({ phase: "update", target, width }).catch((error) => {
       reportFrontendError("Failed to preview the Dynamic Island width", error);
     });
   };
-  const commitMaxWidth = async (width: number) => {
+  const commitWidth = async (target: NotchWidthPreviewTarget, width: number) => {
+    const committedWidth = target === "expanded"
+      ? Math.max(appearance.maxWidth, width)
+      : width;
+    const appearancePatch = target === "collapsed"
+      ? { maxWidth: width }
+      : { expandedMaxWidth: committedWidth };
     try {
-      await update("notch", patchAppearance(value, { maxWidth: width }));
+      await update("notch", patchAppearance(value, appearancePatch));
     } catch (error) {
       notchWidthPreviewActiveRef.current = false;
       void emitNotchWidthPreview({ phase: "cancel" }).catch((emitError) => {
@@ -203,23 +221,34 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
 
     notchWidthPreviewActiveRef.current = false;
     try {
-      await emitNotchWidthPreview({ phase: "commit", width });
+      await emitNotchWidthPreview({ phase: "commit", target, width: committedWidth });
     } catch (error) {
       void emitNotchWidthPreview({ phase: "cancel" });
       reportFrontendError("Failed to finish the Dynamic Island width preview", error);
     }
   };
+  const expandedWidthLocked = appearance.maxWidth >= 640;
+  const expandedWidthMin = expandedWidthLocked ? 440 : Math.max(440, appearance.maxWidth);
+  const expandedWidthValue = Math.max(appearance.expandedMaxWidth, appearance.maxWidth);
   return <>
-    {inheritanceSection}
     <SettingsSection id="mode-state" title={t("settings.style.modeControls.displayInteraction")}>
-      <ToggleRow label={t("settings.display.notch.show")} value={value.enabled} onChange={(enabled) => save({ ...value, enabled })} />
-      {notchMonitors.length >= 2 && selectedMonitorId && <SelectRow label={t("settings.display.notch.display")} value={selectedMonitorId} options={monitorOptions} onChange={(monitorId) => save({ ...value, monitorId })} />}
-      <ToggleRow label={t("settings.display.notch.autoHide")} description={t("settings.display.notch.autoHideHint")} value={value.hideWhenNotPlaying} onChange={(hideWhenNotPlaying) => save({ ...value, hideWhenNotPlaying })} />
-      <ToggleRow label={t("settings.display.notch.showTwoLines")} value={value.showTwoLines} onChange={(showTwoLines) => save({ ...value, showTwoLines })} />
-      <ToggleRow label={t("settings.display.notch.translation")} value={value.showTranslation} onChange={(showTranslation) => save({ ...value, showTranslation })} />
-      <ToggleRow label={t("settings.display.notch.romanization")} value={value.showRomanization} onChange={(showRomanization) => save({ ...value, showRomanization })} />
+      <ToggleRow label={t("settings.display.notch.show")} description={t("settings.display.notch.showHint")} value={value.enabled} onChange={(enabled) => save({ ...value, enabled })} />
+      {value.enabled && <>
+        {notchMonitors.length >= 2 && selectedMonitorId && <SelectRow label={t("settings.display.notch.display")} value={selectedMonitorId} options={monitorOptions} onChange={(monitorId) => save({ ...value, monitorId })} />}
+        <ToggleRow label={t("settings.display.notch.autoHide")} description={t("settings.display.notch.autoHideHint")} value={value.hideWhenNotPlaying} onChange={(hideWhenNotPlaying) => save({ ...value, hideWhenNotPlaying })} />
+        <ToggleRow label={t("settings.display.notch.showLyrics")} description={t("settings.display.notch.showLyricsHint")} value={value.showLyrics} onChange={(showLyrics) => save({ ...value, showLyrics })} />
+        <SelectRow label={t("settings.display.notch.leftSlot")} value={value.leftSlot} options={slotOptions} onChange={(leftSlot) => save({ ...value, leftSlot: leftSlot as NotchSlotContent })} />
+        <SelectRow label={t("settings.display.notch.rightSlot")} value={value.rightSlot} options={slotOptions} onChange={(rightSlot) => save({ ...value, rightSlot: rightSlot as NotchSlotContent })} />
+        {value.showLyrics && <>
+          <SelectRow label={t("settings.overlay.lyricLayout")} value={value.layout} options={[["single", t("overlay.layout.single")], ["double", t("overlay.layout.double")]]} onChange={(layout) => save({ ...value, layout: layout as NotchLyricsPreferences["layout"] })} />
+          <ToggleRow label={t("settings.display.notch.translation")} value={value.showTranslation} onChange={(showTranslation) => save({ ...value, showTranslation })} />
+          <ToggleRow label={t("settings.display.notch.romanization")} value={value.showRomanization} onChange={(showRomanization) => save({ ...value, showRomanization })} />
+        </>}
+      </>}
       <div className={styles.buttonRow}><Button variant="secondary" size="sm" onClick={() => void resetPosition("notch")}>{t("settings.style.modeControls.resetPosition")}</Button></div>
     </SettingsSection>
+    {value.showLyrics && <>
+    {inheritanceSection}
     <SettingsSection id="mode-text" title={t("settings.style.modeControls.text")}>
       {!modeInheritance.inheritFontFamily && <TextRow label={t("settings.overlay.fontFamily")} value={appearance.fontFamily} emptyValue={appearance.fontFamily} onChange={(fontFamily) => save(patchAppearance(value, { fontFamily }))} />}
       <RangeRow label={t("settings.overlay.fontSize")} value={appearance.fontSize} min={12} max={32} suffix="px" onChange={(fontSize) => save(patchAppearance(value, { fontSize }))} />
@@ -232,18 +261,32 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
         <ColorRow label={t("settings.overlay.romanizationColor")} value={appearance.romanizationColor} onChange={(romanizationColor) => save(patchAppearance(value, { romanizationColor }))} />
       </>}
     </SettingsSection>
+    </>}
     <SettingsSection id="mode-background" title={t("settings.style.modeControls.backgroundSize")}>
       <RangeRow label={t("settings.overlay.backgroundRadius")} value={appearance.borderRadius} min={0} max={40} suffix="px" onChange={(borderRadius) => save(patchAppearance(value, { borderRadius }))} />
       <RangeRow
         label={t("settings.style.modeControls.maxWidth")}
         value={appearance.maxWidth}
-        min={400}
+        min={320}
         max={640}
         step={10}
         suffix="px"
         onChange={(maxWidth) => save(patchAppearance(value, { maxWidth }))}
-        onValuePreview={previewMaxWidth}
-        onValueCommitted={commitMaxWidth}
+        onValuePreview={(width) => previewWidth("collapsed", width)}
+        onValueCommitted={(width) => commitWidth("collapsed", width)}
+        onPreviewCanceled={cancelNotchWidthPreview}
+      />
+      <RangeRow
+        label={t("settings.style.modeControls.hoverMaxWidth")}
+        value={expandedWidthValue}
+        min={expandedWidthMin}
+        max={640}
+        step={10}
+        suffix="px"
+        disabled={expandedWidthLocked}
+        onChange={(expandedMaxWidth) => save(patchAppearance(value, { expandedMaxWidth }))}
+        onValuePreview={(width) => previewWidth("expanded", width)}
+        onValueCommitted={(width) => commitWidth("expanded", width)}
         onPreviewCanceled={cancelNotchWidthPreview}
       />
     </SettingsSection>

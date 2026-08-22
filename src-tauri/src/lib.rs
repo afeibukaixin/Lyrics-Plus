@@ -929,8 +929,17 @@ fn position_notch_window(app: &tauri::AppHandle, window: &tauri::WebviewWindow) 
     let width = window.outer_size().map(|size| size.width).unwrap_or(420);
     let monitor_width = monitor.size().width;
     let x = monitor.position().x + monitor_width.saturating_sub(width) as i32 / 2;
-    let _ = window.set_position(tauri::PhysicalPosition::new(x, monitor.position().y));
     let metrics = screen_notch_layout(&monitor);
+    let scale = window.scale_factor().unwrap_or(1.0).max(0.1);
+    let top_offset = if metrics.has_notch {
+        0
+    } else {
+        (6.0 * scale).round() as i32
+    };
+    let _ = window.set_position(tauri::PhysicalPosition::new(
+        x,
+        monitor.position().y.saturating_add(top_offset),
+    ));
     if let Some(state) = app.try_state::<AppState>() {
         *state
             .notch_layout_metrics
@@ -2880,6 +2889,7 @@ pub fn run() {
             commands::quit_application,
             commands::get_playback_snapshot,
             commands::control_playback,
+            commands::seek_playback,
             commands::get_playback_artwork,
             commands::start_playback_spectrum,
             commands::stop_playback_spectrum,

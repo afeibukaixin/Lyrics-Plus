@@ -5,8 +5,10 @@ type MaybeAsyncUnlistenFn = () => void | Promise<void>;
 export const NOTCH_WIDTH_PREVIEW_EVENT = "notch://width-preview";
 export const NOTCH_VISIBILITY_TRANSITION_EVENT = "notch://visibility-transition";
 
+export type NotchWidthPreviewTarget = "collapsed" | "expanded";
+
 export type NotchWidthPreviewPayload =
-  | { phase: "update" | "commit"; width: number }
+  | { phase: "update" | "commit"; target: NotchWidthPreviewTarget; width: number }
   | { phase: "cancel" };
 
 export type NotchVisibilityTransitionPayload = { visible: boolean };

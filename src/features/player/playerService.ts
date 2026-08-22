@@ -48,6 +48,10 @@ export const playerService = {
     return api.controlPlayback("next");
   },
 
+  seek(positionMs: number) {
+    return api.seekPlayback(positionMs);
+  },
+
   getArtwork(artworkId: string): Promise<PlaybackArtwork | null> {
     return api.getPlaybackArtwork(artworkId);
   },
@@ -59,23 +63,26 @@ export const playerService = {
     if (!isTauriRuntime()) return () => undefined;
 
     let disposed = false;
+    let startRequested = false;
     spectrumSubscriberCount += 1;
-    const cleanupFrameListener = createTauriListenerCleanup(
-      listen<PlaybackSpectrumFrame>("playback://spectrum-frame", ({ payload }) => onFrame(payload)),
+    const frameListener = listen<PlaybackSpectrumFrame>(
+      "playback://spectrum-frame",
+      ({ payload }) => onFrame(payload),
     );
-    const cleanupStateListener = createTauriListenerCleanup(
-      listen<PlaybackSpectrumState>("playback://spectrum-state", ({ payload }) => onState(payload)),
+    const stateListener = listen<PlaybackSpectrumState>(
+      "playback://spectrum-state",
+      ({ payload }) => onState(payload),
     );
-    void queueSpectrumCommand(() => api.startPlaybackSpectrum())
-      .then((state) => {
-        if (disposed) {
-          // 组件可能在 start 命令返回前卸载，补一次 stop 避免留下孤立订阅。
-          if (spectrumSubscriberCount === 0) {
-            void queueSpectrumCommand(() => api.stopPlaybackSpectrum()).catch(() => undefined);
-          }
-          return;
-        }
-        onState(state);
+    const cleanupFrameListener = createTauriListenerCleanup(frameListener);
+    const cleanupStateListener = createTauriListenerCleanup(stateListener);
+    void Promise.all([frameListener, stateListener])
+      .then(() => {
+        if (disposed) return;
+        startRequested = true;
+        return queueSpectrumCommand(() => api.startPlaybackSpectrum())
+          .then((state) => {
+            if (!disposed) onState(state);
+          });
       })
       .catch((error) => {
         if (!disposed) {
@@ -84,8 +91,6 @@ export const playerService = {
             sourceAppBundleId: null,
             error: messageOf(error),
           });
-        } else if (spectrumSubscriberCount === 0) {
-          void queueSpectrumCommand(() => api.stopPlaybackSpectrum()).catch(() => undefined);
         }
       });
 
@@ -95,7 +100,7 @@ export const playerService = {
       cleanupFrameListener();
       cleanupStateListener();
       spectrumSubscriberCount = Math.max(0, spectrumSubscriberCount - 1);
-      if (spectrumSubscriberCount === 0) {
+      if (startRequested && spectrumSubscriberCount === 0) {
         void queueSpectrumCommand(() => api.stopPlaybackSpectrum()).catch(() => undefined);
       }
     };

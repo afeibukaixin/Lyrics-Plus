@@ -81,6 +81,8 @@ export const api = {
   getPlayback: () => invoke<PlaybackSnapshot>("get_playback_snapshot"),
   controlPlayback: (action: PlaybackAction) =>
     invoke<void>("control_playback", { action }),
+  seekPlayback: (positionMs: number) =>
+    invoke<void>("seek_playback", { positionMs }),
   getPlaybackArtwork: (artworkId: string) =>
     invoke<PlaybackArtwork | null>("get_playback_artwork", { artworkId }),
   startPlaybackSpectrum: () =>
@@ -241,7 +243,7 @@ export const api = {
 
 export function messageOf(error: unknown): string {
   if (error instanceof AppOperationError) {
-    if (["set_global_shortcuts", "set_provider_settings", "set_system_media_filter_mode", "set_system_media_applications", "resolve_system_media_applications", "resolve_player_follower_application", "set_player_follower_application", "resolve_application_by_bundle_id", "control_playback", "get_playback_artwork", "start_playback_spectrum", "stop_playback_spectrum", "get_playback_spectrum_state"].includes(error.command) && error.message) return error.message;
+    if (["set_global_shortcuts", "set_provider_settings", "set_system_media_filter_mode", "set_system_media_applications", "resolve_system_media_applications", "resolve_player_follower_application", "set_player_follower_application", "resolve_application_by_bundle_id", "control_playback", "seek_playback", "get_playback_artwork", "start_playback_spectrum", "stop_playback_spectrum", "get_playback_spectrum_state"].includes(error.command) && error.message) return error.message;
     return error.code === "config.conflict"
       ? appI18n.t("errors.configConflict")
       : appI18n.t("errors.command");

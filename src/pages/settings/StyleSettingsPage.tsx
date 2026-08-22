@@ -143,7 +143,7 @@ export default function StyleSettingsPage() {
     textLayout: t("settings.style.modeControls.textLayout"),
     colors: t("settings.style.modeControls.colors"),
     displayInteraction: t("settings.style.modeControls.displayInteraction"),
-  });
+  }, mode === "notch" ? config.lyrics.displays.notch.showLyrics : true);
   const modes: Array<{ id: StyleMode; label: string; icon: typeof Monitor }> = [
     { id: "base", label: t("settings.style.modes.base"), icon: Palette },
     { id: "desktop", label: t("settings.style.modes.desktop"), icon: Monitor },

@@ -158,6 +158,27 @@ impl SystemMediaService {
         }
     }
 
+    pub fn seek(&self, position_ms: u64) -> Result<(), String> {
+        let player = self.player()?;
+        let position_micros = position_ms.saturating_mul(1_000);
+        let position = position_micros.to_string();
+        let output = run_adapter(
+            &player.script_path,
+            &player.framework_path,
+            ["seek", position.as_str()],
+        )?;
+        if output.status.success() {
+            Ok(())
+        } else {
+            let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            Err(if detail.is_empty() {
+                "系统媒体播放器未接受跳转命令".into()
+            } else {
+                detail
+            })
+        }
+    }
+
     pub fn artwork(&self, artwork_id: &str) -> Result<Option<PlaybackArtwork>, String> {
         let current = self.snapshot();
         if current.artwork_id.as_deref() != Some(artwork_id) {

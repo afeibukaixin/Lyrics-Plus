@@ -16,7 +16,7 @@ use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSet
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 47;
+pub const CONFIG_SCHEMA_VERSION: u16 = 50;
 const APP_CONFIG_KEYS: &[&str] = &[
     "theme",
     "language",
@@ -458,6 +458,22 @@ pub enum CompactKaraokeStyle {
     Highlight,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum NotchSlotContent {
+    Empty,
+    Title,
+    Artist,
+    Artwork,
+    Spectrum,
+}
+
+impl Default for NotchSlotContent {
+    fn default() -> Self {
+        Self::Artwork
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct LyricsDisplayPreferences {
@@ -593,7 +609,10 @@ pub struct NotchLyricsPreferences {
     pub enabled: bool,
     pub hide_when_not_playing: bool,
     pub monitor_id: Option<String>,
-    pub show_two_lines: bool,
+    pub show_lyrics: bool,
+    pub left_slot: NotchSlotContent,
+    pub right_slot: NotchSlotContent,
+    pub layout: OverlayLayout,
     pub show_translation: bool,
     pub show_romanization: bool,
     pub appearance: NotchLyricsAppearance,
@@ -605,7 +624,10 @@ impl Default for NotchLyricsPreferences {
             enabled: false,
             hide_when_not_playing: false,
             monitor_id: None,
-            show_two_lines: false,
+            show_lyrics: false,
+            left_slot: NotchSlotContent::Artwork,
+            right_slot: NotchSlotContent::Spectrum,
+            layout: OverlayLayout::Single,
             show_translation: false,
             show_romanization: false,
             appearance: NotchLyricsAppearance::default(),
@@ -626,6 +648,7 @@ pub struct NotchLyricsAppearance {
     pub karaoke_style: CompactKaraokeStyle,
     pub border_radius: f64,
     pub max_width: u16,
+    pub expanded_max_width: u16,
 }
 
 impl Default for NotchLyricsAppearance {
@@ -640,7 +663,8 @@ impl Default for NotchLyricsAppearance {
             romanization_color: "#bef264".into(),
             karaoke_style: CompactKaraokeStyle::Sweep,
             border_radius: 22.0,
-            max_width: 520,
+            max_width: 360,
+            expanded_max_width: 520,
         }
     }
 }
@@ -930,7 +954,11 @@ impl AppConfig {
         notch_appearance.font_size = notch_appearance.font_size.clamp(12, 32);
         notch_appearance.font_weight = normalize_display_font_weight(notch_appearance.font_weight);
         notch_appearance.border_radius = notch_appearance.border_radius.clamp(0.0, 40.0);
-        notch_appearance.max_width = notch_appearance.max_width.clamp(400, 640);
+        notch_appearance.max_width = notch_appearance.max_width.clamp(320, 640);
+        notch_appearance.expanded_max_width = notch_appearance
+            .expanded_max_width
+            .clamp(440, 640)
+            .max(notch_appearance.max_width);
         for (name, color) in [
             ("状态栏文字颜色", status_appearance.text_color.as_str()),
             ("状态栏未唱颜色", status_appearance.inactive_color.as_str()),
@@ -1260,6 +1288,67 @@ fn migrate_v42_list_preferences(user: &mut Value, version: u16) {
         .or_insert_with(|| Value::from("solid"));
 }
 
+fn migrate_v48_notch_mode(user: &mut Value, version: u16) {
+    if version >= 48 {
+        return;
+    }
+    let Some(notch) = user
+        .pointer_mut("/lyrics/displays/notch")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    notch
+        .entry("showLyrics")
+        .or_insert_with(|| Value::from(true));
+    notch
+        .entry("leftSlot")
+        .or_insert_with(|| Value::from("artwork"));
+    notch
+        .entry("rightSlot")
+        .or_insert_with(|| Value::from("spectrum"));
+}
+
+fn migrate_v49_notch_width(user: &mut Value, version: u16) {
+    if version >= 49 {
+        return;
+    }
+    let Some(appearance) = user
+        .pointer_mut("/lyrics/displays/notch/appearance")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    let max_width = appearance
+        .get("maxWidth")
+        .and_then(Value::as_u64)
+        .unwrap_or(360);
+    let expanded_max_width = max_width.max(520).min(640);
+    appearance
+        .entry("expandedMaxWidth")
+        .or_insert_with(|| Value::from(expanded_max_width));
+}
+
+fn migrate_v50_notch_layout(user: &mut Value, version: u16) {
+    if version >= 50 {
+        return;
+    }
+    let Some(notch) = user
+        .pointer_mut("/lyrics/displays/notch")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    let layout = notch
+        .remove("showTwoLines")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    notch.insert(
+        "layout".into(),
+        Value::from(if layout { "double" } else { "single" }),
+    );
+}
+
 fn migrate_status_bar_status_item_fields(user: &mut Value) {
     let Some(status_bar) = user
         .pointer_mut("/lyrics/displays/statusBar")
@@ -1386,6 +1475,9 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
     migrate_v40_notch_colors(&mut user, version);
     migrate_v41_fixed_notch_background(&mut user, version);
     migrate_v42_list_preferences(&mut user, version);
+    migrate_v48_notch_mode(&mut user, version);
+    migrate_v49_notch_width(&mut user, version);
+    migrate_v50_notch_layout(&mut user, version);
     validate_known_fields(&user, raw)?;
     validate_field_types_and_options(&user, raw)?;
     migrate_status_bar_status_item_fields(&mut user);
@@ -1709,7 +1801,10 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                         "enabled",
                         "hideWhenNotPlaying",
                         "monitorId",
-                        "showTwoLines",
+                        "showLyrics",
+                        "leftSlot",
+                        "rightSlot",
+                        "layout",
                         "showTranslation",
                         "showRomanization",
                         "appearance",
@@ -1730,6 +1825,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                             "karaokeStyle",
                             "borderRadius",
                             "maxWidth",
+                            "expandedMaxWidth",
                         ],
                     )?;
                 }
@@ -1883,7 +1979,7 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             "/lyrics/displays/notch/hideWhenNotPlaying",
             "hideWhenNotPlaying",
         ),
-        ("/lyrics/displays/notch/showTwoLines", "showTwoLines"),
+        ("/lyrics/displays/notch/showLyrics", "showLyrics"),
         (
             "/lyrics/displays/notch/showTranslation",
             "showTranslation",
@@ -1961,6 +2057,14 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         ),
         ("/lyrics/displays/notch/appearance/fontSize", "fontSize"),
         ("/lyrics/displays/notch/appearance/fontWeight", "fontWeight"),
+        (
+            "/lyrics/displays/notch/appearance/maxWidth",
+            "maxWidth",
+        ),
+        (
+            "/lyrics/displays/notch/appearance/expandedMaxWidth",
+            "expandedMaxWidth",
+        ),
         ("/overlay/appearance/fontSize", "fontSize"),
         ("/overlay/appearance/fontWeight", "fontWeight"),
         (
@@ -2046,6 +2150,21 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             "/lyrics/displays/notch/appearance/karaokeStyle",
             "karaokeStyle",
             &["sweep", "highlight"] as &[&str],
+        ),
+        (
+            "/lyrics/displays/notch/leftSlot",
+            "leftSlot",
+            &["empty", "title", "artist", "artwork", "spectrum"] as &[&str],
+        ),
+        (
+            "/lyrics/displays/notch/rightSlot",
+            "rightSlot",
+            &["empty", "title", "artist", "artwork", "spectrum"] as &[&str],
+        ),
+        (
+            "/lyrics/displays/notch/layout",
+            "layout",
+            &["single", "double"] as &[&str],
         ),
         (
             "/overlay/appearance/backgroundMode",
@@ -2338,6 +2457,18 @@ fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftEr
             value.pointer("/lyrics/displays/notch/appearance/fontSize"),
             12.0,
             32.0,
+        ),
+        (
+            "maxWidth",
+            value.pointer("/lyrics/displays/notch/appearance/maxWidth"),
+            320.0,
+            640.0,
+        ),
+        (
+            "expandedMaxWidth",
+            value.pointer("/lyrics/displays/notch/appearance/expandedMaxWidth"),
+            440.0,
+            640.0,
         ),
         (
             "opacity",

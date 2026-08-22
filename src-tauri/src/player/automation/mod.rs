@@ -185,6 +185,19 @@ impl AutomationSession<'_> {
         self.object(self.app, CURRENT_TRACK)
     }
 
+    pub(super) fn set_number(
+        &self,
+        object: &SBObject,
+        code: AEKeyword,
+        value: f64,
+    ) -> Result<(), AutomationError> {
+        self.delegate.reset();
+        let property = unsafe { object.propertyWithCode(code) };
+        let number = NSNumber::new_f64(value);
+        unsafe { property.setTo(Some(&number)) };
+        self.finish(&property)
+    }
+
     pub(super) fn control(
         &self,
         event_class: AEKeyword,
@@ -259,6 +272,18 @@ pub(crate) fn control(kind: PlayerKind, action: PlaybackAction) -> Result<(), St
     };
     with_application(bundle_id, REQUEST_TIMEOUT_TICKS, |session| {
         session.control(event_class, event_id)
+    })
+    .map_err(|error| error.user_message())
+}
+
+pub(crate) fn seek(kind: PlayerKind, position_ms: u64) -> Result<(), String> {
+    let bundle_id = match kind {
+        PlayerKind::AppleMusic => "com.apple.Music",
+        PlayerKind::Spotify => "com.spotify.client",
+        PlayerKind::System => return Err("系统媒体播放器不使用应用自动化控制".into()),
+    };
+    with_application(bundle_id, REQUEST_TIMEOUT_TICKS, |session| {
+        session.set_number(session.app, PLAYER_POSITION, position_ms as f64 / 1_000.0)
     })
     .map_err(|error| error.user_message())
 }
