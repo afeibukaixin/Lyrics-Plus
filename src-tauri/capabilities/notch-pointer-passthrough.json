@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "notch-pointer-passthrough",
+  "description": "Allows the Dynamic Island lyrics window to toggle pointer passthrough",
+  "windows": ["lyrics-notch"],
+  "permissions": ["core:window:allow-set-ignore-cursor-events"]
+}

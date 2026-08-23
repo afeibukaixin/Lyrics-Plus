@@ -511,6 +511,10 @@ fn create_notch_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {
     .skip_taskbar(true)
     .visible(false)
     .build()?;
+    // 窗口按展开态预留尺寸，WebView 挂载前必须先让透明区域穿透鼠标事件。
+    if let Err(error) = window.set_ignore_cursor_events(true) {
+        log::warn!("Failed to enable initial Dynamic Island pointer passthrough: {error}");
+    }
     enable_notch_window_behavior(&window)?;
     refresh_overlay_mouse_tracking(&window);
     schedule_notch_position(app, &window);

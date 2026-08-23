@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   type Dispatch,
@@ -9,8 +10,11 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { useGSAP } from "@gsap/react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { gsap } from "gsap";
 import { CustomEase } from "gsap/CustomEase";
+import { isTauriRuntime } from "../../shared/api";
+import { reportFrontendError } from "../../shared/debugLog";
 import type { NotchLayoutMetrics, NotchLyricsPreferences } from "../../shared/types";
 import {
   islandRadii,
@@ -85,6 +89,25 @@ export function useNotchIslandMotion({
   const reducedMotionRef = useRef(false);
   const pointerInsideRef = useRef(false);
   const pendingExpandRef = useRef(false);
+  const requestedPointerInteractiveRef = useRef<boolean | null>(null);
+  const pointerInteractionQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  const setNotchPointerInteractive = useCallback((interactive: boolean) => {
+    if (!isTauriRuntime() || requestedPointerInteractiveRef.current === interactive) return;
+    requestedPointerInteractiveRef.current = interactive;
+    // 串行切换原生窗口命中状态，避免快速进出岛体时旧请求覆盖最新状态。
+    pointerInteractionQueueRef.current = pointerInteractionQueueRef.current
+      .catch(() => undefined)
+      .then(() => getCurrentWindow().setIgnoreCursorEvents(!interactive))
+      .catch((error) => {
+        reportFrontendError("Failed to update Dynamic Island pointer passthrough", error);
+      });
+  }, []);
+
+  useEffect(() => {
+    setNotchPointerInteractive(false);
+    return () => setNotchPointerInteractive(false);
+  }, [setNotchPointerInteractive]);
 
   const setIslandStateValue = useCallback((next: IslandState) => {
     if (import.meta.env.DEV && islandStateRef.current !== next) {
@@ -433,26 +456,36 @@ export function useNotchIslandMotion({
 
   const updateHoverFromPoint = useCallback((x: number, y: number, source: "pointerenter" | "pointermove" | "pointerleave" | "native") => {
     const rect = islandRef.current?.getBoundingClientRect();
-    const isInsideIsland = rect
+    const isInsideInteractiveIsland = Boolean(
+      islandVisibleRef.current
+      && rect
+      && x >= rect.left
+      && x <= rect.right
+      && y >= rect.top
+      && y <= rect.bottom,
+    );
+    const isInsideHoverArea = rect
       ? x >= rect.left - HOVER_PADDING
         && x <= rect.right + HOVER_PADDING
         && y >= rect.top - HOVER_PADDING
         && y <= rect.bottom + HOVER_PADDING
       : false;
-    const changed = pointerInsideRef.current !== isInsideIsland;
-    pointerInsideRef.current = isInsideIsland;
+    setNotchPointerInteractive(isInsideInteractiveIsland);
+    const changed = pointerInsideRef.current !== isInsideHoverArea;
+    pointerInsideRef.current = isInsideHoverArea;
     if (import.meta.env.DEV && (changed || source === "pointerenter" || source === "pointerleave")) {
       console.debug("notch pointer sample", {
         source,
         x,
         y,
         rect,
-        isInsideIsland,
+        isInsideHoverArea,
+        isInsideInteractiveIsland,
         state: islandStateRef.current,
       });
     }
     processPointerState();
-  }, [islandRef, islandStateRef, processPointerState]);
+  }, [islandRef, islandStateRef, islandVisibleRef, processPointerState, setNotchPointerInteractive]);
 
   const handleIslandPointerEnter = useCallback((event: React.PointerEvent<HTMLElement>) => {
     updateHoverFromPoint(event.clientX, event.clientY, "pointerenter");
@@ -472,6 +505,7 @@ export function useNotchIslandMotion({
     islandVisibleRef.current = visible;
     setIslandVisible(visible);
     if (!visible) {
+      setNotchPointerInteractive(false);
       pendingVisibilityRef.current = null;
       pointerInsideRef.current = false;
       pendingExpandRef.current = false;
@@ -482,7 +516,7 @@ export function useNotchIslandMotion({
       return;
     }
     animateIslandVisibility(visible);
-  }, [animateIslandVisibility, cancelWidthMotion, hostFitReadyRef, islandStateRef, islandVisibleRef, pendingVisibilityRef, setIslandVisible, setVisibilityMotionActive, visibilityMotionActiveRef, widthMotionActiveRef]);
+  }, [animateIslandVisibility, cancelWidthMotion, hostFitReadyRef, islandStateRef, islandVisibleRef, pendingVisibilityRef, setIslandVisible, setNotchPointerInteractive, setVisibilityMotionActive, visibilityMotionActiveRef, widthMotionActiveRef]);
 
   return {
     applyIslandVisibility,
