@@ -69,8 +69,8 @@ impl UiLanguage {
         match self {
             Self::ZhCn => NativeLabels {
                 toggle_overlay: "显示桌面歌词",
-                toggle_status_bar_lyrics: "显示状态栏歌词",
-                toggle_list_lyrics: "显示列表歌词",
+                toggle_status_bar_lyrics: "显示菜单栏歌词",
+                toggle_list_lyrics: "显示歌词窗口",
                 toggle_notch_lyrics: "显示灵动岛歌词",
                 switch_lyrics: "切换歌词",
                 settings: "设置",
@@ -78,13 +78,13 @@ impl UiLanguage {
                 quick_title: "快速切换歌词",
                 unlock_title: "解锁桌面歌词",
                 overlay_title: "Lyrics Plus 桌面歌词",
-                list_title: "Lyrics Plus 列表歌词",
+                list_title: "Lyrics Plus 歌词窗口",
                 notch_title: "Lyrics Plus 灵动岛歌词",
             },
             Self::EnUs => NativeLabels {
                 toggle_overlay: "Show Desktop Lyrics",
                 toggle_status_bar_lyrics: "Show Menu Bar Lyrics",
-                toggle_list_lyrics: "Show Lyrics List",
+                toggle_list_lyrics: "Show Lyrics Window",
                 toggle_notch_lyrics: "Show Dynamic Island Lyrics",
                 switch_lyrics: "Switch Lyrics",
                 settings: "Settings",
@@ -92,7 +92,7 @@ impl UiLanguage {
                 quick_title: "Quick Lyrics Switcher",
                 unlock_title: "Unlock Desktop Lyrics",
                 overlay_title: "Lyrics Plus Desktop Lyrics",
-                list_title: "Lyrics Plus Lyrics List",
+                list_title: "Lyrics Plus Lyrics Window",
                 notch_title: "Lyrics Plus Dynamic Island Lyrics",
             },
         }

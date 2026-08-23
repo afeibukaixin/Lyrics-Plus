@@ -122,33 +122,30 @@ export default function StyleSettingsPage() {
     ["800", t("settings.overlay.fontWeightExtrabold")],
   ];
   const desktopSections = [
-    { id: "style-state", label: t("settings.overlay.state") },
+    { id: "mode-state", label: t("settings.style.modeControls.displayInteraction") },
     { id: "mode-inheritance", label: t("settings.style.modeControls.inheritance") },
-    { id: "style-text-effects", label: t("settings.overlay.textEffects") },
-    { id: "style-common", label: t("settings.style.common") },
-    { id: "style-background-layout", label: t("settings.overlay.backgroundLayout") },
-    { id: "style-secondary", label: t("settings.overlay.secondary") },
+    { id: "mode-text", label: t("settings.style.modeControls.textLayout") },
+    { id: "mode-colors", label: t("settings.style.modeControls.colorEffects") },
+    { id: "mode-background", label: t("settings.style.modeControls.backgroundSize") },
   ];
   const baseSections = [
-    { id: "base-presets", label: t("settings.overlay.colors") },
     { id: "base-font", label: t("settings.style.modeControls.baseFont") },
+    { id: "base-presets", label: t("settings.style.modeControls.colorPresets") },
     { id: "base-colors", label: t("settings.style.modeControls.baseColors") },
   ];
   const sections = mode === "base" ? baseSections : mode === "desktop" ? desktopSections : auxiliarySections(mode, {
     inheritance: t("settings.style.modeControls.inheritance"),
-    displayPosition: t("settings.style.modeControls.displayPosition"),
-    text: t("settings.style.modeControls.text"),
     backgroundSize: t("settings.style.modeControls.backgroundSize"),
-    displayContent: t("settings.style.modeControls.displayContent"),
+    size: t("settings.style.modeControls.size"),
     textLayout: t("settings.style.modeControls.textLayout"),
-    colors: t("settings.style.modeControls.colors"),
+    colorEffects: t("settings.style.modeControls.colorEffects"),
     displayInteraction: t("settings.style.modeControls.displayInteraction"),
   }, mode === "notch" ? config.lyrics.displays.notch.showLyrics : true);
   const modes: Array<{ id: StyleMode; label: string; icon: typeof Monitor }> = [
     { id: "base", label: t("settings.style.modes.base"), icon: Palette },
     { id: "desktop", label: t("settings.style.modes.desktop"), icon: Monitor },
-    { id: "statusBar", label: t("settings.style.modes.statusBar"), icon: PanelTop },
     { id: "listWindow", label: t("settings.style.modes.listWindow"), icon: ListMusic },
+    { id: "statusBar", label: t("settings.style.modes.statusBar"), icon: PanelTop },
     { id: "notch", label: t("settings.style.modes.notch"), icon: PanelTopDashed },
   ];
 
@@ -204,7 +201,7 @@ export default function StyleSettingsPage() {
 
   return (
     <SettingsPage sections={sections}>
-      <PageHeader title={t("settings.style.title")} description={t("settings.style.description")} onReset={() => void resetCurrentMode()} resetting={mode === "desktop" ? resettingSection === "style" : resettingMode === mode} confirming={mode === "desktop" && confirmingReset === "style"} />
+      <PageHeader title={t("settings.style.title")} description={t("settings.style.description")} onReset={() => void resetCurrentMode()} resetLabel={t("settings.style.resetCurrentMode")} resetting={mode === "desktop" ? resettingSection === "style" : resettingMode === mode} confirming={mode === "desktop" && confirmingReset === "style"} />
       <ToggleGroup className={cn(styles.lyricsModeSelector, "grid w-full")} variant="outline" aria-label={t("settings.style.modes.selector")} value={[mode]} onValueChange={(values) => { const next = values[0] as StyleMode | undefined; if (next) selectMode(next); }}>
         {modes.map((item) => {
           const Icon = item.icon;
@@ -214,7 +211,10 @@ export default function StyleSettingsPage() {
         })}
       </ToggleGroup>
       {mode === "base" ? <>
-      <SettingsSection id="base-presets" title={t("settings.overlay.colors")} trailing={<span className={styles.colorPresetStatus}>{t("settings.overlay.currentColor", { name: activeColorPreset ? t(`settings.overlay.presets.${activeColorPreset.id}`) : t("settings.overlay.custom") })}</span>}>
+      <SettingsSection id="base-font" title={t("settings.style.modeControls.baseFont")}>
+        <TextRow label={t("settings.overlay.fontFamily")} description={t("settings.overlay.fontFamilyHint")} value={baseAppearance.fontFamily} emptyValue={defaultOverlayStyle.fontFamily} onChange={(fontFamily) => void setLyricsBaseAppearance({ ...baseAppearance, fontFamily }).catch((error) => setError(messageOf(error)))} />
+      </SettingsSection>
+      <SettingsSection id="base-presets" title={t("settings.style.modeControls.colorPresets")} trailing={<span className={styles.colorPresetStatus}>{t("settings.overlay.currentColor", { name: activeColorPreset ? t(`settings.overlay.presets.${activeColorPreset.id}`) : t("settings.overlay.custom") })}</span>}>
         <div className={styles.colorPresetGrid} id="base-color-presets">
           {visibleColorPresets.map((preset) => {
             const active = preset.id === activeColorPreset?.id;
@@ -231,9 +231,6 @@ export default function StyleSettingsPage() {
           </Button>
         </div>
       </SettingsSection>
-      <SettingsSection id="base-font" title={t("settings.style.modeControls.baseFont")}>
-        <TextRow label={t("settings.overlay.fontFamily")} description={t("settings.overlay.fontFamilyHint")} value={baseAppearance.fontFamily} emptyValue={defaultOverlayStyle.fontFamily} onChange={(fontFamily) => void setLyricsBaseAppearance({ ...baseAppearance, fontFamily }).catch((error) => setError(messageOf(error)))} />
-      </SettingsSection>
       <SettingsSection id="base-colors" title={t("settings.style.modeControls.baseColors")}>
         <ColorRow label={t("settings.style.modeControls.baseActiveColor")} description={t("settings.style.modeControls.baseActiveColorHint")} value={baseAppearance.activeColor} onChange={(activeColor) => void setLyricsBaseAppearance({ ...baseAppearance, activeColor }).catch((error) => setError(messageOf(error)))} />
         <ColorRow label={t("settings.style.modeControls.baseInactiveColor")} description={t("settings.style.modeControls.baseInactiveColorHint")} value={baseAppearance.inactiveColor} onChange={(inactiveColor) => void setLyricsBaseAppearance({ ...baseAppearance, inactiveColor }).catch((error) => setError(messageOf(error)))} />
@@ -242,40 +239,49 @@ export default function StyleSettingsPage() {
         <ColorRow label={t("settings.overlay.backgroundColor")} value={baseAppearance.backgroundColor} onChange={(backgroundColor) => void setLyricsBaseAppearance({ ...baseAppearance, backgroundColor }).catch((error) => setError(messageOf(error)))} />
       </SettingsSection>
       </> : mode === "desktop" ? <>
-      <SettingsSection id="style-state" title={t("settings.overlay.state")}>
+      <SettingsSection id="mode-state" title={t("settings.style.modeControls.displayInteraction")}>
         <ToggleRow label={t("settings.overlay.show")} description={t("settings.overlay.showHint")} value={overlaySettings.visible} onChange={setVisible} />
         <ToggleRow label={t("settings.overlay.autoHide")} description={t("settings.overlay.autoHideHint")} value={config.overlay.hideWhenNotPlaying} onChange={(hidden) => setOverlayHideWhenNotPlaying(hidden).catch((error) => setError(messageOf(error)))} />
-        <ToggleRow label={t("settings.overlay.lock")} value={overlaySettings.locked} onChange={setLocked} />
+        <ToggleRow label={t("settings.overlay.showTranslation")} value={secondaryFlags.translation} onChange={(translation) => updateStyle({ secondaryDisplay: secondaryDisplayFromFlags(translation, secondaryFlags.romanization) })} />
+        <ToggleRow label={t("settings.overlay.showRomanization")} value={secondaryFlags.romanization} onChange={(romanization) => updateStyle({ secondaryDisplay: secondaryDisplayFromFlags(secondaryFlags.translation, romanization) })} />
+        <ToggleRow label={t("settings.overlay.lock")} description={t("settings.overlay.lockHint")} value={overlaySettings.locked} onChange={setLocked} />
         <div className={styles.buttonRow}><Button variant="secondary" size="sm" onClick={() => void resetOverlayBounds()}>{t("settings.overlay.resetPosition")}</Button></div>
       </SettingsSection>
       <SettingsSection id="mode-inheritance" title={t("settings.style.modeControls.inheritance")}>
         <ToggleRow label={t("settings.style.modeControls.inheritFontFamily")} value={desktopInheritance.inheritFontFamily} onChange={(inheritFontFamily) => setLyricsStyleInheritance("desktop", { ...desktopInheritance, inheritFontFamily })} />
         <ToggleRow label={t("settings.style.modeControls.inheritColors")} value={desktopInheritance.inheritColors} onChange={(inheritColors) => setLyricsStyleInheritance("desktop", { ...desktopInheritance, inheritColors })} />
       </SettingsSection>
-      <SettingsSection id="style-text-effects" title={t("settings.overlay.textEffects")}>
+      <SettingsSection id="mode-text" title={t("settings.style.modeControls.textLayout")}>
         {!desktopInheritance.inheritFontFamily && <TextRow label={t("settings.overlay.fontFamily")} description={t("settings.overlay.fontFamilyHint")} value={style.fontFamily} emptyValue={defaultOverlayStyle.fontFamily} onChange={(fontFamily) => void updateStyle({ fontFamily })} />}
         <RangeRow label={t("settings.overlay.fontSize")} value={style.fontSize} min={16} max={72} suffix="px" onChange={(fontSize) => void updateStyle({ fontSize })} />
         <SelectRow label={t("settings.overlay.fontWeight")} value={String(style.fontWeight)} onChange={(fontWeight) => void updateStyle({ fontWeight: Number(fontWeight) as OverlayStyle["fontWeight"] })} options={fontWeightOptions} />
         <SelectRow label={t("settings.overlay.secondaryFontWeight")} value={String(style.secondaryFontWeight)} onChange={(secondaryFontWeight) => void updateStyle({ secondaryFontWeight: Number(secondaryFontWeight) as OverlayStyle["secondaryFontWeight"] })} options={fontWeightOptions} />
         <RangeRow label={t("settings.overlay.lineHeight")} value={style.lineHeight} min={0.8} max={2} step={0.05} suffix="×" onChange={(lineHeight) => void updateStyle({ lineHeight })} />
+        <SelectRow label={t("settings.overlay.lyricLayout")} value={style.layout} onChange={(layout) => void updateStyle({ layout: layout as OverlayStyle["layout"] })} options={[["single", t("overlay.layout.single")], ["double", t("overlay.layout.double")]]} />
+        <SelectRow label={t("settings.overlay.textDirection")} value={style.orientation} onChange={(orientation) => void updateStyle({ orientation: orientation as OverlayStyle["orientation"] })} options={[["horizontal", t("overlay.orientation.horizontal")], ["vertical", t("overlay.orientation.vertical")]]} />
+        <SelectRow label={t("settings.overlay.longLyrics")} value={style.longText} onChange={(longText) => void updateStyle({ longText: longText as OverlayStyle["longText"] })} options={[["shrink", t("settings.overlay.shrink")], ["wrap", t("settings.overlay.wrap")], ["marquee", t("settings.overlay.marquee")]]} />
+        <SelectRow label={t("settings.overlay.alignment")} description={!alignmentAvailable ? t("settings.overlay.requiresDoubleLayout") : undefined} disabled={!alignmentAvailable} value={alignmentAvailable ? style.alignment : "center"} onChange={(alignment) => void updateStyle({ alignment: alignment as OverlayStyle["alignment"] })} options={[["center", t("settings.overlay.centered")], ["distributed", t("settings.overlay.distributed")]]} />
+        {(!secondaryFlags.translation || !secondaryFlags.romanization) && <p className={styles.cardHint}>{t("settings.overlay.secondaryControlsHint")}</p>}
+        <RangeRow label={t("settings.overlay.secondarySize")} value={style.secondaryFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.secondaryFontScale * 100)} onChange={(secondaryFontScale) => void updateStyle({ secondaryFontScale })} />
+        <RangeRow label={t("settings.overlay.translationSize")} disabled={!secondaryFlags.translation} value={style.translationFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.translationFontScale * 100)} onChange={(translationFontScale) => void updateStyle({ translationFontScale })} />
+        <RangeRow label={t("settings.overlay.romanizationSize")} disabled={!secondaryFlags.romanization} value={style.romanizationFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.romanizationFontScale * 100)} onChange={(romanizationFontScale) => void updateStyle({ romanizationFontScale })} />
+        <ToggleRow label={t("settings.overlay.autoCenter")} value={style.autoCenterWithTranslationOrRomanization} onChange={(autoCenterWithTranslationOrRomanization) => updateStyle({ autoCenterWithTranslationOrRomanization })} />
+      </SettingsSection>
+      <SettingsSection id="mode-colors" title={t("settings.style.modeControls.colorEffects")}>
+        {!desktopInheritance.inheritColors && <>
+          <ColorRow label={t("settings.style.modeControls.desktopActiveColor")} description={t("settings.style.modeControls.desktopActiveColorHint")} value={style.activeColor} onChange={(activeColor) => void updateStyle({ activeColor })} />
+          <ColorRow label={t("settings.style.modeControls.desktopInactiveColor")} description={t("settings.style.modeControls.desktopInactiveColorHint")} value={style.inactiveColor} onChange={(inactiveColor) => void updateStyle({ inactiveColor })} />
+          <ColorRow label={t("settings.overlay.translationColor")} disabled={!secondaryFlags.translation} value={style.translationColor} onChange={(translationColor) => void updateStyle({ translationColor })} />
+          <ColorRow label={t("settings.overlay.romanizationColor")} disabled={!secondaryFlags.romanization} value={style.romanizationColor} onChange={(romanizationColor) => void updateStyle({ romanizationColor })} />
+        </>}
+        <SelectRow label={t("settings.overlay.karaoke")} value={style.karaokeStyle} onChange={(karaokeStyle) => void updateStyle({ karaokeStyle: karaokeStyle as OverlayStyle["karaokeStyle"] })} options={[["sweep", t("settings.overlay.karaokeSweep")], ["bounce", t("settings.overlay.karaokeBounce")], ["highlight", t("settings.overlay.karaokeHighlight")]]} />
         <RangeRow label={t("settings.overlay.textShadowOffsetX")} value={style.textShadowOffsetX} min={-20} max={20} suffix="px" onChange={(textShadowOffsetX) => void updateStyle({ textShadowOffsetX })} />
         <RangeRow label={t("settings.overlay.textShadowOffsetY")} value={style.textShadowOffsetY} min={-20} max={20} suffix="px" onChange={(textShadowOffsetY) => void updateStyle({ textShadowOffsetY })} />
         <RangeRow label={t("settings.overlay.textShadowBlur")} value={style.textShadowBlur} min={0} max={40} suffix="px" onChange={(textShadowBlur) => void updateStyle({ textShadowBlur })} />
         <ColorRow label={t("settings.overlay.textShadowColor")} description={t("settings.overlay.textShadowColorHint")} value={style.textShadowColor} onChange={(textShadowColor) => void updateStyle({ textShadowColor })} />
       </SettingsSection>
-      <SettingsSection id="style-common" title={t("settings.style.common")}>
-        {!desktopInheritance.inheritColors && <>
-          <ColorRow label={t("settings.style.modeControls.desktopActiveColor")} description={t("settings.style.modeControls.desktopActiveColorHint")} value={style.activeColor} onChange={(activeColor) => void updateStyle({ activeColor })} />
-          <ColorRow label={t("settings.style.modeControls.desktopInactiveColor")} description={t("settings.style.modeControls.desktopInactiveColorHint")} value={style.inactiveColor} onChange={(inactiveColor) => void updateStyle({ inactiveColor })} />
-        </>}
+      <SettingsSection id="mode-background" title={t("settings.style.modeControls.backgroundSize")}>
         <SelectRow label={t("settings.overlay.backgroundMode")} value={style.backgroundMode} onChange={(backgroundMode) => void updateStyle({ backgroundMode: backgroundMode as OverlayStyle["backgroundMode"] })} options={[["solid", t("settings.overlay.solid")], ["transparent", t("settings.overlay.transparent")]]} />
-        <SelectRow label={t("settings.overlay.lyricLayout")} value={style.layout} onChange={(layout) => void updateStyle({ layout: layout as OverlayStyle["layout"] })} options={[["single", t("overlay.layout.single")], ["double", t("overlay.layout.double")]]} />
-        <SelectRow label={t("settings.overlay.textDirection")} value={style.orientation} onChange={(orientation) => void updateStyle({ orientation: orientation as OverlayStyle["orientation"] })} options={[["horizontal", t("overlay.orientation.horizontal")], ["vertical", t("overlay.orientation.vertical")]]} />
-        <ToggleRow label={t("settings.overlay.showTranslation")} value={secondaryFlags.translation} onChange={(translation) => updateStyle({ secondaryDisplay: secondaryDisplayFromFlags(translation, secondaryFlags.romanization) })} />
-        <ToggleRow label={t("settings.overlay.showRomanization")} value={secondaryFlags.romanization} onChange={(romanization) => updateStyle({ secondaryDisplay: secondaryDisplayFromFlags(secondaryFlags.translation, romanization) })} />
-        <SelectRow label={t("settings.overlay.karaoke")} value={style.karaokeStyle} onChange={(karaokeStyle) => void updateStyle({ karaokeStyle: karaokeStyle as OverlayStyle["karaokeStyle"] })} options={[["sweep", t("settings.overlay.karaokeSweep")], ["bounce", t("settings.overlay.karaokeBounce")], ["highlight", t("settings.overlay.karaokeHighlight")]]} />
-      </SettingsSection>
-      <SettingsSection id="style-background-layout" title={t("settings.overlay.backgroundLayout")}>
         {style.backgroundMode !== "solid"
           ? <p className={styles.cardHint}>{t("settings.overlay.backgroundControlsHint")}</p>
           : style.background !== "glass"
@@ -289,17 +295,6 @@ export default function StyleSettingsPage() {
         <RangeRow label={t("settings.overlay.backgroundRadius")} value={style.backgroundRadius} min={0} max={64} suffix="px" onChange={(backgroundRadius) => void updateStyle({ backgroundRadius })} />
         <RangeRow label={t("settings.overlay.backgroundPaddingX")} value={style.backgroundPaddingX} min={0} max={64} suffix="px" onChange={(backgroundPaddingX) => void updateStyle({ backgroundPaddingX })} />
         <RangeRow label={t("settings.overlay.backgroundPaddingY")} value={style.backgroundPaddingY} min={0} max={64} suffix="px" onChange={(backgroundPaddingY) => void updateStyle({ backgroundPaddingY })} />
-        <SelectRow label={t("settings.overlay.longLyrics")} value={style.longText} onChange={(longText) => void updateStyle({ longText: longText as OverlayStyle["longText"] })} options={[["shrink", t("settings.overlay.shrink")], ["wrap", t("settings.overlay.wrap")], ["marquee", t("settings.overlay.marquee")]]} />
-        <SelectRow label={t("settings.overlay.alignment")} description={!alignmentAvailable ? t("settings.overlay.requiresDoubleLayout") : undefined} disabled={!alignmentAvailable} value={alignmentAvailable ? style.alignment : "center"} onChange={(alignment) => void updateStyle({ alignment: alignment as OverlayStyle["alignment"] })} options={[["center", t("settings.overlay.centered")], ["distributed", t("settings.overlay.distributed")]]} />
-      </SettingsSection>
-      <SettingsSection id="style-secondary" title={t("settings.overlay.secondary")}>
-        {(!secondaryFlags.translation || !secondaryFlags.romanization) && <p className={styles.cardHint}>{t("settings.overlay.secondaryControlsHint")}</p>}
-        <RangeRow label={t("settings.overlay.secondarySize")} value={style.secondaryFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.secondaryFontScale * 100)} onChange={(secondaryFontScale) => void updateStyle({ secondaryFontScale })} />
-        <RangeRow label={t("settings.overlay.translationSize")} disabled={!secondaryFlags.translation} value={style.translationFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.translationFontScale * 100)} onChange={(translationFontScale) => void updateStyle({ translationFontScale })} />
-        {!desktopInheritance.inheritColors && <ColorRow label={t("settings.overlay.translationColor")} disabled={!secondaryFlags.translation} value={style.translationColor} onChange={(translationColor) => void updateStyle({ translationColor })} />}
-        <RangeRow label={t("settings.overlay.romanizationSize")} disabled={!secondaryFlags.romanization} value={style.romanizationFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(style.romanizationFontScale * 100)} onChange={(romanizationFontScale) => void updateStyle({ romanizationFontScale })} />
-        {!desktopInheritance.inheritColors && <ColorRow label={t("settings.overlay.romanizationColor")} disabled={!secondaryFlags.romanization} value={style.romanizationColor} onChange={(romanizationColor) => void updateStyle({ romanizationColor })} />}
-        <ToggleRow label={t("settings.overlay.autoCenter")} value={style.autoCenterWithTranslationOrRomanization} onChange={(autoCenterWithTranslationOrRomanization) => updateStyle({ autoCenterWithTranslationOrRomanization })} />
       </SettingsSection>
       </> : <LyricsModeStyleSections mode={mode} displays={config.lyrics.displays} inheritance={config.lyrics.styleInheritance} update={setLyricsDisplayPreferences} updateInheritance={setLyricsStyleInheritance} resetPosition={resetDisplayPosition} />}
     </SettingsPage>

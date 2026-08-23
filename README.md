@@ -21,7 +21,7 @@ It is built with Tauri 2, React, TypeScript, and Rust.
 
 - **Desktop Lyrics:** an always-on-top overlay that can move across Spaces and displays, resize, lock, pass clicks through, hide when playback stops, and reset its position.
 - **Menu Bar Lyrics:** show the current lyric in the macOS menu bar with configurable width, colors, and scrolling behavior.
-- **Lyrics List:** open a standalone, scrollable lyrics window with optional translation and romanization.
+- **Lyrics Window:** open a standalone, scrollable lyrics window with optional translation and romanization.
 - **Dynamic Island Lyrics:** attach lyrics to the top of a display, reveal controls on hover, and choose single- or double-line lyrics.
 
 Shared typography and colors can be inherited by each mode or refined independently. Configure fonts, font sizes, weights, alignment, opacity, backgrounds, active and inactive colors, translations, romanization, and word-level karaoke timing.

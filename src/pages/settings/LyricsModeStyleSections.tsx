@@ -37,35 +37,37 @@ function patchAppearance<T extends { appearance: object }>(preferences: T, patch
 
 type AuxiliarySectionLabels = {
   inheritance: string;
-  displayPosition: string;
-  text: string;
   backgroundSize: string;
-  displayContent: string;
+  size: string;
   textLayout: string;
-  colors: string;
+  colorEffects: string;
   displayInteraction: string;
 };
 
 export function auxiliarySections(mode: AuxiliaryMode, labels: AuxiliarySectionLabels, notchLyricsEnabled = true) {
   if (mode === "statusBar") return [
-    { id: "mode-inheritance", label: labels.inheritance },
     { id: "mode-state", label: labels.displayInteraction },
-    { id: "mode-text", label: labels.text },
+    { id: "mode-inheritance", label: labels.inheritance },
+    { id: "mode-text", label: labels.textLayout },
+    { id: "mode-colors", label: labels.colorEffects },
+    { id: "mode-background", label: labels.size },
   ];
   if (mode === "listWindow") return [
+    { id: "mode-state", label: labels.displayInteraction },
     { id: "mode-inheritance", label: labels.inheritance },
-    { id: "mode-state", label: labels.displayContent },
     { id: "mode-text", label: labels.textLayout },
-    { id: "mode-colors", label: labels.colors },
+    { id: "mode-colors", label: labels.colorEffects },
+    { id: "mode-background", label: labels.backgroundSize },
   ];
   if (mode === "notch" && !notchLyricsEnabled) return [
     { id: "mode-state", label: labels.displayInteraction },
     { id: "mode-background", label: labels.backgroundSize },
   ];
   return [
-    { id: "mode-inheritance", label: labels.inheritance },
     { id: "mode-state", label: labels.displayInteraction },
-    { id: "mode-text", label: labels.text },
+    { id: "mode-inheritance", label: labels.inheritance },
+    { id: "mode-text", label: labels.textLayout },
+    { id: "mode-colors", label: labels.colorEffects },
     { id: "mode-background", label: labels.backgroundSize },
   ];
 }
@@ -123,22 +125,26 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
     const appearance = value.appearance;
     const save = (next: StatusBarLyricsPreferences) => void update("statusBar", next);
     return <>
-      {inheritanceSection}
       <SettingsSection id="mode-state" title={t("settings.style.modeControls.displayInteraction")}>
         <ToggleRow label={t("settings.display.statusBar.show")} value={value.enabled} onChange={(enabled) => save({ ...value, enabled })} />
         <ToggleRow label={t("settings.display.statusBar.autoHide")} description={t("settings.display.statusBar.autoHideHint")} value={value.hideWhenNotPlaying} onChange={(hideWhenNotPlaying) => save({ ...value, hideWhenNotPlaying })} />
-        <RangeRow label={t("settings.display.statusBar.width")} description={t("settings.display.statusBar.widthHint")} value={appearance.width} min={120} max={360} step={5} suffix=" pt" onChange={(width) => save(patchAppearance(value, { width }))} />
       </SettingsSection>
-      <SettingsSection id="mode-text" title={t("settings.style.modeControls.text")}>
+      {inheritanceSection}
+      <SettingsSection id="mode-text" title={t("settings.style.modeControls.textLayout")}>
         {!modeInheritance.inheritFontFamily && <TextRow label={t("settings.overlay.fontFamily")} value={appearance.fontFamily} emptyValue={appearance.fontFamily} onChange={(fontFamily) => save(patchAppearance(value, { fontFamily }))} />}
         <RangeRow label={t("settings.overlay.fontSize")} value={appearance.fontSize} min={10} max={18} suffix=" pt" onChange={(fontSize) => save(patchAppearance(value, { fontSize }))} />
         <SelectRow label={t("settings.overlay.fontWeight")} value={String(appearance.fontWeight)} options={fontWeights} onChange={(fontWeight) => save(patchAppearance(value, { fontWeight: Number(fontWeight) as OverlayFontWeight }))} />
+      </SettingsSection>
+      <SettingsSection id="mode-colors" title={t("settings.style.modeControls.colorEffects")}>
         <SelectRow label={t("settings.overlay.karaoke")} value={appearance.karaokeStyle} options={[["sweep", t("settings.overlay.karaokeSweep")], ["highlight", t("settings.overlay.karaokeHighlight")]]} onChange={(karaokeStyle) => save(patchAppearance(value, { karaokeStyle: karaokeStyle as CompactKaraokeStyle }))} />
         {!modeInheritance.inheritColors && <>
           <ColorRow label={t("settings.display.statusBar.textColor")} description={t("settings.display.statusBar.textColorHint")} value={appearance.textColor} onChange={(textColor) => save(patchAppearance(value, { textColor }))} />
           <ColorRow label={t("settings.display.statusBar.highlightColor")} description={t("settings.display.statusBar.highlightColorHint")} value={appearance.highlightColor} onChange={(highlightColor) => save(patchAppearance(value, { highlightColor }))} />
           <ColorRow label={t("settings.display.statusBar.inactiveColor")} description={t("settings.display.statusBar.inactiveColorHint")} value={appearance.inactiveColor} onChange={(inactiveColor) => save(patchAppearance(value, { inactiveColor }))} />
         </>}
+      </SettingsSection>
+      <SettingsSection id="mode-background" title={t("settings.style.modeControls.size")}>
+        <RangeRow label={t("settings.display.statusBar.width")} description={t("settings.display.statusBar.widthHint")} value={appearance.width} min={120} max={360} step={5} suffix=" pt" onChange={(width) => save(patchAppearance(value, { width }))} />
       </SettingsSection>
     </>;
   }
@@ -148,12 +154,12 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
     const appearance = value.appearance;
     const save = (next: ListLyricsPreferences) => void update("listWindow", next);
     return <>
-      {inheritanceSection}
-      <SettingsSection id="mode-state" title={t("settings.style.modeControls.displayContent")}>
+      <SettingsSection id="mode-state" title={t("settings.style.modeControls.displayInteraction")}>
         <ToggleRow label={t("settings.display.listWindow.show")} value={value.enabled} onChange={(enabled) => save({ ...value, enabled })} />
         <ToggleRow label={t("settings.display.listWindow.translation")} value={value.showTranslation} onChange={(showTranslation) => save({ ...value, showTranslation })} />
         <ToggleRow label={t("settings.display.listWindow.romanization")} value={value.showRomanization} onChange={(showRomanization) => save({ ...value, showRomanization })} />
       </SettingsSection>
+      {inheritanceSection}
       <SettingsSection id="mode-text" title={t("settings.style.modeControls.textLayout")}>
         {!modeInheritance.inheritFontFamily && <TextRow label={t("settings.overlay.fontFamily")} value={appearance.fontFamily} emptyValue={appearance.fontFamily} onChange={(fontFamily) => save(patchAppearance(value, { fontFamily }))} />}
         <RangeRow label={t("settings.style.modeControls.mainFontSize")} value={appearance.fontSize} min={12} max={56} suffix="px" onChange={(fontSize) => save(patchAppearance(value, { fontSize }))} />
@@ -163,16 +169,18 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
         <RangeRow label={t("settings.style.modeControls.lineGap")} value={appearance.lineGap} min={0} max={32} suffix="px" onChange={(lineGap) => save(patchAppearance(value, { lineGap }))} />
         <SelectRow label={t("settings.style.modeControls.alignment")} value={appearance.alignment} options={[["left", t("settings.style.modeControls.left")], ["center", t("settings.style.modeControls.center")], ["right", t("settings.style.modeControls.right")]]} onChange={(alignment) => save(patchAppearance(value, { alignment: alignment as ListLyricsPreferences["appearance"]["alignment"] }))} />
       </SettingsSection>
-      <SettingsSection id="mode-colors" title={t("settings.style.modeControls.colors")}>
+      <SettingsSection id="mode-colors" title={t("settings.style.modeControls.colorEffects")}>
         {!modeInheritance.inheritColors && <>
           <ColorRow label={t("settings.display.listWindow.activeColor")} description={t("settings.display.listWindow.activeColorHint")} value={appearance.activeColor} onChange={(activeColor) => save(patchAppearance(value, { activeColor }))} />
           <ColorRow label={t("settings.display.listWindow.inactiveColor")} description={t("settings.display.listWindow.inactiveColorHint")} value={appearance.inactiveColor} onChange={(inactiveColor) => save(patchAppearance(value, { inactiveColor }))} />
           <ColorRow label={t("settings.overlay.translationColor")} value={appearance.translationColor} onChange={(translationColor) => save(patchAppearance(value, { translationColor }))} />
           <ColorRow label={t("settings.overlay.romanizationColor")} value={appearance.romanizationColor} onChange={(romanizationColor) => save(patchAppearance(value, { romanizationColor }))} />
-          <ColorRow label={t("settings.style.modeControls.windowBackground")} value={appearance.backgroundColor} onChange={(backgroundColor) => save(patchAppearance(value, { backgroundColor }))} />
         </>}
-        <RangeRow label={t("settings.overlay.backgroundOpacity")} value={appearance.backgroundOpacity} min={0} max={1} step={0.05} suffix="%" displayValue={Math.round(appearance.backgroundOpacity * 100)} onChange={(backgroundOpacity) => save(patchAppearance(value, { backgroundOpacity }))} />
         <ColorRow label={t("settings.style.modeControls.activeBackground")} value={appearance.activeBackgroundColor} onChange={(activeBackgroundColor) => save(patchAppearance(value, { activeBackgroundColor }))} />
+      </SettingsSection>
+      <SettingsSection id="mode-background" title={t("settings.style.modeControls.backgroundSize")}>
+        {!modeInheritance.inheritColors && <ColorRow label={t("settings.style.modeControls.windowBackground")} value={appearance.backgroundColor} onChange={(backgroundColor) => save(patchAppearance(value, { backgroundColor }))} />}
+        <RangeRow label={t("settings.overlay.backgroundOpacity")} value={appearance.backgroundOpacity} min={0} max={1} step={0.05} suffix="%" displayValue={Math.round(appearance.backgroundOpacity * 100)} onChange={(backgroundOpacity) => save(patchAppearance(value, { backgroundOpacity }))} />
       </SettingsSection>
     </>;
   }
@@ -237,7 +245,6 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
         <SelectRow label={t("settings.display.notch.leftSlot")} value={value.leftSlot} options={slotOptions} onChange={(leftSlot) => save({ ...value, leftSlot: leftSlot as NotchSlotContent })} />
         <SelectRow label={t("settings.display.notch.rightSlot")} value={value.rightSlot} options={slotOptions} onChange={(rightSlot) => save({ ...value, rightSlot: rightSlot as NotchSlotContent })} />
         {value.showLyrics && <>
-          <SelectRow label={t("settings.overlay.lyricLayout")} value={value.layout} options={[["single", t("overlay.layout.single")], ["double", t("overlay.layout.double")]]} onChange={(layout) => save({ ...value, layout: layout as NotchLyricsPreferences["layout"] })} />
           <ToggleRow label={t("settings.display.notch.translation")} value={value.showTranslation} onChange={(showTranslation) => save({ ...value, showTranslation })} />
           <ToggleRow label={t("settings.display.notch.romanization")} value={value.showRomanization} onChange={(showRomanization) => save({ ...value, showRomanization })} />
         </>}
@@ -246,10 +253,13 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
     </SettingsSection>
     {value.showLyrics && <>
     {inheritanceSection}
-    <SettingsSection id="mode-text" title={t("settings.style.modeControls.text")}>
+    <SettingsSection id="mode-text" title={t("settings.style.modeControls.textLayout")}>
+      <SelectRow label={t("settings.overlay.lyricLayout")} value={value.layout} options={[["single", t("overlay.layout.single")], ["double", t("overlay.layout.double")]]} onChange={(layout) => save({ ...value, layout: layout as NotchLyricsPreferences["layout"] })} />
       {!modeInheritance.inheritFontFamily && <TextRow label={t("settings.overlay.fontFamily")} value={appearance.fontFamily} emptyValue={appearance.fontFamily} onChange={(fontFamily) => save(patchAppearance(value, { fontFamily }))} />}
       <RangeRow label={t("settings.overlay.fontSize")} value={appearance.fontSize} min={12} max={32} suffix="px" onChange={(fontSize) => save(patchAppearance(value, { fontSize }))} />
       <SelectRow label={t("settings.overlay.fontWeight")} value={String(appearance.fontWeight)} options={fontWeights} onChange={(fontWeight) => save(patchAppearance(value, { fontWeight: Number(fontWeight) as OverlayFontWeight }))} />
+    </SettingsSection>
+    <SettingsSection id="mode-colors" title={t("settings.style.modeControls.colorEffects")}>
       <SelectRow label={t("settings.overlay.karaoke")} value={appearance.karaokeStyle} options={[["sweep", t("settings.overlay.karaokeSweep")], ["highlight", t("settings.overlay.karaokeHighlight")]]} onChange={(karaokeStyle) => save(patchAppearance(value, { karaokeStyle: karaokeStyle as CompactKaraokeStyle }))} />
       {!modeInheritance.inheritColors && <>
         <ColorRow label={t("settings.display.notch.activeColor")} description={t("settings.display.notch.activeColorHint")} value={appearance.activeColor} onChange={(activeColor) => save(patchAppearance(value, { activeColor }))} />

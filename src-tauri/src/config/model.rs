@@ -209,11 +209,11 @@ impl GlobalShortcutSettings {
         ];
         let optional = [
             parse(
-                "显示 / 隐藏状态栏歌词",
+                "显示 / 隐藏菜单栏歌词",
                 &self.toggle_status_bar_lyrics,
                 true,
             )?,
-            parse("显示 / 隐藏列表歌词", &self.toggle_list_lyrics, true)?,
+            parse("显示 / 隐藏歌词窗口", &self.toggle_list_lyrics, true)?,
             parse("显示 / 隐藏灵动岛歌词", &self.toggle_notch_lyrics, true)?,
         ];
         Ok((required, optional))

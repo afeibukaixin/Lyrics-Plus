@@ -98,7 +98,7 @@ export default function LyricsListWindow() {
 
   const updatePreferences = (next: ListLyricsPreferences) =>
     setLyricsDisplayPreferences("listWindow", next).then(() => true).catch((error) => {
-      reportFrontendError("Failed to update list lyrics preferences", error);
+      reportFrontendError("Failed to update lyrics window preferences", error);
       return false;
     });
 
@@ -137,7 +137,7 @@ export default function LyricsListWindow() {
     const trackKey = lyrics.trackKey;
     offsetWriteQueue.current = offsetWriteQueue.current
       .then(() => api.setLyricsOffset(trackKey, nextOffsetMs))
-      .catch((error) => reportFrontendError("Failed to update list lyrics offset", error));
+      .catch((error) => reportFrontendError("Failed to update the lyrics window offset", error));
   };
 
   const changeLyricsOffset = (deltaMs: number) => {
@@ -149,7 +149,7 @@ export default function LyricsListWindow() {
     if ((event.target as HTMLElement).closest("button, [role='slider'], [data-no-window-drag]")) return;
     event.preventDefault();
     void getCurrentWindow().startDragging().catch((error) => {
-      reportFrontendError("Failed to drag the list lyrics window", error);
+      reportFrontendError("Failed to drag the lyrics window", error);
     });
   };
 
@@ -158,14 +158,14 @@ export default function LyricsListWindow() {
     event.preventDefault();
     event.stopPropagation();
     void getCurrentWindow().startResizeDragging(direction).catch((error) => {
-      reportFrontendError("Failed to resize the list lyrics window", error);
+      reportFrontendError("Failed to resize the lyrics window", error);
     });
   };
 
   const resetWindowSize = () => {
     if (!isTauriRuntime()) return;
     void api.resetListLyricsWindowSize().catch((error) => {
-      reportFrontendError("Failed to reset the list lyrics window size", error);
+      reportFrontendError("Failed to reset the lyrics window size", error);
     });
   };
 

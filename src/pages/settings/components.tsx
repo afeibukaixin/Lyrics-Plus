@@ -55,7 +55,7 @@ function nativeColorValue(value: string) {
   return `#${channels.map((channel) => Math.round(Number(channel)).toString(16).padStart(2, "0")).join("")}`;
 }
 
-export function PageHeader({ title, description, onReset, resetting = false }: { title: string; description?: string; onReset?: () => void; resetting?: boolean; confirming?: boolean }) {
+export function PageHeader({ title, description, onReset, resetLabel, resetting = false }: { title: string; description?: string; onReset?: () => void; resetLabel?: string; resetting?: boolean; confirming?: boolean }) {
   const { t } = useTranslation();
   return (
     <header className={styles.settingsHeading}>
@@ -63,7 +63,7 @@ export function PageHeader({ title, description, onReset, resetting = false }: {
         <h1 className="text-2xl font-semibold tracking-tight text-balance">{title}</h1>
         {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </div>
-      {onReset && <Button variant="outline" size="sm" disabled={resetting} onClick={onReset}>{resetting ? t("common.actions.resetting") : t("common.actions.resetDefault")}</Button>}
+      {onReset && <Button variant="outline" size="sm" disabled={resetting} onClick={onReset}>{resetting ? t("common.actions.resetting") : resetLabel ?? t("common.actions.resetDefault")}</Button>}
     </header>
   );
 }

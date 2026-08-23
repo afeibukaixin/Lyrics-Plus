@@ -52,7 +52,7 @@ export const zhCN = {
     validation: "配置内容无效，请检查标记的位置。",
   },
   window: {
-    main: "Lyrics Plus", quickLyrics: "快速切换歌词", overlay: "Lyrics Plus 桌面歌词", statusBarLyrics: "Lyrics Plus 状态栏歌词", lyricsList: "Lyrics Plus 列表歌词", notchLyrics: "Lyrics Plus 灵动岛歌词",
+    main: "Lyrics Plus", quickLyrics: "快速切换歌词", overlay: "Lyrics Plus 桌面歌词", statusBarLyrics: "Lyrics Plus 菜单栏歌词", lyricsList: "Lyrics Plus 歌词窗口", notchLyrics: "Lyrics Plus 灵动岛歌词",
     unlockHandle: "解锁桌面歌词",
   },
   player: {
@@ -80,12 +80,12 @@ export const zhCN = {
     noTrack: "没有正在播放的歌曲", waiting: "等待播放器", lyrics: "完整歌词", returnCurrent: "回到当前歌词",
     loading: "正在载入歌词", empty: "暂无歌词", emptyHint: "播放歌曲后会自动匹配歌词。", chooseLyrics: "选择歌词",
     toolbar: {
-      label: "列表歌词工具栏", decreaseFont: "减小字号", increaseFont: "增大字号", offsetGroup: "歌词偏移，当前{{value}}",
+      label: "歌词窗口工具栏", decreaseFont: "减小字号", increaseFont: "增大字号", offsetGroup: "歌词偏移，当前{{value}}",
       delay: "歌词延后 100 毫秒；按住 Shift 调整 500 毫秒", advance: "歌词提前 100 毫秒；按住 Shift 调整 500 毫秒",
       resetOffset: "当前偏移{{value}}，点击重置",
       unavailableTrack: "{{action}}（当前歌词暂无{{track}}，资源出现后自动应用）",
-      openSettings: "打开列表歌词设置", pin: "窗口置顶", unpin: "取消窗口置顶",
-      resetSize: "恢复默认窗口大小", hide: "隐藏列表歌词",
+      openSettings: "打开歌词窗口设置", pin: "窗口置顶", unpin: "取消窗口置顶",
+      resetSize: "恢复默认窗口大小", hide: "隐藏歌词窗口",
     },
   },
   overlay: {
@@ -133,16 +133,16 @@ export const zhCN = {
       colorPlaceholder: "#ffffff 或 rgba(255,255,255,.8)", capabilitiesHint: "关联歌词后会显示翻译、音译和逐字时间轴的可用状态",
     },
     style: {
-      title: "歌词样式", description: "先设置公共字体与配色，再调整每种歌词模式。", common: "常用样式", advanced: "高级样式",
-      modes: { base: "基础样式", desktop: "桌面歌词", statusBar: "状态栏歌词", listWindow: "歌词列表", notch: "灵动岛", selector: "歌词样式模式" },
-      modeControls: { inheritance: "基础样式继承", inheritFontFamily: "跟随基础字体", inheritColors: "跟随基础配色", baseFont: "基础字体", baseColors: "基础配色", baseActiveColor: "高亮歌词颜色", baseActiveColorHint: "当前歌词、已唱部分等重点内容使用", baseInactiveColor: "弱化歌词颜色", baseInactiveColorHint: "其他歌词、下一句或未唱部分使用", desktopActiveColor: "当前与已唱歌词颜色", desktopActiveColorHint: "当前行及逐字歌词已唱部分使用", desktopInactiveColor: "未唱与下一句歌词颜色", desktopInactiveColorHint: "逐字歌词未唱部分及下一句使用", displayPosition: "显示与位置", text: "文字", backgroundSize: "背景与尺寸", displayContent: "显示内容", textLayout: "文字与排版", colors: "颜色", displayInteraction: "显示与交互", widthRange: "灵动岛宽度", compactWidth: "常驻", hoverWidth: "悬停", locked: "锁定位置", lockedHint: "锁定后鼠标会穿透歌词窗口", unlockedHint: "解锁后可直接拖动歌词窗口", resetPosition: "复位位置", textColor: "文字颜色", maxWidth: "常驻最大宽度", hoverMaxWidth: "悬停最大宽度", mainFontSize: "主歌词字号", mainFontWeight: "主歌词粗细", secondaryFontSize: "辅助歌词字号", lineGap: "歌词间距", alignment: "对齐方式", left: "左对齐", center: "居中", right: "右对齐", activeBackground: "当前行背景颜色", windowBackground: "窗口背景颜色", primaryColor: "主歌词颜色", secondaryColor: "辅助文字颜色", positionReset: "歌词窗口位置已复位。" },
+      title: "歌词样式", description: "先设置通用字体和配色，再分别调整桌面、歌词窗口、菜单栏和灵动岛的显示效果。", resetCurrentMode: "恢复当前模式默认", common: "通用样式", advanced: "高级样式",
+      modes: { base: "通用样式", desktop: "桌面歌词", statusBar: "菜单栏歌词", listWindow: "歌词窗口", notch: "灵动岛", selector: "歌词显示模式" },
+      modeControls: { inheritance: "使用通用样式", inheritFontFamily: "使用通用字体", inheritColors: "使用通用配色", baseFont: "通用字体", colorPresets: "配色方案", baseColors: "通用颜色", baseActiveColor: "高亮歌词颜色", baseActiveColorHint: "当前歌词、已唱部分等重点内容使用", baseInactiveColor: "弱化歌词颜色", baseInactiveColorHint: "其他歌词、下一句或未唱部分使用", desktopActiveColor: "当前与已唱歌词颜色", desktopActiveColorHint: "当前行及逐字歌词已唱部分使用", desktopInactiveColor: "未唱与下一句歌词颜色", desktopInactiveColorHint: "逐字歌词未唱部分及下一句使用", displayPosition: "显示与位置", text: "文字与排版", backgroundSize: "背景与尺寸", size: "尺寸", displayContent: "显示与交互", textLayout: "文字与排版", colors: "颜色与效果", colorEffects: "颜色与效果", displayInteraction: "显示与交互", widthRange: "灵动岛宽度", compactWidth: "常驻", hoverWidth: "悬停", locked: "锁定位置", lockedHint: "锁定后鼠标会穿透歌词窗口", unlockedHint: "解锁后可直接拖动歌词窗口", resetPosition: "恢复默认位置", textColor: "文字颜色", maxWidth: "常驻最大宽度", hoverMaxWidth: "悬停最大宽度", mainFontSize: "主歌词字号", mainFontWeight: "主歌词粗细", secondaryFontSize: "辅助歌词字号", lineGap: "歌词间距", alignment: "对齐方式", left: "左对齐", center: "居中", right: "右对齐", activeBackground: "当前行背景颜色", windowBackground: "窗口背景颜色", primaryColor: "主歌词颜色", secondaryColor: "辅助文字颜色", positionReset: "歌词窗口位置已恢复默认。" },
     },
     display: {
-      title: "显示与交互", description: "独立控制桌面、状态栏、列表和灵动岛歌词。",
+      title: "显示与交互", description: "独立控制桌面、菜单栏、歌词窗口和灵动岛。",
       directControlHint: "解锁后拖动空白区域可移动歌词窗口。", manageShortcuts: "管理全局快捷键",
-      statusBar: { title: "状态栏歌词", show: "显示状态栏歌词", showHint: "在 macOS 菜单栏显示当前歌词", autoHide: "未播放时自动隐藏", autoHideHint: "暂停、停止或播放器不可用时隐藏；恢复播放后自动显示（需开启显示状态栏歌词）", width: "歌词宽度", widthHint: "超出固定宽度的歌词会自动滚动", textColor: "歌曲信息颜色", textColorHint: "没有可用歌词时的歌曲名或占位文字使用", highlightColor: "已唱歌词颜色", highlightColorHint: "已唱部分使用；没有逐字时间轴时用于整句", inactiveColor: "未唱歌词颜色", inactiveColorHint: "逐字歌词尚未唱到的部分使用" },
-      listWindow: { title: "列表歌词", show: "显示列表歌词窗口", showHint: "打开可滚动的完整歌词独立窗口", translation: "显示翻译", romanization: "显示音译", activeColor: "当前行歌词颜色", activeColorHint: "正在播放的歌词行使用", inactiveColor: "其他行歌词颜色", inactiveColorHint: "当前行以外的歌词使用" },
-      notch: { title: "灵动岛", show: "开启灵动岛", showHint: "将灵动岛吸附在屏幕顶部", display: "显示器", primaryDisplay: "主显示器", displayFallback: "显示器 {{index}}", autoHide: "未播放时自动隐藏", autoHideHint: "暂停、停止或播放器不可用时隐藏；恢复播放后自动显示（需开启灵动岛）", showLyrics: "开启歌词", showLyricsHint: "在收起的播放器下方显示当前歌词", leftSlot: "左侧内容", rightSlot: "右侧内容", slotEmpty: "空", slotTitle: "歌名", slotArtist: "歌手", slotArtwork: "封面", slotSpectrum: "音频频谱", translation: "显示翻译", romanization: "显示音译", fontSize: "字号", activeColor: "当前与已唱歌词颜色", activeColorHint: "当前行及逐字歌词已唱部分使用", inactiveColor: "未唱与辅助歌词颜色", inactiveColorHint: "当前行未唱部分及双排模式下的辅助歌词使用" },
+      statusBar: { title: "菜单栏歌词", show: "显示菜单栏歌词", showHint: "在 macOS 菜单栏显示当前歌词", autoHide: "未播放时自动隐藏", autoHideHint: "暂停、停止或播放器不可用时隐藏，恢复播放后自动显示", width: "歌词宽度", widthHint: "超出固定宽度的歌词会自动滚动", textColor: "歌曲信息颜色", textColorHint: "没有可用歌词时的歌曲名或占位文字使用", highlightColor: "已唱歌词颜色", highlightColorHint: "已唱部分使用；没有逐字时间轴时用于整句", inactiveColor: "未唱歌词颜色", inactiveColorHint: "逐字歌词尚未唱到的部分使用" },
+      listWindow: { title: "歌词窗口", show: "显示歌词窗口", showHint: "显示可滚动的完整歌词窗口", translation: "显示翻译", romanization: "显示音译", activeColor: "当前行歌词颜色", activeColorHint: "正在播放的歌词行使用", inactiveColor: "其他行歌词颜色", inactiveColorHint: "当前行以外的歌词使用" },
+      notch: { title: "灵动岛", show: "显示灵动岛", showHint: "将灵动岛吸附在屏幕顶部", display: "显示器", primaryDisplay: "主显示器", displayFallback: "显示器 {{index}}", autoHide: "未播放时自动隐藏", autoHideHint: "暂停、停止或播放器不可用时隐藏，恢复播放后自动显示", showLyrics: "显示歌词", showLyricsHint: "在收起的播放器下方显示当前歌词", leftSlot: "左侧内容", rightSlot: "右侧内容", slotEmpty: "空", slotTitle: "歌名", slotArtist: "歌手", slotArtwork: "封面", slotSpectrum: "音频频谱", translation: "显示翻译", romanization: "显示音译", fontSize: "字号", activeColor: "当前与已唱歌词颜色", activeColorHint: "当前行及逐字歌词已唱部分使用", inactiveColor: "未唱与辅助歌词颜色", inactiveColorHint: "当前行未唱部分及双排模式下的辅助歌词使用" },
     },
     player: { title: "播放器", description: "查看监听状态，并选择播放来源、系统媒体筛选和播放器跟随。", startup: "启动与菜单栏", silentStartupHint: "启动时不显示设置窗口；桌面歌词、播放器监听和菜单栏仍会运行。", idleStatus: "等待播放", attentionStatus: "播放器需要处理", openAutomationSettings: "打开自动化设置", detectAgain: "重新检测", useAuto: "切换为智能选择" },
     app: {
@@ -154,7 +154,7 @@ export const zhCN = {
       dockMenu: "Dock 与菜单栏", hideDock: "隐藏 Dock 图标和运行指示点", hideDockHint: "隐藏后仍可通过菜单栏图标打开 Lyrics Plus",
       silentStartup: "静默启动", silentStartupHint: "下次启动时不显示设置窗口，仍可通过菜单栏图标打开 Lyrics Plus。",
       shortcuts: "快捷键", openSettings: "打开设置", toggleOverlay: "显示 / 隐藏桌面歌词", unlockOverlay: "锁定 / 解锁桌面歌词",
-      resetOverlay: "复位并显示桌面歌词", toggleStatusBarLyrics: "显示 / 隐藏状态栏歌词", toggleListLyrics: "显示 / 隐藏列表歌词", toggleNotchLyrics: "显示 / 隐藏灵动岛歌词", shortcutUnset: "未设置", record: "请按组合键 · Esc 取消", shortcutUnavailable: "{{actions}}快捷键未注册，可能与系统或其他应用冲突，请重新录制。", diagnostics: "诊断",
+      resetOverlay: "复位并显示桌面歌词", toggleStatusBarLyrics: "显示 / 隐藏菜单栏歌词", toggleListLyrics: "显示 / 隐藏歌词窗口", toggleNotchLyrics: "显示 / 隐藏灵动岛歌词", shortcutUnset: "未设置", record: "请按组合键 · Esc 取消", shortcutUnavailable: "{{actions}}快捷键未注册，可能与系统或其他应用冲突，请重新录制。", diagnostics: "诊断",
       diagnosticsLyrics: "歌词来源：{{source}} · {{count}} 行", diagnosticsEmpty: "当前没有已关联歌词",
     },
     about: {
@@ -198,8 +198,8 @@ export const zhCN = {
     overlay: {
       title: "桌面歌词", description: "横排宽度、竖排高度由边缘拖动设定；解锁后拖动空白区域可移动浮窗。",
       state: "浮窗状态", show: "显示桌面歌词", showHint: "在所有桌面空间置顶显示", autoHide: "未播放时自动隐藏",
-      autoHideHint: "暂停、停止或播放器不可用时隐藏；恢复播放后自动显示（需开启显示桌面歌词）",
-      lock: "锁定并鼠标穿透", lockHint: "锁定后点击会穿透到下方窗口", resetPosition: "复位桌面歌词位置",
+      autoHideHint: "暂停、停止或播放器不可用时隐藏，恢复播放后自动显示",
+      lock: "锁定位置", lockHint: "锁定后鼠标会穿透桌面歌词", resetPosition: "恢复桌面歌词默认位置",
       colors: "快捷配色", currentColor: "当前：{{name}}", custom: "自定义", applyColor: "应用{{name}}配色", colorApplied: "已应用「{{name}}」配色。", showMoreColors: "更多配色", showFewerColors: "收起配色",
       presets: { lime: "青柠绿", sky: "天空蓝", aurora: "极光青", lavender: "数字薰衣草", rose: "玫瑰粉", contrast: "黑白高对比", amber: "琥珀金", emerald: "翡翠绿", indigo: "暮光靛", coral: "活力珊瑚", moonlight: "月光银", neon: "霓虹紫" },
       textEffects: "文字与效果", fontFamily: "字体系列", fontFamilyHint: "按 CSS font-family 语法填写多个字体，系统会按顺序回退。", fontSize: "字号", fontWeight: "主歌词粗细", secondaryFontWeight: "副歌词粗细", fontWeightRegular: "常规", fontWeightMedium: "中等", fontWeightSemibold: "半粗", fontWeightBold: "粗体", fontWeightExtrabold: "特粗", lineHeight: "歌词行高", opacity: "透明度", activeColor: "当前与已唱歌词颜色", inactiveColor: "未唱与下一句歌词颜色",

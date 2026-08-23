@@ -267,7 +267,7 @@ fn register_global_shortcuts(
                 })
                 .map_err(|error| {
                     format!(
-                        "注册显示 / 隐藏状态栏歌词快捷键 {} 失败：{error}",
+                        "注册显示 / 隐藏菜单栏歌词快捷键 {} 失败：{error}",
                         shortcuts.toggle_status_bar_lyrics
                     )
                 })?;
@@ -292,14 +292,14 @@ fn register_global_shortcuts(
                             app.state::<AppState>(),
                         ) {
                             log::warn!(
-                                "Failed to toggle list lyrics from global shortcut: {error}"
+                                "Failed to toggle the lyrics window from global shortcut: {error}"
                             );
                         }
                     }
                 })
                 .map_err(|error| {
                     format!(
-                        "注册显示 / 隐藏列表歌词快捷键 {} 失败：{error}",
+                        "注册显示 / 隐藏歌词窗口快捷键 {} 失败：{error}",
                         shortcuts.toggle_list_lyrics
                     )
                 })?;

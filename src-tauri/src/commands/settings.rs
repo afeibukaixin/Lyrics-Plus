@@ -71,14 +71,14 @@ pub fn set_lyrics_display_preferences(
         LyricsStyleMode::Desktop => return Err("桌面歌词样式请使用桌面样式接口".into()),
         LyricsStyleMode::StatusBar => {
             let value = serde_json::from_value::<StatusBarLyricsPreferences>(preferences)
-                .map_err(|error| format!("状态栏歌词配置无效：{error}"))?;
+                .map_err(|error| format!("菜单栏歌词配置无效：{error}"))?;
             state
                 .config
                 .update(|config| config.lyrics.displays.status_bar = value.clone())?
         }
         LyricsStyleMode::ListWindow => {
             let value = serde_json::from_value::<ListLyricsPreferences>(preferences)
-                .map_err(|error| format!("歌词列表配置无效：{error}"))?;
+                .map_err(|error| format!("歌词窗口配置无效：{error}"))?;
             state
                 .config
                 .update(|config| config.lyrics.displays.list_window = value.clone())?

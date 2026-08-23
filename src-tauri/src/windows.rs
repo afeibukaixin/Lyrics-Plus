@@ -198,7 +198,7 @@ fn create_list_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {
 pub(crate) fn reset_list_lyrics_window_size(app: &tauri::AppHandle) -> Result<(), String> {
     let window = app
         .get_webview_window("lyrics-list")
-        .ok_or_else(|| "列表歌词窗口不存在".to_string())?;
+        .ok_or_else(|| "歌词窗口不存在".to_string())?;
     window
         .set_size(tauri::LogicalSize::new(
             LIST_LYRICS_DEFAULT_WIDTH,
@@ -291,7 +291,7 @@ fn create_status_bar_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> 
         "lyrics-status-bar",
         WebviewUrl::App("index.html?view=lyrics-status-bar".into()),
     )
-    .title("Lyrics Plus 状态栏歌词")
+    .title("Lyrics Plus 菜单栏歌词")
     .inner_size(appearance.width as f64, height.max(26.0))
     .transparent(true)
     .decorations(false)

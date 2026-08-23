@@ -54,7 +54,7 @@ export const zhTW = {
     validation: "設定內容無效，請檢查標示的位置。",
   },
   window: {
-    main: "Lyrics Plus", quickLyrics: "快速切換歌詞", overlay: "Lyrics Plus 桌面歌詞", statusBarLyrics: "Lyrics Plus 狀態列歌詞", lyricsList: "Lyrics Plus 列表歌詞", notchLyrics: "Lyrics Plus 靈動島歌詞",
+    main: "Lyrics Plus", quickLyrics: "快速切換歌詞", overlay: "Lyrics Plus 桌面歌詞", statusBarLyrics: "Lyrics Plus 選單列歌詞", lyricsList: "Lyrics Plus 歌詞視窗", notchLyrics: "Lyrics Plus 靈動島歌詞",
     unlockHandle: "解鎖桌面歌詞",
   },
   player: {
@@ -82,12 +82,12 @@ export const zhTW = {
     noTrack: "沒有正在播放的歌曲", waiting: "等待播放器", lyrics: "完整歌詞", returnCurrent: "回到目前歌詞",
     loading: "正在載入歌詞", empty: "暫無歌詞", emptyHint: "播放歌曲後會自動配對歌詞。", chooseLyrics: "選擇歌詞",
     toolbar: {
-      label: "列表歌詞工具列", decreaseFont: "縮小字型", increaseFont: "放大字型", offsetGroup: "歌詞偏移，目前{{value}}",
+      label: "歌詞視窗工具列", decreaseFont: "縮小字型", increaseFont: "放大字型", offsetGroup: "歌詞偏移，目前{{value}}",
       delay: "歌詞延後 100 毫秒；按住 Shift 調整 500 毫秒", advance: "歌詞提前 100 毫秒；按住 Shift 調整 500 毫秒",
       resetOffset: "目前偏移{{value}}，點擊重設",
       unavailableTrack: "{{action}}（目前歌詞暫無{{track}}，資源出現後會自動套用）",
-      openSettings: "開啟列表歌詞設定", pin: "視窗置頂", unpin: "取消視窗置頂",
-      resetSize: "恢復預設視窗大小", hide: "隱藏列表歌詞",
+      openSettings: "開啟歌詞視窗設定", pin: "視窗置頂", unpin: "取消視窗置頂",
+      resetSize: "恢復預設視窗大小", hide: "隱藏歌詞視窗",
     },
   },
   overlay: {
@@ -134,11 +134,11 @@ export const zhTW = {
       colorSelect: "選擇{{label}}", presetColors: "{{label}}預設顏色", systemColorPicker: "開啟{{label}}系統取色器", colorValue: "{{label}}顏色值",
       colorPlaceholder: "#ffffff 或 rgba(255,255,255,.8)", capabilitiesHint: "連結歌詞後會顯示翻譯、羅馬拼音和逐字時間軸的可用狀態",
     },
-    style: { title: "歌詞樣式", description: "先設定共用字體與配色，再調整每種歌詞模式。", common: "常用樣式", advanced: "進階樣式", modes: { base: "基礎樣式", desktop: "桌面歌詞", statusBar: "狀態列歌詞", listWindow: "歌詞列表", notch: "靈動島", selector: "歌詞樣式模式" }, modeControls: { inheritance: "基礎樣式繼承", inheritFontFamily: "跟隨基礎字體", inheritColors: "跟隨基礎配色", baseFont: "基礎字體", baseColors: "基礎配色", baseActiveColor: "高亮歌詞顏色", baseActiveColorHint: "目前歌詞、已唱部分等重點內容使用", baseInactiveColor: "弱化歌詞顏色", baseInactiveColorHint: "其他歌詞、下一句或未唱部分使用", desktopActiveColor: "目前與已唱歌詞顏色", desktopActiveColorHint: "目前行及逐字歌詞已唱部分使用", desktopInactiveColor: "未唱與下一句歌詞顏色", desktopInactiveColorHint: "逐字歌詞未唱部分及下一句使用", displayPosition: "顯示與位置", text: "文字", backgroundSize: "背景與尺寸", displayContent: "顯示內容", textLayout: "文字與排版", colors: "顏色", displayInteraction: "顯示與互動", widthRange: "靈動島寬度", compactWidth: "常駐", hoverWidth: "懸停", locked: "鎖定位置", lockedHint: "鎖定後滑鼠會穿透歌詞視窗", unlockedHint: "解鎖後可直接拖曳歌詞視窗", resetPosition: "重設位置", textColor: "文字顏色", maxWidth: "常駐最大寬度", hoverMaxWidth: "懸停最大寬度", mainFontSize: "主歌詞字號", mainFontWeight: "主歌詞粗細", secondaryFontSize: "輔助歌詞字號", lineGap: "歌詞間距", alignment: "對齊方式", left: "靠左", center: "置中", right: "靠右", activeBackground: "目前行背景顏色", windowBackground: "視窗背景顏色", primaryColor: "主歌詞顏色", secondaryColor: "輔助文字顏色", positionReset: "歌詞視窗位置已重設。" } },
-    display: { title: "顯示與互動", description: "獨立控制桌面、狀態列、列表和靈動島歌詞。", directControlHint: "解鎖後拖曳空白區域即可移動歌詞視窗。", manageShortcuts: "管理全域快速鍵",
-      statusBar: { title: "狀態列歌詞", show: "顯示狀態列歌詞", showHint: "在 macOS 選單列顯示目前歌詞", autoHide: "未播放時自動隱藏", autoHideHint: "暫停、停止或播放器無法使用時隱藏；恢復播放後自動顯示（需啟用顯示狀態列歌詞）", width: "歌詞寬度", widthHint: "超出固定寬度的歌詞會自動捲動", textColor: "歌曲資訊顏色", textColorHint: "沒有可用歌詞時的歌曲名稱或預留文字使用", highlightColor: "已唱歌詞顏色", highlightColorHint: "已唱部分使用；沒有逐字時間軸時用於整句", inactiveColor: "未唱歌詞顏色", inactiveColorHint: "逐字歌詞尚未唱到的部分使用" },
-      listWindow: { title: "列表歌詞", show: "顯示列表歌詞視窗", showHint: "開啟可捲動的完整歌詞獨立視窗", translation: "顯示翻譯", romanization: "顯示音譯", activeColor: "目前行歌詞顏色", activeColorHint: "正在播放的歌詞行使用", inactiveColor: "其他行歌詞顏色", inactiveColorHint: "目前行以外的歌詞使用" },
-      notch: { title: "靈動島", show: "開啟靈動島", showHint: "將靈動島吸附在螢幕頂部", display: "顯示器", primaryDisplay: "主要顯示器", displayFallback: "顯示器 {{index}}", autoHide: "未播放時自動隱藏", autoHideHint: "暫停、停止或播放器無法使用時隱藏；恢復播放後自動顯示（需啟用靈動島）", showLyrics: "開啟歌詞", showLyricsHint: "在收起的播放器下方顯示目前歌詞", leftSlot: "左側內容", rightSlot: "右側內容", slotEmpty: "空", slotTitle: "歌名", slotArtist: "歌手", slotArtwork: "封面", slotSpectrum: "音訊頻譜", translation: "顯示翻譯", romanization: "顯示音譯", fontSize: "字級", activeColor: "目前與已唱歌詞顏色", activeColorHint: "目前行及逐字歌詞已唱部分使用", inactiveColor: "未唱與輔助歌詞顏色", inactiveColorHint: "目前行未唱部分及雙行模式下的輔助歌詞使用" } },
+    style: { title: "歌詞樣式", description: "先設定通用字體和配色，再分別調整桌面、歌詞視窗、選單列和靈動島的顯示效果。", resetCurrentMode: "恢復目前模式預設值", common: "通用樣式", advanced: "進階樣式", modes: { base: "通用樣式", desktop: "桌面歌詞", statusBar: "選單列歌詞", listWindow: "歌詞視窗", notch: "靈動島", selector: "歌詞顯示模式" }, modeControls: { inheritance: "使用通用樣式", inheritFontFamily: "使用通用字體", inheritColors: "使用通用配色", baseFont: "通用字體", colorPresets: "配色方案", baseColors: "通用顏色", baseActiveColor: "高亮歌詞顏色", baseActiveColorHint: "目前歌詞、已唱部分等重點內容使用", baseInactiveColor: "弱化歌詞顏色", baseInactiveColorHint: "其他歌詞、下一句或未唱部分使用", desktopActiveColor: "目前與已唱歌詞顏色", desktopActiveColorHint: "目前行及逐字歌詞已唱部分使用", desktopInactiveColor: "未唱與下一句歌詞顏色", desktopInactiveColorHint: "逐字歌詞未唱部分及下一句使用", displayPosition: "顯示與位置", text: "文字與排版", backgroundSize: "背景與尺寸", size: "尺寸", displayContent: "顯示與互動", textLayout: "文字與排版", colors: "顏色與效果", colorEffects: "顏色與效果", displayInteraction: "顯示與互動", widthRange: "靈動島寬度", compactWidth: "常駐", hoverWidth: "懸停", locked: "鎖定位置", lockedHint: "鎖定後滑鼠會穿透歌詞視窗", unlockedHint: "解鎖後可直接拖曳歌詞視窗", resetPosition: "恢復預設位置", textColor: "文字顏色", maxWidth: "常駐最大寬度", hoverMaxWidth: "懸停最大寬度", mainFontSize: "主歌詞字號", mainFontWeight: "主歌詞粗細", secondaryFontSize: "輔助歌詞字號", lineGap: "歌詞間距", alignment: "對齊方式", left: "靠左", center: "置中", right: "靠右", activeBackground: "目前行背景顏色", windowBackground: "視窗背景顏色", primaryColor: "主歌詞顏色", secondaryColor: "輔助文字顏色", positionReset: "歌詞視窗位置已恢復預設。" } },
+    display: { title: "顯示與互動", description: "獨立控制桌面、選單列、歌詞視窗和靈動島。", directControlHint: "解鎖後拖曳空白區域即可移動歌詞視窗。", manageShortcuts: "管理全域快速鍵",
+      statusBar: { title: "選單列歌詞", show: "顯示選單列歌詞", showHint: "在 macOS 選單列顯示目前歌詞", autoHide: "未播放時自動隱藏", autoHideHint: "暫停、停止或播放器無法使用時隱藏，恢復播放後自動顯示", width: "歌詞寬度", widthHint: "超出固定寬度的歌詞會自動捲動", textColor: "歌曲資訊顏色", textColorHint: "沒有可用歌詞時的歌曲名稱或預留文字使用", highlightColor: "已唱歌詞顏色", highlightColorHint: "已唱部分使用；沒有逐字時間軸時用於整句", inactiveColor: "未唱歌詞顏色", inactiveColorHint: "逐字歌詞尚未唱到的部分使用" },
+      listWindow: { title: "歌詞視窗", show: "顯示歌詞視窗", showHint: "顯示可捲動的完整歌詞視窗", translation: "顯示翻譯", romanization: "顯示音譯", activeColor: "目前行歌詞顏色", activeColorHint: "正在播放的歌詞行使用", inactiveColor: "其他行歌詞顏色", inactiveColorHint: "目前行以外的歌詞使用" },
+      notch: { title: "靈動島", show: "顯示靈動島", showHint: "將靈動島吸附在螢幕頂部", display: "顯示器", primaryDisplay: "主要顯示器", displayFallback: "顯示器 {{index}}", autoHide: "未播放時自動隱藏", autoHideHint: "暫停、停止或播放器無法使用時隱藏，恢復播放後自動顯示", showLyrics: "顯示歌詞", showLyricsHint: "在收起的播放器下方顯示目前歌詞", leftSlot: "左側內容", rightSlot: "右側內容", slotEmpty: "空", slotTitle: "歌名", slotArtist: "歌手", slotArtwork: "封面", slotSpectrum: "音訊頻譜", translation: "顯示翻譯", romanization: "顯示音譯", fontSize: "字級", activeColor: "目前與已唱歌詞顏色", activeColorHint: "目前行及逐字歌詞已唱部分使用", inactiveColor: "未唱與輔助歌詞顏色", inactiveColorHint: "目前行未唱部分及雙行模式下的輔助歌詞使用" } },
     player: { title: "播放器", description: "查看監聽狀態，並選擇播放來源、系統媒體篩選與播放器跟隨。", startup: "啟動與選單列", silentStartupHint: "啟動時不顯示設定視窗；桌面歌詞、播放器監聽與選單列仍會運作。", idleStatus: "等待播放", attentionStatus: "播放器需要處理", openAutomationSettings: "開啟自動化設定", detectAgain: "重新偵測", useAuto: "切換為智慧選擇" },
     app: {
       title: "應用程式", description: "選擇播放器並管理設定、選單列與快速鍵。", player: "播放器",
@@ -149,7 +149,7 @@ export const zhTW = {
       dockMenu: "Dock 與選單列", hideDock: "隱藏 Dock 圖示和執行指示點", hideDockHint: "隱藏後仍可透過選單列圖示開啟 Lyrics Plus",
       silentStartup: "靜默啟動", silentStartupHint: "下次啟動時不顯示設定視窗，仍可透過選單列圖示開啟 Lyrics Plus。",
       shortcuts: "快速鍵", openSettings: "開啟設定", toggleOverlay: "顯示 / 隱藏桌面歌詞", unlockOverlay: "鎖定 / 解鎖桌面歌詞",
-      resetOverlay: "重設並顯示桌面歌詞", toggleStatusBarLyrics: "顯示 / 隱藏選單列歌詞", toggleListLyrics: "顯示 / 隱藏列表歌詞", toggleNotchLyrics: "顯示 / 隱藏動態島歌詞", shortcutUnset: "未設定", record: "請按下按鍵組合 · Esc 取消", shortcutUnavailable: "{{actions}}快速鍵未註冊，可能與系統或其他應用程式衝突，請重新錄製。", diagnostics: "診斷",
+      resetOverlay: "重設並顯示桌面歌詞", toggleStatusBarLyrics: "顯示 / 隱藏選單列歌詞", toggleListLyrics: "顯示 / 隱藏歌詞視窗", toggleNotchLyrics: "顯示 / 隱藏動態島歌詞", shortcutUnset: "未設定", record: "請按下按鍵組合 · Esc 取消", shortcutUnavailable: "{{actions}}快速鍵未註冊，可能與系統或其他應用程式衝突，請重新錄製。", diagnostics: "診斷",
       diagnosticsLyrics: "歌詞來源：{{source}} · {{count}} 行", diagnosticsEmpty: "目前歌曲沒有已連結的歌詞",
     },
     about: {
@@ -192,8 +192,8 @@ export const zhTW = {
     overlay: {
       title: "桌面歌詞", description: "拖曳邊緣以設定橫向寬度或直向高度；解鎖後拖曳空白區域即可移動浮動視窗。",
       state: "浮動視窗狀態", show: "顯示桌面歌詞", showHint: "在所有桌面空間最上層顯示", autoHide: "未播放時自動隱藏",
-      autoHideHint: "暫停、停止或播放器無法使用時隱藏；恢復播放後自動顯示（需啟用顯示桌面歌詞）",
-      lock: "鎖定並讓滑鼠事件穿透", lockHint: "鎖定後，點擊會穿透至下方視窗", resetPosition: "重設桌面歌詞位置",
+      autoHideHint: "暫停、停止或播放器無法使用時隱藏，恢復播放後自動顯示",
+      lock: "鎖定位置", lockHint: "鎖定後滑鼠會穿透桌面歌詞", resetPosition: "恢復桌面歌詞預設位置",
       colors: "快速配色", currentColor: "目前：{{name}}", custom: "自訂", applyColor: "套用{{name}}配色", colorApplied: "已套用「{{name}}」配色。", showMoreColors: "更多配色", showFewerColors: "收合配色",
       presets: { lime: "萊姆綠", sky: "天空藍", aurora: "極光青", lavender: "數位薰衣草", rose: "玫瑰粉", contrast: "黑白高對比", amber: "琥珀金", emerald: "翡翠綠", indigo: "暮光靛", coral: "活力珊瑚", moonlight: "月光銀", neon: "霓虹紫" },
       textEffects: "文字與效果", fontFamily: "字體系列", fontFamilyHint: "依 CSS font-family 語法輸入多個字體，系統會按順序回退。", fontSize: "字體大小", fontWeight: "主歌詞粗細", secondaryFontWeight: "副歌詞粗細", fontWeightRegular: "標準", fontWeightMedium: "中等", fontWeightSemibold: "半粗", fontWeightBold: "粗體", fontWeightExtrabold: "特粗", lineHeight: "歌詞行高", opacity: "透明度", activeColor: "目前與已唱歌詞顏色", inactiveColor: "未唱與下一句歌詞顏色",
