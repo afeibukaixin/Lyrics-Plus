@@ -362,8 +362,8 @@ export function RangePairRow({
   }, []);
 
   const pairFromValue = (next: number | readonly number[]): [number, number] => {
-    if (Array.isArray(next)) return [next[0] ?? draft[0], next[1] ?? draft[1]];
-    return [next, draft[1]];
+    if (typeof next === "number") return [next, draft[1]];
+    return [next[0] ?? draft[0], next[1] ?? draft[1]];
   };
 
   const handleValueChange = (next: number | readonly number[]) => {
