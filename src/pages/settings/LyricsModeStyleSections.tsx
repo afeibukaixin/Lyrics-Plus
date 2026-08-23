@@ -11,13 +11,13 @@ import type {
   OverlayFontWeight,
   StatusBarLyricsPreferences,
 } from "../../shared/types";
-import { ColorRow, RangeRow, SelectRow, SettingsSection, TextRow, ToggleRow } from "./components";
+import { ColorRow, RangePairRow, RangeRow, SelectRow, SettingsSection, TextRow, ToggleRow } from "./components";
 import { Button } from "@/components/ui/button";
 import styles from "../settings.module.scss";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { reportFrontendError } from "../../shared/debugLog";
-import { emitNotchWidthPreview, type NotchWidthPreviewTarget } from "../../shared/tauriEvent";
+import { emitNotchWidthPreview } from "../../shared/tauriEvent";
 import { api, isTauriRuntime } from "../../shared/api";
 
 type AuxiliaryMode = Exclude<LyricsStyleMode, "desktop">;
@@ -195,21 +195,20 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
     const primary = monitor.isPrimary ? ` · ${t("settings.display.notch.primaryDisplay")}` : "";
     return [monitor.id, `${name} · ${monitor.width}×${monitor.height}${primary}`];
   });
-  const previewWidth = (target: NotchWidthPreviewTarget, width: number) => {
+  const normalizeNotchWidthRange = (next: [number, number]): [number, number] => {
+    const maxWidth = Math.min(next[0], next[1]);
+    return [maxWidth, Math.max(440, maxWidth, next[1])];
+  };
+  const previewWidth = (widths: [number, number]) => {
     notchWidthPreviewActiveRef.current = true;
-    void emitNotchWidthPreview({ phase: "update", target, width }).catch((error) => {
+    void emitNotchWidthPreview({ phase: "update", maxWidth: widths[0], expandedMaxWidth: widths[1] }).catch((error) => {
       reportFrontendError("Failed to preview the Dynamic Island width", error);
     });
   };
-  const commitWidth = async (target: NotchWidthPreviewTarget, width: number) => {
-    const committedWidth = target === "expanded"
-      ? Math.max(appearance.maxWidth, width)
-      : width;
-    const appearancePatch = target === "collapsed"
-      ? { maxWidth: width }
-      : { expandedMaxWidth: committedWidth };
+  const commitWidth = async (widths: [number, number]) => {
+    const [maxWidth, expandedMaxWidth] = normalizeNotchWidthRange(widths);
     try {
-      await update("notch", patchAppearance(value, appearancePatch));
+      await update("notch", patchAppearance(value, { maxWidth, expandedMaxWidth }));
     } catch (error) {
       notchWidthPreviewActiveRef.current = false;
       void emitNotchWidthPreview({ phase: "cancel" }).catch((emitError) => {
@@ -221,15 +220,13 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
 
     notchWidthPreviewActiveRef.current = false;
     try {
-      await emitNotchWidthPreview({ phase: "commit", target, width: committedWidth });
+      await emitNotchWidthPreview({ phase: "commit", maxWidth, expandedMaxWidth });
     } catch (error) {
       void emitNotchWidthPreview({ phase: "cancel" });
       reportFrontendError("Failed to finish the Dynamic Island width preview", error);
     }
   };
-  const expandedWidthLocked = appearance.maxWidth >= 640;
-  const expandedWidthMin = expandedWidthLocked ? 440 : Math.max(440, appearance.maxWidth);
-  const expandedWidthValue = Math.max(appearance.expandedMaxWidth, appearance.maxWidth);
+  const notchWidthRange = normalizeNotchWidthRange([appearance.maxWidth, appearance.expandedMaxWidth]);
   return <>
     <SettingsSection id="mode-state" title={t("settings.style.modeControls.displayInteraction")}>
       <ToggleRow label={t("settings.display.notch.show")} description={t("settings.display.notch.showHint")} value={value.enabled} onChange={(enabled) => save({ ...value, enabled })} />
@@ -264,29 +261,18 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
     </>}
     <SettingsSection id="mode-background" title={t("settings.style.modeControls.backgroundSize")}>
       <RangeRow label={t("settings.overlay.backgroundRadius")} value={appearance.borderRadius} min={0} max={40} suffix="px" onChange={(borderRadius) => save(patchAppearance(value, { borderRadius }))} />
-      <RangeRow
-        label={t("settings.style.modeControls.maxWidth")}
-        value={appearance.maxWidth}
+      <RangePairRow
+        label={t("settings.style.modeControls.widthRange")}
+        firstLabel={t("settings.style.modeControls.compactWidth")}
+        secondLabel={t("settings.style.modeControls.hoverWidth")}
+        values={notchWidthRange}
         min={320}
         max={640}
         step={10}
         suffix="px"
-        onChange={(maxWidth) => save(patchAppearance(value, { maxWidth }))}
-        onValuePreview={(width) => previewWidth("collapsed", width)}
-        onValueCommitted={(width) => commitWidth("collapsed", width)}
-        onPreviewCanceled={cancelNotchWidthPreview}
-      />
-      <RangeRow
-        label={t("settings.style.modeControls.hoverMaxWidth")}
-        value={expandedWidthValue}
-        min={expandedWidthMin}
-        max={640}
-        step={10}
-        suffix="px"
-        disabled={expandedWidthLocked}
-        onChange={(expandedMaxWidth) => save(patchAppearance(value, { expandedMaxWidth }))}
-        onValuePreview={(width) => previewWidth("expanded", width)}
-        onValueCommitted={(width) => commitWidth("expanded", width)}
+        normalizeValues={normalizeNotchWidthRange}
+        onValuePreview={previewWidth}
+        onValueCommitted={commitWidth}
         onPreviewCanceled={cancelNotchWidthPreview}
       />
     </SettingsSection>

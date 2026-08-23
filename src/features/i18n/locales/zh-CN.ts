@@ -111,6 +111,7 @@ export const zhCN = {
   notchLyrics: {
     toolbar: {
       label: "灵动岛歌词工具栏", hide: "隐藏灵动岛歌词", openSettings: "打开灵动岛歌词设置",
+      showLyrics: "开启歌词", hideLyrics: "关闭歌词",
       minimumFontSize: "字号已是最小值", maximumFontSize: "字号已是最大值", unavailableOffset: "当前没有可调整偏移的歌词",
       unavailableTrack: "{{action}}（当前歌词暂无{{track}}，资源出现后自动应用）",
     },
@@ -134,7 +135,7 @@ export const zhCN = {
     style: {
       title: "歌词样式", description: "先设置公共字体与配色，再调整每种歌词模式。", common: "常用样式", advanced: "高级样式",
       modes: { base: "基础样式", desktop: "桌面歌词", statusBar: "状态栏歌词", listWindow: "歌词列表", notch: "灵动岛", selector: "歌词样式模式" },
-      modeControls: { inheritance: "基础样式继承", inheritFontFamily: "跟随基础字体", inheritColors: "跟随基础配色", baseFont: "基础字体", baseColors: "基础配色", baseActiveColor: "高亮歌词颜色", baseActiveColorHint: "当前歌词、已唱部分等重点内容使用", baseInactiveColor: "弱化歌词颜色", baseInactiveColorHint: "其他歌词、下一句或未唱部分使用", desktopActiveColor: "当前与已唱歌词颜色", desktopActiveColorHint: "当前行及逐字歌词已唱部分使用", desktopInactiveColor: "未唱与下一句歌词颜色", desktopInactiveColorHint: "逐字歌词未唱部分及下一句使用", displayPosition: "显示与位置", text: "文字", backgroundSize: "背景与尺寸", displayContent: "显示内容", textLayout: "文字与排版", colors: "颜色", displayInteraction: "显示与交互", locked: "锁定位置", lockedHint: "锁定后鼠标会穿透歌词窗口", unlockedHint: "解锁后可直接拖动歌词窗口", resetPosition: "复位位置", textColor: "文字颜色", maxWidth: "常驻最大宽度", hoverMaxWidth: "悬停最大宽度", mainFontSize: "主歌词字号", mainFontWeight: "主歌词粗细", secondaryFontSize: "辅助歌词字号", lineGap: "歌词间距", alignment: "对齐方式", left: "左对齐", center: "居中", right: "右对齐", activeBackground: "当前行背景颜色", windowBackground: "窗口背景颜色", primaryColor: "主歌词颜色", secondaryColor: "辅助文字颜色", positionReset: "歌词窗口位置已复位。" },
+      modeControls: { inheritance: "基础样式继承", inheritFontFamily: "跟随基础字体", inheritColors: "跟随基础配色", baseFont: "基础字体", baseColors: "基础配色", baseActiveColor: "高亮歌词颜色", baseActiveColorHint: "当前歌词、已唱部分等重点内容使用", baseInactiveColor: "弱化歌词颜色", baseInactiveColorHint: "其他歌词、下一句或未唱部分使用", desktopActiveColor: "当前与已唱歌词颜色", desktopActiveColorHint: "当前行及逐字歌词已唱部分使用", desktopInactiveColor: "未唱与下一句歌词颜色", desktopInactiveColorHint: "逐字歌词未唱部分及下一句使用", displayPosition: "显示与位置", text: "文字", backgroundSize: "背景与尺寸", displayContent: "显示内容", textLayout: "文字与排版", colors: "颜色", displayInteraction: "显示与交互", widthRange: "灵动岛宽度", compactWidth: "常驻", hoverWidth: "悬停", locked: "锁定位置", lockedHint: "锁定后鼠标会穿透歌词窗口", unlockedHint: "解锁后可直接拖动歌词窗口", resetPosition: "复位位置", textColor: "文字颜色", maxWidth: "常驻最大宽度", hoverMaxWidth: "悬停最大宽度", mainFontSize: "主歌词字号", mainFontWeight: "主歌词粗细", secondaryFontSize: "辅助歌词字号", lineGap: "歌词间距", alignment: "对齐方式", left: "左对齐", center: "居中", right: "右对齐", activeBackground: "当前行背景颜色", windowBackground: "窗口背景颜色", primaryColor: "主歌词颜色", secondaryColor: "辅助文字颜色", positionReset: "歌词窗口位置已复位。" },
     },
     display: {
       title: "显示与交互", description: "独立控制桌面、状态栏、列表和灵动岛歌词。",

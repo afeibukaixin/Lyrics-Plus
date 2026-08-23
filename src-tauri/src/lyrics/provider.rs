@@ -32,6 +32,7 @@ pub const AMLL_DISPLAY_NAME: &str = "AMLL TTML";
 pub const MIGU_DISPLAY_NAME: &str = "Migu";
 pub const MUSIXMATCH_DISPLAY_NAME: &str = "Musixmatch";
 pub const DEFAULT_AMLL_BASE_URL: &str = "https://amlldb.bikonoo.com";
+const MIN_LOCAL_TITLE_SIMILARITY: f64 = 0.6;
 const LEGACY_AMLL_BASE_URLS: [&str; 2] = [
     "https://cdn.jsdelivr.net/gh/Steve-xmh/amll-ttml-db@main",
     "https://github.com/amll-dev/amll-ttml-db/raw/refs/heads/main",
@@ -917,6 +918,30 @@ fn normalise_with_options(value: &str, normalize_chinese: bool) -> String {
         .collect()
 }
 
+fn normalized_title(value: &str, scoring: &ScoringSettings) -> String {
+    normalise_with_options(
+        &filter_title_with_options(
+            value,
+            &scoring.title_filter_keywords,
+            scoring.normalize_chinese,
+        ),
+        scoring.normalize_chinese,
+    )
+}
+
+pub(crate) fn title_matches(input: &LyricsSearchInput, result: &LyricsSearchResult) -> bool {
+    let expected = normalized_title(&input.title, &input.scoring);
+    let actual = normalized_title(&result.title, &input.scoring);
+    if expected.is_empty() || actual.is_empty() {
+        return false;
+    }
+
+    let similarity = normalized_levenshtein(&expected, &actual);
+    similarity >= MIN_LOCAL_TITLE_SIMILARITY
+        || (expected.chars().count().min(actual.chars().count()) >= 2
+            && (expected.contains(&actual) || actual.contains(&expected)))
+}
+
 fn keyword_position(title: &str, keyword: &str) -> Option<(usize, usize)> {
     let needs_ascii_boundaries = keyword
         .chars()
@@ -998,22 +1023,8 @@ fn filter_title_with_options(value: &str, keywords: &[String], normalize_chinese
 pub fn score_candidate(input: &LyricsSearchInput, result: &LyricsSearchResult) -> f64 {
     let scoring = &input.scoring;
     let title = normalized_levenshtein(
-        &normalise_with_options(
-            &filter_title_with_options(
-                &input.title,
-                &scoring.title_filter_keywords,
-                scoring.normalize_chinese,
-            ),
-            scoring.normalize_chinese,
-        ),
-        &normalise_with_options(
-            &filter_title_with_options(
-                &result.title,
-                &scoring.title_filter_keywords,
-                scoring.normalize_chinese,
-            ),
-            scoring.normalize_chinese,
-        ),
+        &normalized_title(&input.title, scoring),
+        &normalized_title(&result.title, scoring),
     );
     let artist = normalized_levenshtein(
         &normalise_with_options(&input.artist, scoring.normalize_chinese),

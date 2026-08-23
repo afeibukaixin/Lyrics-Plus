@@ -8,7 +8,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use tauri::{AppHandle, Manager};
 
 use crate::lyrics::provider::{
-    score_candidate, LyricsSearchInput, LyricsSearchResult, KUGOU_DISPLAY_NAME,
+    score_candidate, title_matches, LyricsSearchInput, LyricsSearchResult, KUGOU_DISPLAY_NAME,
     NETEASE_DISPLAY_NAME, QQMUSIC_DISPLAY_NAME,
 };
 use crate::lyrics::{parse_lrc_with_options, LyricsDocument};
@@ -323,6 +323,9 @@ impl Storage {
                     score: 0.0,
                     lyrics: String::new(),
                 };
+                if !title_matches(input, &result) {
+                    return None;
+                }
                 candidate.score = score_candidate(input, &result);
                 (candidate.score >= MIN_LOCAL_SEARCH_SCORE).then_some(candidate)
             })

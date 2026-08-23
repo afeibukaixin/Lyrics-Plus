@@ -961,23 +961,23 @@ fn create_notch_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {
     if app.get_webview_window("lyrics-notch").is_some() {
         return Ok(());
     }
-    let width = app
+    let appearance = app
         .state::<AppState>()
         .config
         .snapshot()
         .lyrics
         .displays
         .notch
-        .appearance
-        .max_width as f64
-        + 16.0;
+        .appearance;
+    // 创建时直接预留悬停展开宽度；前端挂载后会在允许交互前完成一次精确高度适配。
+    let width = f64::from(appearance.max_width.max(appearance.expanded_max_width)) + 16.0;
     let window = WebviewWindowBuilder::new(
         app,
         "lyrics-notch",
         WebviewUrl::App("index.html?view=lyrics-notch".into()),
     )
     .title(UiLanguage::ZhCn.native_labels().notch_title)
-    .inner_size(width, 124.0)
+    .inner_size(width, 220.0)
     .transparent(true)
     .accept_first_mouse(true)
     .decorations(false)
@@ -1815,9 +1815,15 @@ const OVERLAY_POINTER_MONITOR_INTERVAL: Duration = Duration::from_millis(50);
 const UNLOCK_HANDLE_HIDE_DELAY: Duration = Duration::from_millis(200);
 const UNLOCK_HANDLE_HOVER_EVENT: &str = "unlock-handle://hover";
 const OVERLAY_HOVER_EVENT: &str = "overlay://hover";
-const NOTCH_HOVER_EVENT: &str = "notch://hover";
-const NOTCH_HORIZONTAL_WINDOW_PADDING: f64 = 8.0;
+const NOTCH_POINTER_SAMPLE_EVENT: &str = "notch://pointer-sample";
 const OVERLAY_TOOLBAR_PLACEMENT_EVENT: &str = "overlay://toolbar-placement";
+
+#[derive(Clone, Copy, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NotchPointerSamplePayload {
+    client_x: f64,
+    client_y: f64,
+}
 
 fn toolbar_placement_after_move(
     orientation: OverlayOrientation,
@@ -2138,7 +2144,6 @@ fn start_overlay_pointer_monitor(app: tauri::AppHandle) {
         let mut last_inside_at: Option<Instant> = None;
         let mut last_handle_hovered: Option<bool> = None;
         let mut last_overlay_hovered: Option<bool> = None;
-        let mut last_notch_hovered: Option<bool> = None;
 
         loop {
             tokio::time::sleep(OVERLAY_POINTER_MONITOR_INTERVAL).await;
@@ -2153,39 +2158,27 @@ fn start_overlay_pointer_monitor(app: tauri::AppHandle) {
                 .clone();
 
             if let Some(notch) = app.get_webview_window("lyrics-notch") {
-                let notch_visible = notch.is_visible().unwrap_or(false);
-                let sampled_notch_hover = notch_visible
-                    && match (
+                if notch.is_visible().unwrap_or(false) {
+                    // 只上报坐标，实际 hover 区域由前端根据当前 Visual Island rect 判断。
+                    if let (Ok(cursor), Ok(position), Ok(scale_factor)) = (
                         app.cursor_position(),
                         notch.outer_position(),
-                        notch.outer_size(),
                         notch.scale_factor(),
                     ) {
-                        (Ok(cursor), Ok(position), Ok(size), Ok(scale_factor)) => {
-                            let horizontal_padding =
-                                NOTCH_HORIZONTAL_WINDOW_PADDING * scale_factor;
-                            let left = position.x as f64 + horizontal_padding;
-                            let right = position.x as f64 + size.width as f64
-                                - horizontal_padding;
-                            let bottom = position.y as f64 + size.height as f64;
-                            cursor.x >= left
-                                && cursor.x < right
-                                && cursor.y >= position.y as f64
-                                && cursor.y < bottom
-                        }
-                        _ => false,
-                    };
-                let notch_hovered = stable_overlay_hover(
-                    last_notch_hovered,
-                    sampled_notch_hover,
-                    notch_visible && primary_mouse_button_pressed(),
-                );
-                if last_notch_hovered != Some(notch_hovered) {
-                    let _ = notch.emit(NOTCH_HOVER_EVENT, notch_hovered);
-                    last_notch_hovered = Some(notch_hovered);
+                        let scale = if scale_factor.is_finite() && scale_factor > 0.0 {
+                            scale_factor
+                        } else {
+                            1.0
+                        };
+                        let _ = notch.emit(
+                            NOTCH_POINTER_SAMPLE_EVENT,
+                            NotchPointerSamplePayload {
+                                client_x: (cursor.x - f64::from(position.x)) / scale,
+                                client_y: (cursor.y - f64::from(position.y)) / scale,
+                            },
+                        );
+                    }
                 }
-            } else {
-                last_notch_hovered = None;
             }
 
             let (Some(overlay), Some(handle)) = (

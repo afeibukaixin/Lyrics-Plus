@@ -52,7 +52,7 @@ objc2-quartz-core = { version = "0.3", default-features = false, features = ["CA
 unicode-segmentation = "1"
 objc2-scripting-bridge = { version = "0.3", default-features = false, features = ["std", "SBApplication", "SBObject", "libc", "objc2-core-services"] }
 objc2-service-management = { version = "0.3", default-features = false, features = ["std", "block2", "objc2", "objc2-foundation", "SMAppService"] }
-media-remote = "=0.3.7"
+media-remote = "=0.3.8"
 
 [dev-dependencies]
 tempfile = "3"

@@ -84,6 +84,7 @@ export default function QuickLyricsWindow() {
     () => lyrics.results.filter((result) => result.providerId !== "local"),
     [lyrics.results],
   );
+  const recommendedKey = lyrics.results[0] ? resultKey(lyrics.results[0]) : null;
 
   const isCurrent = (result: LyricsSearchResult) => {
     const document = lyrics.document;
@@ -156,10 +157,10 @@ export default function QuickLyricsWindow() {
           </CardHeader>
           <CardContent className="min-h-0 px-0"><ScrollArea className="h-full min-h-0"><ItemGroup className={styles.resultList}>
             {localResults.length > 0 && <div className={styles.groupLabel}>{t("quickLyrics.localCandidates")}</div>}
-            {localResults.map((result, index) => {
+            {localResults.map((result) => {
               const key = resultKey(result);
               const current = isCurrent(result);
-              const recommended = !current && index === 0;
+              const recommended = !current && key === recommendedKey;
               const capabilities = [
                 result.synced && t("common.feature.synced"),
                 result.hasWordTiming && t("common.feature.wordTiming"),
@@ -185,10 +186,10 @@ export default function QuickLyricsWindow() {
               );
             })}
             {onlineResults.length > 0 && <div className={styles.groupLabel}>{t("quickLyrics.onlineCandidates")}</div>}
-            {onlineResults.map((result, index) => {
+            {onlineResults.map((result) => {
               const key = resultKey(result);
               const current = isCurrent(result);
-              const recommended = !current && localResults.length === 0 && index === 0;
+              const recommended = !current && key === recommendedKey;
               const capabilities = [
                 result.synced && t("common.feature.synced"),
                 result.hasWordTiming && t("common.feature.wordTiming"),

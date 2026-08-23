@@ -50,6 +50,12 @@ import type {
 
 export type AppErrorCode = `command.${string}` | "config.conflict" | "unknown";
 
+export type NotchWindowFitResponse = {
+  physicalWidth: number;
+  physicalHeight: number;
+  sizeChanged: boolean;
+};
+
 export class AppOperationError extends Error {
   readonly code: AppErrorCode;
   readonly command: string;
@@ -167,7 +173,7 @@ export const api = {
   fitOverlayContent: (width: number, height: number) =>
     invoke<boolean>("fit_overlay_content", { width, height }),
   fitNotchLyricsContent: (width: number, height: number) =>
-    invoke<void>("fit_notch_lyrics_content", { width, height }),
+    invoke<NotchWindowFitResponse>("fit_notch_lyrics_content", { width, height }),
   showMainWindow: () => invoke<void>("show_main_window"),
   showLyricsStyleSettings: (mode: LyricsStyleMode) =>
     invoke<void>("show_lyrics_style_settings", { mode }),

@@ -15,14 +15,31 @@
   padding-top: 6px;
 }
 
+.hoverArea {
+  position: relative;
+  width: min(100%, var(--notch-expanded-width));
+  height: min(100%, var(--notch-expanded-height));
+  flex: none;
+}
+
 .island {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  box-sizing: border-box;
   width: min(100%, var(--notch-max-width));
+  height: var(--notch-collapsed-height);
   overflow: hidden;
+  border-radius: 0 0 var(--notch-radius) var(--notch-radius);
+  transform: translateX(-50%);
+  transform-origin: top center;
 }
 
 .islandSurface {
+  position: absolute;
+  inset: 0;
   overflow: hidden;
-  border-radius: 0 0 var(--notch-radius) var(--notch-radius);
+  border-radius: inherit;
   color: white;
   background: #000;
   clip-path: inset(0 46% round 999px);
@@ -30,49 +47,48 @@
   transform-origin: top center;
 }
 
-.shell:not([data-has-notch]) .islandSurface {
+.shell:not([data-has-notch]) .island {
   border-radius: var(--notch-radius);
 }
 
-.shell[data-expanded] .island {
-  width: min(100%, var(--notch-expanded-width));
-}
-
-.shell[data-expanded] .islandSurface {
-  border-radius: 0 0 calc(var(--notch-radius) + 4px) calc(var(--notch-radius) + 4px);
-}
-
-.shell:not([data-island-visible]) .island {
+.shell:not([data-island-visible]) .hoverArea {
   pointer-events: none;
 }
 
 .content {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  box-sizing: border-box;
+  width: var(--notch-max-width);
   min-width: 0;
   opacity: 0;
   visibility: hidden;
-  transform: translateY(-4px);
-}
-
-.shell[data-expanded] .content {
-  display: none;
+  pointer-events: none;
+  transform: translate(-50%, -4px);
 }
 
 .metadata {
   display: grid;
   position: relative;
   min-height: max(32px, var(--notch-top-inset));
-  grid-template-columns: minmax(0, 1fr) var(--notch-center-gap) minmax(0, 1fr);
+  grid-template-columns: minmax(30px, 1fr) var(--notch-center-gap) minmax(30px, 1fr);
   align-items: center;
-  column-gap: 12px;
-  padding: 0 16px;
+  column-gap: 8px;
+  padding: 0 8px;
   font-size: clamp(11px, var(--notch-font-size), 14px);
   line-height: 1;
+}
+
+.shell[data-has-notch] .metadata {
+  column-gap: 0;
+  padding-inline: var(--notch-slot-padding);
 }
 
 .brandCapsule {
   display: flex;
   position: absolute;
-  top: 50%;
+  top: calc(var(--notch-top-inset) / 2);
   left: 50%;
   box-sizing: border-box;
   width: min(120px, calc(var(--notch-center-gap) - 8px));
@@ -93,6 +109,7 @@
   pointer-events: none;
   transform: translate(-50%, -50%);
   white-space: nowrap;
+  z-index: 1;
 }
 
 .brandCapsule img {
@@ -127,6 +144,8 @@
   display: block;
   width: 30px;
   height: 30px;
+  max-width: none;
+  flex: none;
   border-radius: 8px;
   object-fit: cover;
   box-shadow: 0 1px 5px rgb(0 0 0 / 25%);
@@ -138,6 +157,8 @@
 
 .spectrum {
   display: inline-flex;
+  width: 28px;
+  max-width: none;
   height: 28px;
   align-items: center;
   gap: 2px;
@@ -154,9 +175,15 @@
   height: var(--spectrum-level, 12%);
   min-height: 4px;
   border-radius: 999px;
-  background: currentColor;
-  opacity: .8;
-  transition: height 90ms ease;
+  background-color: var(--notch-spectrum-color, currentColor);
+  background-image: linear-gradient(
+    to top,
+    transparent 0%,
+    rgb(0 0 0 / 12%) 55%,
+    rgb(0 0 0 / 42%) 100%
+  );
+  opacity: 1;
+  transition: height 90ms ease, background-color 180ms ease;
 }
 
 .notchGap {
@@ -226,33 +253,41 @@
 }
 
 .toolbarReveal {
-  display: grid;
-  grid-template-rows: 0fr;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: var(--notch-expanded-width);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transform: translateY(-2px);
-}
-
-.toolbarRevealInner {
-  min-height: 0;
-  overflow: hidden;
+  transform: translateX(-50%) translateY(-2px);
 }
 
 .player {
-  width: min(100%, var(--notch-expanded-width));
-  max-width: 100%;
+  width: 100%;
+  max-width: none;
   overflow: hidden;
   box-sizing: border-box;
   padding: 18px 22px 14px;
   color: white;
 }
 
+.shell[data-has-notch] .player {
+  padding-top: calc(var(--notch-top-inset) + 12px);
+}
+
+.playerTop {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
 .playerMetadata {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .playerArtwork {
@@ -279,197 +314,117 @@
   gap: 6px;
 }
 
-.playerTrack strong,
-.playerTrack span {
+.playerTitle,
+.playerArtist {
+  display: block;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.playerTrack strong {
+.playerTitle {
   font-size: 18px;
   font-weight: 700;
 }
 
-.playerTrack span {
+.playerArtist {
   color: rgb(255 255 255 / 62%);
   font-size: 15px;
 }
 
-.playerProgress {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin-top: 18px;
-}
-
-.playerTimes {
-  display: flex;
-  justify-content: space-between;
-  color: rgb(255 255 255 / 62%);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.playerSlider {
-  color: white;
-}
-
-.playerSlider [data-slot="slider"] {
-  --color-primary: rgb(255 255 255 / 86%);
-}
-
-.playerControls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 44px;
-  margin-top: 14px;
-}
-
-.playerControls :global(button) {
-  color: white;
-}
-
-.playerControls .playerPrimaryControl {
-  width: 48px;
-  height: 48px;
-  border-radius: 999px;
-}
-
-.playerControls :global(button:hover:not([aria-disabled="true"])) {
-  background: rgb(255 255 255 / 14%);
-}
-
-.shell[data-expanded] .toolbarReveal {
-  grid-template-rows: 1fr;
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transform: translateY(0);
-}
-
-.toolbar {
+.lyricsQuickControls {
   display: flex;
   width: max-content;
-  min-height: 34px;
+  max-width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.lyricsQuickControlsOff {
+  display: flex;
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
   align-items: center;
-  gap: 3px;
-  margin: 2px auto 6px;
-  padding: 3px 6px;
-  border: 1px solid rgb(255 255 255 / 16%);
-  border-radius: 9px;
-  color: white;
-  background: rgb(255 255 255 / 9%);
-  box-shadow:
-    inset 0 1px rgb(255 255 255 / 8%),
-    0 7px 18px rgb(0 0 0 / 24%);
-  backdrop-filter: blur(12px) saturate(1.15);
-  cursor: default;
-  white-space: nowrap;
+  justify-content: flex-end;
+  gap: 4px;
 }
 
-.toolbar > :global(button),
-.toolbar > .offsetControl {
-  opacity: 0;
-  transform: translateY(-3px);
+.lyricsQuickControlRow {
+  display: flex;
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
 }
 
-.shell[data-expanded] .toolbar > :global(button),
-.shell[data-expanded] .toolbar > .offsetControl {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.toolbar :global(button) {
-  color: inherit;
-  cursor: pointer;
+.quickToggle,
+.trackToggle,
+.lyricsQuickControls :global(button) {
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  border: 0;
+  color: rgb(255 255 255 / 74%);
+  background: transparent !important;
   transition:
     opacity 110ms ease,
     color 110ms ease,
     background-color 110ms ease,
-    box-shadow 110ms ease,
     transform 110ms ease;
 }
 
-.shell[data-width-motion] .toolbar > :global(button),
-.shell[data-width-motion] .toolbar > .offsetControl {
-  transition: none;
+.quickToggle[data-on="true"],
+.trackToggle[data-on="true"] {
+  color: white;
+  background: rgb(255 255 255 / 18%) !important;
 }
 
-.toolbar .trackToggle[data-on="true"] {
+.lyricsQuickControls :global(button:hover:not(:disabled)) {
   color: white;
-  background: rgb(255 255 255 / 18%);
-}
-
-.toolbar :global(button:hover:not([aria-disabled="true"])) {
-  color: white;
-  background: rgb(255 255 255 / 22%);
   transform: translateY(-1px) scale(1.05);
 }
 
-.toolbar .trackToggle[data-on="true"]:hover:not([aria-disabled="true"]) {
-  background: rgb(255 255 255 / 30%);
+.lyricsQuickControls :global(button:hover:not(:disabled):not([aria-pressed])) {
+  background: rgb(255 255 255 / 20%) !important;
 }
 
-.toolbar :global(button:active:not([aria-disabled="true"])) {
-  background: rgb(255 255 255 / 28%);
+.quickToggle[data-on="true"]:hover:not(:disabled),
+.trackToggle[data-on="true"]:hover:not(:disabled) {
+  background: rgb(255 255 255 / 30%) !important;
+}
+
+.lyricsQuickControls :global(button:active:not(:disabled)) {
+  background: rgb(255 255 255 / 28%) !important;
   transform: translateY(0) scale(.94);
 }
 
-.toolbar :global(button[aria-disabled="true"]) {
-  opacity: .5;
+.lyricsQuickControls :global(button:disabled) {
+  opacity: .45;
   cursor: not-allowed;
 }
 
-.toolbar :global(button[aria-disabled="true"]:hover) {
-  color: rgb(255 255 255 / 72%);
-  background: rgb(255 255 255 / 10%);
-}
-
-.offsetControl {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 1px;
-  padding: 1px;
-  border: 1px solid rgb(255 255 255 / 14%);
-  border-radius: 8px;
-  background: rgb(255 255 255 / 8%);
-}
-
-.toolbar .offsetControl > :global(button) {
-  height: 24px;
-  border-radius: 6px;
-}
-
-.toolbar .offsetValue {
-  width: auto;
-  min-width: 40px;
-  padding: 0 4px;
-  font-size: 8px;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -.02em;
-}
-
-.toolbar .offsetValue[aria-disabled="true"] {
-  opacity: .7;
-}
-
-.toolbar .trackToggle {
+.lyricsQuickControls .trackToggle {
   position: relative;
   border: 1px solid transparent;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 750;
 }
 
-.toolbar .trackToggle[data-available="false"] {
+.lyricsQuickControls .trackToggle[data-available="false"] {
   border-color: rgb(255 255 255 / 28%);
   border-style: dashed;
   color: rgb(255 255 255 / 62%);
 }
 
-.toolbar .trackToggle[data-available="false"]::after {
+.lyricsQuickControls .trackToggle[data-available="false"]::after {
   position: absolute;
   right: 2px;
   bottom: 2px;
@@ -480,9 +435,144 @@
   content: "";
 }
 
-.toolbar .trackToggle[data-available="false"][data-on="true"] {
+.lyricsQuickControls .trackToggle[data-available="false"][data-on="true"] {
   color: white;
-  background: rgb(255 255 255 / 18%);
+  background: rgb(255 255 255 / 18%) !important;
+}
+
+.playerProgress {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.playerTime {
+  min-width: 32px;
+  color: rgb(255 255 255 / 62%);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.playerTime:last-child {
+  min-width: 36px;
+  text-align: right;
+}
+
+.playerSlider {
+  min-width: 0;
+  color: white;
+}
+
+.playerSlider[data-slot="slider"] {
+  --primary: rgb(255 255 255 / 88%);
+  --muted: rgb(255 255 255 / 18%);
+  --ring: rgb(255 255 255 / 86%);
+  --background: rgb(255 255 255 / 96%);
+}
+
+.playerSlider :global([data-index]) {
+  width: 10px;
+  height: 10px;
+  border: 0;
+  background-color: rgb(255 255 255 / 96%);
+}
+
+.playerControls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 44px;
+  margin-top: 16px;
+}
+
+.playerControl,
+.playerPrimaryControl {
+  box-sizing: border-box;
+  padding: 0;
+  border: 0;
+  color: white !important;
+  background-color: transparent !important;
+  transition:
+    opacity 110ms ease,
+    transform 110ms ease;
+}
+
+.playerControl {
+  width: 52px;
+  height: 52px;
+}
+
+.playerPrimaryControl {
+  width: 60px;
+  height: 60px;
+}
+
+.playerControl :global(svg) {
+  width: 24px;
+  height: 24px;
+}
+
+.playerPrimaryControl :global(svg) {
+  width: 32px;
+  height: 32px;
+}
+
+.playerControl:hover,
+.playerPrimaryControl:hover {
+  opacity: .78;
+  background-color: transparent !important;
+  transform: scale(1.06);
+}
+
+.playerControl:active,
+.playerPrimaryControl:active {
+  opacity: .92;
+  background-color: transparent !important;
+  transform: scale(.92);
+}
+
+.shell[data-expanded] .toolbarReveal {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+.offsetControl {
+  display: flex;
+  min-width: 0;
+  flex: none;
+  align-items: center;
+  gap: 1px;
+  padding: 1px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 8%);
+}
+
+.offsetControl > :global(button) {
+  width: 23px;
+  height: 22px;
+  min-width: 23px;
+  border-radius: 6px;
+}
+
+.lyricsQuickControls .offsetValue {
+  width: auto;
+  min-width: 40px;
+  flex: none;
+  padding: 0 4px;
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+}
+
+.offsetValue[aria-disabled="true"] {
+  opacity: .7;
 }
 
 .karaokeText {
@@ -514,12 +604,13 @@
 }
 
 .shell:not([data-has-notch]) .metadata {
-  grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr);
+  grid-template-columns: minmax(30px, 1fr) 24px minmax(30px, 1fr);
+  padding-inline: max(12px, calc(var(--notch-radius) - 4px));
 }
 
 @media (prefers-reduced-motion: reduce) {
   .karaokeWordFill,
-  .toolbar :global(button),
+  .lyricsQuickControls :global(button),
   .spectrumBar {
     transition: none;
   }
@@ -528,8 +619,8 @@
     opacity: 0;
   }
 
-  .toolbar :global(button:hover:not([aria-disabled="true"])),
-  .toolbar :global(button:active:not([aria-disabled="true"])) {
+  .lyricsQuickControls :global(button:hover:not(:disabled)),
+  .lyricsQuickControls :global(button:active:not(:disabled)) {
     transform: none;
   }
 

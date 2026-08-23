@@ -314,6 +314,105 @@ export function RangeRow({
   );
 }
 
+type RangePairRowProps = {
+  label: string;
+  firstLabel: string;
+  secondLabel: string;
+  values: readonly [number, number];
+  min: number;
+  max: number;
+  step?: number;
+  suffix: string;
+  disabled?: boolean;
+  normalizeValues?: (values: [number, number]) => [number, number];
+  onValuePreview?: (values: [number, number]) => void;
+  onValueCommitted?: (values: [number, number]) => void | Promise<void>;
+  onPreviewCanceled?: () => void;
+};
+
+export function RangePairRow({
+  label,
+  firstLabel,
+  secondLabel,
+  values,
+  min,
+  max,
+  step = 1,
+  suffix,
+  disabled = false,
+  normalizeValues = (next) => next,
+  onValuePreview,
+  onValueCommitted,
+  onPreviewCanceled,
+}: RangePairRowProps) {
+  const [draft, setDraft] = useState<[number, number]>(() => [values[0], values[1]]);
+  const previewingRef = useRef(false);
+  const cancelPreviewRef = useRef(onPreviewCanceled);
+
+  useEffect(() => {
+    cancelPreviewRef.current = onPreviewCanceled;
+  }, [onPreviewCanceled]);
+
+  useEffect(() => {
+    if (!previewingRef.current) setDraft([values[0], values[1]]);
+  }, [values[0], values[1]]);
+
+  useEffect(() => () => {
+    if (previewingRef.current) cancelPreviewRef.current?.();
+  }, []);
+
+  const pairFromValue = (next: number | readonly number[]): [number, number] => {
+    if (Array.isArray(next)) return [next[0] ?? draft[0], next[1] ?? draft[1]];
+    return [next, draft[1]];
+  };
+
+  const handleValueChange = (next: number | readonly number[]) => {
+    const nextValues = normalizeValues(pairFromValue(next));
+    previewingRef.current = true;
+    setDraft(nextValues);
+    onValuePreview?.(nextValues);
+  };
+
+  const handleValueCommitted = (next: number | readonly number[]) => {
+    if (!onValueCommitted) return;
+    const nextValues = normalizeValues(pairFromValue(next));
+    previewingRef.current = false;
+    setDraft(nextValues);
+    void Promise.resolve()
+      .then(() => onValueCommitted(nextValues))
+      .catch(() => {
+        setDraft([values[0], values[1]]);
+        cancelPreviewRef.current?.();
+      });
+  };
+
+  return (
+    <Field orientation="horizontal" className={styles.settingRow} data-disabled={disabled || undefined}>
+      <FieldContent>
+        <FieldTitle>{label}</FieldTitle>
+      </FieldContent>
+      <div className={styles.rangePairControl}>
+        <Slider
+          aria-label={label}
+          disabled={disabled}
+          max={max}
+          min={min}
+          step={step}
+          thumbLabels={[firstLabel, secondLabel]}
+          thumbCollisionBehavior="push"
+          value={draft}
+          onValueChange={handleValueChange}
+          onValueCommitted={handleValueCommitted}
+        />
+        <output className={styles.rangePairOutput}>
+          <span>{firstLabel} {draft[0]}{suffix}</span>
+          <span>{secondLabel} {draft[1]}{suffix}</span>
+        </output>
+      </div>
+    </Field>
+  );
+}
+
 export function TextRow({ label, description, value, emptyValue, disabled = false, onChange }: { label: string; description?: string; value: string; emptyValue: string; disabled?: boolean; onChange: (value: string) => void }) {
   const [draft, setDraft] = useState(value);
 

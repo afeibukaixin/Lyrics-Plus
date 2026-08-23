@@ -663,8 +663,8 @@ impl Default for NotchLyricsAppearance {
             romanization_color: "#bef264".into(),
             karaoke_style: CompactKaraokeStyle::Sweep,
             border_radius: 22.0,
-            max_width: 360,
-            expanded_max_width: 520,
+            max_width: 320,
+            expanded_max_width: 440,
         }
     }
 }
@@ -1322,8 +1322,8 @@ fn migrate_v49_notch_width(user: &mut Value, version: u16) {
     let max_width = appearance
         .get("maxWidth")
         .and_then(Value::as_u64)
-        .unwrap_or(360);
-    let expanded_max_width = max_width.max(520).min(640);
+        .unwrap_or(320);
+    let expanded_max_width = max_width.max(440).min(640);
     appearance
         .entry("expandedMaxWidth")
         .or_insert_with(|| Value::from(expanded_max_width));

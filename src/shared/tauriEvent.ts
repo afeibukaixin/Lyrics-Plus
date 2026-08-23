@@ -4,14 +4,15 @@ type MaybeAsyncUnlistenFn = () => void | Promise<void>;
 
 export const NOTCH_WIDTH_PREVIEW_EVENT = "notch://width-preview";
 export const NOTCH_VISIBILITY_TRANSITION_EVENT = "notch://visibility-transition";
-
-export type NotchWidthPreviewTarget = "collapsed" | "expanded";
+export const NOTCH_POINTER_SAMPLE_EVENT = "notch://pointer-sample";
 
 export type NotchWidthPreviewPayload =
-  | { phase: "update" | "commit"; target: NotchWidthPreviewTarget; width: number }
+  | { phase: "update" | "commit"; maxWidth: number; expandedMaxWidth: number }
   | { phase: "cancel" };
 
 export type NotchVisibilityTransitionPayload = { visible: boolean };
+
+export type NotchPointerSamplePayload = { clientX: number; clientY: number };
 
 export function isTauriRuntime() {
   if (typeof window === "undefined") return false;

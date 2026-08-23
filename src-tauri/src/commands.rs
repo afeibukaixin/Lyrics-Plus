@@ -541,13 +541,6 @@ async fn perform_lyrics_search(
             prefer_candidate_capabilities(&mut outcome.results, secondary_display);
         }
     }
-    let auto_apply = if local_results.is_empty() {
-        outcome.as_ref().is_some_and(|outcome| {
-            can_auto_apply(&outcome.results, outcome.auto_apply_threshold)
-        })
-    } else {
-        can_auto_apply_local(&local_results, auto_apply_threshold)
-    };
     let had_local_results = !local_results.is_empty();
     let mut seen_lyrics = local_results
         .iter()
@@ -559,6 +552,27 @@ async fn perform_lyrics_search(
         .unwrap_or_default();
     online_results.retain(|result| seen_lyrics.insert(lyric_content_key(&result.lyrics)));
     local_results.append(&mut online_results);
+
+    let prefer_capabilities = outcome
+        .as_ref()
+        .is_some_and(|outcome| outcome.prefer_capabilities);
+    if let Some(recommended_index) = best_result_index(
+        &local_results,
+        prefer_capabilities,
+        secondary_display,
+    ) {
+        let recommended = local_results.remove(recommended_index);
+        local_results.insert(0, recommended);
+    }
+    let auto_apply = local_results.first().is_some_and(|result| {
+        if result.provider_id == LOCAL_PROVIDER_ID {
+            can_auto_apply_local(&local_results, auto_apply_threshold)
+        } else {
+            outcome.as_ref().is_some_and(|outcome| {
+                can_auto_apply(&local_results, outcome.auto_apply_threshold)
+            })
+        }
+    });
     Ok(SearchResponse {
         auto_apply,
         results: local_results,
@@ -592,7 +606,10 @@ fn can_auto_apply_local(results: &[LyricsSearchResult], threshold_percent: u8) -
         return false;
     }
     results
-        .get(1)
+        .iter()
+        .skip(1)
+        .filter(|result| result.provider_id == LOCAL_PROVIDER_ID)
+        .max_by(|left, right| left.score.total_cmp(&right.score))
         .is_none_or(|second| first.score - second.score >= 0.05)
 }
 
@@ -812,40 +829,6 @@ fn sync_lyrics_runtime_inner(app: &tauri::AppHandle, playback: &PlaybackSnapshot
             duration_ms: playback.duration_ms,
             scoring: Arc::default(),
         };
-        if let Ok((local_results, auto_apply_threshold)) = search_local_lyrics(&state, &input).await
-        {
-            if can_auto_apply_local(&local_results, auto_apply_threshold) {
-                let result = &local_results[0];
-                let document = state
-                    .storage
-                    .associate_local_lyrics(SaveRequest {
-                        track_key: &track_key,
-                        title: &title,
-                        artist: &artist,
-                        source: &result.source,
-                        raw: &result.lyrics,
-                        provider_id: Some(LOCAL_PROVIDER_ID),
-                        provider_item_id: Some(&result.id),
-                        kind: SaveKind::Automatic,
-                    })
-                    .ok();
-                if let Some(document) = document {
-                    let _ = worker_app.emit("lyrics://changed", &track_key);
-                    if current() {
-                        publish_lyrics_runtime(
-                            &worker_app,
-                            LyricsRuntimeSnapshot {
-                                track_key: Some(track_key),
-                                document: Some(document),
-                                status: LyricsRuntimeStatus::Ready,
-                                error: None,
-                            },
-                        );
-                    }
-                    return;
-                }
-            }
-        }
         match search_lyrics_for_session(&state, &track_key, input, false).await {
             Ok(response) => {
                 if !current() {
@@ -1135,6 +1118,59 @@ pub async fn search_lyrics(
     search_lyrics_for_session(&state, &track_key, input, force).await
 }
 
+fn candidate_capability_rank(
+    result: &LyricsSearchResult,
+    secondary_display: SecondaryDisplayMode,
+) -> (u8, u8) {
+    let secondary_rank = match secondary_display {
+        SecondaryDisplayMode::Translation => u8::from(!result.has_translation),
+        SecondaryDisplayMode::Romanization => u8::from(!result.has_romanization),
+        SecondaryDisplayMode::TranslationRomanization => {
+            if result.has_translation && result.has_romanization {
+                0
+            } else if result.has_translation {
+                1
+            } else if result.has_romanization {
+                2
+            } else {
+                3
+            }
+        }
+        SecondaryDisplayMode::Legacy | SecondaryDisplayMode::Next => 0,
+    };
+    (u8::from(!result.has_word_timing), secondary_rank)
+}
+
+fn best_result_index(
+    results: &[LyricsSearchResult],
+    prefer_capabilities: bool,
+    secondary_display: SecondaryDisplayMode,
+) -> Option<usize> {
+    let max_score = results
+        .iter()
+        .map(|result| result.score)
+        .max_by(|left, right| left.total_cmp(right))?;
+    let capability_band = if prefer_capabilities { 0.04 } else { 0.0 };
+    results
+        .iter()
+        .enumerate()
+        .filter(|(_, result)| max_score - result.score <= capability_band + f64::EPSILON)
+        .min_by(|(left_index, left), (right_index, right)| {
+            if prefer_capabilities {
+                candidate_capability_rank(left, secondary_display)
+                    .cmp(&candidate_capability_rank(right, secondary_display))
+                    .then_with(|| right.score.total_cmp(&left.score))
+                    .then_with(|| left_index.cmp(right_index))
+            } else {
+                right
+                    .score
+                    .total_cmp(&left.score)
+                    .then_with(|| left_index.cmp(right_index))
+            }
+        })
+        .map(|(index, _)| index)
+}
+
 fn prefer_candidate_capabilities(
     results: &mut [LyricsSearchResult],
     secondary_display: SecondaryDisplayMode,
@@ -1142,26 +1178,6 @@ fn prefer_candidate_capabilities(
     if results.len() < 2 {
         return;
     }
-    let capability_rank = |result: &LyricsSearchResult| {
-        let secondary_rank = match secondary_display {
-            SecondaryDisplayMode::Translation => u8::from(!result.has_translation),
-            SecondaryDisplayMode::Romanization => u8::from(!result.has_romanization),
-            SecondaryDisplayMode::TranslationRomanization => {
-                if result.has_translation && result.has_romanization {
-                    0
-                } else if result.has_translation {
-                    1
-                } else if result.has_romanization {
-                    2
-                } else {
-                    3
-                }
-            }
-            SecondaryDisplayMode::Legacy | SecondaryDisplayMode::Next => 0,
-        };
-        (u8::from(!result.has_word_timing), secondary_rank)
-    };
-
     let mut ranked = results.iter().cloned().enumerate().collect::<Vec<_>>();
 
     let mut band_start = 0;
@@ -1173,8 +1189,8 @@ fn prefer_candidate_capabilities(
             .count();
         let band_end = band_start + band_len;
         ranked[band_start..band_end].sort_by(|(left_index, left), (right_index, right)| {
-            capability_rank(left)
-                .cmp(&capability_rank(right))
+            candidate_capability_rank(left, secondary_display)
+                .cmp(&candidate_capability_rank(right, secondary_display))
                 .then_with(|| left_index.cmp(right_index))
         });
         band_start = band_end;
@@ -2028,12 +2044,20 @@ pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Re
     Ok(true)
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotchWindowFitResult {
+    pub physical_width: u32,
+    pub physical_height: u32,
+    pub size_changed: bool,
+}
+
 #[tauri::command]
 pub fn fit_notch_lyrics_content(
     app: tauri::AppHandle,
     width: f64,
     height: f64,
-) -> Result<(), String> {
+) -> Result<NotchWindowFitResult, String> {
     let window = app
         .get_webview_window("lyrics-notch")
         .ok_or_else(|| "灵动岛歌词窗口不存在".to_string())?;
@@ -2093,7 +2117,11 @@ pub fn fit_notch_lyrics_content(
     if size_changed {
         crate::refresh_overlay_mouse_tracking(&window);
     }
-    Ok(())
+    Ok(NotchWindowFitResult {
+        physical_width: next_size.width,
+        physical_height: next_size.height,
+        size_changed,
+    })
 }
 
 #[tauri::command]
