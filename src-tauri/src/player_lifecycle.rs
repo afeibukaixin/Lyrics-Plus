@@ -55,8 +55,8 @@ mod macos {
         followed_player_bundle_id, runtime_supports_follower, PlayerFollowerServiceState,
         LAUNCH_AGENT_LABEL,
     };
-    use crate::commands::AppState;
     use crate::config::AppPreferences;
+    use crate::AppState;
 
     const HELPER_BUNDLE_ID: &str = "com.xiaoafei.lyrics-plus.player-follower";
     const TARGET_FILE_NAME: &str = "player-follower-target";

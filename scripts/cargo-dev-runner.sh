@@ -83,6 +83,22 @@ cp -f "$script_dir/dev-Info.plist" "$contents_dir/Info.plist"
 codesign --force --deep --sign - --entitlements "$entitlements" "$app_bundle"
 codesign --verify --deep --strict "$app_bundle"
 
+# Tauri 热重载可能直接终止旧 runner，导致由 LaunchServices 启动的应用成为残留进程。
+# 启动新版本前只清理当前 Dev Bundle 的旧实例，避免菜单栏图标不断重复。
+existing_app_pids=("${(@f)$(/usr/bin/pgrep -f "^${display_binary}( |$)" || true)}")
+for existing_app_pid in "${existing_app_pids[@]}"; do
+  if [[ -n "$existing_app_pid" ]]; then
+    /bin/kill -TERM "$existing_app_pid" 2>/dev/null || true
+  fi
+done
+
+for _ in {1..50}; do
+  if ! /usr/bin/pgrep -f "^${display_binary}( |$)" >/dev/null 2>&1; then
+    break
+  fi
+  /bin/sleep 0.1
+done
+
 # 通过 LaunchServices 启动，确保 TCC 将应用自身而不是终端识别为权限责任主体。
 if (( ${#app_args[@]} > 0 )); then
   /usr/bin/open -n "$app_bundle" --args "${app_args[@]}"

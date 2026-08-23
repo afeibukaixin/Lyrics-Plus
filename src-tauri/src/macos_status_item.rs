@@ -14,9 +14,9 @@ use objc2_quartz_core::{CATextLayer, CATransaction};
 use tauri::Manager;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::commands::AppState;
 use crate::config::CompactKaraokeStyle;
 use crate::lyrics::LyricsWord;
+use crate::AppState;
 use crate::TrayMenuState;
 
 const CONTENT_INSET: f64 = 6.0;

@@ -1,5 +1,5 @@
-use crate::commands::{AppState, OverlayBackground, OverlayBackgroundMode, OverlayStyleSettings};
 use crate::ToolbarPlacement;
+use crate::{AppState, OverlayBackground, OverlayBackgroundMode, OverlayStyleSettings};
 use tauri::Manager;
 
 pub(crate) const HORIZONTAL_OVERLAY_SURFACE_INSET: f64 = 46.0;

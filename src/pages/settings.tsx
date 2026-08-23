@@ -1,217 +1,48 @@
 import {
   useEffect,
-  useRef,
-  useState,
-  type Dispatch,
   type PointerEvent as ReactPointerEvent,
-  type RefObject,
-  type SetStateAction,
 } from "react";
-import { listen } from "@tauri-apps/api/event";
-import { useGSAP } from "@gsap/react";
-import { gsap } from "gsap";
-import { NavLink, Outlet, useLocation, useOutletContext } from "react-router";
+import { Outlet, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Bug, CircleAlert, Download, FileJson, Info, LoaderCircle, Monitor, MonitorUp, Moon, Music2, Palette, RotateCw, Settings2, Sun, TriangleAlert, X } from "lucide-react";
+import { Bug, CircleAlert, Download, FileJson, Info, LoaderCircle, Monitor, MonitorUp, Moon, Music2, Palette, RotateCw, Settings2, Sun, X } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { IconButton } from "@/components/ui/icon-button";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarInset,
-  SidebarMenu,
-  SidebarMenuBadge,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { toast } from "sonner";
 import { useLyrics } from "../features/lyrics/useLyrics";
 import { usePlayback } from "../features/player/usePlayback";
 import { useAppConfig } from "../features/config/AppConfigProvider";
 import { useUpdates } from "../features/update/UpdateProvider";
-import { api, isTauriRuntime, messageOf } from "../shared/api";
-import { createTauriListenerCleanup } from "../shared/tauriEvent";
+import { api, messageOf } from "../shared/api";
 import {
-  defaultOverlayStyle,
-  type OverlaySettings,
   type OverlayStyle,
   type ProviderSettings,
-  type ProviderSettingsView,
-  type ProviderCredentialView,
   type MusixmatchTokenType,
   type SettingsSection,
   type ThemePreference,
 } from "../shared/types";
 import styles from "./settings.module.scss";
-import { rememberSettingsPath } from "../router/settingsRoute";
+import { UpdateProgressRing } from "./settings/UpdateProgressRing";
+import { SettingsResetDialog } from "./settings/SettingsResetDialog";
+import { SettingsSidebar, type SettingsNavigationItem } from "./settings/SettingsSidebar";
+import { useSettingsData } from "./settings/useSettingsData";
+import {
+  type ProviderDragState,
+  type SettingsOutletContext,
+} from "./settings/SettingsContext";
+import {
+  continueProviderDrag as updateProviderDrag,
+  providerDragTransform,
+} from "./settings/providerDrag";
 
-gsap.registerPlugin(useGSAP);
-
-type ProviderDragState = {
-  providerId: string;
-  pointerId: number;
-  sourceIndex: number;
-  targetIndex: number;
-  startY: number;
-  currentY: number;
-  positions: Array<{ top: number; center: number }>;
-};
-
-const providerDragHysteresisPx = 6;
 const themeCycle: readonly ThemePreference[] = ["dark", "light", "system"];
 
-function clampUpdateProgress(value: number) {
-  return Math.max(0, Math.min(100, value));
-}
+export { useSettingsContext } from "./settings/SettingsContext";
+export type { ProviderDragState, SettingsOutletContext } from "./settings/SettingsContext";
 
-function UpdateProgressRing({ value }: { value: number }) {
-  const initialValueRef = useRef(clampUpdateProgress(value));
-  const rootRef = useRef<HTMLSpanElement>(null);
-  const indicatorRef = useRef<SVGCircleElement>(null);
-  const valueRef = useRef<HTMLSpanElement>(null);
-  const progressStateRef = useRef({ value: initialValueRef.current });
-  const progressTweenRef = useRef<gsap.core.Tween | null>(null);
-  const reducedMotionRef = useRef(false);
-
-  useGSAP(() => {
-    const media = gsap.matchMedia();
-    media.add({
-      reduceMotion: "(prefers-reduced-motion: reduce)",
-      allowMotion: "(prefers-reduced-motion: no-preference)",
-    }, (context) => {
-      reducedMotionRef.current = Boolean(context.conditions?.reduceMotion);
-      if (reducedMotionRef.current && progressTweenRef.current) {
-        const tween = progressTweenRef.current;
-        tween.progress(1);
-        tween.kill();
-        progressTweenRef.current = null;
-      }
-    });
-    return () => media.revert();
-  }, { scope: rootRef });
-
-  useGSAP(() => {
-    const indicator = indicatorRef.current;
-    const valueElement = valueRef.current;
-    if (!indicator || !valueElement) return;
-
-    const target = clampUpdateProgress(value);
-    const renderProgress = () => {
-      const progress = clampUpdateProgress(progressStateRef.current.value);
-      indicator.style.strokeDashoffset = String(100 - progress);
-      valueElement.textContent = `${Math.round(progress)}%`;
-    };
-
-    renderProgress();
-    if (reducedMotionRef.current) {
-      progressTweenRef.current?.kill();
-      progressTweenRef.current = null;
-      progressStateRef.current.value = target;
-      renderProgress();
-      return;
-    }
-
-    const tween = gsap.to(progressStateRef.current, {
-      value: target,
-      duration: 0.35,
-      ease: "power1.out",
-      overwrite: "auto",
-      onUpdate: renderProgress,
-      onComplete: () => {
-        renderProgress();
-        if (progressTweenRef.current === tween) progressTweenRef.current = null;
-      },
-    });
-    progressTweenRef.current = tween;
-    return () => {
-      tween.kill();
-      if (progressTweenRef.current === tween) progressTweenRef.current = null;
-    };
-  }, { dependencies: [value], scope: rootRef });
-
-  return (
-    <span ref={rootRef} className={styles.updateProgressVisual} aria-hidden="true">
-      <svg className="size-full" viewBox="0 0 32 32" shapeRendering="geometricPrecision" focusable="false">
-        <circle className={styles.updateProgressTrack} cx="16" cy="16" r="13" pathLength="100" strokeWidth="3" />
-        <circle
-          ref={indicatorRef}
-          className={styles.updateProgressIndicator}
-          cx="16"
-          cy="16"
-          r="13"
-          pathLength="100"
-          strokeDasharray="100"
-          strokeDashoffset="100"
-          strokeLinecap="butt"
-          strokeWidth="3"
-          transform="rotate(-90 16 16)"
-        />
-      </svg>
-      <span ref={valueRef} className={styles.updateStatusValue}>{Math.round(initialValueRef.current)}%</span>
-    </span>
-  );
-}
-
-export type SettingsOutletContext = {
-  config: ReturnType<typeof useAppConfig>["config"];
-  setTheme: ReturnType<typeof useAppConfig>["setTheme"];
-  setLanguage: ReturnType<typeof useAppConfig>["setLanguage"];
-  setGlobalShortcuts: ReturnType<typeof useAppConfig>["setGlobalShortcuts"];
-  setSystemMediaFilterMode: ReturnType<typeof useAppConfig>["setSystemMediaFilterMode"];
-  setSystemMediaApplications: ReturnType<typeof useAppConfig>["setSystemMediaApplications"];
-  setPlayerFollowerApplication: ReturnType<typeof useAppConfig>["setPlayerFollowerApplication"];
-  setDockIconHidden: ReturnType<typeof useAppConfig>["setDockIconHidden"];
-  setSilentStartup: ReturnType<typeof useAppConfig>["setSilentStartup"];
-  setOverlayHideWhenNotPlaying: ReturnType<typeof useAppConfig>["setOverlayHideWhenNotPlaying"];
-  setStatusBarLyricsEnabled: ReturnType<typeof useAppConfig>["setStatusBarLyricsEnabled"];
-  setListLyricsVisible: ReturnType<typeof useAppConfig>["setListLyricsVisible"];
-  setListLyricsOptions: ReturnType<typeof useAppConfig>["setListLyricsOptions"];
-  setNotchLyricsVisible: ReturnType<typeof useAppConfig>["setNotchLyricsVisible"];
-  setLyricsDisplayPreferences: ReturnType<typeof useAppConfig>["setLyricsDisplayPreferences"];
-  setLyricsBaseAppearance: ReturnType<typeof useAppConfig>["setLyricsBaseAppearance"];
-  setLyricsStyleInheritance: ReturnType<typeof useAppConfig>["setLyricsStyleInheritance"];
-  resetLyricsBaseAppearance: ReturnType<typeof useAppConfig>["resetLyricsBaseAppearance"];
-  playback: ReturnType<typeof usePlayback>;
-  lyrics: ReturnType<typeof useLyrics>;
-  fileInput: RefObject<HTMLInputElement | null>;
-  providerRows: RefObject<Map<string, HTMLDivElement>>;
-  overlaySettings: OverlaySettings;
-  style: OverlayStyle;
-  providerView: ProviderSettingsView | null;
-  providerCredentials: ProviderCredentialView | null;
-  testingProvider: string | null;
-  resettingSection: SettingsSection | null;
-  confirmingReset: SettingsSection | null;
-  providerDrag: ProviderDragState | null;
-  savingProviderOrder: boolean;
-  setError: Dispatch<SetStateAction<string | null>>;
-  setNotice: Dispatch<SetStateAction<string | null>>;
-  updateStyle: (patch: Partial<OverlayStyle>) => Promise<boolean>;
-  setVisible: (visible: boolean) => Promise<void>;
-  setLocked: (locked: boolean) => Promise<void>;
-  saveProviderSettings: (settings: ProviderSettings) => Promise<boolean>;
-  saveMusixmatchToken: (tokenType: MusixmatchTokenType, token: string) => Promise<boolean>;
-  clearMusixmatchToken: () => Promise<boolean>;
-  beginProviderDrag: (providerId: string, sourceIndex: number, event: ReactPointerEvent<HTMLButtonElement>) => void;
-  continueProviderDrag: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  finishProviderDrag: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  setProviderDrag: Dispatch<SetStateAction<ProviderDragState | null>>;
-  providerDragTransform: (index: number) => string | undefined;
-  toggleProvider: (id: string) => void;
-  testProviders: (providerIds: string[]) => Promise<void>;
-  testAllProviders: () => Promise<void>;
-  handleFile: (file?: File) => Promise<void>;
-  resetSection: (target: SettingsSection) => Promise<void>;
-  resetOverlayBounds: () => Promise<void>;
-  syncAppliedConfig: (imported: Parameters<ReturnType<typeof useAppConfig>["syncConfig"]>[0], appearanceOnly: boolean) => Promise<void>;
-};
 
 export default function Settings() {
   const { t } = useTranslation();
@@ -240,50 +71,35 @@ export default function Settings() {
   } = useAppConfig();
   const playback = usePlayback();
   const lyrics = useLyrics(playback.snapshot, playback.positionMs);
-  const fileInput = useRef<HTMLInputElement>(null);
-  const providerRows = useRef(new Map<string, HTMLDivElement>());
-  const [overlaySettings, setOverlaySettings] = useState<OverlaySettings>({ visible: true, locked: false });
-  const [style, setStyle] = useState<OverlayStyle>(defaultOverlayStyle);
-  const [providerView, setProviderView] = useState<ProviderSettingsView | null>(null);
-  const [providerCredentials, setProviderCredentials] = useState<ProviderCredentialView | null>(null);
-  const [testingProvider, setTestingProvider] = useState<string | null>(null);
-  const [resettingSection, setResettingSection] = useState<SettingsSection | null>(null);
-  const [confirmingReset, setConfirmingReset] = useState<SettingsSection | null>(null);
-  const [providerDrag, setProviderDrag] = useState<ProviderDragState | null>(null);
-  const [savingProviderOrder, setSavingProviderOrder] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-
-  useEffect(() => rememberSettingsPath(location.pathname), [location.pathname]);
-
-  useEffect(() => {
-    document.documentElement.dataset.window = "main";
-    if (!isTauriRuntime()) return;
-    void api.getOverlaySettings().then(setOverlaySettings).catch((value) => setError(messageOf(value)));
-    void api.getOverlayStyle().then(setStyle).catch((value) => setError(messageOf(value)));
-    void api.getProviderSettings().then(setProviderView).catch((value) => setError(messageOf(value)));
-    void api.getProviderCredentials().then(setProviderCredentials).catch((value) => setError(messageOf(value)));
-    const cleanupSettingsListener = createTauriListenerCleanup(
-      listen<OverlaySettings>("overlay://settings", ({ payload }) => setOverlaySettings(payload)),
-    );
-    const cleanupStyleListener = createTauriListenerCleanup(
-      listen<OverlayStyle>("overlay://style", ({ payload }) => setStyle(payload)),
-    );
-    return () => {
-      cleanupSettingsListener();
-      cleanupStyleListener();
-    };
-  }, []);
-
-  useEffect(() => {
-    setStyle((current) => ({ ...current, ...config.overlay.appearance }));
-  }, [config.overlay.appearance]);
-
-  useEffect(() => {
-    if (!notice) return;
-    toast.success(notice);
-    setNotice(null);
-  }, [notice]);
+  const {
+    confirmingReset,
+    error,
+    fileInput,
+    overlaySettings,
+    providerCredentials,
+    providerDrag,
+    providerRows,
+    providerView,
+    resettingSection,
+    savingProviderOrder,
+    setConfirmingReset,
+    setError,
+    setNotice,
+    setOverlaySettings,
+    setProviderCredentials,
+    setProviderDrag,
+    setProviderView,
+    setResettingSection,
+    setSavingProviderOrder,
+    setTestingProvider,
+    setStyle,
+    style,
+    testingProvider,
+  } = useSettingsData({
+    appearance: config.overlay.appearance,
+    locationPathname: location.pathname,
+    providerStatuses: lyrics.providerStatuses,
+  });
 
   useEffect(() => {
     if (!providerDrag) return;
@@ -408,28 +224,7 @@ export default function Settings() {
     if (!providerDrag || providerDrag.pointerId !== event.pointerId) return;
     event.preventDefault();
     const currentY = event.clientY;
-    setProviderDrag((current) => {
-      if (!current || current.pointerId !== event.pointerId) return current;
-      const movement = currentY - current.currentY;
-      if (movement === 0) return current;
-      const sourceCenter = current.positions[current.sourceIndex].center;
-      const draggedCenter = sourceCenter + currentY - current.startY;
-      let targetIndex = current.targetIndex;
-      if (movement > 0) {
-        while (targetIndex < current.positions.length - 1) {
-          const boundaryIndex = targetIndex < current.sourceIndex ? targetIndex : targetIndex + 1;
-          if (draggedCenter <= current.positions[boundaryIndex].center + providerDragHysteresisPx) break;
-          targetIndex += 1;
-        }
-      } else {
-        while (targetIndex > 0) {
-          const boundaryIndex = targetIndex > current.sourceIndex ? targetIndex : targetIndex - 1;
-          if (draggedCenter >= current.positions[boundaryIndex].center - providerDragHysteresisPx) break;
-          targetIndex -= 1;
-        }
-      }
-      return { ...current, currentY, targetIndex };
-    });
+    setProviderDrag((current) => current ? updateProviderDrag(current, event.pointerId, currentY) : current);
   };
 
   const finishProviderDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -438,20 +233,6 @@ export default function Settings() {
     const targetId = providerView?.settings.providers[targetIndex]?.id;
     setProviderDrag(null);
     if (targetId && sourceIndex !== targetIndex) void moveProvider(providerId, targetId);
-  };
-
-  const providerDragTransform = (index: number) => {
-    if (!providerDrag) return undefined;
-    if (index === providerDrag.sourceIndex) {
-      return `translate3d(0, ${providerDrag.currentY - providerDrag.startY}px, 0) scale(1.015)`;
-    }
-    if (providerDrag.targetIndex > providerDrag.sourceIndex && index > providerDrag.sourceIndex && index <= providerDrag.targetIndex) {
-      return `translate3d(0, ${providerDrag.positions[index - 1].top - providerDrag.positions[index].top}px, 0)`;
-    }
-    if (providerDrag.targetIndex < providerDrag.sourceIndex && index >= providerDrag.targetIndex && index < providerDrag.sourceIndex) {
-      return `translate3d(0, ${providerDrag.positions[index + 1].top - providerDrag.positions[index].top}px, 0)`;
-    }
-    return undefined;
   };
 
   const toggleProvider = (id: string) => {
@@ -600,7 +381,7 @@ export default function Settings() {
     continueProviderDrag,
     finishProviderDrag,
     setProviderDrag,
-    providerDragTransform,
+    providerDragTransform: (index) => providerDragTransform(providerDrag, index),
     toggleProvider,
     testProviders,
     testAllProviders,
@@ -614,14 +395,14 @@ export default function Settings() {
     || (Boolean(playback.snapshot.errorCode)
       && !["waiting", "no_unique_player", "source_not_allowed"].includes(playback.snapshot.errorCode ?? ""));
 
-  const primaryNavigation = [
+  const primaryNavigation: SettingsNavigationItem[] = [
     { to: "/settings/style", label: t("settings.shell.nav.style"), icon: Palette },
     { to: "/settings/lyrics", label: t("settings.shell.nav.lyrics"), icon: Music2 },
     { to: "/settings/player", label: t("settings.shell.nav.player"), icon: MonitorUp, warning: playerHasWarning },
     { to: "/settings/application", label: t("settings.shell.nav.application"), icon: Settings2 },
     { to: "/settings/about", label: t("settings.shell.nav.about"), icon: Info },
   ];
-  const advancedNavigation = [
+  const advancedNavigation: SettingsNavigationItem[] = [
     { to: "/settings/debug", label: t("settings.shell.nav.debug"), icon: Bug },
     { to: "/settings/config", label: t("settings.shell.nav.config"), icon: FileJson },
   ];
@@ -655,40 +436,12 @@ export default function Settings() {
 
   return (
     <SidebarProvider className={styles.shell} style={{ "--sidebar-width": "11.5rem", "--sidebar-width-icon": "3.5rem" } as React.CSSProperties}>
-      <Sidebar collapsible="icon" aria-label={t("settings.shell.navigation")}>
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu className="gap-1">
-                {primaryNavigation.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton render={<NavLink to={item.to} />} isActive={location.pathname === item.to} tooltip={item.label}>
-                        <Icon aria-hidden="true" /><span>{item.label}</span>
-                      </SidebarMenuButton>
-                      {item.warning && <SidebarMenuBadge><TriangleAlert role="img" aria-label={t("settings.player.attentionStatus")} className="text-warning" /></SidebarMenuBadge>}
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
-        <SidebarFooter>
-          <SidebarGroup className="p-0">
-            <SidebarGroupLabel>{t("settings.shell.advanced")}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu className="gap-1">
-                {advancedNavigation.map((item) => {
-                  const Icon = item.icon;
-                  return <SidebarMenuItem key={item.to}><SidebarMenuButton render={<NavLink to={item.to} />} isActive={location.pathname === item.to} tooltip={item.label}><Icon aria-hidden="true" /><span>{item.label}</span></SidebarMenuButton></SidebarMenuItem>;
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarFooter>
-      </Sidebar>
+      <SettingsSidebar
+        advancedNavigation={advancedNavigation}
+        locationPathname={location.pathname}
+        primaryNavigation={primaryNavigation}
+        t={t}
+      />
 
       <SidebarInset className={styles.settingsLayout}>
         <div className={styles.sidebarTriggerRow}>
@@ -718,16 +471,13 @@ export default function Settings() {
           <Outlet context={context} />
         </div>
       </SidebarInset>
-      <AlertDialog open={confirmingReset !== null} onOpenChange={(open) => { if (!open && !resettingSection) setConfirmingReset(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>{t("settings.shell.resetTitle")}</AlertDialogTitle><AlertDialogDescription>{t("settings.shell.resetConfirm")}</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>{t("common.actions.cancel")}</AlertDialogCancel><AlertDialogAction disabled={resettingSection !== null} onClick={() => void confirmResetSection()}>{t("common.actions.resetDefault")}</AlertDialogAction></AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <SettingsResetDialog
+        onConfirm={() => void confirmResetSection()}
+        onOpenChange={(open) => { if (!open && !resettingSection) setConfirmingReset(null); }}
+        open={confirmingReset !== null}
+        resetting={resettingSection !== null}
+        t={t}
+      />
     </SidebarProvider>
   );
-}
-
-export function useSettingsContext() {
-  return useOutletContext<SettingsOutletContext>();
 }
