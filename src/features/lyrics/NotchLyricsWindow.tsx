@@ -44,8 +44,10 @@ import {
   COLLAPSED_HEIGHT_FALLBACK,
   EXPANDED_HEIGHT_FALLBACK,
   emptyLayout,
+  notchCollapsedHeightFloor,
   notchSlotPadding,
   NOTCH_MAX_WIDTH,
+  resolvedNotchTopInset,
   type IslandDimensions,
   type IslandState,
   type NotchWindowFitRequest,
@@ -75,6 +77,7 @@ export default function NotchLyricsWindow() {
   const [islandVisible, setIslandVisible] = useState(() => !isTauriRuntime());
   const [visibilityMotionActive, setVisibilityMotionActive] = useState(isTauriRuntime);
   const shellRef = useRef<HTMLElement>(null);
+  const hoverAreaRef = useRef<HTMLDivElement>(null);
   const islandRef = useRef<HTMLElement>(null);
   const islandSurfaceRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -110,6 +113,9 @@ export default function NotchLyricsWindow() {
       previewValues?.expandedMaxWidth ?? appearance.expandedMaxWidth,
     ),
   );
+  const resolvedTopInset = resolvedNotchTopInset(layout);
+  const collapsedHeightFloor = notchCollapsedHeightFloor(layout);
+  const compactSlotSize = Math.max(0, Math.min(30, resolvedTopInset - 8));
   const slotPadding = notchSlotPadding(appearance.borderRadius);
   const marqueePaused = previewActive || widthMotionActive || visibilityMotionActive;
   const runtimeOffsetMs = lyrics.document?.offsetMs ?? 0;
@@ -237,6 +243,7 @@ export default function NotchLyricsWindow() {
     setVisibilityMotionActive,
     setWidthMotionActive,
     shellRef,
+    hoverAreaRef,
     toolbarRevealRef,
     visibilityMotionActiveRef,
     widthMotionActiveRef,
@@ -376,14 +383,15 @@ export default function NotchLyricsWindow() {
         "--notch-radius": `${appearance.borderRadius}px`,
         "--notch-slot-padding": `${slotPadding}px`,
         "--notch-max-width": `${effectiveWidth}px`,
-        "--notch-collapsed-height": `${Math.max(COLLAPSED_HEIGHT_FALLBACK, collapsedHeight)}px`,
+        "--notch-collapsed-height": `${Math.max(collapsedHeightFloor, collapsedHeight)}px`,
         "--notch-expanded-width": `${Math.min(effectiveExpandedMaxWidth, Math.max(effectiveWidth, expandedWidth))}px`,
         "--notch-expanded-height": `${Math.max(COLLAPSED_HEIGHT_FALLBACK, expandedHeight)}px`,
-        "--notch-top-inset": `${layout.topInset}px`,
+        "--notch-top-inset": `${resolvedTopInset}px`,
+        "--notch-compact-slot-size": `${compactSlotSize}px`,
         "--notch-center-gap": `${layout.centerGapWidth}px`,
       } as CSSProperties}
     >
-      <div className={styles.hoverArea}>
+      <div className={styles.hoverArea} ref={hoverAreaRef}>
         <section
           aria-expanded={islandState === "expanded"}
           aria-live="polite"

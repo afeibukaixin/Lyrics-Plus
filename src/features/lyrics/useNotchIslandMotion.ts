@@ -35,6 +35,7 @@ type UseNotchIslandMotionOptions = {
   appearance: NotchLyricsPreferences["appearance"];
   layout: NotchLayoutMetrics;
   shellRef: RefObject<HTMLElement | null>;
+  hoverAreaRef: RefObject<HTMLElement | null>;
   islandRef: RefObject<HTMLElement | null>;
   islandSurfaceRef: RefObject<HTMLDivElement | null>;
   contentRef: RefObject<HTMLDivElement | null>;
@@ -62,6 +63,7 @@ export function useNotchIslandMotion({
   appearance,
   layout,
   shellRef,
+  hoverAreaRef,
   islandRef,
   islandSurfaceRef,
   contentRef,
@@ -90,17 +92,27 @@ export function useNotchIslandMotion({
   const pointerInsideRef = useRef(false);
   const pendingExpandRef = useRef(false);
   const requestedPointerInteractiveRef = useRef<boolean | null>(null);
+  const appliedPointerInteractiveRef = useRef<boolean | null>(null);
   const pointerInteractionQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const setNotchPointerInteractive = useCallback((interactive: boolean) => {
-    if (!isTauriRuntime() || requestedPointerInteractiveRef.current === interactive) return;
+    if (!isTauriRuntime()) return;
     requestedPointerInteractiveRef.current = interactive;
-    // 串行切换原生窗口命中状态，避免快速进出岛体时旧请求覆盖最新状态。
+    // 串行处理并在执行前读取最新目标，避免快速进出岛体时过期请求反复切换穿透状态。
     pointerInteractionQueueRef.current = pointerInteractionQueueRef.current
       .catch(() => undefined)
-      .then(() => getCurrentWindow().setIgnoreCursorEvents(!interactive))
-      .catch((error) => {
-        reportFrontendError("Failed to update Dynamic Island pointer passthrough", error);
+      .then(async () => {
+        const desired = requestedPointerInteractiveRef.current;
+        if (desired === null || appliedPointerInteractiveRef.current === desired) return;
+        try {
+          await getCurrentWindow().setIgnoreCursorEvents(!desired);
+          appliedPointerInteractiveRef.current = desired;
+        } catch (error) {
+          if (requestedPointerInteractiveRef.current === desired) {
+            requestedPointerInteractiveRef.current = null;
+          }
+          reportFrontendError("Failed to update Dynamic Island pointer passthrough", error);
+        }
       });
   }, []);
 
@@ -455,7 +467,11 @@ export function useNotchIslandMotion({
   }, [hostFitReadyRef, islandStateRef, islandVisibleRef, pendingHoverApplyRef, previewActiveRef, startCollapse, startExpansion, visibilityMotionActiveRef]);
 
   const updateHoverFromPoint = useCallback((x: number, y: number, source: "pointerenter" | "pointermove" | "pointerleave" | "native") => {
+    // Tauri 中原生采样是唯一 hover 来源；WebView 事件会随着鼠标穿透切换产生反馈事件。
+    if (isTauriRuntime() && source !== "native") return;
     const rect = islandRef.current?.getBoundingClientRect();
+    const hoverRect = hoverAreaRef.current?.getBoundingClientRect();
+    const currentState = islandStateRef.current;
     const isInsideInteractiveIsland = Boolean(
       islandVisibleRef.current
       && rect
@@ -464,12 +480,16 @@ export function useNotchIslandMotion({
       && y >= rect.top
       && y <= rect.bottom,
     );
-    const isInsideHoverArea = rect
-      ? x >= rect.left - HOVER_PADDING
-        && x <= rect.right + HOVER_PADDING
-        && y >= rect.top - HOVER_PADDING
-        && y <= rect.bottom + HOVER_PADDING
-      : false;
+    const hoverBounds = currentState === "collapsed" ? rect : hoverRect ?? rect;
+    const isInsideHoverArea = source !== "pointerleave"
+      && islandVisibleRef.current
+      && Boolean(
+        hoverBounds
+        && x >= hoverBounds.left - HOVER_PADDING
+        && x <= hoverBounds.right + HOVER_PADDING
+        && y >= hoverBounds.top - HOVER_PADDING
+        && y <= hoverBounds.bottom + HOVER_PADDING,
+      );
     setNotchPointerInteractive(isInsideInteractiveIsland);
     const changed = pointerInsideRef.current !== isInsideHoverArea;
     pointerInsideRef.current = isInsideHoverArea;
@@ -479,13 +499,14 @@ export function useNotchIslandMotion({
         x,
         y,
         rect,
+        hoverRect,
         isInsideHoverArea,
         isInsideInteractiveIsland,
-        state: islandStateRef.current,
+        state: currentState,
       });
     }
     processPointerState();
-  }, [islandRef, islandStateRef, islandVisibleRef, processPointerState, setNotchPointerInteractive]);
+  }, [hoverAreaRef, islandRef, islandStateRef, islandVisibleRef, processPointerState, setNotchPointerInteractive]);
 
   const handleIslandPointerEnter = useCallback((event: React.PointerEvent<HTMLElement>) => {
     updateHoverFromPoint(event.clientX, event.clientY, "pointerenter");

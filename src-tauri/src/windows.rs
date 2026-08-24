@@ -373,10 +373,24 @@ fn screen_notch_layout(monitor: &tauri::Monitor) -> NotchLayoutMetrics {
         let left_edge = left_area.origin.x + left_area.size.width;
         let center_gap_width = (right_area.origin.x - left_edge).max(0.0);
         let has_notch = top_inset > 0.0 && center_gap_width > 0.0;
+        let scale_factor = monitor.scale_factor();
+        let scale_factor = if scale_factor.is_finite() && scale_factor > 0.0 {
+            scale_factor
+        } else {
+            1.0
+        };
+        let top_bar_height = f64::from(
+            monitor
+                .work_area()
+                .position
+                .y
+                .saturating_sub(monitor_position.y)
+                .max(0),
+        ) / scale_factor;
 
         NotchLayoutMetrics {
             has_notch,
-            top_inset: if has_notch { top_inset } else { 0.0 },
+            top_inset: if has_notch { top_inset } else { top_bar_height },
             center_gap_width: if has_notch { center_gap_width } else { 0.0 },
         }
     };
@@ -432,6 +446,16 @@ pub(crate) fn notch_monitor_id(monitor: &tauri::Monitor) -> String {
     )
 }
 
+pub(crate) fn notch_window_position(
+    monitor: &tauri::Monitor,
+    width: u32,
+) -> tauri::PhysicalPosition<i32> {
+    let monitor_position = monitor.position();
+    let monitor_size = monitor.size();
+    let x = monitor_position.x + monitor_size.width.saturating_sub(width) as i32 / 2;
+    tauri::PhysicalPosition::new(x, monitor_position.y)
+}
+
 fn position_notch_window(app: &tauri::AppHandle, window: &tauri::WebviewWindow) {
     let Some(monitor) = preferred_notch_monitor(app) else {
         return;
@@ -448,19 +472,8 @@ fn position_notch_window(app: &tauri::AppHandle, window: &tauri::WebviewWindow) 
         }
     }
     let width = window.outer_size().map(|size| size.width).unwrap_or(420);
-    let monitor_width = monitor.size().width;
-    let x = monitor.position().x + monitor_width.saturating_sub(width) as i32 / 2;
     let metrics = screen_notch_layout(&monitor);
-    let scale = window.scale_factor().unwrap_or(1.0).max(0.1);
-    let top_offset = if metrics.has_notch {
-        0
-    } else {
-        (6.0 * scale).round() as i32
-    };
-    let _ = window.set_position(tauri::PhysicalPosition::new(
-        x,
-        monitor.position().y.saturating_add(top_offset),
-    ));
+    let _ = window.set_position(notch_window_position(&monitor, width));
     if let Some(state) = app.try_state::<AppState>() {
         *state
             .notch_layout_metrics

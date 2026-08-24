@@ -11,10 +11,6 @@
   user-select: none;
 }
 
-.shell:not([data-has-notch]) {
-  padding-top: 6px;
-}
-
 .hoverArea {
   position: relative;
   width: min(100%, var(--notch-expanded-width));
@@ -45,10 +41,6 @@
   clip-path: inset(0 46% round 999px);
   transform: scaleY(.04);
   transform-origin: top center;
-}
-
-.shell:not([data-has-notch]) .island {
-  border-radius: var(--notch-radius);
 }
 
 .shell:not([data-island-visible]) .hoverArea {
@@ -605,7 +597,19 @@
 
 .shell:not([data-has-notch]) .metadata {
   grid-template-columns: minmax(30px, 1fr) 24px minmax(30px, 1fr);
+  height: var(--notch-top-inset);
+  min-height: 0;
+  padding-block: 4px;
   padding-inline: max(12px, calc(var(--notch-radius) - 4px));
+}
+
+.shell:not([data-has-notch]) .slotArtwork {
+  width: var(--notch-compact-slot-size);
+  height: var(--notch-compact-slot-size);
+}
+
+.shell:not([data-has-notch]) .spectrum {
+  height: var(--notch-compact-slot-size);
 }
 
 @media (prefers-reduced-motion: reduce) {

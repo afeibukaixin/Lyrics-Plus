@@ -583,9 +583,7 @@ pub fn fit_notch_lyrics_content(
             .primary_monitor()
             .map_err(|error| error.to_string())?)
         .ok_or_else(|| "无法读取灵动岛歌词所在的显示器".to_string())?;
-    let monitor_position = monitor.position();
     let monitor_size = monitor.size();
-    let metrics = crate::screen_notch_layout(&monitor);
     let requested_width = if width.is_finite() {
         width.max(120.0)
     } else {
@@ -600,15 +598,7 @@ pub fn fit_notch_lyrics_content(
         ((requested_width * scale).round() as u32).min(monitor_size.width),
         ((requested_height * scale).round() as u32).min(monitor_size.height),
     );
-    let next_position = tauri::PhysicalPosition::new(
-        monitor_position.x + monitor_size.width.saturating_sub(next_size.width) as i32 / 2,
-        monitor_position.y
-            + if metrics.has_notch {
-                0
-            } else {
-                (6.0 * scale).round() as i32
-            },
-    );
+    let next_position = crate::notch_window_position(&monitor, next_size.width);
     let current_size = window.outer_size().map_err(|error| error.to_string())?;
     let current_position = window.outer_position().map_err(|error| error.to_string())?;
     let size_changed = current_size.width.abs_diff(next_size.width) > 1

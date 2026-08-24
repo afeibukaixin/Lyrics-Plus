@@ -5,9 +5,9 @@ import { api, isTauriRuntime } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
 import type { NotchLayoutMetrics, NotchLyricsAppearance } from "../../shared/types";
 import {
-  COLLAPSED_HEIGHT_FALLBACK,
   EXPANDED_HEIGHT_FALLBACK,
   islandRadii,
+  notchCollapsedHeightFloor,
   NOTCH_MAX_WIDTH,
   physicalSizeMatches,
   waitForWebviewLayout,
@@ -18,7 +18,6 @@ import {
 } from "./NotchLyricsLayout";
 
 const WINDOW_HORIZONTAL_PADDING = 16;
-const NO_NOTCH_TOP_GAP = 6;
 
 type UseNotchWindowGeometryOptions = {
   layout: NotchLayoutMetrics;
@@ -85,7 +84,7 @@ export function useNotchWindowGeometry({
       return;
     }
     const width = dimensions.expandedWidth + WINDOW_HORIZONTAL_PADDING;
-    const height = dimensions.expandedHeight + (layout.hasNotch ? 0 : NO_NOTCH_TOP_GAP);
+    const height = dimensions.expandedHeight;
     const requestKey = `${width}:${height}`;
     if (lastFitRequestRef.current?.key === requestKey) return;
     lastFitRequestRef.current?.cancel();
@@ -180,7 +179,7 @@ export function useNotchWindowGeometry({
     );
     const nextDimensions: IslandDimensions = {
       collapsedWidth,
-      collapsedHeight: Math.max(COLLAPSED_HEIGHT_FALLBACK, Math.ceil(compactContent.scrollHeight)),
+      collapsedHeight: Math.max(notchCollapsedHeightFloor(layout), Math.ceil(compactContent.scrollHeight)),
       expandedWidth: expandedMaxWidth,
       expandedHeight: Math.max(EXPANDED_HEIGHT_FALLBACK, Math.ceil(expandedContent.scrollHeight)),
     };
@@ -189,7 +188,7 @@ export function useNotchWindowGeometry({
       return;
     }
     applyMeasuredDimensions(nextDimensions);
-  }, [appearance.expandedMaxWidth, appearance.maxWidth, applyMeasuredDimensions, contentRef, pendingDimensionsRef, previewValuesRef, toolbarRevealRef, widthMotionActiveRef]);
+  }, [appearance.expandedMaxWidth, appearance.maxWidth, applyMeasuredDimensions, contentRef, layout.hasNotch, layout.topInset, pendingDimensionsRef, previewValuesRef, toolbarRevealRef, widthMotionActiveRef]);
 
   useLayoutEffect(() => {
     if (!previewActiveRef.current) fitWindow();
