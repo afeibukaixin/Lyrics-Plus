@@ -364,6 +364,35 @@ fn system_track_id_from_metadata(
     ))
 }
 
+// 使用图片实际像素内容计算轻量指纹，避免系统封面更新时复用旧缓存。
+fn artwork_fingerprint(image: &image::DynamicImage) -> u64 {
+    const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
+    const FNV_PRIME: u64 = 0x00000100000001b3;
+
+    let mut fingerprint = FNV_OFFSET_BASIS;
+    let mut update = |byte: u8| {
+        fingerprint ^= u64::from(byte);
+        fingerprint = fingerprint.wrapping_mul(FNV_PRIME);
+    };
+    for byte in image.width().to_le_bytes() {
+        update(byte);
+    }
+    for byte in image.height().to_le_bytes() {
+        update(byte);
+    }
+    let color = image.color();
+    update(color.bytes_per_pixel());
+    for byte in color.bits_per_pixel().to_le_bytes() {
+        update(byte);
+    }
+    update(color.has_alpha() as u8);
+    update(color.has_color() as u8);
+    for &byte in image.as_bytes() {
+        update(byte);
+    }
+    fingerprint
+}
+
 fn snapshot_from_info(timed: &TimedInfo) -> PlaybackSnapshot {
     let info = &timed.info;
     let metadata = normalized_system_metadata(info);
@@ -381,7 +410,11 @@ fn snapshot_from_info(timed: &TimedInfo) -> PlaybackSnapshot {
             .map(|duration| position.min(duration))
             .unwrap_or(position)
     });
-    let artwork_id = info.album_cover.as_ref().and(track_id.as_ref()).cloned();
+    let artwork_id = info.album_cover.as_ref().and_then(|cover| {
+        track_id
+            .as_ref()
+            .map(|track_id| format!("{track_id}|artwork:{:016x}", artwork_fingerprint(cover)))
+    });
     PlaybackSnapshot {
         player: Some(PlayerKind::System),
         is_running: true,
