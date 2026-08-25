@@ -10,7 +10,8 @@ impl Storage {
             provider_item_id,
             kind,
         } = request;
-        let existing = self.association(track_key)?;
+        let canonical_track_key = self.canonical_track_key(track_key)?;
+        let existing = self.association(&canonical_track_key)?;
         if kind == SaveKind::Automatic
             && existing
                 .as_ref()
@@ -37,8 +38,9 @@ impl Storage {
             .as_ref()
             .map(|association| association.path.clone())
             .filter(|path| path.starts_with(&library_dir))
-            .filter(|path| self.file_is_app_owned(path).unwrap_or(true));
+            .filter(|path| self.file_is_app_owned(path).unwrap_or(false));
         let path = reusable_path
+            .clone()
             .unwrap_or_else(|| available_path(&library_dir, title, artist, raw));
         fs::write(&path, raw).map_err(|error| format!("保存歌词文件失败：{error}"))?;
         let content_hash = content_hash(raw);
@@ -58,7 +60,7 @@ impl Storage {
                    manual_selected=excluded.manual_selected, provider_id=excluded.provider_id,
                    provider_item_id=excluded.provider_item_id, updated_at=unixepoch()",
                 params![
-                    track_key,
+                    canonical_track_key,
                     title,
                     artist,
                     source,
@@ -83,7 +85,7 @@ impl Storage {
             .execute(
                 "INSERT INTO lyric_history (track_key, title, artist, source, used_at)
                  VALUES (?1, ?2, ?3, ?4, unixepoch())",
-                params![track_key, title, artist, source],
+                params![canonical_track_key, title, artist, source],
             )
             .map_err(|error| format!("保存歌词使用记录失败：{error}"))?;
         connection
@@ -95,7 +97,16 @@ impl Storage {
             )
             .map_err(|error| format!("整理歌词使用记录失败：{error}"))?;
         drop(connection);
-        self.load(track_key)?
+        if let Some(old_path) = existing
+            .as_ref()
+            .map(|association| association.path.clone())
+            .filter(|old_path| old_path != &path)
+        {
+            if let Err(error) = self.cleanup_unreferenced_app_owned_files([old_path]) {
+                log::warn!("整理旧歌词文件失败：{error}");
+            }
+        }
+        self.load(&canonical_track_key)?
             .ok_or_else(|| "歌词保存后无法读取".into())
     }
 
@@ -112,7 +123,14 @@ impl Storage {
             let mut statement = connection
                 .prepare(
                     "SELECT content_path, title, artist, duration_ms, content_hash
-                     FROM lyric_files WHERE managed=1",
+                     FROM lyric_files
+                     WHERE managed=1
+                       AND (
+                         app_owned=0 OR source IN ('本地文件', '本地导入', '手动导入') OR EXISTS(
+                           SELECT 1 FROM lyric_associations
+                           WHERE lyric_associations.content_path=lyric_files.content_path
+                         )
+                       )",
                 )
                 .map_err(|error| format!("读取本地歌词索引失败：{error}"))?;
             let rows = statement
@@ -166,17 +184,17 @@ impl Storage {
             if results.len() >= MAX_LOCAL_SEARCH_RESULTS {
                 break;
             }
+            let Ok(raw) = read_lyric_text(&candidate.path) else {
+                continue;
+            };
             let content_key = if candidate.content_hash.is_empty() {
-                candidate.path.to_string_lossy().into_owned()
+                content_hash(&raw)
             } else {
                 candidate.content_hash.clone()
             };
             if !seen_content.insert(content_key) {
                 continue;
             }
-            let Ok(raw) = read_lyric_text(&candidate.path) else {
-                continue;
-            };
             let Ok(document) = parse_lrc_with_options(&raw, LOCAL_FILE_SOURCE, false) else {
                 continue;
             };
@@ -224,7 +242,8 @@ impl Storage {
             kind,
             ..
         } = request;
-        let existing = self.association(track_key)?;
+        let canonical_track_key = self.canonical_track_key(track_key)?;
+        let existing = self.association(&canonical_track_key)?;
         if kind == SaveKind::Automatic
             && existing
                 .as_ref()
@@ -285,7 +304,7 @@ impl Storage {
                    manual_selected=excluded.manual_selected, provider_id=excluded.provider_id,
                    provider_item_id=excluded.provider_item_id, updated_at=unixepoch()",
                 params![
-                    track_key,
+                    canonical_track_key,
                     title,
                     artist,
                     LOCAL_FILE_SOURCE,
@@ -302,7 +321,7 @@ impl Storage {
             .execute(
                 "INSERT INTO lyric_history (track_key, title, artist, source, used_at)
                  VALUES (?1, ?2, ?3, ?4, unixepoch())",
-                params![track_key, title, artist, LOCAL_FILE_SOURCE],
+                params![canonical_track_key, title, artist, LOCAL_FILE_SOURCE],
             )
             .map_err(|error| format!("保存歌词使用记录失败：{error}"))?;
         connection
@@ -313,6 +332,16 @@ impl Storage {
                 [],
             )
             .map_err(|error| format!("整理歌词使用记录失败：{error}"))?;
+        drop(connection);
+        if let Some(old_path) = existing
+            .as_ref()
+            .map(|association| association.path.clone())
+            .filter(|old_path| old_path != &path)
+        {
+            if let Err(error) = self.cleanup_unreferenced_app_owned_files([old_path]) {
+                log::warn!("整理旧歌词文件失败：{error}");
+            }
+        }
         Ok(document)
     }
 }

@@ -3,8 +3,7 @@ impl Storage {
         let Some(association) = self.association(track_key)? else {
             return Ok(None);
         };
-        let raw = fs::read_to_string(&association.path)
-            .map_err(|error| format!("读取歌词文件失败：{error}"))?;
+        let raw = read_lyric_text(&association.path)?;
         let mut document =
             parse_lrc_with_options(&raw, &association.source, association.manual_selected)?;
         document.metadata.title = Some(association.title);
@@ -15,6 +14,7 @@ impl Storage {
     }
 
     fn association(&self, track_key: &str) -> Result<Option<Association>, String> {
+        let canonical_track_key = self.canonical_track_key(track_key)?;
         let connection = self
             .connection
             .lock()
@@ -23,7 +23,7 @@ impl Storage {
             .query_row(
                 "SELECT title, artist, source, content_path, offset_ms, original_format, manual_selected
                  FROM lyric_associations WHERE track_key=?1",
-                params![track_key],
+                params![canonical_track_key],
                 |row| {
                     Ok(Association {
                         title: row.get(0)?,
@@ -47,17 +47,18 @@ impl Storage {
             .unwrap_or_else(|error| error.into_inner());
         connection
             .query_row(
-                "SELECT app_owned FROM lyric_files WHERE content_path=?1",
+                "SELECT app_owned, source FROM lyric_files WHERE content_path=?1",
                 params![path.to_string_lossy()],
-                |row| row.get::<_, i64>(0),
+                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
             )
             .optional()
             .ok()
             .flatten()
-            .map(|value| value != 0)
+            .map(|(app_owned, source)| app_owned != 0 && !is_user_owned_source(&source))
     }
 
     pub fn set_offset(&self, track_key: &str, offset_ms: i64) -> Result<(), String> {
+        let canonical_track_key = self.canonical_track_key(track_key)?;
         let connection = self
             .connection
             .lock()
@@ -65,7 +66,7 @@ impl Storage {
         let changed = connection
             .execute(
                 "UPDATE lyric_associations SET offset_ms=?2, updated_at=unixepoch() WHERE track_key=?1",
-                params![track_key, offset_ms],
+                params![canonical_track_key, offset_ms],
             )
             .map_err(|error| format!("保存歌词偏移失败：{error}"))?;
         if changed == 0 {
@@ -76,7 +77,8 @@ impl Storage {
     }
 
     pub fn remove(&self, track_key: &str) -> Result<(), String> {
-        let association = self.association(track_key)?;
+        let canonical_track_key = self.canonical_track_key(track_key)?;
+        let association = self.association(&canonical_track_key)?;
         let connection = self
             .connection
             .lock()
@@ -84,7 +86,7 @@ impl Storage {
         connection
             .execute(
                 "DELETE FROM lyric_associations WHERE track_key=?1",
-                params![track_key],
+                params![canonical_track_key],
             )
             .map_err(|error| format!("解除歌词关联失败：{error}"))?;
         let path = association.map(|association| association.path);
@@ -102,27 +104,18 @@ impl Storage {
             .and_then(|path| {
                 connection
                     .query_row(
-                        "SELECT app_owned FROM lyric_files WHERE content_path=?1",
+                        "SELECT app_owned, source FROM lyric_files WHERE content_path=?1",
                         params![path.to_string_lossy()],
-                        |row| row.get::<_, i64>(0),
+                        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
                     )
                     .optional()
                     .ok()
                     .flatten()
             })
-            .unwrap_or(1)
-            != 0;
+            .is_some_and(|(app_owned, source)| app_owned != 0 && !is_user_owned_source(&source));
+        drop(connection);
         if let Some(path) = path.filter(|_| references == 0 && app_owned) {
-            connection
-                .execute(
-                    "DELETE FROM lyric_files WHERE content_path=?1",
-                    params![path.to_string_lossy()],
-                )
-                .map_err(|error| format!("删除歌词索引失败：{error}"))?;
-            drop(connection);
-            if path.exists() {
-                fs::remove_file(path).map_err(|error| format!("删除歌词文件失败：{error}"))?;
-            }
+            self.cleanup_unreferenced_app_owned_files([path])?;
         }
         Ok(())
     }

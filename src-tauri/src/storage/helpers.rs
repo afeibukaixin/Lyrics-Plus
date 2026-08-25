@@ -123,18 +123,19 @@ pub(super) fn upsert_file_index(
             "INSERT INTO lyric_files
                (content_path, title, artist, source, original_format, manual_selected,
                 content_hash, app_owned, updated_at)
-             VALUES (?1, ?2, ?3, ?4, 'lrc', ?5, ?6, 1, unixepoch())
+             VALUES (?1, ?2, ?3, ?4, 'lrc', ?5, ?6, ?7, unixepoch())
              ON CONFLICT(content_path) DO UPDATE SET
                title=excluded.title, artist=excluded.artist, source=excluded.source,
                original_format=excluded.original_format, manual_selected=excluded.manual_selected,
-               content_hash=excluded.content_hash, app_owned=1, updated_at=unixepoch()",
+               content_hash=excluded.content_hash, app_owned=excluded.app_owned, updated_at=unixepoch()",
             params![
                 path.to_string_lossy(),
                 title,
                 artist,
                 source,
                 manual_selected,
-                hash
+                hash,
+                !is_user_owned_source(source),
             ],
         )
         .map_err(|error| format!("保存歌词文件索引失败：{error}"))?;

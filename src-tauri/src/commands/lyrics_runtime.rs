@@ -92,6 +92,10 @@ async fn perform_lyrics_search(
         }
     }
     let had_local_results = !local_results.is_empty();
+    let prefer_local = local_results.first().is_some_and(|result| {
+        result.provider_id == LOCAL_PROVIDER_ID
+            && can_auto_apply_local(&local_results, auto_apply_threshold)
+    });
     let mut seen_lyrics = local_results
         .iter()
         .map(|result| lyric_content_key(&result.lyrics))
@@ -106,11 +110,12 @@ async fn perform_lyrics_search(
     let prefer_capabilities = outcome
         .as_ref()
         .is_some_and(|outcome| outcome.prefer_capabilities);
-    if let Some(recommended_index) = best_result_index(
-        &local_results,
-        prefer_capabilities,
-        secondary_display,
-    ) {
+    let recommended_index = if prefer_local {
+        Some(0)
+    } else {
+        best_result_index(&local_results, prefer_capabilities, secondary_display)
+    };
+    if let Some(recommended_index) = recommended_index {
         let recommended = local_results.remove(recommended_index);
         local_results.insert(0, recommended);
     }
@@ -118,9 +123,9 @@ async fn perform_lyrics_search(
         if result.provider_id == LOCAL_PROVIDER_ID {
             can_auto_apply_local(&local_results, auto_apply_threshold)
         } else {
-            outcome.as_ref().is_some_and(|outcome| {
-                can_auto_apply(&local_results, outcome.auto_apply_threshold)
-            })
+            outcome
+                .as_ref()
+                .is_some_and(|outcome| can_auto_apply(&local_results, outcome.auto_apply_threshold))
         }
     });
     Ok(SearchResponse {
@@ -299,6 +304,23 @@ fn sync_lyrics_runtime_inner(app: &tauri::AppHandle, playback: &PlaybackSnapshot
         .unwrap_or_else(|error| error.into_inner())
         .track_key
         .clone();
+    if force || current_key != next_key {
+        if let (Some(track_key), Some(title), Some(artist)) = (
+            next_key.as_deref(),
+            playback.title.as_deref(),
+            playback.artist.as_deref(),
+        ) {
+            if let Err(error) = state.storage.ensure_track_alias(
+                track_key,
+                title,
+                artist,
+                playback.album.as_deref(),
+                playback.duration_ms,
+            ) {
+                log::warn!("整理当前歌曲歌词关联失败：{error}");
+            }
+        }
+    }
     if !force && current_key == next_key {
         crate::sync_lyrics_surfaces(app);
         return;
@@ -436,15 +458,17 @@ fn sync_lyrics_runtime_inner(app: &tauri::AppHandle, playback: &PlaybackSnapshot
                     );
                 }
             }
-            Err(error) if current() && error == LYRICS_SEARCH_INVALIDATED => publish_lyrics_runtime(
-                &worker_app,
-                LyricsRuntimeSnapshot {
-                    track_key: Some(track_key),
-                    document: None,
-                    status: LyricsRuntimeStatus::NotFound,
-                    error: None,
-                },
-            ),
+            Err(error) if current() && error == LYRICS_SEARCH_INVALIDATED => {
+                publish_lyrics_runtime(
+                    &worker_app,
+                    LyricsRuntimeSnapshot {
+                        track_key: Some(track_key),
+                        document: None,
+                        status: LyricsRuntimeStatus::NotFound,
+                        error: None,
+                    },
+                )
+            }
             Err(error) if current() => publish_lyrics_runtime(
                 &worker_app,
                 LyricsRuntimeSnapshot {

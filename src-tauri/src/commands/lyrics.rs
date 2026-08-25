@@ -183,6 +183,13 @@ fn save_and_emit(
     input: SaveLyricsInput,
     kind: SaveKind,
 ) -> Result<LyricsDocument, String> {
+    state.storage.ensure_track_alias(
+        &input.track_key,
+        &input.title,
+        &input.artist,
+        input.album.as_deref(),
+        input.duration_ms,
+    )?;
     let request = SaveRequest {
         track_key: &input.track_key,
         title: &input.title,

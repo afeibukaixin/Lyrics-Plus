@@ -20,12 +20,17 @@ pub const LOCAL_FILE_SOURCE: &str = "本地文件";
 const MAX_LOCAL_SEARCH_RESULTS: usize = 8;
 const MIN_LOCAL_SEARCH_SCORE: f64 = 0.5;
 
+pub(super) fn is_user_owned_source(source: &str) -> bool {
+    matches!(source, LOCAL_FILE_SOURCE | "本地导入" | "手动导入")
+}
+
 include!("models.rs");
 include!("database.rs");
 include!("lyrics.rs");
 include!("associations.rs");
 include!("preferences.rs");
 include!("helpers.rs");
+include!("aliases.rs");
 
 #[cfg(test)]
 include!("tests.rs");

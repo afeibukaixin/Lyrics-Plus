@@ -85,14 +85,22 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number) {
     if (!trackKey || !snapshot.title || !snapshot.artist) return null;
     setError(null);
     try {
-      const saved = await api.saveLyrics(trackKey, snapshot.title, snapshot.artist, result, manualSelected);
+      const saved = await api.saveLyrics(
+        trackKey,
+        snapshot.title,
+        snapshot.artist,
+        snapshot.album,
+        snapshot.durationMs,
+        result,
+        manualSelected,
+      );
       if (activeTrackKey.current === trackKey) updateDocument(saved, trackKey);
       return saved;
     } catch (saveError) {
       if (activeTrackKey.current === trackKey) setError(messageOf(saveError));
       return null;
     }
-  }, [snapshot.artist, snapshot.title, trackKey, updateDocument]);
+  }, [snapshot.album, snapshot.artist, snapshot.durationMs, snapshot.title, trackKey, updateDocument]);
 
   const search = useCallback(async (
     force = false,
@@ -180,7 +188,14 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number) {
     if (!trackKey || !snapshot.title || !snapshot.artist) return;
     setError(null);
     try {
-      const imported = await api.importLyrics(trackKey, snapshot.title, snapshot.artist, raw);
+      const imported = await api.importLyrics(
+        trackKey,
+        snapshot.title,
+        snapshot.artist,
+        snapshot.album,
+        snapshot.durationMs,
+        raw,
+      );
       if (activeTrackKey.current === trackKey) updateDocument(imported, trackKey);
     } catch (importError) {
       setError(messageOf(importError));

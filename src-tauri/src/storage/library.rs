@@ -186,8 +186,57 @@ pub(super) fn initialize_schema(connection: &Connection) -> rusqlite::Result<()>
     )?;
     if added_app_owned {
         connection.execute(
-            "UPDATE lyric_files SET app_owned=0 WHERE source='本地文件'",
+            "UPDATE lyric_files SET app_owned=0 WHERE source IN ('本地文件', '本地导入', '手动导入')",
             [],
+        )?;
+    } else {
+        connection.execute(
+            "UPDATE lyric_files SET app_owned=0
+             WHERE source IN ('本地文件', '本地导入', '手动导入') AND app_owned!=0",
+            [],
+        )?;
+    }
+    Ok(())
+}
+
+pub(super) fn normalize_collision_metadata(connection: &Connection) -> rusqlite::Result<()> {
+    let rows = {
+        let mut statement = connection.prepare(
+            "SELECT content_path, title, artist
+             FROM lyric_files
+             WHERE app_owned=1 AND source NOT IN ('本地文件', '本地导入', '手动导入')",
+        )?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok((
+                    PathBuf::from(row.get::<_, String>(0)?),
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        rows
+    };
+    for (path, title, artist) in rows {
+        let Some((base_path, filename_artist, filename_title)) = collision_filename_parts(&path)
+        else {
+            continue;
+        };
+        if !base_path.is_file() || lrc_tag(&read_lyric(&path).unwrap_or_default(), "ti").is_some() {
+            continue;
+        }
+        if title != filename_title || artist != filename_artist {
+            continue;
+        }
+        connection.execute(
+            "UPDATE lyric_files SET title=?2, artist=?3, updated_at=unixepoch()
+             WHERE content_path=?1 AND app_owned=1",
+            params![path.to_string_lossy(), filename_title, filename_artist],
+        )?;
+        connection.execute(
+            "UPDATE lyric_associations SET title=?2, artist=?3
+             WHERE content_path=?1",
+            params![path.to_string_lossy(), filename_title, filename_artist],
         )?;
     }
     Ok(())
@@ -333,6 +382,7 @@ impl Storage {
             };
             publish(&status);
         }
+        self.cleanup_orphan_app_owned_files();
         let Some(status) = self.scanner.update(scan_id, |status| {
             status.phase = LibraryScanPhase::Completed;
             status.processed = status.total.unwrap_or(status.processed);
@@ -436,22 +486,42 @@ fn index_file_if_changed(
     let modified_at_ms = modified_ms(&file_metadata).map(|value| value as i64);
     let existing = connection
         .query_row(
-            "SELECT file_size, modified_at_ms FROM lyric_files WHERE content_path=?1",
+            "SELECT file_size, modified_at_ms, app_owned, title, artist
+             FROM lyric_files WHERE content_path=?1",
             params![path.to_string_lossy()],
-            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<i64>>(1)?)),
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, Option<i64>>(1)?,
+                    row.get::<_, i64>(2)? != 0,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                ))
+            },
         )
         .optional()
         .map_err(|error| format!("读取歌词索引状态失败：{error}"))?;
-    if modified_at_ms.is_some() && existing == Some((file_metadata.len() as i64, modified_at_ms)) {
+    if modified_at_ms.is_some()
+        && existing.as_ref().is_some_and(|(size, modified, _, _, _)| {
+            (*size, *modified) == (file_metadata.len() as i64, modified_at_ms)
+        })
+    {
         return Ok(IndexOutcome::Unchanged);
     }
     let raw = read_lyric(path)?;
     let metadata = lyric_metadata(path, &raw, "本地文件");
+    let (indexed_title, indexed_artist) = existing
+        .as_ref()
+        .filter(|(_, _, app_owned, _, _)| *app_owned)
+        .and_then(|(_, _, _, title, artist)| {
+            collision_filename_parts(path).map(|_| (title.clone(), artist.clone()))
+        })
+        .unwrap_or_else(|| (metadata.title.clone(), metadata.artist.clone()));
     let hash = content_hash(&raw);
     let fingerprint = content_hash(&format!(
         "{}|{}|{}|{}",
-        metadata.title,
-        metadata.artist,
+        indexed_title,
+        indexed_artist,
         metadata.duration_ms.unwrap_or(0),
         file_metadata.len()
     ));
@@ -476,8 +546,8 @@ fn index_file_if_changed(
                has_romanization=excluded.has_romanization, updated_at=unixepoch()",
             params![
                 path.to_string_lossy(),
-                metadata.title,
-                metadata.artist,
+                indexed_title,
+                indexed_artist,
                 metadata.source,
                 metadata.format,
                 hash,
@@ -496,6 +566,23 @@ fn index_file_if_changed(
     } else {
         IndexOutcome::Added
     })
+}
+
+fn collision_filename_parts(path: &Path) -> Option<(PathBuf, String, String)> {
+    let stem = path.file_stem()?.to_str()?;
+    let suffix_start = stem.rfind(" (")?;
+    let suffix = stem.get(suffix_start + 2..stem.len().checked_sub(1)?)?;
+    if suffix.is_empty() || !suffix.chars().all(|character| character.is_ascii_digit()) {
+        return None;
+    }
+    let base_stem = stem.get(..suffix_start)?.trim_end();
+    let (artist, title) = base_stem.split_once(" - ")?;
+    let extension = path.extension()?.to_str()?;
+    Some((
+        path.with_file_name(format!("{base_stem}.{extension}")),
+        artist.to_owned(),
+        title.to_owned(),
+    ))
 }
 
 fn cleanup_missing_files(

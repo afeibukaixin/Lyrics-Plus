@@ -18,6 +18,10 @@ pub struct SaveLyricsInput {
     pub track_key: String,
     pub title: String,
     pub artist: String,
+    #[serde(default)]
+    pub album: Option<String>,
+    #[serde(default)]
+    pub duration_ms: Option<u64>,
     pub source: String,
     pub lyrics: String,
     pub provider_id: Option<String>,

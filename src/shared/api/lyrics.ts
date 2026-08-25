@@ -44,6 +44,8 @@ export const lyricsApi = {
     trackKey: string,
     title: string,
     artist: string,
+    album: string | null,
+    durationMs: number | null,
     result: Pick<LyricsSearchResult, "id" | "providerId" | "source" | "lyrics">,
     manualSelected: boolean,
   ) =>
@@ -52,6 +54,8 @@ export const lyricsApi = {
         trackKey,
         title,
         artist,
+        album,
+        durationMs,
         source: result.source,
         lyrics: result.lyrics,
         providerId: result.providerId,
@@ -59,12 +63,14 @@ export const lyricsApi = {
         manualSelected,
       },
     }),
-  importLyrics: (trackKey: string, title: string, artist: string, lyrics: string) =>
+  importLyrics: (trackKey: string, title: string, artist: string, album: string | null, durationMs: number | null, lyrics: string) =>
     invoke<LyricsDocument>("import_lyrics", {
       input: {
         trackKey,
         title,
         artist,
+        album,
+        durationMs,
         source: "本地导入",
         lyrics,
         providerId: null,

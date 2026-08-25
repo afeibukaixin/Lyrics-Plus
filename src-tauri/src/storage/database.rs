@@ -54,8 +54,21 @@ impl Storage {
                source TEXT NOT NULL,
                used_at INTEGER NOT NULL DEFAULT (unixepoch())
              );
+             CREATE TABLE IF NOT EXISTS lyric_track_aliases (
+               observed_track_key TEXT PRIMARY KEY,
+               canonical_track_key TEXT NOT NULL,
+               title_norm TEXT NOT NULL,
+               artist_norm TEXT NOT NULL,
+               album_norm TEXT,
+               duration_ms INTEGER,
+               updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+             );
              CREATE INDEX IF NOT EXISTS lyric_history_used_at
                ON lyric_history(used_at DESC);
+             CREATE INDEX IF NOT EXISTS lyric_track_aliases_canonical
+               ON lyric_track_aliases(canonical_track_key);
+             CREATE INDEX IF NOT EXISTS lyric_track_aliases_identity
+               ON lyric_track_aliases(title_norm, artist_norm);
              CREATE INDEX IF NOT EXISTS lyric_files_title_artist
                ON lyric_files(title, artist);",
         )?;
@@ -102,6 +115,7 @@ impl Storage {
         }
         migrate_provider_source_names(&connection)?;
         migrate_legacy_files(&connection, &legacy_lyrics_dir, &library_dir)?;
+        library::normalize_collision_metadata(&connection)?;
         let readme = library_dir.join("README.txt");
         if !readme.exists() {
             fs::write(
@@ -110,11 +124,16 @@ impl Storage {
             )?;
         }
         let scanner = library::LibraryScanCoordinator::new(&library_dir);
-        Ok(Self {
+        let storage = Self {
             connection: Mutex::new(connection),
             database_path,
             library_dir: RwLock::new(library_dir),
             scanner,
-        })
+        };
+        storage
+            .migrate_track_aliases()
+            .map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error))?;
+        storage.cleanup_orphan_app_owned_files();
+        Ok(storage)
     }
 }

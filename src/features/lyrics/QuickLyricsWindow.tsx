@@ -90,7 +90,7 @@ export default function QuickLyricsWindow() {
     const document = lyrics.document;
     if (!document) return false;
     if (result.providerId === "local") {
-      return document.metadata.source === "本地文件";
+      return result.lyrics.trim() === document.raw.trim();
     }
     return document.metadata.source === result.source
       && result.lyrics.trim() === document.raw.trim();
