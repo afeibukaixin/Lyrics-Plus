@@ -473,7 +473,10 @@ fn position_notch_window(app: &tauri::AppHandle, window: &tauri::WebviewWindow) 
     }
     let width = window.outer_size().map(|size| size.width).unwrap_or(420);
     let metrics = screen_notch_layout(&monitor);
-    let _ = window.set_position(notch_window_position(&monitor, width));
+    let next_position = notch_window_position(&monitor, width);
+    if window.outer_position().ok() != Some(next_position) {
+        let _ = window.set_position(next_position);
+    }
     if let Some(state) = app.try_state::<AppState>() {
         *state
             .notch_layout_metrics

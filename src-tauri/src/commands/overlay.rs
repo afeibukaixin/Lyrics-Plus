@@ -544,7 +544,7 @@ pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Re
             .set_size(next_size)
             .map_err(|error| error.to_string())?;
     }
-    if size_changed || position != next_position {
+    if position != next_position {
         window
             .set_position(next_position)
             .map_err(|error| error.to_string())?;
