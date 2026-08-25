@@ -268,6 +268,7 @@ pub fn run() {
             commands::set_silent_startup,
             commands::set_auto_check_updates,
             commands::set_overlay_hide_when_not_playing,
+            commands::set_lyrics_windows_show_on_all_spaces,
             commands::set_status_bar_lyrics_enabled,
             commands::set_list_lyrics_visible,
             commands::set_list_lyrics_options,

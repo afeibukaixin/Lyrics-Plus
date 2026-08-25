@@ -1,5 +1,7 @@
 #[cfg(target_os = "macos")]
-fn enable_joining_other_apps_fullscreen(window: &tauri::WebviewWindow) -> tauri::Result<()> {
+fn apply_joining_other_apps_fullscreen_on_main(
+    window: &tauri::WebviewWindow,
+) -> tauri::Result<()> {
     use objc2::MainThreadMarker;
     use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
 
@@ -11,9 +13,10 @@ fn enable_joining_other_apps_fullscreen(window: &tauri::WebviewWindow) -> tauri:
     }
     let ns_window = window.ns_window()?;
     let ns_window = unsafe { &*ns_window.cast::<NSWindow>() };
-    let mut behavior = ns_window.collectionBehavior();
+    let original_behavior = ns_window.collectionBehavior();
+    let mut behavior = original_behavior;
     behavior.remove(
-        NSWindowCollectionBehavior::CanJoinAllSpaces
+        NSWindowCollectionBehavior::CanJoinAllApplications
             | NSWindowCollectionBehavior::Primary
             | NSWindowCollectionBehavior::Auxiliary
             | NSWindowCollectionBehavior::FullScreenPrimary
@@ -21,20 +24,133 @@ fn enable_joining_other_apps_fullscreen(window: &tauri::WebviewWindow) -> tauri:
             | NSWindowCollectionBehavior::FullScreenNone,
     );
     behavior.insert(NSWindowCollectionBehavior::CanJoinAllApplications);
-    ns_window.setCollectionBehavior(behavior);
-    Ok(())
-}
-
-#[cfg(not(target_os = "macos"))]
-fn enable_joining_other_apps_fullscreen(_window: &tauri::WebviewWindow) -> tauri::Result<()> {
+    if behavior != original_behavior {
+        ns_window.setCollectionBehavior(behavior);
+    }
     Ok(())
 }
 
 #[cfg(target_os = "macos")]
-fn enable_notch_window_behavior(window: &tauri::WebviewWindow) -> tauri::Result<()> {
+fn run_window_collection_behavior_update(
+    window: &tauri::WebviewWindow,
+    operation: impl FnOnce(&tauri::WebviewWindow) -> tauri::Result<()> + Send + 'static,
+) -> tauri::Result<()> {
+    use objc2::MainThreadMarker;
+
+    if MainThreadMarker::new().is_some() {
+        return operation(window);
+    }
+
+    // Playback monitoring can reconcile visibility off the main thread. AppKit
+    // collection behavior must still be changed on the main thread.
+    let target = window.clone();
+    let (result_sender, result_receiver) = std::sync::mpsc::sync_channel(1);
+    window.run_on_main_thread(move || {
+        let result = operation(&target).map_err(|error| error.to_string());
+        let _ = result_sender.send(result);
+    })?;
+    match result_receiver.recv() {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(error)) => Err(std::io::Error::other(error).into()),
+        Err(error) => Err(std::io::Error::other(format!(
+            "macOS window behavior update was interrupted: {error}"
+        ))
+        .into()),
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn apply_joining_other_apps_fullscreen(
+    window: &tauri::WebviewWindow,
+) -> tauri::Result<()> {
+    run_window_collection_behavior_update(window, apply_joining_other_apps_fullscreen_on_main)
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn apply_joining_other_apps_fullscreen(
+    _window: &tauri::WebviewWindow,
+) -> tauri::Result<()> {
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn apply_lyrics_window_space_behavior_on_main(
+    window: &tauri::WebviewWindow,
+    enabled: bool,
+) -> tauri::Result<()> {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
+
+    if MainThreadMarker::new().is_none() {
+        return Err(std::io::Error::other(
+            "macOS window collection behavior must be updated on the main thread",
+        )
+        .into());
+    }
+    let ns_window = window.ns_window()?;
+    let ns_window = unsafe { &*ns_window.cast::<NSWindow>() };
+    let original_behavior = ns_window.collectionBehavior();
+    let mut behavior = original_behavior;
+    // Managed 与 Transient 同时决定窗口参与 Spaces 和 Mission Control 的方式；
+    // 先清理互斥的 Space 行为，再按统一设置选择最终模式。
+    behavior.remove(
+        NSWindowCollectionBehavior::CanJoinAllSpaces
+            | NSWindowCollectionBehavior::MoveToActiveSpace
+            | NSWindowCollectionBehavior::Managed
+            | NSWindowCollectionBehavior::Transient
+            | NSWindowCollectionBehavior::Stationary,
+    );
+    if enabled {
+        behavior.insert(
+            NSWindowCollectionBehavior::Managed
+                | NSWindowCollectionBehavior::CanJoinAllSpaces,
+        );
+    } else {
+        behavior.insert(NSWindowCollectionBehavior::Transient);
+    }
+    if behavior != original_behavior {
+        ns_window.setCollectionBehavior(behavior);
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn apply_lyrics_window_space_behavior(
+    window: &tauri::WebviewWindow,
+    enabled: bool,
+) -> tauri::Result<()> {
+    run_window_collection_behavior_update(window, move |target| {
+        apply_lyrics_window_space_behavior_on_main(target, enabled)
+    })
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn apply_lyrics_window_space_behavior(
+    window: &tauri::WebviewWindow,
+    enabled: bool,
+) -> tauri::Result<()> {
+    window.set_visible_on_all_workspaces(enabled)
+}
+
+pub(crate) fn apply_lyrics_windows_space_behavior(
+    app: &tauri::AppHandle,
+    enabled: bool,
+) -> tauri::Result<()> {
+    for label in ["lyrics-overlay", "lyrics-list", "lyrics-notch"] {
+        if let Some(window) = app.get_webview_window(label) {
+            apply_lyrics_window_space_behavior(&window, enabled)?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn enable_notch_window_behavior(
+    window: &tauri::WebviewWindow,
+) -> tauri::Result<()> {
     use objc2_app_kit::{NSStatusWindowLevel, NSWindow};
 
-    enable_joining_other_apps_fullscreen(window)?;
+    apply_joining_other_apps_fullscreen(window)?;
     let ns_window = window.ns_window()?;
     let ns_window = unsafe { &*ns_window.cast::<NSWindow>() };
     ns_window.setLevel(NSStatusWindowLevel);
@@ -42,8 +158,10 @@ fn enable_notch_window_behavior(window: &tauri::WebviewWindow) -> tauri::Result<
 }
 
 #[cfg(not(target_os = "macos"))]
-fn enable_notch_window_behavior(window: &tauri::WebviewWindow) -> tauri::Result<()> {
-    enable_joining_other_apps_fullscreen(window)
+fn enable_notch_window_behavior(
+    window: &tauri::WebviewWindow,
+) -> tauri::Result<()> {
+    apply_joining_other_apps_fullscreen(window)
 }
 
 #[cfg(target_os = "macos")]
@@ -122,7 +240,14 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
     .visible(false)
     .build()?;
 
-    enable_joining_other_apps_fullscreen(&window)?;
+    apply_joining_other_apps_fullscreen(&window)?;
+    let enabled = app
+        .state::<AppState>()
+        .config
+        .snapshot()
+        .app
+        .lyrics_windows_show_on_all_spaces;
+    apply_lyrics_window_space_behavior(&window, enabled)?;
     refresh_overlay_mouse_tracking(&window);
     sync_overlay_vibrancy(&window, &style);
 
@@ -173,7 +298,7 @@ fn create_list_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {
         .displays
         .list_window
         .always_on_top;
-    WebviewWindowBuilder::new(
+    let window = WebviewWindowBuilder::new(
         app,
         "lyrics-list",
         WebviewUrl::App("index.html?view=lyrics-list".into()),
@@ -192,6 +317,13 @@ fn create_list_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {
     .visible(false)
     .center()
     .build()?;
+    let enabled = app
+        .state::<AppState>()
+        .config
+        .snapshot()
+        .app
+        .lyrics_windows_show_on_all_spaces;
+    apply_lyrics_window_space_behavior(&window, enabled)?;
     Ok(())
 }
 
@@ -304,7 +436,7 @@ fn create_status_bar_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> 
     .skip_taskbar(true)
     .visible(false)
     .build()?;
-    enable_joining_other_apps_fullscreen(&window)?;
+    apply_joining_other_apps_fullscreen(&window)?;
     window.set_ignore_cursor_events(true)?;
     if !restore_status_bar_position(app, &window) {
         position_status_bar_window_default(app, &window);
@@ -532,6 +664,13 @@ fn create_notch_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {
         log::warn!("Failed to enable initial Dynamic Island pointer passthrough: {error}");
     }
     enable_notch_window_behavior(&window)?;
+    let enabled = app
+        .state::<AppState>()
+        .config
+        .snapshot()
+        .app
+        .lyrics_windows_show_on_all_spaces;
+    apply_lyrics_window_space_behavior(&window, enabled)?;
     refresh_overlay_mouse_tracking(&window);
     schedule_notch_position(app, &window);
     Ok(())
@@ -540,7 +679,9 @@ fn create_notch_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {
 // 该函数会创建窗口并调用 AppKit，只能由主线程入口调用。
 fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), String> {
     let state = app.state::<AppState>();
-    let displays = state.config.snapshot().lyrics.displays;
+    let configured = state.config.snapshot();
+    let displays = configured.lyrics.displays;
+    let lyrics_windows_show_on_all_spaces = configured.app.lyrics_windows_show_on_all_spaces;
     let playback = state
         .last_snapshot
         .read()
@@ -571,12 +712,16 @@ fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), Stri
             window
                 .set_always_on_top(displays.list_window.always_on_top)
                 .map_err(|error| error.to_string())?;
+            apply_lyrics_window_space_behavior(&window, lyrics_windows_show_on_all_spaces)
+                .map_err(|error| error.to_string())?;
             if !window.is_visible().unwrap_or(false) {
                 window.show().map_err(|error| error.to_string())?;
             }
         }
     } else if let Some(window) = app.get_webview_window("lyrics-list") {
         window.hide().map_err(|error| error.to_string())?;
+        apply_lyrics_window_space_behavior(&window, lyrics_windows_show_on_all_spaces)
+            .map_err(|error| error.to_string())?;
     }
 
     let has_track = playback
@@ -603,6 +748,10 @@ fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), Stri
         create_notch_lyrics_window(app).map_err(|error| error.to_string())?;
         if let Some(window) = app.get_webview_window("lyrics-notch") {
             let was_visible = window.is_visible().unwrap_or(false);
+            apply_joining_other_apps_fullscreen(&window).map_err(|error| error.to_string())?;
+            // 先恢复 Space 归属，再显示窗口，避免显示后才切换窗口管理模式。
+            apply_lyrics_window_space_behavior(&window, lyrics_windows_show_on_all_spaces)
+                .map_err(|error| error.to_string())?;
             if !was_visible {
                 window.show().map_err(|error| error.to_string())?;
             }
@@ -616,7 +765,12 @@ fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), Stri
         }
     } else if visibility_changed {
         if let Some(window) = app.get_webview_window("lyrics-notch") {
+            apply_lyrics_window_space_behavior(&window, lyrics_windows_show_on_all_spaces)
+                .map_err(|error| error.to_string())?;
             if window.is_visible().unwrap_or(false) {
+                // 退出动画期间窗口仍可见，运行时切换也要立即同步全屏行为。
+                apply_joining_other_apps_fullscreen(&window)
+                    .map_err(|error| error.to_string())?;
                 let _ = window.emit(
                     NOTCH_VISIBILITY_TRANSITION_EVENT,
                     NotchVisibilityTransitionPayload { visible: false },
@@ -651,13 +805,26 @@ fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), Stri
                         || !has_track
                         || (displays.notch.hide_when_not_playing && !playback.is_playing);
                     if should_still_hide {
-                        if let Some(window) = handle.get_webview_window("lyrics-notch") {
-                            let _ = window.hide();
+                        let handle_for_main = handle.clone();
+                        if let Err(error) = handle.run_on_main_thread(move || {
+                            if let Some(window) = handle_for_main.get_webview_window("lyrics-notch")
+                            {
+                                let _ = window.hide();
+                            }
+                        }) {
+                            log::warn!("Failed to finish Dynamic Island lyrics hiding: {error}");
                         }
                     }
                 });
+            } else {
+                apply_lyrics_window_space_behavior(&window, lyrics_windows_show_on_all_spaces)
+                    .map_err(|error| error.to_string())?;
             }
         }
+    } else if let Some(window) = app.get_webview_window("lyrics-notch") {
+        apply_joining_other_apps_fullscreen(&window).map_err(|error| error.to_string())?;
+        apply_lyrics_window_space_behavior(&window, lyrics_windows_show_on_all_spaces)
+            .map_err(|error| error.to_string())?;
     }
     sync_tray_lyrics_display_checked(app);
     Ok(())

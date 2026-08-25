@@ -354,6 +354,21 @@ fn migrate_v50_notch_layout(user: &mut Value, version: u16) {
     );
 }
 
+fn remove_retired_fullscreen_space_preferences(user: &mut Value) {
+    if let Some(overlay) = user
+        .pointer_mut("/overlay")
+        .and_then(Value::as_object_mut)
+    {
+        overlay.remove("joinOtherAppsFullscreen");
+    }
+    if let Some(notch) = user
+        .pointer_mut("/lyrics/displays/notch")
+        .and_then(Value::as_object_mut)
+    {
+        notch.remove("joinOtherAppsFullscreen");
+    }
+}
+
 fn migrate_status_bar_status_item_fields(user: &mut Value) {
     let Some(status_bar) = user
         .pointer_mut("/lyrics/displays/statusBar")

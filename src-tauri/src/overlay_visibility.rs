@@ -19,13 +19,29 @@ pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<boo
         .get_webview_window("lyrics-overlay")
         .ok_or_else(|| "歌词浮窗不存在".to_string())?;
     let is_visible = window.is_visible().unwrap_or(false);
-    if should_show != is_visible {
-        if should_show {
+    if should_show {
+        if !is_visible {
             restore_overlay_position(app, &window);
-            window.show()
-        } else {
-            window.hide()
         }
+        // 显示前同步统一的歌词窗口 Space 行为，避免窗口重新显示时使用旧状态。
+        crate::apply_joining_other_apps_fullscreen(&window)
+            .map_err(|error| error.to_string())?;
+        crate::apply_lyrics_window_space_behavior(
+            &window,
+            configured.app.lyrics_windows_show_on_all_spaces,
+        )
+            .map_err(|error| error.to_string())?;
+        if !is_visible {
+            window.show().map_err(|error| error.to_string())?;
+        }
+    } else {
+        if is_visible {
+            window.hide().map_err(|error| error.to_string())?;
+        }
+        crate::apply_lyrics_window_space_behavior(
+            &window,
+            configured.app.lyrics_windows_show_on_all_spaces,
+        )
         .map_err(|error| error.to_string())?;
     }
     sync_unlock_handle(app);

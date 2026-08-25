@@ -30,6 +30,7 @@ export type AppConfig = {
     hideDockIcon: boolean;
     silentStartup: boolean;
     autoCheckUpdates: boolean;
+    lyricsWindowsShowOnAllSpaces: boolean;
     shortcuts: GlobalShortcutSettings;
   };
   lyrics: {

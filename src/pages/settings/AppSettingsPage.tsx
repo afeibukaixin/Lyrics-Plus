@@ -66,6 +66,7 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
     setPlayerFollowerApplication,
     setDockIconHidden,
     setSilentStartup,
+    setLyricsWindowsShowOnAllSpaces,
     playback,
     resettingSection,
     confirmingReset,
@@ -353,6 +354,12 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
         </ToggleGroup>
       </Field>
       <SelectRow label={t("settings.app.language.label")} description={t("settings.app.language.description")} value={normalizeLanguagePreference(config.app.language)} options={[["system", t("common.language.system")], ...languageOptions.map(({ code, label }) => [code, label] as [string, string])]} onChange={(language) => void setLanguage(language as LanguagePreference).catch((error) => setError(messageOf(error)))} />
+      <ToggleRow
+        label={t("settings.app.lyricsWindowsShowOnAllSpaces")}
+        description={t("settings.app.lyricsWindowsShowOnAllSpacesHint")}
+        value={config.app.lyricsWindowsShowOnAllSpaces}
+        onChange={(enabled) => void setLyricsWindowsShowOnAllSpaces(enabled).catch((error) => setError(messageOf(error)))}
+      />
     </SettingsSection>
     <SettingsSection id="application-shortcuts" title={t("settings.app.shortcuts")}>
       <div className={styles.shortcutRow}><span>{t("settings.app.openSettings")}</span><kbd>⌘ ,</kbd></div>

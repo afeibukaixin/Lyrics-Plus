@@ -59,6 +59,9 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             line if line.starts_with("    \"hideWhenNotPlaying\":") => {
                 Some(("    ", ConfigComment::HideWhenNotPlaying))
             }
+            line if line.starts_with("    \"lyricsWindowsShowOnAllSpaces\":") => {
+                Some(("    ", ConfigComment::LyricsWindowsSpaceBehavior))
+            }
             line if line.starts_with("      \"fontSize\":") => {
                 Some(("      ", ConfigComment::FontSize))
             }

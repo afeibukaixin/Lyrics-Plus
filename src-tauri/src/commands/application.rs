@@ -423,6 +423,23 @@ pub fn set_overlay_hide_when_not_playing(
     Ok(config)
 }
 
+#[tauri::command]
+pub fn set_lyrics_windows_show_on_all_spaces(
+    app: tauri::AppHandle,
+    enabled: bool,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let config = state
+        .config
+        .update(|config| config.app.lyrics_windows_show_on_all_spaces = enabled)?;
+    crate::apply_lyrics_windows_space_behavior(&app, enabled)
+        .map_err(|error| error.to_string())?;
+    crate::sync_lyrics_surfaces(&app);
+    app.emit("config://changed", &config)
+        .map_err(|error| error.to_string())?;
+    Ok(config)
+}
+
 fn finish_display_config_update(
     app: &tauri::AppHandle,
     config: AppConfig,

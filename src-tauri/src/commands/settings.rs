@@ -459,7 +459,10 @@ pub fn reset_settings_section(
                 config.app.theme = ThemePreference::Dark;
                 config.app.language = LanguagePreference::default();
                 config.app.silent_startup = false;
+                config.app.lyrics_windows_show_on_all_spaces = false;
             })?;
+            crate::apply_lyrics_windows_space_behavior(&app, false)
+                .map_err(|error| error.to_string())?;
         }
         SettingsSection::About => {
             state

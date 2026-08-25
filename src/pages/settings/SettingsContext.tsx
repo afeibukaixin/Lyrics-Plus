@@ -33,6 +33,7 @@ export type SettingsOutletContext = {
   setPlayerFollowerApplication: ReturnType<typeof useAppConfig>["setPlayerFollowerApplication"];
   setDockIconHidden: ReturnType<typeof useAppConfig>["setDockIconHidden"];
   setSilentStartup: ReturnType<typeof useAppConfig>["setSilentStartup"];
+  setLyricsWindowsShowOnAllSpaces: ReturnType<typeof useAppConfig>["setLyricsWindowsShowOnAllSpaces"];
   setOverlayHideWhenNotPlaying: ReturnType<typeof useAppConfig>["setOverlayHideWhenNotPlaying"];
   setStatusBarLyricsEnabled: ReturnType<typeof useAppConfig>["setStatusBarLyricsEnabled"];
   setListLyricsVisible: ReturnType<typeof useAppConfig>["setListLyricsVisible"];

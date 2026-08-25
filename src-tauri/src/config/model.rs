@@ -30,6 +30,7 @@ pub struct AppPreferences {
     pub hide_dock_icon: bool,
     pub silent_startup: bool,
     pub auto_check_updates: bool,
+    pub lyrics_windows_show_on_all_spaces: bool,
     pub shortcuts: GlobalShortcutSettings,
 }
 
@@ -45,6 +46,7 @@ impl Default for AppPreferences {
             hide_dock_icon: false,
             silent_startup: false,
             auto_check_updates: true,
+            lyrics_windows_show_on_all_spaces: false,
             shortcuts: GlobalShortcutSettings::default(),
         }
     }

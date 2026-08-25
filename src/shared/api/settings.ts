@@ -10,7 +10,7 @@ import type {
   LyricsStyleMode,
   SettingsSection,
   SettingsResetResponse,
- } from "./types";
+} from "./types";
 
 export const settingsApi = {
   resetSettingsSection: (section: SettingsSection) =>
@@ -21,6 +21,8 @@ export const settingsApi = {
     invoke<AppConfig>("set_silent_startup", { enabled }),
   setAutoCheckUpdates: (enabled: boolean) =>
     invoke<AppConfig>("set_auto_check_updates", { enabled }),
+  setLyricsWindowsShowOnAllSpaces: (enabled: boolean) =>
+    invoke<AppConfig>("set_lyrics_windows_show_on_all_spaces", { enabled }),
   setOverlayHideWhenNotPlaying: (hidden: boolean) =>
     invoke<AppConfig>("set_overlay_hide_when_not_playing", { hidden }),
   setStatusBarLyricsEnabled: (enabled: boolean) =>

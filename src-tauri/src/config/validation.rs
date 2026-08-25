@@ -91,6 +91,7 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
     migrate_v48_notch_mode(&mut user, version);
     migrate_v49_notch_width(&mut user, version);
     migrate_v50_notch_layout(&mut user, version);
+    remove_retired_fullscreen_space_preferences(&mut user);
     validate_known_fields(&user, raw)?;
     validate_field_types_and_options(&user, raw)?;
     migrate_status_bar_status_item_fields(&mut user);
@@ -449,7 +450,12 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
         check_keys(
             overlay,
             raw,
-            &["visible", "locked", "hideWhenNotPlaying", "appearance"],
+            &[
+                "visible",
+                "locked",
+                "hideWhenNotPlaying",
+                "appearance",
+            ],
         )?;
         if let Some(appearance) = overlay.get("appearance") {
             check_keys(
@@ -561,6 +567,10 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         ("/app/hideDockIcon", "hideDockIcon"),
         ("/app/silentStartup", "silentStartup"),
         ("/app/autoCheckUpdates", "autoCheckUpdates"),
+        (
+            "/app/lyricsWindowsShowOnAllSpaces",
+            "lyricsWindowsShowOnAllSpaces",
+        ),
         ("/overlay/visible", "visible"),
         ("/overlay/locked", "locked"),
         ("/overlay/hideWhenNotPlaying", "hideWhenNotPlaying"),
