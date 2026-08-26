@@ -202,7 +202,7 @@ export const zhHK = {
       karaoke: "卡拉 OK 效果", karaokeSweep: "逐字掃光", karaokeBounce: "逐字彈跳", karaokeHighlight: "僅醒目提示",
       backgroundLayout: "背景與版面", backgroundMode: "背景模式", solid: "純色", transparent: "透明", backgroundOpacity: "背景透明度",
       backgroundColor: "背景顏色", glass: "毛玻璃", glassHint: "獨立模糊背景；透明度為 0% 時仍然有效", blur: "模糊強度", backgroundRadius: "背景圓角", backgroundPaddingX: "水平內距", backgroundPaddingY: "垂直內距", requiresVisibleBackground: "僅在顯示背景時可用", requiresGlassBackground: "僅在顯示毛玻璃背景時可用", backgroundControlsHint: "切換為純色背景後可調整透明度、顏色、毛玻璃和模糊強度。", glassControlsHint: "開啟毛玻璃後可調整模糊強度。",
-      lyricLayout: "歌詞版面", textDirection: "文字方向", alignment: "歌詞對齊", centered: "置中", distributed: "主副分列", requiresDoubleLayout: "僅雙排歌詞支援主副分列", requiresTranslation: "開啟翻譯後可調整", requiresRomanization: "開啟音譯後可調整",
+      lyricLayout: "歌詞版面", doubleLineMode: "雙行模式", doubleLineModeHint: "僅在雙排且副行顯示下一句原文時生效。", doubleLineRolling: "順序捲動", doubleLineAlternating: "交替醒目", textDirection: "文字方向", alignment: "歌詞對齊", centered: "置中", distributed: "主副分列", requiresDoubleLayout: "僅雙排歌詞支援主副分列", requiresTranslation: "開啟翻譯後可調整", requiresRomanization: "開啟音譯後可調整",
       alignmentVertical: "主副分列會將右側主歌詞靠上、左側副歌詞靠下", alignmentHorizontal: "主副分列會將主歌詞靠左、副歌詞靠右", alignmentFixed: "目前版面固定置中",
       longLyrics: "長歌詞", shrink: "智能縮放", wrap: "自動換行", marquee: "超出時捲動", secondary: "副歌詞、翻譯與羅馬拼音",
       secondarySize: "副歌詞字體大小", showTranslation: "顯示翻譯", translationSize: "翻譯字體大小", translationColor: "翻譯歌詞顏色", translationColorHint: "所有模式中的翻譯內容使用", secondaryControlsHint: "在常用樣式中開啟翻譯或羅馬拼音後，可調整相應字體大小和顏色。",

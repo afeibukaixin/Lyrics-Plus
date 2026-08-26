@@ -92,6 +92,12 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             line if line.starts_with("      \"layout\":") => {
                 Some(("      ", ConfigComment::Layout))
             }
+            line if line.starts_with("      \"doubleLineMode\":") => {
+                Some(("      ", ConfigComment::DoubleLineMode))
+            }
+            line if line.starts_with("        \"doubleLineMode\":") => {
+                Some(("        ", ConfigComment::DoubleLineMode))
+            }
             line if line.starts_with("      \"alignment\":") => {
                 Some(("      ", ConfigComment::Alignment))
             }

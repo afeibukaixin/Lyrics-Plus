@@ -457,6 +457,7 @@ pub struct NotchLyricsPreferences {
     pub left_slot: NotchSlotContent,
     pub right_slot: NotchSlotContent,
     pub layout: OverlayLayout,
+    pub double_line_mode: DoubleLineMode,
     pub show_translation: bool,
     pub show_romanization: bool,
     pub appearance: NotchLyricsAppearance,
@@ -472,6 +473,7 @@ impl Default for NotchLyricsPreferences {
             left_slot: NotchSlotContent::Artwork,
             right_slot: NotchSlotContent::Spectrum,
             layout: OverlayLayout::Single,
+            double_line_mode: DoubleLineMode::Rolling,
             show_translation: false,
             show_romanization: false,
             appearance: NotchLyricsAppearance::default(),
@@ -485,6 +487,7 @@ pub struct NotchLyricsAppearance {
     pub font_family: String,
     pub font_size: u16,
     pub font_weight: u16,
+    pub secondary_font_weight: u16,
     pub active_color: String,
     pub inactive_color: String,
     pub translation_color: String,
@@ -501,6 +504,7 @@ impl Default for NotchLyricsAppearance {
             font_family: OverlayAppearance::default().font_family,
             font_size: 18,
             font_weight: 700,
+            secondary_font_weight: 500,
             active_color: "#a3e635".into(),
             inactive_color: "#ecfccb".into(),
             translation_color: "#d9f99d".into(),
@@ -553,6 +557,7 @@ pub struct OverlayAppearance {
     pub background: OverlayBackground,
     pub solid_color: String,
     pub layout: OverlayLayout,
+    pub double_line_mode: DoubleLineMode,
     pub orientation: OverlayOrientation,
     pub alignment: OverlayAlignment,
     pub long_text: LongTextMode,
@@ -596,6 +601,7 @@ impl From<&OverlayStyleSettings> for OverlayAppearance {
             background: style.background,
             solid_color: style.solid_color.clone(),
             layout: style.layout,
+            double_line_mode: style.double_line_mode,
             orientation: style.orientation,
             alignment: style.alignment,
             long_text: style.long_text,
@@ -636,6 +642,7 @@ impl OverlayAppearance {
             background: self.background,
             solid_color: self.solid_color,
             layout: self.layout,
+            double_line_mode: self.double_line_mode,
             orientation: self.orientation,
             alignment: self.alignment,
             long_text: self.long_text,
@@ -797,6 +804,8 @@ impl AppConfig {
         let notch_appearance = &mut self.lyrics.displays.notch.appearance;
         notch_appearance.font_size = notch_appearance.font_size.clamp(12, 32);
         notch_appearance.font_weight = normalize_display_font_weight(notch_appearance.font_weight);
+        notch_appearance.secondary_font_weight =
+            normalize_display_font_weight(notch_appearance.secondary_font_weight);
         notch_appearance.border_radius = notch_appearance.border_radius.clamp(0.0, 40.0);
         notch_appearance.max_width = notch_appearance.max_width.clamp(320, 640);
         notch_appearance.expanded_max_width = notch_appearance

@@ -234,12 +234,20 @@ export function NotchLyricsQuickControls({
 }
 
 export function ExpandedPlayer({
+  karaokeStyle,
   playback,
+  previewLine,
+  previewMaxDurationMs,
+  previewPositionMs,
   quickControls,
   marqueePaused,
   t,
 }: {
+  karaokeStyle: CompactKaraokeStyle;
   playback: PlaybackController;
+  previewLine: LyricsLine | null;
+  previewMaxDurationMs: number | null;
+  previewPositionMs: number;
   quickControls: ReactNode;
   marqueePaused: boolean;
   t: TFunction;
@@ -320,6 +328,19 @@ export function ExpandedPlayer({
         </div>
         {quickControls}
       </div>
+      {previewLine && (
+        <div className={styles.playerLyricsPreview}>
+          <OverflowText
+            align="center"
+            behavior="once"
+            contentKey={`${trackKey}:preview:${previewLine.startMs}:${previewLine.text}`}
+            maxDurationMs={previewMaxDurationMs}
+            paused={marqueePaused}
+          >
+            <KaraokeLine line={previewLine} positionMs={previewPositionMs} karaokeStyle={karaokeStyle} />
+          </OverflowText>
+        </div>
+      )}
       <div className={styles.playerProgress}>
         <span className={styles.playerTime}>{formatPlaybackTime(positionMs)}</span>
         <Slider

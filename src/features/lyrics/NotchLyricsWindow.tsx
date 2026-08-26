@@ -28,6 +28,7 @@ import { useNotchLyricsOffset } from "./useNotchLyricsOffset";
 import { useNotchIslandMotion } from "./useNotchIslandMotion";
 import { useNotchWindowGeometry } from "./useNotchWindowGeometry";
 import type {
+  LyricsLine,
   NotchLayoutMetrics,
   NotchLyricsPreferences,
   NotchSlotContent,
@@ -54,6 +55,18 @@ import {
   type NotchWidthPreviewValues,
 } from "./NotchLyricsLayout";
 import styles from "./NotchLyricsWindow.module.scss";
+
+function previewLineAtPosition(lines: LyricsLine[], positionMs: number) {
+  let activeIndex = -1;
+  for (let index = 0; index < lines.length; index += 1) {
+    if (lines[index].startMs > positionMs) break;
+    activeIndex = index;
+  }
+
+  const line = lines[activeIndex] ?? lines[0] ?? null;
+  const nextLine = activeIndex < 0 ? lines[1] ?? null : lines[activeIndex + 1] ?? null;
+  return { line, nextLine };
+}
 
 export default function NotchLyricsWindow() {
   const { t } = useTranslation();
@@ -130,6 +143,15 @@ export default function NotchLyricsWindow() {
     trackKey: lyrics.trackKey,
   });
   const originalLines = lyrics.document?.tracks.original.lines ?? [];
+  const previewPositionMs = playback.positionMs + offsetMs;
+  const preview = previewLineAtPosition(originalLines, previewPositionMs);
+  const previewLineDisplayEndMs = preview.nextLine?.startMs ?? preview.line?.endMs;
+  const previewLyricMarqueeTimeLimitMs = preview.line && previewLineDisplayEndMs != null
+    ? Math.max(
+      MIN_LYRIC_MARQUEE_DURATION_MS,
+      previewLineDisplayEndMs - preview.line.startMs,
+    )
+    : null;
   const beforeFirstLine = lyrics.activeIndex < 0;
   const primaryLine = lyrics.currentLine ?? (beforeFirstLine ? originalLines[0] : null);
   const secondaryLine = beforeFirstLine ? originalLines[1] ?? null : lyrics.nextLine;
@@ -142,13 +164,30 @@ export default function NotchLyricsWindow() {
       : []),
   ];
   const selectedSupportingLine = selectedSupportingLines[0];
+  const alternatingDoubleLine = notch.layout === "double"
+    && notch.doubleLineMode === "alternating"
+    && lyrics.activeIndex >= 0
+    && !selectedSupportingLine;
   const supportingLines = notch.layout !== "double"
     ? []
     : selectedSupportingLine
       ? [selectedSupportingLine]
       : secondaryLine?.text.trim()
         ? [{ kind: "next" as const, line: secondaryLine }]
-        : [];
+        : alternatingDoubleLine
+          ? [{
+            kind: "next" as const,
+            line: {
+              startMs: primaryLine?.startMs ?? -1,
+              endMs: null,
+              text: "",
+              words: null,
+            },
+          }]
+          : [];
+  const doubleLineOrder = alternatingDoubleLine && supportingLines[0]?.kind === "next" && lyrics.activeIndex % 2 === 1
+    ? "reversed"
+    : "normal";
   const currentLineDisplayEndMs = lyrics.nextLine?.startMs ?? lyrics.currentLine?.endMs;
   const lyricMarqueeTimeLimitMs = lyrics.currentLine && currentLineDisplayEndMs != null
     ? Math.max(
@@ -375,6 +414,7 @@ export default function NotchLyricsWindow() {
         "--notch-font-family": appearance.fontFamily,
         "--notch-font-size": `${appearance.fontSize}px`,
         "--notch-font-weight": appearance.fontWeight,
+        "--notch-secondary-font-weight": appearance.secondaryFontWeight,
         "--notch-active-color": appearance.activeColor,
         "--notch-inactive-color": appearance.inactiveColor,
         "--notch-translation-color": appearance.translationColor,
@@ -414,36 +454,49 @@ export default function NotchLyricsWindow() {
                 <span className={styles.notchGap} aria-hidden="true" />
                 <div className={styles.slot} data-side="right" data-slot={notch.rightSlot}>{renderSlot(notch.rightSlot, "right")}</div>
               </header>
-              {notch.showLyrics && primaryLine && (
-                <div className={styles.currentLine} key={`${primaryLine.startMs}:${primaryLine.text}`}>
-                  <OverflowText
-                    align="center"
-                    behavior="once"
-                    contentKey={`${primaryLine.startMs}:${primaryLine.text}`}
-                    maxDurationMs={lyricMarqueeTimeLimitMs}
-                    paused={marqueePaused}
-                  >
-                    <KaraokeLine line={primaryLine} positionMs={playback.positionMs + offsetMs} karaokeStyle={appearance.karaokeStyle} />
-                  </OverflowText>
+              {notch.showLyrics && (primaryLine || supportingLines.length > 0) && (
+                <div className={styles.lyricLines} data-double-line-order={doubleLineOrder}>
+                  {primaryLine && (
+                    <div className={styles.currentLine} key={`${primaryLine.startMs}:${primaryLine.text}`}>
+                      <OverflowText
+                        align="center"
+                        behavior="once"
+                        contentKey={`${primaryLine.startMs}:${primaryLine.text}`}
+                        maxDurationMs={lyricMarqueeTimeLimitMs}
+                        paused={marqueePaused}
+                      >
+                        <KaraokeLine line={primaryLine} positionMs={playback.positionMs + offsetMs} karaokeStyle={appearance.karaokeStyle} />
+                      </OverflowText>
+                    </div>
+                  )}
+                  {supportingLines.map(({ kind, line }) => (
+                    <div className={styles.supportingLine} data-empty={!line.text.trim() || undefined} data-kind={kind} key={`${kind}:${line.startMs}:${line.text}`}>
+                      <OverflowText
+                        align="center"
+                        behavior="once"
+                        contentKey={`${kind}:${line.startMs}:${line.text}`}
+                        maxDurationMs={lyricMarqueeTimeLimitMs}
+                        paused={marqueePaused}
+                      >
+                        {line.text}
+                      </OverflowText>
+                    </div>
+                  ))}
                 </div>
               )}
-              {notch.showLyrics && supportingLines.map(({ kind, line }) => (
-                <div className={styles.supportingLine} data-kind={kind} key={`${kind}:${line.startMs}:${line.text}`}>
-                  <OverflowText
-                    align="center"
-                    behavior="once"
-                    contentKey={`${kind}:${line.startMs}:${line.text}`}
-                    maxDurationMs={lyricMarqueeTimeLimitMs}
-                    paused={marqueePaused}
-                  >
-                    {line.text}
-                  </OverflowText>
-                </div>
-              ))}
             </div>
             <div className={styles.toolbarReveal} ref={toolbarRevealRef}>
               <div className={styles.toolbarRevealInner}>
-                <ExpandedPlayer marqueePaused={marqueePaused} playback={playback} quickControls={quickControls} t={t} />
+                <ExpandedPlayer
+                  karaokeStyle={appearance.karaokeStyle}
+                  marqueePaused={marqueePaused}
+                  playback={playback}
+                  previewLine={notch.showLyrics ? preview.line : null}
+                  previewMaxDurationMs={previewLyricMarqueeTimeLimitMs}
+                  previewPositionMs={previewPositionMs}
+                  quickControls={quickControls}
+                  t={t}
+                />
               </div>
             </div>
           </div>

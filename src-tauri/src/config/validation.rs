@@ -91,6 +91,7 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
     migrate_v48_notch_mode(&mut user, version);
     migrate_v49_notch_width(&mut user, version);
     migrate_v50_notch_layout(&mut user, version);
+    migrate_v54_notch_double_line_settings(&mut user, version);
     remove_retired_fullscreen_space_preferences(&mut user);
     validate_known_fields(&user, raw)?;
     validate_field_types_and_options(&user, raw)?;
@@ -419,6 +420,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                         "leftSlot",
                         "rightSlot",
                         "layout",
+                        "doubleLineMode",
                         "showTranslation",
                         "showRomanization",
                         "appearance",
@@ -432,6 +434,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                             "fontFamily",
                             "fontSize",
                             "fontWeight",
+                            "secondaryFontWeight",
                             "activeColor",
                             "inactiveColor",
                             "translationColor",
@@ -479,6 +482,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                     "background",
                     "solidColor",
                     "layout",
+                    "doubleLineMode",
                     "orientation",
                     "alignment",
                     "longText",
@@ -681,6 +685,10 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         ("/lyrics/displays/notch/appearance/fontSize", "fontSize"),
         ("/lyrics/displays/notch/appearance/fontWeight", "fontWeight"),
         (
+            "/lyrics/displays/notch/appearance/secondaryFontWeight",
+            "secondaryFontWeight",
+        ),
+        (
             "/lyrics/displays/notch/appearance/maxWidth",
             "maxWidth",
         ),
@@ -790,6 +798,11 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             &["single", "double"] as &[&str],
         ),
         (
+            "/lyrics/displays/notch/doubleLineMode",
+            "doubleLineMode",
+            &["rolling", "alternating"] as &[&str],
+        ),
+        (
             "/overlay/appearance/backgroundMode",
             "backgroundMode",
             &["solid", "transparent"] as &[&str],
@@ -810,6 +823,11 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
                 "vertical_single",
                 "vertical_double",
             ],
+        ),
+        (
+            "/overlay/appearance/doubleLineMode",
+            "doubleLineMode",
+            &["rolling", "alternating"],
         ),
         (
             "/overlay/appearance/orientation",
@@ -1080,6 +1098,18 @@ fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftEr
             value.pointer("/lyrics/displays/notch/appearance/fontSize"),
             12.0,
             32.0,
+        ),
+        (
+            "fontWeight",
+            value.pointer("/lyrics/displays/notch/appearance/fontWeight"),
+            400.0,
+            800.0,
+        ),
+        (
+            "secondaryFontWeight",
+            value.pointer("/lyrics/displays/notch/appearance/secondaryFontWeight"),
+            400.0,
+            800.0,
         ),
         (
             "maxWidth",

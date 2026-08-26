@@ -140,6 +140,13 @@ export default function Overlay() {
   const supportingLines: SupportingLine[] = !supportsSecondary
     ? []
     : [selectedSupportingLines[0] ?? fallbackSupportingLine];
+  const alternatingDoubleLine = supportsSecondary
+    && style.doubleLineMode === "alternating"
+    && lyrics.activeIndex >= 0
+    && supportingLines[0]?.kind === "next";
+  const doubleLineOrder = alternatingDoubleLine && lyrics.activeIndex % 2 === 1
+    ? "reversed"
+    : "normal";
   const showingTranslationOrRomanization = supportingLines.some(
     (line) => line.kind === "translation" || line.kind === "romanization",
   );
@@ -299,7 +306,7 @@ export default function Overlay() {
           WebkitBackdropFilter: backdropFilter,
         }}
       >
-        <div className={styles.lines} ref={linesRef}>
+        <div className={styles.lines} data-double-line-order={doubleLineOrder} ref={linesRef}>
           <div
             className={styles.active}
             data-empty={!primaryText}

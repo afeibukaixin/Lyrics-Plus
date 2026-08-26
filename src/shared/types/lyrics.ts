@@ -106,6 +106,7 @@ export type NotchLyricsAppearance = {
   fontFamily: string;
   fontSize: number;
   fontWeight: OverlayFontWeight;
+  secondaryFontWeight: OverlayFontWeight;
   activeColor: string;
   inactiveColor: string;
   translationColor: string;
@@ -145,6 +146,7 @@ export type LyricsDisplayPreferences = {
     leftSlot: NotchSlotContent;
     rightSlot: NotchSlotContent;
     layout: "single" | "double";
+    doubleLineMode: "rolling" | "alternating";
     showTranslation: boolean;
     showRomanization: boolean;
     appearance: NotchLyricsAppearance;

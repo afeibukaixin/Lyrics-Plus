@@ -27,6 +27,14 @@ pub enum OverlayLayout {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
+pub enum DoubleLineMode {
+    #[default]
+    Rolling,
+    Alternating,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
 pub enum OverlayOrientation {
     #[default]
     Horizontal,
@@ -97,6 +105,7 @@ pub struct OverlayStyleSettings {
     pub background: OverlayBackground,
     pub solid_color: String,
     pub layout: OverlayLayout,
+    pub double_line_mode: DoubleLineMode,
     pub orientation: OverlayOrientation,
     pub alignment: OverlayAlignment,
     pub long_text: LongTextMode,
@@ -141,6 +150,7 @@ impl Default for OverlayStyleSettings {
             background: OverlayBackground::Glass,
             solid_color: "#171821".into(),
             layout: OverlayLayout::Single,
+            double_line_mode: DoubleLineMode::Rolling,
             orientation: OverlayOrientation::Horizontal,
             alignment: OverlayAlignment::Center,
             long_text: LongTextMode::Marquee,

@@ -29,6 +29,7 @@ export type OverlayStyle = {
   background: "glass" | "transparent" | "solid";
   solidColor: string;
   layout: "single" | "double";
+  doubleLineMode: "rolling" | "alternating";
   orientation: "horizontal" | "vertical";
   alignment: "center" | "distributed";
   longText: "shrink" | "wrap" | "marquee";

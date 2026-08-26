@@ -354,6 +354,26 @@ fn migrate_v50_notch_layout(user: &mut Value, version: u16) {
     );
 }
 
+fn migrate_v54_notch_double_line_settings(user: &mut Value, version: u16) {
+    if version >= 54 {
+        return;
+    }
+    let Some(notch) = user
+        .pointer_mut("/lyrics/displays/notch")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    notch
+        .entry("doubleLineMode")
+        .or_insert_with(|| Value::from("rolling"));
+    if let Some(appearance) = notch.get_mut("appearance").and_then(Value::as_object_mut) {
+        appearance
+            .entry("secondaryFontWeight")
+            .or_insert_with(|| Value::from(500));
+    }
+}
+
 fn remove_retired_fullscreen_space_preferences(user: &mut Value) {
     if let Some(overlay) = user
         .pointer_mut("/overlay")

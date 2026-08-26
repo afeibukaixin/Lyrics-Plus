@@ -54,6 +54,8 @@
   width: max-content; height: max-content; min-height: 0; display: flex; align-items: center; justify-content: center;
 }
 .overlay[data-layout="double"][data-orientation="vertical"] .lines { flex-direction: row-reverse; align-items: stretch; gap: 14px; }
+.overlay[data-layout="double"] .lines[data-double-line-order="reversed"] .active { order: 2; }
+.overlay[data-layout="double"] .lines[data-double-line-order="reversed"] .next { order: 1; }
 .overlay[data-alignment="distributed"][data-layout="double"][data-orientation="vertical"] .lines { height: var(--line-height-limit); }
 .overlay[data-orientation="vertical"] .active,
 .overlay[data-orientation="vertical"] .next {
@@ -141,6 +143,10 @@
 .overlay[data-orientation="vertical"] .next[data-marquee="true"] {
   text-align: start;
 }
+.overlay[data-alignment="distributed"][data-layout="double"][data-orientation="horizontal"] .lines[data-double-line-order="reversed"] .active { text-align: right; }
+.overlay[data-alignment="distributed"][data-layout="double"][data-orientation="horizontal"] .lines[data-double-line-order="reversed"] .next { text-align: left; }
+.overlay[data-alignment="distributed"][data-layout="double"][data-orientation="vertical"] .lines[data-double-line-order="reversed"] .active { text-align: end; }
+.overlay[data-alignment="distributed"][data-layout="double"][data-orientation="vertical"] .lines[data-double-line-order="reversed"] .next { text-align: start; }
 
 .resizeHandle { position: absolute; z-index: 8; touch-action: none; }
 .resizeHandle::after {

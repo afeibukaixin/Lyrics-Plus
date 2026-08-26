@@ -255,9 +255,11 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
     {inheritanceSection}
     <SettingsSection id="mode-text" title={t("settings.style.modeControls.textLayout")}>
       <SelectRow label={t("settings.overlay.lyricLayout")} value={value.layout} options={[["single", t("overlay.layout.single")], ["double", t("overlay.layout.double")]]} onChange={(layout) => save({ ...value, layout: layout as NotchLyricsPreferences["layout"] })} />
+      <SelectRow label={t("settings.overlay.doubleLineMode")} description={t("settings.overlay.doubleLineModeHint")} disabled={value.layout !== "double"} value={value.doubleLineMode} options={[["rolling", t("settings.overlay.doubleLineRolling")], ["alternating", t("settings.overlay.doubleLineAlternating")]]} onChange={(doubleLineMode) => save({ ...value, doubleLineMode: doubleLineMode as NotchLyricsPreferences["doubleLineMode"] })} />
       {!modeInheritance.inheritFontFamily && <TextRow label={t("settings.overlay.fontFamily")} value={appearance.fontFamily} emptyValue={appearance.fontFamily} onChange={(fontFamily) => save(patchAppearance(value, { fontFamily }))} />}
       <RangeRow label={t("settings.overlay.fontSize")} value={appearance.fontSize} min={12} max={32} suffix="px" onChange={(fontSize) => save(patchAppearance(value, { fontSize }))} />
       <SelectRow label={t("settings.overlay.fontWeight")} value={String(appearance.fontWeight)} options={fontWeights} onChange={(fontWeight) => save(patchAppearance(value, { fontWeight: Number(fontWeight) as OverlayFontWeight }))} />
+      <SelectRow label={t("settings.overlay.secondaryFontWeight")} value={String(appearance.secondaryFontWeight)} options={fontWeights} onChange={(secondaryFontWeight) => save(patchAppearance(value, { secondaryFontWeight: Number(secondaryFontWeight) as OverlayFontWeight }))} />
     </SettingsSection>
     <SettingsSection id="mode-colors" title={t("settings.style.modeControls.colorEffects")}>
       <SelectRow label={t("settings.overlay.karaoke")} value={appearance.karaokeStyle} options={[["sweep", t("settings.overlay.karaokeSweep")], ["highlight", t("settings.overlay.karaokeHighlight")]]} onChange={(karaokeStyle) => save(patchAppearance(value, { karaokeStyle: karaokeStyle as CompactKaraokeStyle }))} />
