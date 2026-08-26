@@ -588,6 +588,93 @@ pub(crate) fn notch_window_position(
     tauri::PhysicalPosition::new(x, monitor_position.y)
 }
 
+#[cfg(target_os = "macos")]
+fn set_window_frame_on_main(
+    window: &tauri::WebviewWindow,
+    next_size: tauri::PhysicalSize<u32>,
+    next_position: tauri::PhysicalPosition<i32>,
+    scale: f64,
+) -> tauri::Result<()> {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::NSWindow;
+    use objc2_foundation::{NSPoint, NSRect, NSSize};
+
+    if MainThreadMarker::new().is_none() {
+        return Err(std::io::Error::other(
+            "macOS window frame must be updated on the main thread",
+        )
+        .into());
+    }
+
+    let current_position = window.outer_position()?;
+    let ns_window = window.ns_window()?;
+    let ns_window = unsafe { &*ns_window.cast::<NSWindow>() };
+    let frame = ns_window.frame();
+    let target_width = f64::from(next_size.width) / scale;
+    let target_height = f64::from(next_size.height) / scale;
+    let delta_x = (f64::from(next_position.x) - f64::from(current_position.x)) / scale;
+    let delta_y = (f64::from(next_position.y) - f64::from(current_position.y)) / scale;
+    let target_top = frame.origin.y + frame.size.height - delta_y;
+    let target_frame = NSRect::new(
+        NSPoint::new(frame.origin.x + delta_x, target_top - target_height),
+        NSSize::new(target_width, target_height),
+    );
+
+    // AppKit 一次性更新尺寸和位置，避免先 set_size 后 set_position 产生可见的中心偏移。
+    ns_window.setFrame_display(target_frame, true);
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn set_window_frame(
+    window: &tauri::WebviewWindow,
+    _current_size: tauri::PhysicalSize<u32>,
+    _current_position: tauri::PhysicalPosition<i32>,
+    next_size: tauri::PhysicalSize<u32>,
+    next_position: tauri::PhysicalPosition<i32>,
+    scale: f64,
+) -> tauri::Result<()> {
+    use objc2::MainThreadMarker;
+
+    if MainThreadMarker::new().is_some() {
+        return set_window_frame_on_main(window, next_size, next_position, scale);
+    }
+
+    let target = window.clone();
+    let (result_sender, result_receiver) = std::sync::mpsc::sync_channel(1);
+    window.run_on_main_thread(move || {
+        let result = set_window_frame_on_main(&target, next_size, next_position, scale)
+            .map_err(|error| error.to_string());
+        let _ = result_sender.send(result);
+    })?;
+    match result_receiver.recv() {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(error)) => Err(std::io::Error::other(error).into()),
+        Err(error) => Err(std::io::Error::other(format!(
+            "macOS window frame update was interrupted: {error}"
+        ))
+        .into()),
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn set_window_frame(
+    window: &tauri::WebviewWindow,
+    current_size: tauri::PhysicalSize<u32>,
+    current_position: tauri::PhysicalPosition<i32>,
+    next_size: tauri::PhysicalSize<u32>,
+    next_position: tauri::PhysicalPosition<i32>,
+    _scale: f64,
+) -> tauri::Result<()> {
+    if current_size != next_size {
+        window.set_size(next_size)?;
+    }
+    if current_position != next_position {
+        window.set_position(next_position)?;
+    }
+    Ok(())
+}
+
 fn position_notch_window(app: &tauri::AppHandle, window: &tauri::WebviewWindow) {
     let Some(monitor) = preferred_notch_monitor(app) else {
         return;
@@ -630,16 +717,8 @@ fn create_notch_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {
     if app.get_webview_window("lyrics-notch").is_some() {
         return Ok(());
     }
-    let appearance = app
-        .state::<AppState>()
-        .config
-        .snapshot()
-        .lyrics
-        .displays
-        .notch
-        .appearance;
-    // 创建时直接预留悬停展开宽度；前端挂载后会在允许交互前完成一次精确高度适配。
-    let width = f64::from(appearance.max_width.max(appearance.expanded_max_width)) + 16.0;
+    // 宿主窗口固定为最大内容宽度加左右留白，实时预览只调整内部 Visual Island。
+    let width = 656.0;
     let window = WebviewWindowBuilder::new(
         app,
         "lyrics-notch",

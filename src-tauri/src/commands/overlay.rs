@@ -495,6 +495,87 @@ fn fit_overlay_bounds(
     (tauri::PhysicalPosition::new(x as i32, y as i32), size)
 }
 
+// 歌词窗口以工具栏相反侧为锚点；向工作区边缘增长时只限制尺寸，不移动锚点。
+fn fit_overlay_content_bounds(
+    position: tauri::PhysicalPosition<i32>,
+    current_size: tauri::PhysicalSize<u32>,
+    requested_width: f64,
+    requested_height: f64,
+    scale: f64,
+    monitor_position: tauri::PhysicalPosition<i32>,
+    monitor_size: tauri::PhysicalSize<u32>,
+    toolbar_placement: Option<crate::ToolbarPlacement>,
+) -> (tauri::PhysicalPosition<i32>, tauri::PhysicalSize<u32>) {
+    let (mut next_position, mut next_size) = fit_overlay_bounds(
+        position,
+        requested_width,
+        requested_height,
+        scale,
+        monitor_position,
+        monitor_size,
+    );
+    let Some(toolbar_placement) = toolbar_placement else {
+        return (next_position, next_size);
+    };
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    let work_left = monitor_position.x as i64;
+    let work_right = work_left + monitor_size.width as i64;
+    let work_top = monitor_position.y as i64;
+    let work_bottom = work_top + monitor_size.height as i64;
+    let minimum_width = (190.0 * scale).round() as u32;
+    let minimum_height = (76.0 * scale).round() as u32;
+    let fixed_position_limit = |position: i64| {
+        position.clamp(i32::MIN as i64, i32::MAX as i64) as i32
+    };
+
+    match toolbar_placement {
+        crate::ToolbarPlacement::Left => {
+            let fixed_right = (position.x as i64 + current_size.width as i64)
+                .clamp(work_left, work_right);
+            let maximum_width = fixed_right
+                .saturating_sub(work_left)
+                .clamp(0, u32::MAX as i64) as u32;
+            let width = next_size.width.min(maximum_width.max(minimum_width));
+            next_size.width = width;
+            next_position.x = fixed_position_limit(fixed_right - width as i64);
+        }
+        crate::ToolbarPlacement::Right => {
+            let fixed_left = (position.x as i64).clamp(work_left, work_right);
+            let maximum_width = work_right
+                .saturating_sub(fixed_left)
+                .clamp(0, u32::MAX as i64) as u32;
+            let width = next_size.width.min(maximum_width.max(minimum_width));
+            next_size.width = width;
+            next_position.x = fixed_position_limit(fixed_left);
+        }
+        crate::ToolbarPlacement::Top => {
+            let fixed_bottom = (position.y as i64 + current_size.height as i64)
+                .clamp(work_top, work_bottom);
+            let maximum_height = fixed_bottom
+                .saturating_sub(work_top)
+                .clamp(0, u32::MAX as i64) as u32;
+            let height = next_size.height.min(maximum_height.max(minimum_height));
+            next_size.height = height;
+            next_position.y = fixed_position_limit(fixed_bottom - height as i64);
+        }
+        crate::ToolbarPlacement::Bottom => {
+            let fixed_top = (position.y as i64).clamp(work_top, work_bottom);
+            let maximum_height = work_bottom
+                .saturating_sub(fixed_top)
+                .clamp(0, u32::MAX as i64) as u32;
+            let height = next_size.height.min(maximum_height.max(minimum_height));
+            next_size.height = height;
+            next_position.y = fixed_position_limit(fixed_top);
+        }
+    }
+
+    (next_position, next_size)
+}
+
 #[tauri::command]
 pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Result<bool, String> {
     let window = app
@@ -529,25 +610,37 @@ pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Re
     let current_height = current_size.height as f64 / scale;
     let (width, height) =
         fixed_axis_content_size(&style, width, height, current_width, current_height, locked);
-    let (next_position, next_size) = fit_overlay_bounds(
+    let toolbar_placement = Some(
+        state
+            .overlay_placement
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .toolbar_placement
+            .normalized(style.orientation),
+    );
+    let (next_position, next_size) = fit_overlay_content_bounds(
         position,
+        current_size,
         width,
         height,
         scale,
         work_area.position,
         work_area.size,
+        toolbar_placement,
     );
     let size_changed = current_size.width.abs_diff(next_size.width) > 2
         || current_size.height.abs_diff(next_size.height) > 2;
-    if size_changed {
-        window
-            .set_size(next_size)
-            .map_err(|error| error.to_string())?;
-    }
-    if position != next_position {
-        window
-            .set_position(next_position)
-            .map_err(|error| error.to_string())?;
+    if size_changed || position != next_position {
+        crate::mark_overlay_programmatic_position(&app, next_position);
+        crate::set_window_frame(
+            &window,
+            current_size,
+            position,
+            next_size,
+            next_position,
+            scale,
+        )
+        .map_err(|error| error.to_string())?;
     }
     crate::sync_unlock_handle(&app);
     Ok(true)
@@ -603,15 +696,16 @@ pub fn fit_notch_lyrics_content(
     let current_position = window.outer_position().map_err(|error| error.to_string())?;
     let size_changed = current_size.width.abs_diff(next_size.width) > 1
         || current_size.height.abs_diff(next_size.height) > 1;
-    if size_changed {
-        window
-            .set_size(next_size)
-            .map_err(|error| error.to_string())?;
-    }
-    if current_position != next_position {
-        window
-            .set_position(next_position)
-            .map_err(|error| error.to_string())?;
+    if size_changed || current_position != next_position {
+        crate::set_window_frame(
+            &window,
+            current_size,
+            current_position,
+            next_size,
+            next_position,
+            scale,
+        )
+        .map_err(|error| error.to_string())?;
     }
     if size_changed {
         crate::refresh_overlay_mouse_tracking(&window);

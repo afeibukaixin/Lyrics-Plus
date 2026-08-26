@@ -112,6 +112,7 @@ export type NotchLyricsAppearance = {
   translationColor: string;
   romanizationColor: string;
   karaokeStyle: CompactKaraokeStyle;
+  lineGap: number;
   borderRadius: number;
   maxWidth: number;
   expandedMaxWidth: number;

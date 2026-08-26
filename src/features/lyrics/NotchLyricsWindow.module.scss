@@ -197,6 +197,15 @@
   flex-direction: column;
 }
 
+.lyricLines[data-has-supporting-line="true"] {
+  gap: var(--notch-line-gap);
+  padding-bottom: 12px;
+}
+
+.lyricLines[data-has-supporting-line="true"][data-supporting-line-kind="translation"] {
+  padding-bottom: 8px;
+}
+
 .lyricLines[data-double-line-order="reversed"] .currentLine { order: 2; }
 .lyricLines[data-double-line-order="reversed"] .supportingLine { order: 1; }
 
@@ -234,9 +243,13 @@
   line-height: 1;
 }
 
+.lyricLines[data-has-supporting-line="true"] .currentLine {
+  min-height: calc(var(--notch-font-size) + 6px);
+  padding-bottom: 0;
+}
+
 .supportingLine {
-  min-height: calc(var(--notch-font-size) + 10px);
-  padding-bottom: 12px;
+  min-height: calc(var(--notch-font-size) - 2px);
   color: var(--notch-inactive-color);
   font-size: clamp(11px, var(--notch-font-size), 22px);
   font-weight: var(--notch-secondary-font-weight);
@@ -246,12 +259,17 @@
 .supportingLine[data-empty="true"] { visibility: hidden; }
 
 .supportingLine[data-kind="translation"] {
-  padding-bottom: 8px;
+  min-height: calc(var(--notch-font-size) + 2px);
   color: var(--notch-translation-color);
 }
 
 .supportingLine[data-kind="romanization"] {
   color: var(--notch-romanization-color);
+}
+
+.lyricLines[data-double-line-mode="alternating"] .currentLine,
+.lyricLines[data-double-line-mode="alternating"] .supportingLine {
+  min-height: calc(var(--notch-font-size) + 2px);
 }
 
 .toolbarReveal {

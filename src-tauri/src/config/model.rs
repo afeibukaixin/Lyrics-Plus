@@ -493,6 +493,7 @@ pub struct NotchLyricsAppearance {
     pub translation_color: String,
     pub romanization_color: String,
     pub karaoke_style: CompactKaraokeStyle,
+    pub line_gap: f64,
     pub border_radius: f64,
     pub max_width: u16,
     pub expanded_max_width: u16,
@@ -510,6 +511,7 @@ impl Default for NotchLyricsAppearance {
             translation_color: "#d9f99d".into(),
             romanization_color: "#bef264".into(),
             karaoke_style: CompactKaraokeStyle::Sweep,
+            line_gap: 8.0,
             border_radius: 22.0,
             max_width: 320,
             expanded_max_width: 440,
@@ -560,6 +562,8 @@ pub struct OverlayAppearance {
     pub double_line_mode: DoubleLineMode,
     pub orientation: OverlayOrientation,
     pub alignment: OverlayAlignment,
+    pub primary_line_position: crate::overlay_model::PrimaryLinePosition,
+    pub line_gap: f64,
     pub long_text: LongTextMode,
     pub secondary_display: SecondaryDisplayMode,
     pub auto_center_with_translation_or_romanization: bool,
@@ -573,6 +577,8 @@ pub struct OverlayAppearance {
     pub text_shadow_offset_y: f64,
     pub text_shadow_blur: f64,
     pub text_shadow_color: String,
+    pub text_stroke_width: f64,
+    pub text_stroke_color: String,
 }
 
 impl Default for OverlayAppearance {
@@ -604,6 +610,8 @@ impl From<&OverlayStyleSettings> for OverlayAppearance {
             double_line_mode: style.double_line_mode,
             orientation: style.orientation,
             alignment: style.alignment,
+            primary_line_position: style.primary_line_position,
+            line_gap: style.line_gap,
             long_text: style.long_text,
             secondary_display: style.secondary_display,
             auto_center_with_translation_or_romanization: style
@@ -618,6 +626,8 @@ impl From<&OverlayStyleSettings> for OverlayAppearance {
             text_shadow_offset_y: style.text_shadow_offset_y,
             text_shadow_blur: style.text_shadow_blur,
             text_shadow_color: style.text_shadow_color.clone(),
+            text_stroke_width: style.text_stroke_width,
+            text_stroke_color: style.text_stroke_color.clone(),
         }
     }
 }
@@ -645,6 +655,8 @@ impl OverlayAppearance {
             double_line_mode: self.double_line_mode,
             orientation: self.orientation,
             alignment: self.alignment,
+            primary_line_position: self.primary_line_position,
+            line_gap: self.line_gap,
             long_text: self.long_text,
             secondary_display: self.secondary_display,
             auto_center_with_translation_or_romanization: self
@@ -661,6 +673,8 @@ impl OverlayAppearance {
             text_shadow_offset_y: self.text_shadow_offset_y,
             text_shadow_blur: self.text_shadow_blur,
             text_shadow_color: self.text_shadow_color,
+            text_stroke_width: self.text_stroke_width,
+            text_stroke_color: self.text_stroke_color,
             horizontal_max_width: None,
             vertical_max_height: None,
         }
@@ -806,6 +820,7 @@ impl AppConfig {
         notch_appearance.font_weight = normalize_display_font_weight(notch_appearance.font_weight);
         notch_appearance.secondary_font_weight =
             normalize_display_font_weight(notch_appearance.secondary_font_weight);
+        notch_appearance.line_gap = notch_appearance.line_gap.clamp(0.0, 32.0);
         notch_appearance.border_radius = notch_appearance.border_radius.clamp(0.0, 40.0);
         notch_appearance.max_width = notch_appearance.max_width.clamp(320, 640);
         notch_appearance.expanded_max_width = notch_appearance

@@ -48,6 +48,16 @@ pub enum OverlayAlignment {
     Center,
     #[serde(alias = "left", alias = "right")]
     Distributed,
+    Start,
+    End,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum PrimaryLinePosition {
+    #[default]
+    First,
+    Second,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -108,6 +118,8 @@ pub struct OverlayStyleSettings {
     pub double_line_mode: DoubleLineMode,
     pub orientation: OverlayOrientation,
     pub alignment: OverlayAlignment,
+    pub primary_line_position: PrimaryLinePosition,
+    pub line_gap: f64,
     pub long_text: LongTextMode,
     #[serde(default = "legacy_secondary_display")]
     pub secondary_display: SecondaryDisplayMode,
@@ -126,6 +138,8 @@ pub struct OverlayStyleSettings {
     pub text_shadow_offset_y: f64,
     pub text_shadow_blur: f64,
     pub text_shadow_color: String,
+    pub text_stroke_width: f64,
+    pub text_stroke_color: String,
     pub horizontal_max_width: Option<f64>,
     pub vertical_max_height: Option<f64>,
 }
@@ -153,6 +167,8 @@ impl Default for OverlayStyleSettings {
             double_line_mode: DoubleLineMode::Rolling,
             orientation: OverlayOrientation::Horizontal,
             alignment: OverlayAlignment::Center,
+            primary_line_position: PrimaryLinePosition::First,
+            line_gap: 8.0,
             long_text: LongTextMode::Marquee,
             secondary_display: SecondaryDisplayMode::TranslationRomanization,
             auto_center_with_translation_or_romanization: false,
@@ -168,6 +184,8 @@ impl Default for OverlayStyleSettings {
             text_shadow_offset_y: 1.0,
             text_shadow_blur: 4.0,
             text_shadow_color: "rgba(0, 0, 0, 0.55)".into(),
+            text_stroke_width: 0.0,
+            text_stroke_color: "#000000".into(),
             horizontal_max_width: None,
             vertical_max_height: None,
         }
@@ -195,9 +213,11 @@ impl OverlayStyleSettings {
         self.background_radius = self.background_radius.clamp(0.0, 64.0);
         self.background_padding_x = self.background_padding_x.clamp(0.0, 64.0);
         self.background_padding_y = self.background_padding_y.clamp(0.0, 64.0);
+        self.line_gap = self.line_gap.clamp(0.0, 32.0);
         self.text_shadow_offset_x = self.text_shadow_offset_x.clamp(-20.0, 20.0);
         self.text_shadow_offset_y = self.text_shadow_offset_y.clamp(-20.0, 20.0);
         self.text_shadow_blur = self.text_shadow_blur.clamp(0.0, 40.0);
+        self.text_stroke_width = self.text_stroke_width.clamp(0.0, 8.0);
         if self.background == OverlayBackground::Transparent {
             self.background = OverlayBackground::Solid;
             self.background_mode = OverlayBackgroundMode::Transparent;
@@ -226,6 +246,9 @@ impl OverlayStyleSettings {
         }
         if self.text_shadow_color.trim().is_empty() {
             self.text_shadow_color = "rgba(0, 0, 0, 0.55)".into();
+        }
+        if self.text_stroke_color.trim().is_empty() {
+            self.text_stroke_color = "#000000".into();
         }
         if self.inactive_color.trim().is_empty() {
             self.inactive_color = "#ecfccb".into();

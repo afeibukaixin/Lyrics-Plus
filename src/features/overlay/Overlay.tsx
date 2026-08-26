@@ -35,6 +35,11 @@ const DEFAULT_MARQUEE_DURATION_SECONDS = 4;
 const MIN_MARQUEE_DURATION_SECONDS = 0.1;
 const MARQUEE_EDGE_INSET = 16;
 
+// 自动换行时行高也决定竖排列距，需要为文字描边预留额外空间。
+function wrapLineHeight(fontSize: number, lineHeight: number, textStrokeWidth: number) {
+  return `${Math.max(fontSize * lineHeight, fontSize + textStrokeWidth)}px`;
+}
+
 export default function Overlay() {
   const { t } = useTranslation();
   const playback = usePlayback();
@@ -144,12 +149,13 @@ export default function Overlay() {
     && style.doubleLineMode === "alternating"
     && lyrics.activeIndex >= 0
     && supportingLines[0]?.kind === "next";
-  const doubleLineOrder = alternatingDoubleLine && lyrics.activeIndex % 2 === 1
-    ? "reversed"
-    : "normal";
   const showingTranslationOrRomanization = supportingLines.some(
     (line) => line.kind === "translation" || line.kind === "romanization",
   );
+  const primaryLineReversed = showingTranslationOrRomanization && style.primaryLinePosition === "second";
+  const doubleLineOrder = (primaryLineReversed || (alternatingDoubleLine && lyrics.activeIndex % 2 === 1))
+    ? "reversed"
+    : "normal";
   const effectiveAlignment = !supportsSecondary
     || (style.autoCenterWithTranslationOrRomanization && showingTranslationOrRomanization)
     ? "center"
@@ -285,8 +291,11 @@ export default function Overlay() {
         "--background-radius": `${style.backgroundRadius}px`,
         "--background-padding-x": `${style.backgroundPaddingX}px`,
         "--background-padding-y": `${style.backgroundPaddingY}px`,
+        "--line-gap": `${style.lineGap}px`,
         "--solid-color": style.solidColor,
         "--text-shadow": `${style.textShadowOffsetX}px ${style.textShadowOffsetY}px ${style.textShadowBlur}px ${style.textShadowColor}`,
+        "--text-stroke-width": `${style.textStrokeWidth * fitScale}px`,
+        "--text-stroke-color": style.textStrokeColor,
         "--translation-color": style.translationColor,
         "--romanization-color": style.romanizationColor,
         "--content-max-width": `${Math.max(1, fitLimits.width - overlayHorizontalPadding)}px`,
@@ -314,6 +323,7 @@ export default function Overlay() {
             ref={activeRef}
             style={{
               fontSize: `${style.fontSize * fitScale}px`,
+              "--wrap-line-height": wrapLineHeight(style.fontSize * fitScale, style.lineHeight, style.textStrokeWidth * fitScale),
               "--marquee-distance": `${marqueeMetrics[0]?.distance ?? 0}px`,
               "--marquee-duration": `${marqueeMetrics[0]?.duration ?? DEFAULT_MARQUEE_DURATION_SECONDS}s`,
             } as React.CSSProperties}
@@ -330,6 +340,7 @@ export default function Overlay() {
               style={{
                 color: line.color,
                 fontSize: `${line.baseSize * fitScale}px`,
+                "--wrap-line-height": wrapLineHeight(line.baseSize * fitScale, style.lineHeight, style.textStrokeWidth * fitScale),
                 "--marquee-distance": `${marqueeMetrics[index + 1]?.distance ?? 0}px`,
                 "--marquee-duration": `${marqueeMetrics[index + 1]?.duration ?? DEFAULT_MARQUEE_DURATION_SECONDS}s`,
               } as React.CSSProperties}

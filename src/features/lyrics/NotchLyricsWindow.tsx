@@ -420,6 +420,7 @@ export default function NotchLyricsWindow() {
         "--notch-translation-color": appearance.translationColor,
         "--notch-romanization-color": appearance.romanizationColor,
         "--notch-spectrum-color": spectrumColor,
+        "--notch-line-gap": `${appearance.lineGap}px`,
         "--notch-radius": `${appearance.borderRadius}px`,
         "--notch-slot-padding": `${slotPadding}px`,
         "--notch-max-width": `${effectiveWidth}px`,
@@ -455,7 +456,13 @@ export default function NotchLyricsWindow() {
                 <div className={styles.slot} data-side="right" data-slot={notch.rightSlot}>{renderSlot(notch.rightSlot, "right")}</div>
               </header>
               {notch.showLyrics && (primaryLine || supportingLines.length > 0) && (
-                <div className={styles.lyricLines} data-double-line-order={doubleLineOrder}>
+                <div
+                  className={styles.lyricLines}
+                  data-double-line-order={doubleLineOrder}
+                  data-double-line-mode={alternatingDoubleLine ? "alternating" : undefined}
+                  data-has-supporting-line={supportingLines.length > 0 || undefined}
+                  data-supporting-line-kind={supportingLines[0]?.kind}
+                >
                   {primaryLine && (
                     <div className={styles.currentLine} key={`${primaryLine.startMs}:${primaryLine.text}`}>
                       <OverflowText

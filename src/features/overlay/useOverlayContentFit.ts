@@ -90,7 +90,7 @@ export function useOverlayContentFit({
     setFitScale(1);
     setMarqueeMetrics([]);
     lastRequestedSize.current = null;
-  }, [fitLimits.height, fitLimits.width, primaryLineKey, supportingKey, style.backgroundPaddingX, style.backgroundPaddingY, style.fontFamily, style.fontSize, style.fontWeight, style.horizontalMaxWidth, style.layout, style.lineHeight, style.longText, style.orientation, style.romanizationFontScale, style.secondaryFontScale, style.secondaryFontWeight, style.translationFontScale, style.verticalMaxHeight]);
+  }, [fitLimits.height, fitLimits.width, primaryLineKey, supportingKey, style.backgroundPaddingX, style.backgroundPaddingY, style.fontFamily, style.fontSize, style.fontWeight, style.horizontalMaxWidth, style.layout, style.lineGap, style.lineHeight, style.longText, style.orientation, style.romanizationFontScale, style.secondaryFontScale, style.secondaryFontWeight, style.textStrokeWidth, style.translationFontScale, style.verticalMaxHeight]);
 
   useLayoutEffect(() => {
     if (!settingsVisible || resizing) {
@@ -132,7 +132,13 @@ export function useOverlayContentFit({
       const ratio = baseSizes[index] / currentSize;
       return { width: element.scrollWidth * ratio, height: element.scrollHeight * ratio };
     });
-    const natural = combinedContentSize(naturalItems, style.layout, style.orientation);
+    const natural = combinedContentSize(naturalItems, style.layout, style.orientation, style.lineGap);
+    // 竖排列向左扩展时，父级 scrollWidth 可能漏掉负方向溢出，改用每个歌词元素的实际布局盒汇总。
+    const renderedItems = elements.map((element) => {
+      const bounds = element.getBoundingClientRect();
+      return { width: bounds.width, height: bounds.height };
+    });
+    const rendered = combinedContentSize(renderedItems, style.layout, style.orientation, style.lineGap);
     const availableScreenWidth = Math.max(1, fitLimits.width - overlayHorizontalPadding);
     const availableScreenHeight = Math.max(1, fitLimits.height - overlayVerticalPadding);
 
@@ -193,12 +199,17 @@ export function useOverlayContentFit({
 
     const constrainedHorizontal = !vertical && constrained;
     const constrainedVertical = vertical && constrained;
-    const measuredContentWidth = constrainedHorizontal
-      ? horizontalContentLimit
-      : Math.max(lines.clientWidth, Math.min(lines.scrollWidth, availableScreenWidth));
-    const measuredContentHeight = constrainedVertical
-      ? verticalContentLimit
-      : Math.max(lines.clientHeight, Math.min(lines.scrollHeight, availableScreenHeight));
+    const wrappedLayout = style.longText === "wrap" && wrapped;
+    const measuredContentWidth = vertical && (style.longText === "shrink" || wrappedLayout)
+      ? Math.max(lines.clientWidth, Math.min(rendered.width, availableScreenWidth))
+      : constrainedHorizontal
+        ? horizontalContentLimit
+        : Math.max(lines.clientWidth, Math.min(lines.scrollWidth, availableScreenWidth));
+    const measuredContentHeight = !vertical && wrappedLayout
+      ? Math.max(lines.clientHeight, Math.min(rendered.height, availableScreenHeight))
+      : constrainedVertical
+        ? verticalContentLimit
+        : Math.max(lines.clientHeight, Math.min(lines.scrollHeight, availableScreenHeight));
     const width = vertical
       ? Math.min(fitLimits.width, Math.max(190, Math.ceil(measuredContentWidth + overlayHorizontalPadding)))
       : horizontalWindowLimit;
@@ -246,5 +257,5 @@ export function useOverlayContentFit({
       if (shrinkTimer.current !== null) clearTimeout(shrinkTimer.current);
       shrinkTimer.current = null;
     };
-  }, [constrained, fitLimits.height, fitLimits.width, fitScale, horizontalContentLimit, horizontalWindowLimit, marqueeHorizontalLimit, marqueeMetrics, marqueeTimeLimit, marqueeVerticalLimit, overlayHorizontalPadding, overlayVerticalPadding, primaryText, resizing, settingsVisible, style.fontFamily, style.fontSize, style.fontWeight, style.layout, style.lineHeight, style.longText, style.orientation, style.romanizationFontScale, style.secondaryFontScale, style.secondaryFontWeight, style.translationFontScale, supportingKey, vertical, verticalContentLimit, verticalWindowLimit, wrapped]);
+  }, [constrained, fitLimits.height, fitLimits.width, fitScale, horizontalContentLimit, horizontalWindowLimit, marqueeHorizontalLimit, marqueeMetrics, marqueeTimeLimit, marqueeVerticalLimit, overlayHorizontalPadding, overlayVerticalPadding, primaryText, resizing, settingsVisible, style.fontFamily, style.fontSize, style.fontWeight, style.layout, style.lineGap, style.lineHeight, style.longText, style.orientation, style.romanizationFontScale, style.secondaryFontScale, style.secondaryFontWeight, style.textStrokeWidth, style.translationFontScale, supportingKey, vertical, verticalContentLimit, verticalWindowLimit, wrapped]);
 }

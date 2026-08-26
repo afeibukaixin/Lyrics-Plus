@@ -45,7 +45,7 @@
 
 .lines {
   width: max-content; height: max-content; max-width: var(--content-max-width); max-height: var(--content-max-height); position: relative; z-index: 1;
-  min-width: 0; display: grid; align-items: center; gap: 8px; pointer-events: none; filter: drop-shadow(var(--text-shadow));
+  min-width: 0; display: grid; align-items: center; gap: var(--line-gap); pointer-events: none; filter: drop-shadow(var(--text-shadow));
 }
 .overlay:not([data-orientation="vertical"]) .lines { min-width: var(--content-min-width); }
 .overlay[data-layout="double"][data-orientation="horizontal"] .active,
@@ -53,16 +53,20 @@
 .overlay[data-orientation="vertical"] .lines {
   width: max-content; height: max-content; min-height: 0; display: flex; align-items: center; justify-content: center;
 }
-.overlay[data-layout="double"][data-orientation="vertical"] .lines { flex-direction: row-reverse; align-items: stretch; gap: 14px; }
+.overlay[data-layout="double"][data-orientation="vertical"] .lines { flex-direction: row-reverse; align-items: stretch; gap: var(--line-gap); }
 .overlay[data-layout="double"] .lines[data-double-line-order="reversed"] .active { order: 2; }
 .overlay[data-layout="double"] .lines[data-double-line-order="reversed"] .next { order: 1; }
 .overlay[data-alignment="distributed"][data-layout="double"][data-orientation="vertical"] .lines { height: var(--line-height-limit); }
+.overlay[data-alignment="start"][data-layout="double"][data-orientation="vertical"] .lines,
+.overlay[data-alignment="end"][data-layout="double"][data-orientation="vertical"] .lines { height: var(--line-height-limit); }
 .overlay[data-orientation="vertical"] .active,
 .overlay[data-orientation="vertical"] .next {
   width: max-content; max-height: var(--content-max-height); writing-mode: vertical-rl; text-orientation: mixed; white-space: nowrap;
   overflow: visible; overflow-wrap: normal; text-wrap: nowrap;
 }
 .overlay[data-alignment="center"] .lines { text-align: center; }
+.overlay[data-alignment="start"] .lines { text-align: start; }
+.overlay[data-alignment="end"] .lines { text-align: end; }
 .overlay[data-alignment="distributed"][data-layout="double"][data-orientation="horizontal"] .active { text-align: left; }
 .overlay[data-alignment="distributed"][data-layout="double"][data-orientation="horizontal"] .next { text-align: right; }
 .overlay[data-alignment="distributed"][data-layout="double"][data-orientation="vertical"] .active { text-align: start; }
@@ -71,9 +75,14 @@
 .overlay[data-alignment="distributed"][data-layout="double"][data-orientation="vertical"] .next { height: 100%; }
 .active, .next {
   min-width: 0; overflow: visible; color: var(--active-color); font-family: var(--lyric-font-family); font-weight: var(--lyric-font-weight); line-height: var(--lyric-line-height);
+  -webkit-text-stroke: var(--text-stroke-width) var(--text-stroke-color); paint-order: stroke fill;
   letter-spacing: -.02em; white-space: nowrap; text-overflow: clip;
 }
 .next { color: var(--inactive-color); font-weight: var(--secondary-font-weight); }
+.overlay[data-alignment="start"][data-layout="double"][data-orientation="vertical"] .active,
+.overlay[data-alignment="start"][data-layout="double"][data-orientation="vertical"] .next,
+.overlay[data-alignment="end"][data-layout="double"][data-orientation="vertical"] .active,
+.overlay[data-alignment="end"][data-layout="double"][data-orientation="vertical"] .next { height: 100%; }
 .karaokeText { white-space: pre; }
 .karaokeWord {
   display: inline-grid; position: relative; vertical-align: baseline; text-orientation: inherit;
@@ -83,6 +92,7 @@
 }
 .karaokeWordFill {
   color: var(--active-color); clip-path: inset(0 calc(100% - var(--word-progress)) 0 0);
+  -webkit-text-stroke: 0 transparent;
   transition: clip-path .08s linear; will-change: clip-path;
 }
 .overlay[data-orientation="vertical"] .karaokeWordFill {
@@ -100,6 +110,8 @@
 .overlay[data-long-text="shrink"] .next {
   overflow: visible; white-space: nowrap; overflow-wrap: normal; text-wrap: nowrap;
 }
+.overlay[data-long-text="shrink"][data-orientation="vertical"] .active,
+.overlay[data-long-text="shrink"][data-orientation="vertical"] .next { flex-shrink: 0; }
 .overlay[data-long-text="wrap"][data-constrained="true"]:not([data-orientation="vertical"]) .lines {
   width: var(--line-width-limit); max-width: var(--line-width-limit);
 }
@@ -107,6 +119,7 @@
 .overlay[data-long-text="wrap"][data-constrained="true"]:not([data-orientation="vertical"]) .next {
   width: 100%; max-width: var(--line-width-limit); overflow: visible;
   white-space: normal; overflow-wrap: anywhere; text-align: left; text-wrap: pretty;
+  line-height: var(--wrap-line-height);
 }
 .overlay[data-long-text="wrap"][data-constrained="true"]:not([data-orientation="vertical"]) .karaokeText { white-space: pre-wrap; }
 .overlay[data-long-text="wrap"][data-constrained="true"][data-orientation="vertical"] .lines {
@@ -115,7 +128,7 @@
 .overlay[data-long-text="wrap"][data-constrained="true"][data-orientation="vertical"] .active,
 .overlay[data-long-text="wrap"][data-constrained="true"][data-orientation="vertical"] .next {
   height: 100%; max-height: var(--line-height-limit); white-space: normal;
-  overflow-wrap: anywhere; text-wrap: wrap;
+  overflow-wrap: anywhere; text-wrap: wrap; line-height: var(--wrap-line-height); flex-shrink: 0;
 }
 .overlay[data-long-text="wrap"][data-constrained="true"][data-orientation="vertical"] .karaokeText { white-space: pre-wrap; }
 .overlay[data-long-text="marquee"][data-constrained="true"]:not([data-orientation="vertical"]) .lines {

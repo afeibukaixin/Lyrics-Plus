@@ -31,7 +31,9 @@ export type OverlayStyle = {
   layout: "single" | "double";
   doubleLineMode: "rolling" | "alternating";
   orientation: "horizontal" | "vertical";
-  alignment: "center" | "distributed";
+  alignment: "start" | "center" | "end" | "distributed";
+  primaryLinePosition: "first" | "second";
+  lineGap: number;
   longText: "shrink" | "wrap" | "marquee";
   secondaryDisplay: "next" | "translation" | "romanization" | "translation_romanization";
   autoCenterWithTranslationOrRomanization: boolean;
@@ -45,6 +47,8 @@ export type OverlayStyle = {
   textShadowOffsetY: number;
   textShadowBlur: number;
   textShadowColor: string;
+  textStrokeWidth: number;
+  textStrokeColor: string;
   horizontalMaxWidth: number | null;
   verticalMaxHeight: number | null;
 };

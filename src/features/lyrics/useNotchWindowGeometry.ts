@@ -18,6 +18,8 @@ import {
 } from "./NotchLyricsLayout";
 
 const WINDOW_HORIZONTAL_PADDING = 16;
+// 宿主窗口宽度固定，避免实时预览时 WebView 重排晚于原生窗口移动造成横向抖动。
+const NOTCH_HOST_WIDTH = NOTCH_MAX_WIDTH + WINDOW_HORIZONTAL_PADDING;
 
 type UseNotchWindowGeometryOptions = {
   layout: NotchLayoutMetrics;
@@ -83,7 +85,7 @@ export function useNotchWindowGeometry({
       hostFitReadyRef.current = true;
       return;
     }
-    const width = dimensions.expandedWidth + WINDOW_HORIZONTAL_PADDING;
+    const width = NOTCH_HOST_WIDTH;
     const height = dimensions.expandedHeight;
     const requestKey = `${width}:${height}`;
     if (lastFitRequestRef.current?.key === requestKey) return;

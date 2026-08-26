@@ -4,9 +4,6 @@ import type {
   OverlayStyle,
 } from "../../shared/types";
 
-export const HORIZONTAL_LINE_GAP = 8;
-export const VERTICAL_COLUMN_GAP = 14;
-
 export type MarqueeMetric = {
   overflowing: boolean;
   distance: number;
@@ -46,6 +43,7 @@ export function combinedContentSize(
   items: Array<{ width: number; height: number }>,
   layout: OverlayStyle["layout"],
   orientation: OverlayStyle["orientation"],
+  lineGap: number,
 ) {
   const [primary, ...secondary] = items;
   if (!primary) return { width: 0, height: 0 };
@@ -54,12 +52,12 @@ export function combinedContentSize(
     return {
       width: Math.max(...items.map((item) => item.width)),
       height: items.reduce((total, item) => total + item.height, 0)
-        + HORIZONTAL_LINE_GAP * (items.length - 1),
+        + lineGap * (items.length - 1),
     };
   }
   return {
     width: items.reduce((total, item) => total + item.width, 0)
-      + VERTICAL_COLUMN_GAP * (items.length - 1),
+      + lineGap * (items.length - 1),
     height: Math.max(...items.map((item) => item.height)),
   };
 }

@@ -260,6 +260,7 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
       <RangeRow label={t("settings.overlay.fontSize")} value={appearance.fontSize} min={12} max={32} suffix="px" onChange={(fontSize) => save(patchAppearance(value, { fontSize }))} />
       <SelectRow label={t("settings.overlay.fontWeight")} value={String(appearance.fontWeight)} options={fontWeights} onChange={(fontWeight) => save(patchAppearance(value, { fontWeight: Number(fontWeight) as OverlayFontWeight }))} />
       <SelectRow label={t("settings.overlay.secondaryFontWeight")} value={String(appearance.secondaryFontWeight)} options={fontWeights} onChange={(secondaryFontWeight) => save(patchAppearance(value, { secondaryFontWeight: Number(secondaryFontWeight) as OverlayFontWeight }))} />
+      <RangeRow label={t("settings.style.modeControls.lineGap")} disabled={value.layout !== "double"} value={appearance.lineGap} min={0} max={32} suffix="px" onChange={(lineGap) => save(patchAppearance(value, { lineGap }))} />
     </SettingsSection>
     <SettingsSection id="mode-colors" title={t("settings.style.modeControls.colorEffects")}>
       <SelectRow label={t("settings.overlay.karaoke")} value={appearance.karaokeStyle} options={[["sweep", t("settings.overlay.karaokeSweep")], ["highlight", t("settings.overlay.karaokeHighlight")]]} onChange={(karaokeStyle) => save(patchAppearance(value, { karaokeStyle: karaokeStyle as CompactKaraokeStyle }))} />

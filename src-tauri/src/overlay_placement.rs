@@ -254,9 +254,8 @@ pub(crate) fn show_main_window_at(
     window.set_focus().map_err(|error| error.to_string())
 }
 
-fn set_overlay_position(
+pub(crate) fn mark_overlay_programmatic_position(
     app: &tauri::AppHandle,
-    window: &tauri::WebviewWindow,
     position: tauri::PhysicalPosition<i32>,
 ) {
     if let Some(state) = app.try_state::<AppState>() {
@@ -267,6 +266,14 @@ fn set_overlay_position(
         placement.expected_programmatic_position = Some(position);
         placement.programmatic_move_started_at = Some(Instant::now());
     }
+}
+
+fn set_overlay_position(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+    position: tauri::PhysicalPosition<i32>,
+) {
+    mark_overlay_programmatic_position(app, position);
     let _ = window.set_position(position);
 }
 
