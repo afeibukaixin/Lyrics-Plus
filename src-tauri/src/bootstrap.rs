@@ -150,6 +150,23 @@ pub fn run() {
                     }
                     api.prevent_close();
                     let _ = window.hide();
+                    #[cfg(target_os = "macos")]
+                    if window
+                        .app_handle()
+                        .state::<AppState>()
+                        .config
+                        .snapshot()
+                        .app
+                        .hide_dock_icon
+                    {
+                        // 隐藏主窗口后再次施加 Accessory 策略，避免 macOS 恢复 Dock 图标。
+                        if let Err(error) = window
+                            .app_handle()
+                            .set_activation_policy(tauri::ActivationPolicy::Accessory)
+                        {
+                            log::warn!("关闭主窗口后隐藏 Dock 图标失败：{error}");
+                        }
+                    }
                 }
             }
             if window.label() == "lyrics-list" {
