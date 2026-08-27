@@ -54,6 +54,8 @@ export type LyricsStyleMode = "desktop" | "statusBar" | "listWindow" | "notch";
 
 export type CompactKaraokeStyle = "sweep" | "highlight";
 
+export type StatusBarAlignment = "left" | "center" | "right";
+
 export type NotchSlotContent = "empty" | "title" | "artist" | "artwork" | "spectrum";
 
 export type LyricsBaseAppearance = {
@@ -81,6 +83,7 @@ export type StatusBarLyricsAppearance = {
   inactiveColor: string;
   highlightColor: string;
   karaokeStyle: CompactKaraokeStyle;
+  alignment: StatusBarAlignment;
   width: number;
 };
 

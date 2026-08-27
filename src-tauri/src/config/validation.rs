@@ -359,6 +359,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                             "inactiveColor",
                             "highlightColor",
                             "karaokeStyle",
+                            "alignment",
                             "width",
                             // Legacy floating-window fields remain valid input.
                             "backgroundColor",
@@ -781,6 +782,11 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             "/lyrics/displays/statusBar/appearance/karaokeStyle",
             "karaokeStyle",
             &["sweep", "highlight"] as &[&str],
+        ),
+        (
+            "/lyrics/displays/statusBar/appearance/alignment",
+            "alignment",
+            &["left", "center", "right"] as &[&str],
         ),
         (
             "/lyrics/displays/notch/appearance/karaokeStyle",

@@ -88,6 +88,7 @@ export const defaultStatusBarLyricsAppearance: StatusBarLyricsAppearance = {
   inactiveColor: "#ecfccb",
   highlightColor: "#a3e635",
   karaokeStyle: "sweep",
+  alignment: "left",
   width: 220,
 };
 

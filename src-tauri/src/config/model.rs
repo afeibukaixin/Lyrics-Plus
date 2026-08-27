@@ -302,6 +302,15 @@ pub enum CompactKaraokeStyle {
     Highlight,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum StatusBarAlignment {
+    #[default]
+    Left,
+    Center,
+    Right,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum NotchSlotContent {
@@ -364,6 +373,7 @@ pub struct StatusBarLyricsAppearance {
     pub inactive_color: String,
     pub highlight_color: String,
     pub karaoke_style: CompactKaraokeStyle,
+    pub alignment: StatusBarAlignment,
     #[serde(alias = "maxWidth")]
     pub width: u16,
 }
@@ -378,6 +388,7 @@ impl Default for StatusBarLyricsAppearance {
             inactive_color: "#ecfccb".into(),
             highlight_color: "#a3e635".into(),
             karaoke_style: CompactKaraokeStyle::Sweep,
+            alignment: StatusBarAlignment::Left,
             width: 220,
         }
     }

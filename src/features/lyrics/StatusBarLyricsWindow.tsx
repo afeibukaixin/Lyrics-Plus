@@ -16,6 +16,7 @@ export default function StatusBarLyricsWindow() {
   return (
     <main
       className={styles.shell}
+      data-alignment={appearance.alignment}
       style={{
         "--status-font-family": appearance.fontFamily,
         "--status-font-size": `${appearance.fontSize}px`,

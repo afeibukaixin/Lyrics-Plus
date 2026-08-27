@@ -14,7 +14,7 @@ use objc2_quartz_core::{CATextLayer, CATransaction};
 use tauri::Manager;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::config::CompactKaraokeStyle;
+use crate::config::{CompactKaraokeStyle, StatusBarAlignment};
 use crate::lyrics::LyricsWord;
 use crate::AppState;
 use crate::TrayMenuState;
@@ -51,6 +51,7 @@ struct RenderPayload {
     font_family: String,
     font_size: f64,
     font_weight: u16,
+    alignment: StatusBarAlignment,
     base_color: String,
     highlight_color: String,
     highlight_ranges: Vec<HighlightRange>,
@@ -200,11 +201,12 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
         }
     }
     content_key.push_str(&format!(
-        ":style:{}:{}:{}:{}",
+        ":style:{}:{}:{}:{}:{:?}",
         preferences.appearance.width,
         preferences.appearance.font_family,
         preferences.appearance.font_size,
         preferences.appearance.font_weight,
+        preferences.appearance.alignment,
     ));
 
     Some(RenderPayload {
@@ -214,6 +216,7 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
         font_family: preferences.appearance.font_family,
         font_size: preferences.appearance.font_size as f64,
         font_weight: preferences.appearance.font_weight,
+        alignment: preferences.appearance.alignment,
         base_color,
         highlight_color: preferences.appearance.highlight_color,
         highlight_ranges: highlighted_ranges,
@@ -459,6 +462,7 @@ fn render_on_main(payload: RenderPayload, tray: &tauri::tray::TrayIcon) {
 
         let content_width = attributed.size().width.ceil();
         let available_width = (payload.width - CONTENT_INSET * 2.0).max(1.0);
+        let overflowing = content_width > available_width;
         let offset = scroll_offset(
             content_width,
             available_width,
@@ -466,7 +470,19 @@ fn render_on_main(payload: RenderPayload, tray: &tauri::tray::TrayIcon) {
             payload.scroll_duration,
         );
         let layer_height = (font_size + TEXT_LAYER_HEIGHT_PADDING).min(button_height);
-        let origin_x = CONTENT_INSET - offset;
+        let origin_x = if overflowing {
+            CONTENT_INSET - offset
+        } else {
+            match payload.alignment {
+                StatusBarAlignment::Left => CONTENT_INSET,
+                StatusBarAlignment::Center => {
+                    ((payload.width - content_width) / 2.0).max(CONTENT_INSET)
+                }
+                StatusBarAlignment::Right => {
+                    (payload.width - CONTENT_INSET - content_width).max(CONTENT_INSET)
+                }
+            }
+        };
         let origin_y = ((button_height - layer_height) / 2.0).floor();
 
         CATransaction::begin();

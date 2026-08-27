@@ -17,6 +17,14 @@
   user-select: none;
 }
 
+.shell[data-alignment="center"] {
+  justify-content: center;
+}
+
+.shell[data-alignment="right"] {
+  justify-content: flex-end;
+}
+
 .shell span {
   min-width: 0;
   overflow: hidden;

@@ -101,6 +101,9 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             line if line.starts_with("      \"alignment\":") => {
                 Some(("      ", ConfigComment::Alignment))
             }
+            line if line.starts_with("          \"alignment\":") => {
+                Some(("          ", ConfigComment::StatusBarAlignment))
+            }
             line if line.starts_with("      \"primaryLinePosition\":") => {
                 Some(("      ", ConfigComment::PrimaryLinePosition))
             }
