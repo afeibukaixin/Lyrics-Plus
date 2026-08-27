@@ -5,6 +5,7 @@ import { currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
 import { api, isTauriRuntime } from "../../shared/api";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
 import type { OverlaySettings, OverlayStyle, ToolbarPlacement } from "../../shared/types";
+import { MIN_VERTICAL_HOST_WIDTH } from "./OverlayLayout";
 
 const HORIZONTAL_TOOLBAR_WINDOW_INSET = 8;
 const VERTICAL_TOOLBAR_WINDOW_INSET = 14;
@@ -137,10 +138,10 @@ export function useOverlayWindowLayout({
       if (!monitor) return;
       const width = monitor.workArea.size.width / monitor.scaleFactor - 48;
       const height = monitor.workArea.size.height / monitor.scaleFactor - 48;
-      setFitLimits({ width: Math.max(190, width), height: Math.max(76, height) });
+      setFitLimits({ width: Math.max(vertical ? MIN_VERTICAL_HOST_WIDTH : 190, width), height: Math.max(76, height) });
     };
     void refreshLimits();
-  }, [setFitLimits]);
+  }, [setFitLimits, vertical]);
 
   useEffect(() => {
     const onBlur = () => finishResizeRef.current();
@@ -175,7 +176,7 @@ export function useOverlayWindowLayout({
     if (!isTauriRuntime()) return;
     const overlayWindow = getCurrentWindow();
     void overlayWindow.setMinSize(new LogicalSize(
-      vertical ? 190 : minimumHorizontalWidth,
+      vertical ? MIN_VERTICAL_HOST_WIDTH : minimumHorizontalWidth,
       vertical ? minimumVerticalHeight : 76,
     ));
     void overlayWindow.setMaxSize(new LogicalSize(fitLimits.width, fitLimits.height));

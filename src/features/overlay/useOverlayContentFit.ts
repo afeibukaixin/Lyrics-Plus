@@ -4,6 +4,7 @@ import type { OverlayStyle } from "../../shared/types";
 import {
   combinedContentSize,
   sameMarqueeMetrics,
+  MIN_VERTICAL_HOST_WIDTH,
   type MarqueeMetric,
   type SupportingLine,
 } from "./OverlayLayout";
@@ -211,7 +212,7 @@ export function useOverlayContentFit({
         ? verticalContentLimit
         : Math.max(lines.clientHeight, Math.min(lines.scrollHeight, availableScreenHeight));
     const width = vertical
-      ? Math.min(fitLimits.width, Math.max(190, Math.ceil(measuredContentWidth + overlayHorizontalPadding)))
+      ? Math.min(fitLimits.width, Math.max(MIN_VERTICAL_HOST_WIDTH, Math.ceil(measuredContentWidth + overlayHorizontalPadding)))
       : horizontalWindowLimit;
     const height = vertical
       ? verticalWindowLimit

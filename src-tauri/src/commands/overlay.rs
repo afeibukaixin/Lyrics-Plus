@@ -1,3 +1,6 @@
+const MIN_HORIZONTAL_WINDOW_WIDTH: f64 = 190.0;
+const MIN_VERTICAL_HOST_WIDTH: f64 = 49.0;
+
 #[tauri::command]
 pub fn get_overlay_settings(state: State<'_, AppState>) -> OverlaySettings {
     get_overlay_settings_inner(&state)
@@ -444,6 +447,7 @@ fn fixed_axis_content_size(
     }
 }
 
+#[cfg(test)]
 fn fit_overlay_bounds(
     position: tauri::PhysicalPosition<i32>,
     requested_width: f64,
@@ -452,13 +456,33 @@ fn fit_overlay_bounds(
     monitor_position: tauri::PhysicalPosition<i32>,
     monitor_size: tauri::PhysicalSize<u32>,
 ) -> (tauri::PhysicalPosition<i32>, tauri::PhysicalSize<u32>) {
+    fit_overlay_bounds_with_minimum(
+        position,
+        requested_width,
+        requested_height,
+        scale,
+        monitor_position,
+        monitor_size,
+        MIN_HORIZONTAL_WINDOW_WIDTH,
+    )
+}
+
+fn fit_overlay_bounds_with_minimum(
+    position: tauri::PhysicalPosition<i32>,
+    requested_width: f64,
+    requested_height: f64,
+    scale: f64,
+    monitor_position: tauri::PhysicalPosition<i32>,
+    monitor_size: tauri::PhysicalSize<u32>,
+    minimum_width_logical: f64,
+) -> (tauri::PhysicalPosition<i32>, tauri::PhysicalSize<u32>) {
     let scale = if scale.is_finite() && scale > 0.0 {
         scale
     } else {
         1.0
     };
     let margin = 0_u32;
-    let minimum_width = (190.0 * scale).round() as u32;
+    let minimum_width = (minimum_width_logical * scale).round() as u32;
     let minimum_height = (76.0 * scale).round() as u32;
     let maximum_width = monitor_size
         .width
@@ -505,14 +529,16 @@ fn fit_overlay_content_bounds(
     monitor_position: tauri::PhysicalPosition<i32>,
     monitor_size: tauri::PhysicalSize<u32>,
     toolbar_placement: Option<crate::ToolbarPlacement>,
+    minimum_width_logical: f64,
 ) -> (tauri::PhysicalPosition<i32>, tauri::PhysicalSize<u32>) {
-    let (mut next_position, mut next_size) = fit_overlay_bounds(
+    let (mut next_position, mut next_size) = fit_overlay_bounds_with_minimum(
         position,
         requested_width,
         requested_height,
         scale,
         monitor_position,
         monitor_size,
+        minimum_width_logical,
     );
     let Some(toolbar_placement) = toolbar_placement else {
         return (next_position, next_size);
@@ -526,7 +552,7 @@ fn fit_overlay_content_bounds(
     let work_right = work_left + monitor_size.width as i64;
     let work_top = monitor_position.y as i64;
     let work_bottom = work_top + monitor_size.height as i64;
-    let minimum_width = (190.0 * scale).round() as u32;
+    let minimum_width = (minimum_width_logical * scale).round() as u32;
     let minimum_height = (76.0 * scale).round() as u32;
     let fixed_position_limit = |position: i64| {
         position.clamp(i32::MIN as i64, i32::MAX as i64) as i32
@@ -618,6 +644,10 @@ pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Re
             .toolbar_placement
             .normalized(style.orientation),
     );
+    let minimum_width_logical = match style.orientation {
+        OverlayOrientation::Horizontal => MIN_HORIZONTAL_WINDOW_WIDTH,
+        OverlayOrientation::Vertical => MIN_VERTICAL_HOST_WIDTH,
+    };
     let (next_position, next_size) = fit_overlay_content_bounds(
         position,
         current_size,
@@ -627,6 +657,7 @@ pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Re
         work_area.position,
         work_area.size,
         toolbar_placement,
+        minimum_width_logical,
     );
     let size_changed = current_size.width.abs_diff(next_size.width) > 2
         || current_size.height.abs_diff(next_size.height) > 2;

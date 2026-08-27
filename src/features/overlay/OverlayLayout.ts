@@ -4,6 +4,8 @@ import type {
   OverlayStyle,
 } from "../../shared/types";
 
+export const MIN_VERTICAL_HOST_WIDTH = 49;
+
 export type MarqueeMetric = {
   overflowing: boolean;
   distance: number;

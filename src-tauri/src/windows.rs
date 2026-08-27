@@ -30,6 +30,8 @@ fn apply_joining_other_apps_fullscreen_on_main(
     Ok(())
 }
 
+const MIN_VERTICAL_HOST_WIDTH: f64 = 49.0;
+
 #[cfg(target_os = "macos")]
 fn run_window_collection_behavior_update(
     window: &tauri::WebviewWindow,
@@ -219,6 +221,10 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
         })
         .unwrap_or_default();
     let (initial_width, initial_height) = initial_overlay_dimensions(&style);
+    let minimum_width = match style.orientation {
+        OverlayOrientation::Vertical => MIN_VERTICAL_HOST_WIDTH,
+        OverlayOrientation::Horizontal => 190.0,
+    };
 
     let window = WebviewWindowBuilder::new(
         app,
@@ -227,7 +233,7 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
     )
     .title(UiLanguage::ZhCn.native_labels().overlay_title)
     .inner_size(initial_width, initial_height)
-    .min_inner_size(190.0, 76.0)
+    .min_inner_size(minimum_width, 76.0)
     .transparent(true)
     .accept_first_mouse(true)
     .decorations(false)
