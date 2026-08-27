@@ -1,14 +1,38 @@
 fn timestamp_ms(tag: &str) -> Option<u64> {
-    let (minutes, seconds) = tag.split_once(':')?;
-    let minutes: u64 = minutes.trim().parse().ok()?;
-    let seconds: f64 = seconds.trim().parse().ok()?;
-    if !(0.0..60.0).contains(&seconds) {
-        return None;
-    }
+    let mut parts = tag.trim().split(':');
+    let minutes: u64 = parts.next()?.trim().parse().ok()?;
+    let seconds_part = parts.next()?.trim();
+    let milliseconds = if let Some(fraction_part) = parts.next() {
+        if parts.next().is_some() {
+            return None;
+        }
+        let seconds: u64 = seconds_part.parse().ok()?;
+        if seconds >= 60 {
+            return None;
+        }
+        let fraction_part = fraction_part.trim();
+        if fraction_part.is_empty()
+            || fraction_part.len() > 3
+            || !fraction_part.chars().all(|character| character.is_ascii_digit())
+        {
+            return None;
+        }
+        let fraction: u64 = fraction_part.parse().ok()?;
+        let multiplier = 10_u64.pow((3 - fraction_part.len()) as u32);
+        seconds
+            .saturating_mul(1_000)
+            .saturating_add(fraction.saturating_mul(multiplier))
+    } else {
+        let seconds: f64 = seconds_part.parse().ok()?;
+        if !(0.0..60.0).contains(&seconds) {
+            return None;
+        }
+        (seconds * 1_000.0).round() as u64
+    };
     Some(
         minutes
             .saturating_mul(60_000)
-            .saturating_add((seconds * 1000.0).round() as u64),
+            .saturating_add(milliseconds),
     )
 }
 fn finish_lines(entries: impl IntoIterator<Item = (u64, String)>) -> Vec<LyricsLine> {
@@ -79,9 +103,27 @@ pub fn parse_lrc_with_options(
     let mut album = None;
     let mut embedded_offset = 0_i64;
     let mut timed_text = BTreeMap::<u64, Vec<String>>::new();
+    let mut explicit_translation = BTreeMap::<u64, Vec<String>>::new();
+    let mut explicit_romanization = BTreeMap::<u64, Vec<String>>::new();
+    let mut explicit_translation_seen = false;
+    let mut explicit_romanization_seen = false;
+    let mut track_kind = 0_u8;
     let mut word_timings = BTreeMap::<u64, Vec<LyricsWord>>::new();
 
     for source_line in raw.lines() {
+        match source_line.trim() {
+            "[lyrics-plus:translation]" => {
+                track_kind = 1;
+                explicit_translation_seen = true;
+                continue;
+            }
+            "[lyrics-plus:romanization]" => {
+                track_kind = 2;
+                explicit_romanization_seen = true;
+                continue;
+            }
+            _ => {}
+        }
         let mut remaining = source_line.trim_start();
         let mut timestamps = Vec::new();
 
@@ -110,11 +152,15 @@ pub fn parse_lrc_with_options(
 
         let (text, words) = parse_enhanced_words(remaining);
         for time_ms in timestamps {
-            let texts = timed_text.entry(time_ms).or_default();
+            let texts = match track_kind {
+                1 => explicit_translation.entry(time_ms).or_default(),
+                2 => explicit_romanization.entry(time_ms).or_default(),
+                _ => timed_text.entry(time_ms).or_default(),
+            };
             if !texts.contains(&text) {
                 texts.push(text.clone());
             }
-            if !words.is_empty() {
+            if track_kind == 0 && !words.is_empty() {
                 word_timings.entry(time_ms).or_insert_with(|| words.clone());
             }
         }
@@ -137,16 +183,32 @@ pub fn parse_lrc_with_options(
             line.words = Some(words);
         }
     }
-    let translations = finish_lines(
-        timed_text
-            .iter()
-            .filter_map(|(time, texts)| texts.get(1).map(|text| (*time, text.clone()))),
-    );
-    let romanization = finish_lines(
-        timed_text
-            .iter()
-            .filter_map(|(time, texts)| texts.get(2).map(|text| (*time, text.clone()))),
-    );
+    let translations = if explicit_translation_seen {
+        finish_lines(
+            explicit_translation
+                .iter()
+                .filter_map(|(time, texts)| texts.first().map(|text| (*time, text.clone()))),
+        )
+    } else {
+        finish_lines(
+            timed_text
+                .iter()
+                .filter_map(|(time, texts)| texts.get(1).map(|text| (*time, text.clone()))),
+        )
+    };
+    let romanization = if explicit_romanization_seen {
+        finish_lines(
+            explicit_romanization
+                .iter()
+                .filter_map(|(time, texts)| texts.first().map(|text| (*time, text.clone()))),
+        )
+    } else {
+        finish_lines(
+            timed_text
+                .iter()
+                .filter_map(|(time, texts)| texts.get(2).map(|text| (*time, text.clone()))),
+        )
+    };
 
     Ok(LyricsDocument {
         metadata: LyricsMetadata {
@@ -273,6 +335,14 @@ fn parse_platform_word_lyrics(raw: &str) -> Option<(&'static str, Vec<LyricsLine
             ("qrc", parse_qrc_words(content))
         };
         if words.is_empty() {
+            if content.trim().is_empty() {
+                lines.push(LyricsLine {
+                    start_ms,
+                    end_ms: Some(start_ms.saturating_add(duration_ms)),
+                    text: String::new(),
+                    words: None,
+                });
+            }
             continue;
         }
         format.get_or_insert(detected);
@@ -295,15 +365,19 @@ fn parse_auxiliary_lrc_tracks(raw: &str) -> (Vec<LyricsLine>, Vec<LyricsLine>) {
     let mut timed_text = BTreeMap::<u64, Vec<String>>::new();
     let mut explicit_translation = BTreeMap::<u64, Vec<String>>::new();
     let mut explicit_romanization = BTreeMap::<u64, Vec<String>>::new();
+    let mut explicit_translation_seen = false;
+    let mut explicit_romanization_seen = false;
     let mut track_kind = 0_u8;
     for source_line in raw.lines() {
         match source_line.trim() {
             "[lyrics-plus:translation]" => {
                 track_kind = 1;
+                explicit_translation_seen = true;
                 continue;
             }
             "[lyrics-plus:romanization]" => {
                 track_kind = 2;
+                explicit_romanization_seen = true;
                 continue;
             }
             _ => {}
@@ -337,27 +411,27 @@ fn parse_auxiliary_lrc_tracks(raw: &str) -> (Vec<LyricsLine>, Vec<LyricsLine>) {
             }
         }
     }
-    let translation_source = if explicit_translation.is_empty() {
-        &timed_text
-    } else {
+    let translation_source = if explicit_translation_seen {
         &explicit_translation
+    } else {
+        &timed_text
     };
     let translation = finish_lines(
         translation_source
             .iter()
             .filter_map(|(time, texts)| texts.first().map(|text| (*time, text.clone()))),
     );
-    let romanization = if explicit_romanization.is_empty() {
-        finish_lines(
-            timed_text
-                .iter()
-                .filter_map(|(time, texts)| texts.get(1).map(|text| (*time, text.clone()))),
-        )
-    } else {
+    let romanization = if explicit_romanization_seen {
         finish_lines(
             explicit_romanization
                 .iter()
                 .filter_map(|(time, texts)| texts.first().map(|text| (*time, text.clone()))),
+        )
+    } else {
+        finish_lines(
+            timed_text
+                .iter()
+                .filter_map(|(time, texts)| texts.get(1).map(|text| (*time, text.clone()))),
         )
     };
     (translation, romanization)

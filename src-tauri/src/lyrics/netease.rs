@@ -1,6 +1,7 @@
 use futures::future::join_all;
 use serde::Deserialize;
 
+use super::parse_lrc_with_options;
 use super::provider::{
     collect_provider_results, score_candidate, LyricsProvider, LyricsSearchInput,
     LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
@@ -162,14 +163,22 @@ fn result_from_detail(
         .romalrc
         .map(|value| value.lyric)
         .filter(|value| has_timed_text(value));
-    candidate.has_translation = translation.is_some();
-    candidate.has_word_timing = word_lyrics.is_some();
-    candidate.has_romanization = romanization.is_some();
-    candidate.lyrics = merge_tracks(
+    let lyrics = merge_tracks(
         word_lyrics.as_deref().unwrap_or(&line_lyrics),
         translation.as_deref(),
         romanization.as_deref(),
     );
+    let parsed = parse_lrc_with_options(&lyrics, NETEASE_DISPLAY_NAME, false).ok()?;
+    candidate.synced = true;
+    candidate.has_translation = parsed.tracks.translation.is_some();
+    candidate.has_word_timing = parsed
+        .tracks
+        .original
+        .lines
+        .iter()
+        .any(|line| line.words.as_ref().is_some_and(|words| !words.is_empty()));
+    candidate.has_romanization = parsed.tracks.romanization.is_some();
+    candidate.lyrics = lyrics;
     Some(candidate)
 }
 
