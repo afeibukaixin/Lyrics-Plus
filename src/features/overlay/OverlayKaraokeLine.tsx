@@ -8,7 +8,7 @@ export function OverlayKaraokeLine({ line, fallback, positionMs, style }: {
   positionMs: number;
   style: OverlayStyle;
 }) {
-  const text = line?.text || fallback;
+  const text = line ? line.text : fallback;
   const words = line?.words?.filter((word) => word.text.length > 0) ?? [];
   if (words.length === 0) return <span>{text || "\u00a0"}</span>;
   return (

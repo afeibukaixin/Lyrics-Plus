@@ -10,8 +10,9 @@ export default function StatusBarLyricsWindow() {
   const lyrics = useLyricsPresentation(playback.snapshot, playback.positionMs);
   const preferences = config.lyrics.displays.statusBar;
   const appearance = preferences.appearance;
-  const value = lyrics.currentLine?.text?.trim()
-    || (playback.snapshot.title ? `♪ ${playback.snapshot.title.trim()}` : "Lyrics Plus");
+  const value = lyrics.currentLine
+    ? lyrics.currentLine.text.trim()
+    : (playback.snapshot.title ? `♪ ${playback.snapshot.title.trim()}` : "Lyrics Plus");
 
   return (
     <main

@@ -168,12 +168,9 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
         if let Some(document) = runtime.document.as_ref() {
             let adjusted = (position_ms as i128 + document.offset_ms as i128).max(0) as u64;
             let lines = &document.tracks.original.lines;
-            let current_index = lines
-                .iter()
-                .rposition(|line| line.start_ms <= adjusted);
-            if let Some((index, line)) = current_index
-                .and_then(|index| lines.get(index).map(|line| (index, line)))
-                .filter(|(_, line)| !line.text.trim().is_empty())
+            let current_index = lines.iter().rposition(|line| line.start_ms <= adjusted);
+            if let Some((index, line)) =
+                current_index.and_then(|index| lines.get(index).map(|line| (index, line)))
             {
                 text = line.text.trim().to_owned();
                 content_key = format!("{track_key}:line:{}:{text}", line.start_ms);

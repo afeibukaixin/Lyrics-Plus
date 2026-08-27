@@ -34,6 +34,7 @@ type UseOverlayContentFitOptions = {
   primaryLineKey: string;
   supportingKey: string;
   primaryText: string;
+  preserveSizeForEmptyLine: boolean;
   supportingLines: SupportingLine[];
   marqueeTimeLimit: number | null;
   vertical: boolean;
@@ -70,6 +71,7 @@ export function useOverlayContentFit({
   primaryLineKey,
   supportingKey,
   primaryText,
+  preserveSizeForEmptyLine,
   supportingLines,
   marqueeTimeLimit,
   vertical,
@@ -90,8 +92,17 @@ export function useOverlayContentFit({
     setWrapped(false);
     setFitScale(1);
     setMarqueeMetrics([]);
-    lastRequestedSize.current = null;
-  }, [fitLimits.height, fitLimits.width, primaryLineKey, supportingKey, style.backgroundPaddingX, style.backgroundPaddingY, style.fontFamily, style.fontSize, style.fontWeight, style.horizontalMaxWidth, style.layout, style.lineGap, style.lineHeight, style.longText, style.orientation, style.romanizationFontScale, style.secondaryFontScale, style.secondaryFontWeight, style.textStrokeWidth, style.translationFontScale, style.verticalMaxHeight]);
+    if (preserveSizeForEmptyLine) {
+      if (fitFrame.current !== null) cancelAnimationFrame(fitFrame.current);
+      fitFrame.current = null;
+      if (fitRetryTimer.current !== null) clearTimeout(fitRetryTimer.current);
+      fitRetryTimer.current = null;
+      if (shrinkTimer.current !== null) clearTimeout(shrinkTimer.current);
+      shrinkTimer.current = null;
+    } else {
+      lastRequestedSize.current = null;
+    }
+  }, [fitLimits.height, fitLimits.width, fitRetryTimer, fitFrame, preserveSizeForEmptyLine, primaryLineKey, shrinkTimer, supportingKey, style.backgroundPaddingX, style.backgroundPaddingY, style.fontFamily, style.fontSize, style.fontWeight, style.horizontalMaxWidth, style.layout, style.lineGap, style.lineHeight, style.longText, style.orientation, style.romanizationFontScale, style.secondaryFontScale, style.secondaryFontWeight, style.textStrokeWidth, style.translationFontScale, style.verticalMaxHeight]);
 
   useLayoutEffect(() => {
     if (!settingsVisible || resizing) {
@@ -100,6 +111,7 @@ export function useOverlayContentFit({
       fitRetryTimer.current = null;
       return;
     }
+    if (preserveSizeForEmptyLine) return;
     const layoutKey = `${style.layout}:${style.orientation}`;
     const layoutChanged = lastMeasuredLayoutKey.current !== layoutKey;
     if (layoutChanged) {
@@ -258,5 +270,5 @@ export function useOverlayContentFit({
       if (shrinkTimer.current !== null) clearTimeout(shrinkTimer.current);
       shrinkTimer.current = null;
     };
-  }, [constrained, fitLimits.height, fitLimits.width, fitScale, horizontalContentLimit, horizontalWindowLimit, marqueeHorizontalLimit, marqueeMetrics, marqueeTimeLimit, marqueeVerticalLimit, overlayHorizontalPadding, overlayVerticalPadding, primaryText, resizing, settingsVisible, style.fontFamily, style.fontSize, style.fontWeight, style.layout, style.lineGap, style.lineHeight, style.longText, style.orientation, style.romanizationFontScale, style.secondaryFontScale, style.secondaryFontWeight, style.textStrokeWidth, style.translationFontScale, supportingKey, vertical, verticalContentLimit, verticalWindowLimit, wrapped]);
+  }, [constrained, fitLimits.height, fitLimits.width, fitScale, horizontalContentLimit, horizontalWindowLimit, marqueeHorizontalLimit, marqueeMetrics, marqueeTimeLimit, marqueeVerticalLimit, overlayHorizontalPadding, overlayVerticalPadding, preserveSizeForEmptyLine, primaryText, resizing, settingsVisible, style.fontFamily, style.fontSize, style.fontWeight, style.layout, style.lineGap, style.lineHeight, style.longText, style.orientation, style.romanizationFontScale, style.secondaryFontScale, style.secondaryFontWeight, style.textStrokeWidth, style.translationFontScale, supportingKey, vertical, verticalContentLimit, verticalWindowLimit, wrapped]);
 }

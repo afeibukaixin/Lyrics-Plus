@@ -107,7 +107,10 @@ export default function Overlay() {
     setStyle(saved);
   };
 
-  const primaryText = lyrics.currentLine?.text || playback.snapshot.title || "Lyrics Plus";
+  const primaryText = lyrics.currentLine
+    ? lyrics.currentLine.text
+    : playback.snapshot.title || "Lyrics Plus";
+  const activeLineEmpty = Boolean(lyrics.currentLine && !lyrics.currentLine.text.trim());
   const primaryLineKey = `${lyrics.currentLine?.startMs ?? "fallback"}:${primaryText}`;
   const currentLineDisplayEndMs = lyrics.nextLine?.startMs ?? lyrics.currentLine?.endMs;
   const marqueeTimeLimit = lyrics.currentLine && currentLineDisplayEndMs != null
@@ -234,6 +237,7 @@ export default function Overlay() {
     overlayVerticalPadding,
     primaryLineKey,
     primaryText,
+    preserveSizeForEmptyLine: activeLineEmpty,
     resizing,
     setFitScale,
     setMarqueeMetrics,
@@ -318,7 +322,7 @@ export default function Overlay() {
         <div className={styles.lines} data-double-line-order={doubleLineOrder} ref={linesRef}>
           <div
             className={styles.active}
-            data-empty={!primaryText}
+            data-empty={activeLineEmpty}
             data-marquee={style.longText === "marquee" && marqueeMetrics[0]?.overflowing}
             ref={activeRef}
             style={{
