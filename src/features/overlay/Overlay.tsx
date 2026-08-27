@@ -155,10 +155,10 @@ export default function Overlay() {
   const showingTranslationOrRomanization = supportingLines.some(
     (line) => line.kind === "translation" || line.kind === "romanization",
   );
-  const primaryLineReversed = showingTranslationOrRomanization && style.primaryLinePosition === "second";
-  const doubleLineOrder = (primaryLineReversed || (alternatingDoubleLine && lyrics.activeIndex % 2 === 1))
-    ? "reversed"
-    : "normal";
+  // 固定主副顺序与交替高亮分别表示一次反转，叠加时使用异或避免重复反转。
+  const primaryLineReversed = style.primaryLinePosition === "second";
+  const alternatingLineReversed = alternatingDoubleLine && lyrics.activeIndex % 2 === 1;
+  const doubleLineOrder = primaryLineReversed !== alternatingLineReversed ? "reversed" : "normal";
   const effectiveAlignment = !supportsSecondary
     || (style.autoCenterWithTranslationOrRomanization && showingTranslationOrRomanization)
     ? "center"
