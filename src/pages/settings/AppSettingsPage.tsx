@@ -65,6 +65,7 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
     setSystemMediaApplications,
     setPlayerFollowerApplication,
     setDockIconHidden,
+    setMenuBarIconHidden,
     setSilentStartup,
     setLyricsWindowsShowOnAllSpaces,
     playback,
@@ -340,6 +341,7 @@ export default function AppSettingsPage({ scope }: { scope: "player" | "applicat
     <SettingsSection id="application-startup" title={t("settings.player.startup")}>
       <ToggleRow label={t("settings.app.silentStartup")} description={t("settings.player.silentStartupHint")} value={config.app.silentStartup} onChange={(enabled) => setSilentStartup(enabled).catch((error) => setError(messageOf(error)))} />
       <ToggleRow label={t("settings.app.hideDock")} description={t("settings.app.hideDockHint")} value={config.app.hideDockIcon} onChange={(hidden) => setDockIconHidden(hidden).catch((error) => setError(messageOf(error)))} />
+      <ToggleRow label={t("settings.app.hideMenuBarIcon")} description={t("settings.app.hideMenuBarIconHint")} value={config.app.hideMenuBarIcon} onChange={(hidden) => setMenuBarIconHidden(hidden).catch((error) => setError(messageOf(error)))} />
     </SettingsSection>
     <SettingsSection id="application-display" title={t("settings.app.display")}>
       <Field orientation="horizontal" className={styles.settingRow}>

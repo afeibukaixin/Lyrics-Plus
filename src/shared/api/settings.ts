@@ -17,6 +17,8 @@ export const settingsApi = {
     invoke<SettingsResetResponse>("reset_settings_section", { section }),
   setDockIconHidden: (hidden: boolean) =>
     invoke<AppConfig>("set_dock_icon_hidden", { hidden }),
+  setMenuBarIconHidden: (hidden: boolean) =>
+    invoke<AppConfig>("set_menu_bar_icon_hidden", { hidden }),
   setSilentStartup: (enabled: boolean) =>
     invoke<AppConfig>("set_silent_startup", { enabled }),
   setAutoCheckUpdates: (enabled: boolean) =>

@@ -210,6 +210,15 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         .build(app)?;
 
     #[cfg(target_os = "macos")]
+    icon.set_visible(
+        !app.state::<AppState>()
+            .config
+            .snapshot()
+            .app
+            .hide_menu_bar_icon,
+    )?;
+
+    #[cfg(target_os = "macos")]
     let lyrics_icon = TrayIconBuilder::with_id("lyrics-status-item")
         .title("Lyrics Plus")
         .tooltip("Lyrics Plus")

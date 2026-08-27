@@ -380,6 +380,33 @@ pub fn set_dock_icon_hidden(app: tauri::AppHandle, hidden: bool) -> Result<AppCo
     update_dock_icon_hidden(&app, hidden)
 }
 
+pub fn update_menu_bar_icon_hidden(
+    app: &tauri::AppHandle,
+    hidden: bool,
+) -> Result<AppConfig, String> {
+    let state = app.state::<AppState>();
+    let previous = state.config.snapshot().app.hide_menu_bar_icon;
+    crate::apply_menu_bar_icon_hidden(app, hidden)?;
+    let config = match state
+        .config
+        .update(|config| config.app.hide_menu_bar_icon = hidden)
+    {
+        Ok(config) => config,
+        Err(error) => {
+            let _ = crate::apply_menu_bar_icon_hidden(app, previous);
+            return Err(error);
+        }
+    };
+    app.emit("config://changed", &config)
+        .map_err(|error| error.to_string())?;
+    Ok(config)
+}
+
+#[tauri::command]
+pub fn set_menu_bar_icon_hidden(app: tauri::AppHandle, hidden: bool) -> Result<AppConfig, String> {
+    update_menu_bar_icon_hidden(&app, hidden)
+}
+
 #[tauri::command]
 pub fn set_silent_startup(
     app: tauri::AppHandle,

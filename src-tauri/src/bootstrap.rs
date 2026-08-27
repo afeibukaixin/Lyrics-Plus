@@ -282,6 +282,7 @@ pub fn run() {
             commands::get_global_shortcut_status,
             commands::set_global_shortcuts,
             commands::set_dock_icon_hidden,
+            commands::set_menu_bar_icon_hidden,
             commands::set_silent_startup,
             commands::set_auto_check_updates,
             commands::set_overlay_hide_when_not_playing,

@@ -26,6 +26,9 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             line if line.starts_with("    \"hideDockIcon\":") => {
                 Some(("    ", ConfigComment::HideDockIcon))
             }
+            line if line.starts_with("    \"hideMenuBarIcon\":") => {
+                Some(("    ", ConfigComment::HideMenuBarIcon))
+            }
             line if line.starts_with("    \"silentStartup\":") => {
                 Some(("    ", ConfigComment::SilentStartup))
             }

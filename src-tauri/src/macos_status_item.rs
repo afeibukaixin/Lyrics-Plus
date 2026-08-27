@@ -512,7 +512,10 @@ pub(crate) fn sync(app: &tauri::AppHandle) {
         return;
     };
     let payload = render_payload(app);
-    let _ = tray_state.icon.set_visible(true);
+    let app_icon_visible = !app
+        .try_state::<AppState>()
+        .is_some_and(|state| state.config.snapshot().app.hide_menu_bar_icon);
+    let _ = tray_state.icon.set_visible(app_icon_visible);
     let visible = payload.is_some();
     let _ = tray_state.lyrics_icon.with_inner_tray_icon(move |inner| {
         if let Some(status_item) = inner.ns_status_item() {

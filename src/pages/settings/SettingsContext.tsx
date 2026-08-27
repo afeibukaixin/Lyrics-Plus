@@ -32,6 +32,7 @@ export type SettingsOutletContext = {
   setSystemMediaApplications: ReturnType<typeof useAppConfig>["setSystemMediaApplications"];
   setPlayerFollowerApplication: ReturnType<typeof useAppConfig>["setPlayerFollowerApplication"];
   setDockIconHidden: ReturnType<typeof useAppConfig>["setDockIconHidden"];
+  setMenuBarIconHidden: ReturnType<typeof useAppConfig>["setMenuBarIconHidden"];
   setSilentStartup: ReturnType<typeof useAppConfig>["setSilentStartup"];
   setLyricsWindowsShowOnAllSpaces: ReturnType<typeof useAppConfig>["setLyricsWindowsShowOnAllSpaces"];
   setOverlayHideWhenNotPlaying: ReturnType<typeof useAppConfig>["setOverlayHideWhenNotPlaying"];

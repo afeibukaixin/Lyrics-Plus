@@ -233,10 +233,21 @@ fn apply_app_config(
 ) -> Result<AppConfig, String> {
     let previous_config = state.config.snapshot();
     let previous_dock_icon_hidden = previous_config.app.hide_dock_icon;
+    let previous_menu_bar_icon_hidden = previous_config.app.hide_menu_bar_icon;
     let previous_shortcuts = previous_config.app.shortcuts.clone();
     let dock_visibility_changed = previous_dock_icon_hidden != next.app.hide_dock_icon;
+    let menu_bar_icon_visibility_changed =
+        previous_menu_bar_icon_hidden != next.app.hide_menu_bar_icon;
     if dock_visibility_changed {
         crate::apply_dock_icon_hidden(app, next.app.hide_dock_icon)?;
+    }
+    if menu_bar_icon_visibility_changed {
+        if let Err(error) = crate::apply_menu_bar_icon_hidden(app, next.app.hide_menu_bar_icon) {
+            if dock_visibility_changed {
+                let _ = crate::apply_dock_icon_hidden(app, previous_dock_icon_hidden);
+            }
+            return Err(error);
+        }
     }
     let shortcuts_changed = previous_shortcuts != next.app.shortcuts;
     if shortcuts_changed {
@@ -245,6 +256,9 @@ fn apply_app_config(
         {
             if dock_visibility_changed {
                 let _ = crate::apply_dock_icon_hidden(app, previous_dock_icon_hidden);
+            }
+            if menu_bar_icon_visibility_changed {
+                let _ = crate::apply_menu_bar_icon_hidden(app, previous_menu_bar_icon_hidden);
             }
             return Err(error);
         }
@@ -257,6 +271,9 @@ fn apply_app_config(
         Err(error) => {
             if dock_visibility_changed {
                 let _ = crate::apply_dock_icon_hidden(app, previous_dock_icon_hidden);
+            }
+            if menu_bar_icon_visibility_changed {
+                let _ = crate::apply_menu_bar_icon_hidden(app, previous_menu_bar_icon_hidden);
             }
             if shortcuts_changed {
                 let _ =
@@ -454,6 +471,7 @@ pub fn reset_settings_section(
         }
         SettingsSection::Application => {
             update_dock_icon_hidden(&app, false)?;
+            update_menu_bar_icon_hidden(&app, false)?;
             update_global_shortcuts(&app, GlobalShortcutSettings::default())?;
             state.config.update(|config| {
                 config.app.theme = ThemePreference::Dark;

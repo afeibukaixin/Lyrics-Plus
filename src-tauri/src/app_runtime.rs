@@ -416,3 +416,24 @@ pub(crate) fn apply_dock_icon_hidden(app: &tauri::AppHandle, hidden: bool) -> Re
 pub(crate) fn apply_dock_icon_hidden(_app: &tauri::AppHandle, _hidden: bool) -> Result<(), String> {
     Ok(())
 }
+
+#[cfg(target_os = "macos")]
+pub(crate) fn apply_menu_bar_icon_hidden(
+    app: &tauri::AppHandle,
+    hidden: bool,
+) -> Result<(), String> {
+    if let Some(tray) = app.try_state::<TrayMenuState>() {
+        tray.icon
+            .set_visible(!hidden)
+            .map_err(|error| format!("更新菜单栏图标显示状态失败：{error}"))?;
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn apply_menu_bar_icon_hidden(
+    _app: &tauri::AppHandle,
+    _hidden: bool,
+) -> Result<(), String> {
+    Ok(())
+}

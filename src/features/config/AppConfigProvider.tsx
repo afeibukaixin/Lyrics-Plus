@@ -95,8 +95,8 @@ function applyPendingNotchPreferences(
 }
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 54,
-  app: { theme: "dark", language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, silentStartup: false, autoCheckUpdates: true, lyricsWindowsShowOnAllSpaces: false, shortcuts: defaultGlobalShortcuts },
+  schemaVersion: 55,
+  app: { theme: "dark", language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, hideMenuBarIcon: false, silentStartup: false, autoCheckUpdates: true, lyricsWindowsShowOnAllSpaces: false, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     providers: {
       mode: "smart",
@@ -155,6 +155,7 @@ type AppConfigContextValue = {
   setSystemMediaApplications: (applications: RegisteredApplication[]) => Promise<void>;
   setPlayerFollowerApplication: (application: RegisteredApplication | null) => Promise<void>;
   setDockIconHidden: (hidden: boolean) => Promise<void>;
+  setMenuBarIconHidden: (hidden: boolean) => Promise<void>;
   setSilentStartup: (enabled: boolean) => Promise<void>;
   setAutoCheckUpdates: (enabled: boolean) => Promise<void>;
   setLyricsWindowsShowOnAllSpaces: (enabled: boolean) => Promise<void>;
@@ -342,6 +343,16 @@ export function AppConfigProvider({
         return;
       }
       setConfig(await api.setDockIconHidden(hidden));
+    },
+    setMenuBarIconHidden: async (hidden) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({
+          ...current,
+          app: { ...current.app, hideMenuBarIcon: hidden },
+        }));
+        return;
+      }
+      setConfig(await api.setMenuBarIconHidden(hidden));
     },
     setSilentStartup: async (enabled) => {
       if (!isTauriRuntime()) {

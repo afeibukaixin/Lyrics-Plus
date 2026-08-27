@@ -28,6 +28,7 @@ export type AppConfig = {
     systemMediaApplications: RegisteredApplication[];
     playerFollowerApplication: RegisteredApplication | null;
     hideDockIcon: boolean;
+    hideMenuBarIcon: boolean;
     silentStartup: boolean;
     autoCheckUpdates: boolean;
     lyricsWindowsShowOnAllSpaces: boolean;

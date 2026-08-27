@@ -575,6 +575,7 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
     }
     for (pointer, key) in [
         ("/app/hideDockIcon", "hideDockIcon"),
+        ("/app/hideMenuBarIcon", "hideMenuBarIcon"),
         ("/app/silentStartup", "silentStartup"),
         ("/app/autoCheckUpdates", "autoCheckUpdates"),
         (
