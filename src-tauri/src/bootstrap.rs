@@ -191,6 +191,11 @@ pub fn run() {
                     {
                         // 原生拖动期间 macOS 独占窗口位置；松手后由 start_overlay_drag 统一收尾。
                         if overlay_drag_active(window.app_handle()) {
+                            update_overlay_toolbar_placement_during_drag(
+                                window.app_handle(),
+                                &overlay,
+                                *position,
+                            );
                             return;
                         }
                         if ignore_overlay_move(window.app_handle(), &overlay, *position) {

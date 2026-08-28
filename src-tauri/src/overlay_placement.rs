@@ -431,13 +431,13 @@ pub(crate) fn reset_overlay_toolbar_placement(
     set_overlay_toolbar_placement(app, ToolbarPlacement::for_orientation(orientation));
 }
 
-fn adjust_overlay_toolbar_for_move(
+fn overlay_toolbar_move_result(
     app: &tauri::AppHandle,
     window: &tauri::WebviewWindow,
     position: tauri::PhysicalPosition<i32>,
-) -> tauri::PhysicalPosition<i32> {
+) -> Option<(ToolbarPlacement, tauri::PhysicalPosition<i32>)> {
     let (Ok(Some(monitor)), Ok(size)) = (window.current_monitor(), window.outer_size()) else {
-        return position;
+        return None;
     };
     let state = app.state::<AppState>();
     let orientation = state
@@ -466,8 +466,32 @@ fn adjust_overlay_toolbar_for_move(
         work_area.position,
         work_area.size,
     );
+    Some((next_placement, next_position))
+}
+
+fn adjust_overlay_toolbar_for_move(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+    position: tauri::PhysicalPosition<i32>,
+) -> tauri::PhysicalPosition<i32> {
+    let Some((next_placement, next_position)) = overlay_toolbar_move_result(app, window, position)
+    else {
+        return position;
+    };
     set_overlay_toolbar_placement(app, next_placement);
     next_position
+}
+
+/// 原生拖动期间只更新工具栏方位，不修改窗口坐标，避免破坏系统拖动的抓点和流畅性。
+pub(crate) fn update_overlay_toolbar_placement_during_drag(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+    position: tauri::PhysicalPosition<i32>,
+) {
+    let Some((next_placement, _)) = overlay_toolbar_move_result(app, window, position) else {
+        return;
+    };
+    set_overlay_toolbar_placement(app, next_placement);
 }
 
 pub(crate) fn set_overlay_drag_active(app: &tauri::AppHandle, active: bool) {
