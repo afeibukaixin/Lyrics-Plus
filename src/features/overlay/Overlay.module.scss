@@ -93,8 +93,9 @@
 .karaokeWordFill {
   color: var(--active-color); clip-path: inset(0 calc(100% - var(--word-progress)) 0 0);
   -webkit-text-stroke: 0 transparent;
-  transition: clip-path .08s linear; will-change: clip-path;
+  transition: clip-path .08s linear;
 }
+.karaokeWord[data-current="true"] .karaokeWordFill { will-change: clip-path; }
 .overlay[data-orientation="vertical"] .karaokeWordFill {
   clip-path: inset(0 0 calc(100% - var(--word-progress)) 0);
 }

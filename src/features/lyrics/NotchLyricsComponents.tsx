@@ -27,7 +27,6 @@ import type {
   CompactKaraokeStyle,
   LyricsLine,
   NotchLyricsPreferences,
-  PlaybackSpectrumBands,
 } from "../../shared/types";
 import styles from "./NotchLyricsWindow.module.scss";
 
@@ -59,11 +58,24 @@ function formatCompactLyricsOffset(offsetMs: number) {
   return `${offsetMs > 0 ? "+" : "−"}${seconds}s`;
 }
 
-export function SpectrumBars({ bands }: { bands: PlaybackSpectrumBands }) {
+export function SpectrumBars({
+  active,
+  register,
+}: {
+  active: boolean;
+  register: (node: HTMLSpanElement) => () => void;
+}) {
+  const rootRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const node = rootRef.current;
+    if (!node) return;
+    return register(node);
+  }, [register]);
+
   return (
-    <span className={styles.spectrum} aria-hidden="true">
-      {bands.slice(0, 6).map((band, index) => (
-        <span className={styles.spectrumBar} key={index} style={{ "--spectrum-level": `${Math.max(12, Math.round(band * 100))}%` } as CSSProperties} />
+    <span className={styles.spectrum} data-active={active || undefined} aria-hidden="true" ref={rootRef}>
+      {Array.from({ length: 6 }, (_, index) => (
+        <span className={styles.spectrumBar} key={index} />
       ))}
     </span>
   );
@@ -495,6 +507,8 @@ export function KaraokeLine({ line, positionMs, karaokeStyle }: { line: LyricsLi
         return (
           <span
             className={styles.karaokeWord}
+            data-complete={positionMs >= word.endMs || (duration === 0 && positionMs >= word.startMs)}
+            data-current={positionMs >= word.startMs && positionMs < word.endMs}
             key={`${word.startMs}-${index}`}
             style={{ "--word-progress": `${progress}%` } as CSSProperties}
           >

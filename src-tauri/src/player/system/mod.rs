@@ -19,6 +19,8 @@ use super::{
 
 mod compat;
 
+const MAX_ARTWORK_EDGE_PX: u32 = 192;
+
 pub struct SystemMediaService {
     player: OnceLock<Result<AdapterClient, String>>,
     artwork_cache: Mutex<Option<PlaybackArtwork>>,
@@ -217,6 +219,7 @@ impl SystemMediaService {
 
         let mut encoded = std::io::Cursor::new(Vec::new());
         image
+            .thumbnail(MAX_ARTWORK_EDGE_PX, MAX_ARTWORK_EDGE_PX)
             .write_to(&mut encoded, ImageFormat::Png)
             .map_err(|error| format!("封面编码失败：{error}"))?;
         let artwork = PlaybackArtwork {

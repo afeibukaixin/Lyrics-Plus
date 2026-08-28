@@ -12,17 +12,29 @@ const emptySnapshot: LyricsRuntimeSnapshot = {
   error: null,
 };
 
-export function useLyricsPresentation(snapshot: PlaybackSnapshot, positionMs: number) {
+export function useLyricsPresentation(snapshot: PlaybackSnapshot, positionMs: number, active = true) {
   const [runtime, setRuntime] = useState<LyricsRuntimeSnapshot>(emptySnapshot);
   const trackKey = useMemo(() => trackKeyOf(snapshot), [snapshot]);
 
   useEffect(() => {
-    if (!isTauriRuntime()) return;
-    void api.getLyricsRuntimeSnapshot().then(setRuntime).catch(() => undefined);
-    return createTauriListenerCleanup(
-      listen<LyricsRuntimeSnapshot>("lyrics://runtime-changed", ({ payload }) => setRuntime(payload)),
+    if (!active || !isTauriRuntime()) {
+      setRuntime(emptySnapshot);
+      return;
+    }
+    let disposed = false;
+    void api.getLyricsRuntimeSnapshot().then((next) => {
+      if (!disposed) setRuntime(next);
+    }).catch(() => undefined);
+    const cleanup = createTauriListenerCleanup(
+      listen<LyricsRuntimeSnapshot>("lyrics://runtime-changed", ({ payload }) => {
+        if (!disposed) setRuntime(payload);
+      }),
     );
-  }, []);
+    return () => {
+      disposed = true;
+      cleanup();
+    };
+  }, [active]);
 
   const document = runtime.trackKey === trackKey ? runtime.document : null;
   const activeIndex = useMemo(() => {

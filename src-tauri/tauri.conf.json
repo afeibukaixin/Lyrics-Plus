@@ -11,25 +11,13 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [
-      {
-        "label": "main",
-        "title": "Lyrics Plus",
-        "width": 980,
-        "height": 720,
-        "minWidth": 760,
-        "minHeight": 560,
-        "resizable": false,
-        "maximizable": false,
-        "visible": false
-      }
-    ],
+    "windows": [],
     "macOSPrivateApi": true,
     "security": {
       "csp": {
         "default-src": "'self' customprotocol: asset:",
         "connect-src": "ipc: http://ipc.localhost",
-        "img-src": "'self' data:",
+        "img-src": "'self' data: blob:",
         "style-src": "'self' 'unsafe-inline'"
       }
     }

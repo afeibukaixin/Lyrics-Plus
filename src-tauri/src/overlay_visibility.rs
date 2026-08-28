@@ -5,6 +5,11 @@ fn should_show_overlay(visible: bool, hide_when_not_playing: bool, is_playing: b
 pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<bool, String> {
     let state = app.state::<AppState>();
     let configured = state.config.snapshot();
+    if !configured.overlay.visible {
+        destroy_surface(app, "lyrics-unlock-handle")?;
+        destroy_surface(app, "lyrics-overlay")?;
+        return Ok(false);
+    }
     let is_playing = state
         .last_snapshot
         .read()
@@ -15,9 +20,19 @@ pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<boo
         configured.overlay.hide_when_not_playing,
         is_playing,
     );
+    create_overlay(app).map_err(|error| error.to_string())?;
     let window = app
         .get_webview_window("lyrics-overlay")
-        .ok_or_else(|| "歌词浮窗不存在".to_string())?;
+        .ok_or_else(|| "歌词浮窗创建失败".to_string())?;
+    let locked = configured.overlay.locked;
+    let _ = window.set_resizable(false);
+    window
+        .set_ignore_cursor_events(locked)
+        .map_err(|error| error.to_string())?;
+    let _ = window.set_focusable(!locked);
+    if !locked {
+        refresh_overlay_mouse_tracking(&window);
+    }
     let is_visible = window.is_visible().unwrap_or(false);
     if should_show {
         if !is_visible {
@@ -30,12 +45,15 @@ pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<boo
             &window,
             configured.app.lyrics_windows_show_on_all_spaces,
         )
-            .map_err(|error| error.to_string())?;
+        .map_err(|error| error.to_string())?;
         if !is_visible {
             window.show().map_err(|error| error.to_string())?;
+            set_surface_runtime_state(app, &window, SurfaceRuntimeState::Active);
+            wake_overlay_pointer_monitor(app);
         }
     } else {
         if is_visible {
+            set_surface_runtime_state(app, &window, SurfaceRuntimeState::Dormant);
             window.hide().map_err(|error| error.to_string())?;
         }
         crate::apply_lyrics_window_space_behavior(
@@ -106,6 +124,7 @@ fn start_player_monitor(app: tauri::AppHandle) {
                     .unwrap_or_else(|e| e.into_inner()) = snapshot.clone();
                 *state.auto_player.write().unwrap_or_else(|e| e.into_inner()) = next_auto_player;
                 state.spectrum.sync_snapshot(&app, &snapshot);
+                state.status_bar_wake.notify_one();
             }
             let _ = app.emit("playback://snapshot", &snapshot);
             commands::sync_lyrics_runtime(&app, &snapshot);

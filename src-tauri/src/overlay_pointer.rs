@@ -146,19 +146,28 @@ pub(crate) fn sync_unlock_handle(app: &tauri::AppHandle) {
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .clone();
-    let (Some(overlay), Some(handle)) = (
-        app.get_webview_window("lyrics-overlay"),
-        app.get_webview_window("lyrics-unlock-handle"),
-    ) else {
+    let Some(overlay) = app.get_webview_window("lyrics-overlay") else {
+        let _ = destroy_surface(app, "lyrics-unlock-handle");
         return;
     };
     let should_show = settings.visible && settings.locked && overlay.is_visible().unwrap_or(false);
-    let is_visible = handle.is_visible().unwrap_or(false);
-    if should_show {
-        position_unlock_handle(app);
-    } else if is_visible {
-        let _ = handle.hide();
-        let _ = handle.emit(UNLOCK_HANDLE_HOVER_EVENT, false);
+    if !should_show {
+        let _ = destroy_surface(app, "lyrics-unlock-handle");
+        return;
+    }
+    if app.get_webview_window("lyrics-unlock-handle").is_none() {
+        if let Err(error) = create_unlock_handle(app) {
+            log::warn!("Failed to create overlay unlock handle: {error}");
+            return;
+        }
+    }
+    position_unlock_handle(app);
+    wake_overlay_pointer_monitor(app);
+}
+
+fn wake_overlay_pointer_monitor(app: &tauri::AppHandle) {
+    if let Some(state) = app.try_state::<AppState>() {
+        state.pointer_monitor_wake.notify_one();
     }
 }
 
@@ -169,6 +178,23 @@ fn start_overlay_pointer_monitor(app: tauri::AppHandle) {
         let mut last_overlay_hovered: Option<bool> = None;
 
         loop {
+            let has_visible_consumer = ["lyrics-overlay", "lyrics-notch"].iter().any(|label| {
+                app.get_webview_window(label)
+                    .and_then(|window| window.is_visible().ok())
+                    .unwrap_or(false)
+            });
+            if !has_visible_consumer {
+                last_inside_at = None;
+                last_handle_hovered = None;
+                last_overlay_hovered = None;
+                if let Some(state) = app.try_state::<AppState>() {
+                    let wake = state.pointer_monitor_wake.clone();
+                    wake.notified().await;
+                } else {
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+                continue;
+            }
             tokio::time::sleep(OVERLAY_POINTER_MONITOR_INTERVAL).await;
 
             let Some(state) = app.try_state::<AppState>() else {
@@ -204,10 +230,7 @@ fn start_overlay_pointer_monitor(app: tauri::AppHandle) {
                 }
             }
 
-            let (Some(overlay), Some(handle)) = (
-                app.get_webview_window("lyrics-overlay"),
-                app.get_webview_window("lyrics-unlock-handle"),
-            ) else {
+            let Some(overlay) = app.get_webview_window("lyrics-overlay") else {
                 continue;
             };
             let overlay_visible = overlay.is_visible().unwrap_or(false);
@@ -241,15 +264,21 @@ fn start_overlay_pointer_monitor(app: tauri::AppHandle) {
 
             if !settings.visible || !settings.locked || !overlay_visible {
                 last_inside_at = None;
-                if handle.is_visible().unwrap_or(false) {
-                    let _ = handle.hide();
-                }
-                if last_handle_hovered != Some(false) {
-                    let _ = handle.emit(UNLOCK_HANDLE_HOVER_EVENT, false);
-                    last_handle_hovered = Some(false);
+                if let Some(handle) = app.get_webview_window("lyrics-unlock-handle") {
+                    if handle.is_visible().unwrap_or(false) {
+                        let _ = handle.hide();
+                    }
+                    if last_handle_hovered != Some(false) {
+                        let _ = handle.emit(UNLOCK_HANDLE_HOVER_EVENT, false);
+                        last_handle_hovered = Some(false);
+                    }
                 }
                 continue;
             }
+
+            let Some(handle) = app.get_webview_window("lyrics-unlock-handle") else {
+                continue;
+            };
 
             let sample = (overlay_sample, handle.outer_position(), handle.outer_size());
             let (should_show, hovered) = match sample {
@@ -311,30 +340,6 @@ pub(crate) fn activate_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     // 创建浮窗时需要 Accessory 资格；创建后恢复用户的 Dock 设置。
     #[cfg(target_os = "macos")]
     apply_dock_icon_hidden(app, true)?;
-    let overlay_settings = state
-        .overlay_settings
-        .read()
-        .unwrap_or_else(|error| error.into_inner())
-        .clone();
-
-    let create_windows = (|| {
-        create_overlay(app).map_err(|error| error.to_string())?;
-        create_unlock_handle(app).map_err(|error| error.to_string())
-    })();
-    #[cfg(target_os = "macos")]
-    let restore_dock = apply_dock_icon_hidden(app, configured.app.hide_dock_icon);
-    create_windows?;
-    #[cfg(target_os = "macos")]
-    restore_dock?;
-    if let Some(window) = app.get_webview_window("lyrics-overlay") {
-        let _ = window.set_resizable(false);
-        let _ = window.set_ignore_cursor_events(overlay_settings.locked);
-        let _ = window.set_focusable(!overlay_settings.locked);
-        if !overlay_settings.locked {
-            refresh_overlay_mouse_tracking(&window);
-        }
-        restore_overlay_position(app, &window);
-    }
     setup_tray(app).map_err(|error| error.to_string())?;
     if !configured.app.language.uses_native_chinese() {
         apply_native_language(app, UiLanguage::EnUs)?;
@@ -353,6 +358,9 @@ pub(crate) fn activate_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     if let Err(error) = reconcile_auxiliary_lyrics_windows(app) {
         log::warn!("Failed to restore auxiliary lyrics windows: {error}");
     }
+    #[cfg(target_os = "macos")]
+    apply_dock_icon_hidden(app, configured.app.hide_dock_icon)?;
+    sync_app_menu_bar_icon_visibility(app)?;
     start_overlay_pointer_monitor(app.clone());
     start_player_monitor(app.clone());
     player_lifecycle::start_exit_monitor(app.clone());

@@ -53,7 +53,7 @@ export default function LyricsListWindow() {
   const { t } = useTranslation();
   const { config, setLyricsDisplayPreferences } = useAppConfig();
   const playback = usePlayback();
-  const lyrics = useLyricsPresentation(playback.snapshot, playback.positionMs);
+  const lyrics = useLyricsPresentation(playback.snapshot, playback.positionMs, playback.active);
   const activeRef = useRef<HTMLDivElement>(null);
   const toolbarHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingOffsetRef = useRef(0);

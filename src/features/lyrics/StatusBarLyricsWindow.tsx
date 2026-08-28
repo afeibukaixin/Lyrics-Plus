@@ -7,7 +7,7 @@ import styles from "./StatusBarLyricsWindow.module.scss";
 export default function StatusBarLyricsWindow() {
   const { config } = useAppConfig();
   const playback = usePlayback();
-  const lyrics = useLyricsPresentation(playback.snapshot, playback.positionMs);
+  const lyrics = useLyricsPresentation(playback.snapshot, playback.positionMs, playback.active);
   const preferences = config.lyrics.displays.statusBar;
   const appearance = preferences.appearance;
   const value = lyrics.currentLine

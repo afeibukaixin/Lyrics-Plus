@@ -128,7 +128,7 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         .cloned()
         .expect("missing application icon");
 
-    let tray_builder = TrayIconBuilder::new().icon(tray_icon);
+    let tray_builder = TrayIconBuilder::with_id("app-menu").icon(tray_icon);
     #[cfg(target_os = "macos")]
     let tray_builder = tray_builder.icon_as_template(true);
 
@@ -210,15 +210,6 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         .build(app)?;
 
     #[cfg(target_os = "macos")]
-    icon.set_visible(
-        !app.state::<AppState>()
-            .config
-            .snapshot()
-            .app
-            .hide_menu_bar_icon,
-    )?;
-
-    #[cfg(target_os = "macos")]
     let lyrics_icon = TrayIconBuilder::with_id("lyrics-status-item")
         .title("Lyrics Plus")
         .tooltip("Lyrics Plus")
@@ -244,6 +235,9 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         settings: settings.clone(),
         quit: quit.clone(),
     });
+    #[cfg(target_os = "macos")]
+    macos_status_item::configure_lyrics_icon_identity(app)?;
+    sync_app_menu_bar_icon_visibility(app).map_err(std::io::Error::other)?;
     sync_lyrics_surfaces(app);
     #[cfg(target_os = "macos")]
     macos_status_item::start(app.clone());

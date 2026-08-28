@@ -6,6 +6,7 @@ const QUANTIZATION_STEP = 32;
 const MIN_ALPHA = 128;
 const MIN_LUMINANCE = 0.08;
 const MAX_LUMINANCE = 0.92;
+const ACCENT_COLOR_CACHE_LIMIT = 32;
 
 type ColorBucket = {
   count: number;
@@ -16,6 +17,24 @@ type ColorBucket = {
 };
 
 const accentColorCache = new Map<string, string>();
+
+function cachedAccentColor(artworkId: string) {
+  const color = accentColorCache.get(artworkId);
+  if (!color) return null;
+  accentColorCache.delete(artworkId);
+  accentColorCache.set(artworkId, color);
+  return color;
+}
+
+function cacheAccentColor(artworkId: string, color: string) {
+  accentColorCache.delete(artworkId);
+  accentColorCache.set(artworkId, color);
+  while (accentColorCache.size > ACCENT_COLOR_CACHE_LIMIT) {
+    const oldest = accentColorCache.keys().next().value;
+    if (oldest === undefined) break;
+    accentColorCache.delete(oldest);
+  }
+}
 
 function rgbToHsl(red: number, green: number, blue: number) {
   const r = red / 255;
@@ -169,7 +188,7 @@ export function useArtworkAccentColor(
       };
     }
 
-    const cachedColor = accentColorCache.get(artworkId);
+    const cachedColor = cachedAccentColor(artworkId);
     if (cachedColor) {
       setAccentColor(cachedColor);
       return () => {
@@ -182,7 +201,7 @@ export function useArtworkAccentColor(
     image.onload = () => {
       if (disposed) return;
       const extractedColor = extractAccentColor(image) ?? DEFAULT_ACCENT_COLOR;
-      accentColorCache.set(artworkId, extractedColor);
+      cacheAccentColor(artworkId, extractedColor);
       setAccentColor(extractedColor);
     };
     image.onerror = () => {
@@ -194,6 +213,7 @@ export function useArtworkAccentColor(
       disposed = true;
       image.onload = null;
       image.onerror = null;
+      image.src = "";
     };
   }, [artworkId, artworkUrl]);
 

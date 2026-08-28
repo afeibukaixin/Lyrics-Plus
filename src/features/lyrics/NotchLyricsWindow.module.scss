@@ -164,8 +164,7 @@
 .spectrumBar {
   display: block;
   width: 3px;
-  height: var(--spectrum-level, 12%);
-  min-height: 4px;
+  height: 100%;
   border-radius: 999px;
   background-color: var(--notch-spectrum-color, currentColor);
   background-image: linear-gradient(
@@ -175,7 +174,13 @@
     rgb(0 0 0 / 42%) 100%
   );
   opacity: 1;
-  transition: height 90ms ease, background-color 180ms ease;
+  transform: scaleY(0.12);
+  transform-origin: center;
+  transition: transform 90ms ease, background-color 180ms ease;
+}
+
+.spectrum[data-active="true"] .spectrumBar {
+  will-change: transform;
 }
 
 .notchGap {
@@ -632,6 +637,9 @@
   color: var(--notch-active-color);
   clip-path: inset(0 calc(100% - var(--word-progress)) 0 0);
   transition: clip-path 80ms linear;
+}
+
+.karaokeWord[data-current="true"] .karaokeWordFill {
   will-change: clip-path;
 }
 

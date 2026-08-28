@@ -69,6 +69,7 @@ pub(crate) struct OverlayPlacementState {
     preferred_monitor: Option<String>,
     topology: Vec<MonitorTopologyEntry>,
     pub(crate) toolbar_placement: ToolbarPlacement,
+    drag_active: bool,
     expected_programmatic_position: Option<tauri::PhysicalPosition<i32>>,
     programmatic_move_started_at: Option<Instant>,
 }
@@ -234,13 +235,40 @@ pub(crate) fn show_main_window_at(
     app: &tauri::AppHandle,
     route: Option<&str>,
 ) -> Result<(), String> {
-    let window = app
-        .get_webview_window("main")
-        .ok_or_else(|| "主窗口不存在".to_string())?;
-    if let Some(route) = route {
-        window
-            .eval(format!("window.location.hash = {route:?}"))
-            .map_err(|error| error.to_string())?;
+    let runtime_started = app.try_state::<AppState>().is_some_and(|state| {
+        *state
+            .runtime_started
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+    });
+    if runtime_started {
+        setup_tray(app).map_err(|error| error.to_string())?;
+        sync_app_menu_bar_icon_visibility(app)?;
+    }
+
+    let existing = app.get_webview_window("main");
+    let window = if let Some(window) = existing.as_ref() {
+        window.clone()
+    } else {
+        let path = route
+            .map(|route| format!("index.html{route}"))
+            .unwrap_or_else(|| "index.html".to_string());
+        WebviewWindowBuilder::new(app, "main", WebviewUrl::App(path.into()))
+            .title("Lyrics Plus")
+            .inner_size(980.0, 720.0)
+            .min_inner_size(760.0, 560.0)
+            .resizable(false)
+            .maximizable(false)
+            .visible(false)
+            .build()
+            .map_err(|error| error.to_string())?
+    };
+    if existing.is_some() {
+        if let Some(route) = route {
+            window
+                .eval(format!("window.location.hash = {route:?}"))
+                .map_err(|error| error.to_string())?;
+        }
     }
     if !window.is_visible().unwrap_or(false) {
         if let Err(error) = center_main_window_on_cursor(app, &window) {
@@ -251,6 +279,7 @@ pub(crate) fn show_main_window_at(
         log::warn!("Failed to unminimize the main window: {error}");
     }
     window.show().map_err(|error| error.to_string())?;
+    set_surface_runtime_state(app, &window, SurfaceRuntimeState::Active);
     window.set_focus().map_err(|error| error.to_string())
 }
 
@@ -439,6 +468,43 @@ fn adjust_overlay_toolbar_for_move(
     );
     set_overlay_toolbar_placement(app, next_placement);
     next_position
+}
+
+pub(crate) fn set_overlay_drag_active(app: &tauri::AppHandle, active: bool) {
+    let Some(state) = app.try_state::<AppState>() else {
+        return;
+    };
+    state
+        .overlay_placement
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .drag_active = active;
+}
+
+pub(crate) fn overlay_drag_active(app: &tauri::AppHandle) -> bool {
+    app.try_state::<AppState>()
+        .map(|state| {
+            state
+                .overlay_placement
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .drag_active
+        })
+        .unwrap_or(false)
+}
+
+/// 原生拖动结束后再统一吸附、调整工具栏位置并保存，避免拖动中重设窗口位置导致抓点漂移。
+pub(crate) fn settle_overlay_position_at(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+    position: tauri::PhysicalPosition<i32>,
+) {
+    let snapped = snapped_position(window, position);
+    let adjusted = adjust_overlay_toolbar_for_move(app, window, snapped);
+    if adjusted != position {
+        set_overlay_position(app, window, adjusted);
+    }
+    persist_overlay_state_at(app, window, adjusted);
 }
 
 #[cfg(target_os = "macos")]

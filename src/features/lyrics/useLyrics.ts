@@ -35,7 +35,7 @@ export function findAlignedAuxiliaryLine(lines: LyricsLine[], currentLine: Lyric
   return nearestDelta <= AUXILIARY_TIMESTAMP_TOLERANCE_MS ? nearest : null;
 }
 
-export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number) {
+export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, active = true) {
   const { t } = useTranslation();
   const trackKey = useMemo(() => trackKeyOf(snapshot), [snapshot]);
   const [document, setDocument] = useState<LyricsDocument | null>(null);
@@ -49,7 +49,7 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number) {
   const documentTrackKey = useRef<string | null>(null);
   const pendingOffsetWrites = useRef(new Map<string, PendingOffsetWrite>());
   const offsetWriteQueue = useRef<Promise<void>>(Promise.resolve());
-  activeTrackKey.current = trackKey;
+  activeTrackKey.current = active ? trackKey : null;
 
   const updateDocument = useCallback((next: LyricsDocument | null, key: string | null = activeTrackKey.current) => {
     documentRef.current = next;
@@ -142,12 +142,12 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number) {
     setError(null);
     setResults([]);
     updateDocument(null);
-    if (!trackKey) return;
+    if (!active || !trackKey) return;
     void loadTrack(trackKey);
-  }, [loadTrack, trackKey, updateDocument]);
+  }, [active, loadTrack, trackKey, updateDocument]);
 
   useEffect(() => {
-    if (!isTauriRuntime()) return;
+    if (!active || !isTauriRuntime()) return;
     const cleanupLyricsListener = createTauriListenerCleanup(listen<string>("lyrics://changed", ({ payload }) => {
       if (payload === trackKey) void load();
     }));
@@ -158,7 +158,7 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number) {
       cleanupLyricsListener();
       cleanupLibraryListener();
     };
-  }, [load, trackKey]);
+  }, [active, load, trackKey]);
 
   const activeIndex = useMemo(() => {
     if (!document) return -1;

@@ -5,10 +5,10 @@ import { createTauriListenerCleanup } from "../../shared/tauriEvent";
 import { playerService } from "./playerService";
 import type {
   PlaybackAction,
-  PlaybackArtwork,
   PlaybackSnapshot,
   PlayerSelection,
 } from "../../shared/types";
+import { useSurfaceActivity } from "../window/useSurfaceActivity";
 
 const initialSnapshot: PlaybackSnapshot = {
   player: null,
@@ -28,42 +28,86 @@ const initialSnapshot: PlaybackSnapshot = {
   error: null,
 };
 
-export function usePlayback() {
+type UsePlaybackOptions = {
+  loadArtwork?: boolean;
+  trackPosition?: boolean;
+};
+
+function artworkBlobUrl(mimeType: string, dataBase64: string) {
+  const decoded = atob(dataBase64);
+  const bytes = new Uint8Array(decoded.length);
+  for (let index = 0; index < decoded.length; index += 1) bytes[index] = decoded.charCodeAt(index);
+  return URL.createObjectURL(new Blob([bytes], { type: mimeType }));
+}
+
+export function usePlayback({
+  loadArtwork = false,
+  trackPosition = true,
+}: UsePlaybackOptions = {}) {
+  const active = useSurfaceActivity();
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [selection, setSelectionState] = useState<PlayerSelection>("auto");
   const [clock, setClock] = useState(Date.now());
   const [configError, setConfigError] = useState<string | null>(null);
   const [snapshotLoadError, setSnapshotLoadError] = useState<string | null>(null);
-  const [artwork, setArtwork] = useState<PlaybackArtwork | null>(null);
+  const [artworkUrl, setArtworkUrl] = useState<string | null>(null);
   const [artworkLoading, setArtworkLoading] = useState(false);
   const [artworkError, setArtworkError] = useState<string | null>(null);
   const [isControlling, setIsControlling] = useState(false);
   const [controlError, setControlError] = useState<string | null>(null);
   const artworkRequestVersionRef = useRef(0);
+  const artworkUrlRef = useRef<string | null>(null);
   const controlPromiseRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
-    if (!isTauriRuntime()) return;
-    api.getPlayerSelection().then((value) => { setSelectionState(value); setConfigError(null); }).catch((error) => setConfigError(messageOf(error)));
-    api.getPlayback().then((value) => { setSnapshot(value); setSnapshotLoadError(null); }).catch((error) => setSnapshotLoadError(messageOf(error)));
+    if (!active || !isTauriRuntime()) {
+      setSnapshot(initialSnapshot);
+      return;
+    }
+    let disposed = false;
+    api.getPlayerSelection().then((value) => {
+      if (disposed) return;
+      setSelectionState(value);
+      setConfigError(null);
+    }).catch((error) => {
+      if (!disposed) setConfigError(messageOf(error));
+    });
+    api.getPlayback().then((value) => {
+      if (disposed) return;
+      setSnapshot(value);
+      setSnapshotLoadError(null);
+    }).catch((error) => {
+      if (!disposed) setSnapshotLoadError(messageOf(error));
+    });
     const cleanupSnapshotListener = createTauriListenerCleanup(
-      listen<PlaybackSnapshot>("playback://snapshot", ({ payload }) => { setSnapshot(payload); setSnapshotLoadError(null); }),
+      listen<PlaybackSnapshot>("playback://snapshot", ({ payload }) => {
+        if (disposed) return;
+        setSnapshot(payload);
+        setSnapshotLoadError(null);
+      }),
     );
     const cleanupSelectionListener = createTauriListenerCleanup(
-      listen<PlayerSelection>("player://selection", ({ payload }) => setSelectionState(payload)),
+      listen<PlayerSelection>("player://selection", ({ payload }) => {
+        if (!disposed) setSelectionState(payload);
+      }),
     );
     return () => {
+      disposed = true;
       cleanupSnapshotListener();
       cleanupSelectionListener();
     };
-  }, []);
+  }, [active]);
 
   useEffect(() => {
     const artworkId = snapshot.artworkId;
     artworkRequestVersionRef.current += 1;
     const requestVersion = artworkRequestVersionRef.current;
-    if (!artworkId || !isTauriRuntime()) {
-      setArtwork(null);
+    if (artworkUrlRef.current) {
+      URL.revokeObjectURL(artworkUrlRef.current);
+      artworkUrlRef.current = null;
+    }
+    setArtworkUrl(null);
+    if (!active || !loadArtwork || !artworkId || !isTauriRuntime()) {
       setArtworkLoading(false);
       setArtworkError(null);
       return;
@@ -73,10 +117,17 @@ export function usePlayback() {
     setArtworkError(null);
     playerService.getArtwork(artworkId).then((value) => {
       if (artworkRequestVersionRef.current !== requestVersion) return;
-      setArtwork(value?.id === artworkId ? value : null);
+      if (!value || value.id !== artworkId) return;
+      const nextUrl = artworkBlobUrl(value.mimeType, value.dataBase64);
+      if (artworkRequestVersionRef.current !== requestVersion) {
+        URL.revokeObjectURL(nextUrl);
+        return;
+      }
+      artworkUrlRef.current = nextUrl;
+      setArtworkUrl(nextUrl);
     }).catch((error) => {
       if (artworkRequestVersionRef.current !== requestVersion) return;
-      setArtwork(null);
+      setArtworkUrl(null);
       setArtworkError(messageOf(error));
     }).finally(() => {
       if (artworkRequestVersionRef.current === requestVersion) {
@@ -88,27 +139,26 @@ export function usePlayback() {
         artworkRequestVersionRef.current += 1;
       }
     };
-  }, [snapshot.artworkId]);
+  }, [active, loadArtwork, snapshot.artworkId]);
+
+  useEffect(() => () => {
+    artworkRequestVersionRef.current += 1;
+    if (artworkUrlRef.current) URL.revokeObjectURL(artworkUrlRef.current);
+    artworkUrlRef.current = null;
+  }, []);
 
   useEffect(() => {
-    let frame = 0;
-    let previous = 0;
-    const tick = (time: number) => {
-      if (time - previous >= 100) {
-        previous = time;
-        setClock(Date.now());
-      }
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, []);
+    if (!active || !trackPosition || !snapshot.isPlaying) return;
+    setClock(Date.now());
+    const timer = window.setInterval(() => setClock(Date.now()), 100);
+    return () => window.clearInterval(timer);
+  }, [active, snapshot.isPlaying, trackPosition]);
 
   const positionMs = useMemo(() => {
     const base = snapshot.positionMs ?? 0;
-    if (!snapshot.isPlaying) return base;
+    if (!trackPosition || !snapshot.isPlaying) return base;
     return Math.min(snapshot.durationMs ?? Number.MAX_SAFE_INTEGER, base + Math.max(0, clock - snapshot.observedAtMs));
-  }, [clock, snapshot]);
+  }, [clock, snapshot, trackPosition]);
 
   const setSelection = async (next: PlayerSelection) => {
     const previous = selection;
@@ -167,12 +217,8 @@ export function usePlayback() {
   const previousTrack = useCallback(() => runControl("previous"), [runControl]);
   const nextTrack = useCallback(() => runControl("next"), [runControl]);
   const clearControlError = useCallback(() => setControlError(null), []);
-  const artworkUrl = useMemo(() => {
-    if (!artwork || artwork.id !== snapshot.artworkId) return null;
-    return `data:${artwork.mimeType};base64,${artwork.dataBase64}`;
-  }, [artwork, snapshot.artworkId]);
-
   return {
+    active,
     snapshot,
     positionMs,
     selection,
@@ -190,7 +236,6 @@ export function usePlayback() {
     isControlling,
     controlError,
     clearControlError,
-    artwork,
     artworkUrl,
     artworkLoading,
     artworkError,

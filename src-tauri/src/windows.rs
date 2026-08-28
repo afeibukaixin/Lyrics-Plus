@@ -1,3 +1,35 @@
+fn set_surface_runtime_state(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+    runtime_state: SurfaceRuntimeState,
+) {
+    if matches!(runtime_state, SurfaceRuntimeState::Dormant) {
+        if let Some(state) = app.try_state::<AppState>() {
+            state.spectrum.unsubscribe(app, window.label());
+        }
+    }
+    // Emitter::emit 会广播给所有 WebView；生命周期必须只投递给目标窗口，
+    // 否则一个歌词窗口休眠会清空其他窗口的本地播放与歌词状态。
+    let target = tauri::EventTarget::webview_window(window.label());
+    if let Err(error) = app.emit_to(target, SURFACE_RUNTIME_STATE_EVENT, runtime_state) {
+        log::warn!(
+            "Failed to update surface runtime state: label={}, state={runtime_state:?}, error={error}",
+            window.label()
+        );
+    }
+}
+
+fn destroy_surface(app: &tauri::AppHandle, label: &str) -> Result<(), String> {
+    let Some(window) = app.get_webview_window(label) else {
+        return Ok(());
+    };
+    if let Some(state) = app.try_state::<AppState>() {
+        state.spectrum.unsubscribe(app, label);
+    }
+    log::debug!("Destroying WebView surface: label={label}");
+    window.destroy().map_err(|error| error.to_string())
+}
+
 #[cfg(target_os = "macos")]
 fn apply_joining_other_apps_fullscreen_on_main(
     window: &tauri::WebviewWindow,
@@ -23,7 +55,12 @@ fn apply_joining_other_apps_fullscreen_on_main(
             | NSWindowCollectionBehavior::FullScreenAuxiliary
             | NSWindowCollectionBehavior::FullScreenNone,
     );
-    behavior.insert(NSWindowCollectionBehavior::CanJoinAllApplications);
+    // CanJoinAllApplications 允许悬浮窗加入其他应用，而 FullScreenAuxiliary 明确允许
+    // 它进入其他应用占用的全屏 Space；二者结合后才能跨显示器拖入全屏应用。
+    behavior.insert(
+        NSWindowCollectionBehavior::CanJoinAllApplications
+            | NSWindowCollectionBehavior::FullScreenAuxiliary,
+    );
     if behavior != original_behavior {
         ns_window.setCollectionBehavior(behavior);
     }
@@ -785,10 +822,18 @@ fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), Stri
                     appearance.width as f64,
                     height.max(26.0),
                 ));
-                window.show().map_err(|error| error.to_string())?;
+                if !window.is_visible().unwrap_or(false) {
+                    window.show().map_err(|error| error.to_string())?;
+                    set_surface_runtime_state(app, &window, SurfaceRuntimeState::Active);
+                }
             }
+        } else if !displays.status_bar.enabled {
+            destroy_surface(app, "lyrics-status-bar")?;
         } else if let Some(window) = app.get_webview_window("lyrics-status-bar") {
-            window.hide().map_err(|error| error.to_string())?;
+            if window.is_visible().unwrap_or(false) {
+                set_surface_runtime_state(app, &window, SurfaceRuntimeState::Dormant);
+                window.hide().map_err(|error| error.to_string())?;
+            }
         }
     }
     if displays.list_window.enabled {
@@ -801,18 +846,30 @@ fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), Stri
                 .map_err(|error| error.to_string())?;
             if !window.is_visible().unwrap_or(false) {
                 window.show().map_err(|error| error.to_string())?;
+                set_surface_runtime_state(app, &window, SurfaceRuntimeState::Active);
             }
         }
-    } else if let Some(window) = app.get_webview_window("lyrics-list") {
-        window.hide().map_err(|error| error.to_string())?;
-        apply_lyrics_window_space_behavior(&window, lyrics_windows_show_on_all_spaces)
-            .map_err(|error| error.to_string())?;
+    } else {
+        destroy_surface(app, "lyrics-list")?;
     }
 
     let has_track = playback
         .title
         .as_deref()
         .is_some_and(|title| !title.trim().is_empty());
+    if !displays.notch.enabled {
+        {
+            let mut visibility = state
+                .notch_visibility
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            visibility.target_visible = false;
+            visibility.generation = visibility.generation.wrapping_add(1);
+        }
+        destroy_surface(app, "lyrics-notch")?;
+        sync_tray_lyrics_display_checked(app);
+        return Ok(());
+    }
     let show_notch = displays.notch.enabled
         && has_track
         && (!displays.notch.hide_when_not_playing || playback.is_playing);
@@ -839,6 +896,8 @@ fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), Stri
                 .map_err(|error| error.to_string())?;
             if !was_visible {
                 window.show().map_err(|error| error.to_string())?;
+                set_surface_runtime_state(app, &window, SurfaceRuntimeState::Active);
+                wake_overlay_pointer_monitor(app);
             }
             if visibility_changed || !was_visible {
                 let _ = window.emit(
@@ -850,6 +909,7 @@ fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), Stri
         }
     } else if visibility_changed {
         if let Some(window) = app.get_webview_window("lyrics-notch") {
+            state.spectrum.unsubscribe(app, "lyrics-notch");
             apply_lyrics_window_space_behavior(&window, lyrics_windows_show_on_all_spaces)
                 .map_err(|error| error.to_string())?;
             if window.is_visible().unwrap_or(false) {
@@ -894,6 +954,11 @@ fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), Stri
                         if let Err(error) = handle.run_on_main_thread(move || {
                             if let Some(window) = handle_for_main.get_webview_window("lyrics-notch")
                             {
+                                set_surface_runtime_state(
+                                    &handle_for_main,
+                                    &window,
+                                    SurfaceRuntimeState::Dormant,
+                                );
                                 let _ = window.hide();
                             }
                         }) {
@@ -917,7 +982,10 @@ fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), Stri
 
 fn sync_lyrics_surfaces_on_main(app: &tauri::AppHandle) {
     #[cfg(target_os = "macos")]
-    macos_status_item::sync(app);
+    {
+        macos_status_item::sync(app);
+        macos_status_item::wake(app);
+    }
     #[cfg(not(target_os = "macos"))]
     if let Some(tray) = app.try_state::<TrayMenuState>() {
         if let Err(error) = tray.icon.set_title(None::<&str>) {

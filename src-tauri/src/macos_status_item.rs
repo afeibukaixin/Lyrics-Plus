@@ -70,6 +70,39 @@ fn reset_scroll() {
         .unwrap_or_else(|error| error.into_inner()) = ScrollState::default();
 }
 
+pub(crate) fn sync_app_icon_visibility(app: &tauri::AppHandle, visible: bool) -> tauri::Result<()> {
+    let Some(tray_state) = app.try_state::<TrayMenuState>() else {
+        return Ok(());
+    };
+
+    // Tauri 在 macOS 上通过移除 NSStatusItem 实现 set_visible(false)。固定应用图标只使用
+    // AppKit 的可见性开关，确保最后一个 WebView 销毁后仍保留状态项及其菜单栏位置。
+    if visible {
+        tray_state.icon.set_visible(true)?;
+    }
+    let autosave_name = format!("{}.app-menu", app.config().identifier);
+    tray_state.icon.with_inner_tray_icon(move |inner| {
+        if let Some(status_item) = inner.ns_status_item() {
+            status_item.setAutosaveName(Some(&NSString::from_str(&autosave_name)));
+            status_item.setVisible(visible);
+        }
+    })?;
+    Ok(())
+}
+
+pub(crate) fn configure_lyrics_icon_identity(app: &tauri::AppHandle) -> tauri::Result<()> {
+    let Some(tray_state) = app.try_state::<TrayMenuState>() else {
+        return Ok(());
+    };
+    let autosave_name = format!("{}.lyrics-status-item", app.config().identifier);
+    tray_state.lyrics_icon.with_inner_tray_icon(move |inner| {
+        if let Some(status_item) = inner.ns_status_item() {
+            status_item.setAutosaveName(Some(&NSString::from_str(&autosave_name)));
+        }
+    })?;
+    Ok(())
+}
+
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -512,10 +545,6 @@ pub(crate) fn sync(app: &tauri::AppHandle) {
         return;
     };
     let payload = render_payload(app);
-    let app_icon_visible = !app
-        .try_state::<AppState>()
-        .is_some_and(|state| state.config.snapshot().app.hide_menu_bar_icon);
-    let _ = tray_state.icon.set_visible(app_icon_visible);
     let visible = payload.is_some();
     let _ = tray_state.lyrics_icon.with_inner_tray_icon(move |inner| {
         if let Some(status_item) = inner.ns_status_item() {
@@ -532,13 +561,33 @@ pub(crate) fn sync(app: &tauri::AppHandle) {
 pub(crate) fn start(app: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         loop {
-            let enabled = app
-                .try_state::<AppState>()
-                .is_some_and(|state| state.config.snapshot().lyrics.displays.status_bar.enabled);
-            if enabled {
-                sync(&app);
+            let Some(state) = app.try_state::<AppState>() else {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                continue;
+            };
+            let enabled = state.config.snapshot().lyrics.displays.status_bar.enabled;
+            let is_playing = state
+                .last_snapshot
+                .read()
+                .unwrap_or_else(|error| error.into_inner())
+                .is_playing;
+            let wake = state.status_bar_wake.clone();
+            if !enabled {
+                wake.notified().await;
+                continue;
             }
-            tokio::time::sleep(Duration::from_millis(if enabled { 50 } else { 500 })).await;
+            sync(&app);
+            if is_playing {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            } else {
+                wake.notified().await;
+            }
         }
     });
+}
+
+pub(crate) fn wake(app: &tauri::AppHandle) {
+    if let Some(state) = app.try_state::<AppState>() {
+        state.status_bar_wake.notify_one();
+    }
 }

@@ -17,6 +17,7 @@ export const overlayApi = {
     invoke<ToolbarPlacement>("get_overlay_toolbar_placement"),
   setOverlayStyle: (style: OverlayStyle) =>
     invoke<OverlayStyle>("set_overlay_style", { style }),
+  startOverlayDrag: () => invoke<void>("start_overlay_drag"),
   nudgeOverlay: (dx: number, dy: number) => invoke<void>("nudge_overlay", { dx, dy }),
   resetOverlayBounds: () => invoke<OverlayStyle>("reset_overlay_bounds"),
   resizeOverlayEdge: (edge: OverlayResizeEdge, mainSize: number, minimumMainSize: number) =>

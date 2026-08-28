@@ -71,8 +71,8 @@ export default function Settings() {
     resetLyricsBaseAppearance,
     syncConfig,
   } = useAppConfig();
-  const playback = usePlayback();
-  const lyrics = useLyrics(playback.snapshot, playback.positionMs);
+  const playback = usePlayback({ trackPosition: false });
+  const lyrics = useLyrics(playback.snapshot, playback.positionMs, playback.active);
   const {
     confirmingReset,
     error,

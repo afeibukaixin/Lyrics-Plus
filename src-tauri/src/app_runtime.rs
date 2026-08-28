@@ -422,6 +422,15 @@ pub(crate) fn apply_menu_bar_icon_hidden(
     app: &tauri::AppHandle,
     hidden: bool,
 ) -> Result<(), String> {
+    macos_status_item::sync_app_icon_visibility(app, !hidden)
+        .map_err(|error| format!("更新菜单栏图标显示状态失败：{error}"))
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn apply_menu_bar_icon_hidden(
+    app: &tauri::AppHandle,
+    hidden: bool,
+) -> Result<(), String> {
     if let Some(tray) = app.try_state::<TrayMenuState>() {
         tray.icon
             .set_visible(!hidden)
@@ -430,10 +439,11 @@ pub(crate) fn apply_menu_bar_icon_hidden(
     Ok(())
 }
 
-#[cfg(not(target_os = "macos"))]
-pub(crate) fn apply_menu_bar_icon_hidden(
-    _app: &tauri::AppHandle,
-    _hidden: bool,
+pub(crate) fn sync_app_menu_bar_icon_visibility(
+    app: &tauri::AppHandle,
 ) -> Result<(), String> {
-    Ok(())
+    let hidden = app
+        .try_state::<AppState>()
+        .is_some_and(|state| state.config.snapshot().app.hide_menu_bar_icon);
+    apply_menu_bar_icon_hidden(app, hidden)
 }

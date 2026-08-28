@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { api, isTauriRuntime } from "../../shared/api";
+import { reportFrontendError } from "../../shared/debugLog";
 import {
   defaultOverlayStyle,
   secondaryDisplayFlags,
@@ -43,7 +44,7 @@ function wrapLineHeight(fontSize: number, lineHeight: number, textStrokeWidth: n
 export default function Overlay() {
   const { t } = useTranslation();
   const playback = usePlayback();
-  const lyrics = useLyricsPresentation(playback.snapshot, playback.positionMs);
+  const lyrics = useLyricsPresentation(playback.snapshot, playback.positionMs, playback.active);
   const [style, setStyle] = useState<OverlayStyle>(defaultOverlayStyle);
   const [settings, setSettings] = useState<OverlaySettings>({ visible: true, locked: false });
   const linesRef = useRef<HTMLDivElement>(null);
@@ -267,6 +268,18 @@ export default function Overlay() {
     return action;
   };
 
+  const startWindowDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!isTauriRuntime() || settings.locked || event.button !== 0 || event.detail > 1) return;
+    const target = event.target as HTMLElement;
+    if (target.closest(
+      "button, input, select, textarea, [role='slider'], [data-no-window-drag], [data-tauri-drag-region='false']",
+    )) return;
+    event.preventDefault();
+    void api.startOverlayDrag().catch((error) => {
+      reportFrontendError("Failed to drag the desktop lyrics window", error);
+    });
+  };
+
   return (
     <main
       className={styles.overlay}
@@ -281,7 +294,7 @@ export default function Overlay() {
       data-constrained={constrained}
       data-hover={overlayHovered || unlockFeedback}
       data-resizing={resizing}
-      data-tauri-drag-region={settings.locked ? "false" : "deep"}
+      onPointerDown={startWindowDrag}
       style={{
         "--lyric-font-family": style.fontFamily,
         "--lyric-size": `${style.fontSize}px`,

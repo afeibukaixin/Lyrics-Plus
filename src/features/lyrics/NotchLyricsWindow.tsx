@@ -32,6 +32,7 @@ import type {
   NotchLayoutMetrics,
   NotchLyricsPreferences,
   NotchSlotContent,
+  PlaybackSpectrumBands,
 } from "../../shared/types";
 import {
   ExpandedPlayer,
@@ -71,8 +72,8 @@ function previewLineAtPosition(lines: LyricsLine[], positionMs: number) {
 export default function NotchLyricsWindow() {
   const { t } = useTranslation();
   const { config, setLyricsDisplayPreferences } = useAppConfig();
-  const playback = usePlayback();
-  const lyrics = useLyricsPresentation(playback.snapshot, playback.positionMs);
+  const playback = usePlayback({ loadArtwork: true });
+  const lyrics = useLyricsPresentation(playback.snapshot, playback.positionMs, playback.active);
   const notch = config.lyrics.displays.notch;
   const appearance = notch.appearance;
   const notchRef = useRef(notch);
@@ -116,8 +117,24 @@ export default function NotchLyricsWindow() {
   const lastObservedGeometryRef = useRef({ collapsedHeight: -1, expandedHeight: -1 });
   const reconcileHoverStateRef = useRef<() => void>(() => undefined);
   const usesSpectrum = notch.leftSlot === "spectrum" || notch.rightSlot === "spectrum";
-  const spectrumColor = useArtworkAccentColor(playback.snapshot.artworkId, playback.artworkUrl);
-  const spectrum = usePlaybackSpectrum(usesSpectrum);
+  const spectrumColor = useArtworkAccentColor(
+    usesSpectrum ? playback.snapshot.artworkId : null,
+    usesSpectrum ? playback.artworkUrl : null,
+  );
+  const spectrumNodesRef = useRef(new Set<HTMLSpanElement>());
+  const registerSpectrumNode = useCallback((node: HTMLSpanElement) => {
+    spectrumNodesRef.current.add(node);
+    return () => spectrumNodesRef.current.delete(node);
+  }, []);
+  const paintSpectrum = useCallback((bands: PlaybackSpectrumBands) => {
+    for (const node of spectrumNodesRef.current) {
+      Array.from(node.children).forEach((bar, index) => {
+        const level = Math.max(0.12, bands[index] ?? 0);
+        (bar as HTMLElement).style.transform = `scaleY(${level})`;
+      });
+    }
+  }, []);
+  usePlaybackSpectrum(usesSpectrum && playback.active, paintSpectrum);
   const effectiveWidth = previewValues?.maxWidth ?? appearance.maxWidth;
   const effectiveExpandedMaxWidth = Math.min(
     NOTCH_MAX_WIDTH,
@@ -294,7 +311,9 @@ export default function NotchLyricsWindow() {
     if (slot === "artwork") {
       return <img className={styles.slotArtwork} alt="" draggable={false} src={playback.artworkUrl ?? appIconUrl} />;
     }
-    if (slot === "spectrum") return <SpectrumBars bands={spectrum.bands} />;
+    if (slot === "spectrum") {
+      return <SpectrumBars active={usesSpectrum && playback.active} register={registerSpectrumNode} />;
+    }
     const value = slot === "title" ? playback.snapshot.title ?? "Lyrics Plus" : playback.snapshot.artist ?? "";
     return (
       <OverflowText

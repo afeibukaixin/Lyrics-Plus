@@ -50,6 +50,14 @@ const LIST_LYRICS_DEFAULT_WIDTH: f64 = 520.0;
 const LIST_LYRICS_DEFAULT_HEIGHT: f64 = 720.0;
 const NOTCH_VISIBILITY_TRANSITION_EVENT: &str = "notch://visibility-transition";
 const NOTCH_EXIT_ANIMATION_DURATION: Duration = Duration::from_millis(400);
+const SURFACE_RUNTIME_STATE_EVENT: &str = "surface://runtime-state";
+
+#[derive(Clone, Copy, Debug, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+enum SurfaceRuntimeState {
+    Active,
+    Dormant,
+}
 
 #[derive(Default)]
 pub(crate) struct NotchVisibilityState {

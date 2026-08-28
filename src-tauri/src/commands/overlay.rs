@@ -7,9 +7,7 @@ pub fn get_overlay_settings(state: State<'_, AppState>) -> OverlaySettings {
 }
 
 pub fn update_overlay_locked(app: &tauri::AppHandle, locked: bool) -> Result<(), String> {
-    let window = app
-        .get_webview_window("lyrics-overlay")
-        .ok_or_else(|| "歌词浮窗不存在".to_string())?;
+    let window = app.get_webview_window("lyrics-overlay");
     let state = app.state::<AppState>();
     let previous_settings = {
         let mut settings = state
@@ -22,41 +20,45 @@ pub fn update_overlay_locked(app: &tauri::AppHandle, locked: bool) -> Result<(),
     };
     let update_result = (|| {
         if locked {
-            let current_size = window.outer_size().map_err(|error| error.to_string())?;
-            let scale = window.scale_factor().map_err(|error| error.to_string())?;
-            let scale = if scale.is_finite() && scale > 0.0 {
-                scale
-            } else {
-                1.0
-            };
-            let mut style = state
-                .overlay_style
-                .read()
-                .unwrap_or_else(|error| error.into_inner())
-                .clone();
-            match style.orientation {
-                OverlayOrientation::Horizontal => {
-                    style.horizontal_max_width = Some(current_size.width as f64 / scale);
+            if let Some(window) = window.as_ref() {
+                let current_size = window.outer_size().map_err(|error| error.to_string())?;
+                let scale = window.scale_factor().map_err(|error| error.to_string())?;
+                let scale = if scale.is_finite() && scale > 0.0 {
+                    scale
+                } else {
+                    1.0
+                };
+                let mut style = state
+                    .overlay_style
+                    .read()
+                    .unwrap_or_else(|error| error.into_inner())
+                    .clone();
+                match style.orientation {
+                    OverlayOrientation::Horizontal => {
+                        style.horizontal_max_width = Some(current_size.width as f64 / scale);
+                    }
+                    OverlayOrientation::Vertical => {
+                        style.vertical_max_height = Some(current_size.height as f64 / scale);
+                    }
                 }
-                OverlayOrientation::Vertical => {
-                    style.vertical_max_height = Some(current_size.height as f64 / scale);
-                }
+                let style = style.normalized();
+                *state
+                    .overlay_style
+                    .write()
+                    .unwrap_or_else(|error| error.into_inner()) = style.clone();
+                persist_overlay_style_for_current_monitor(app, &state, &style)?;
             }
-            let style = style.normalized();
-            *state
-                .overlay_style
-                .write()
-                .unwrap_or_else(|error| error.into_inner()) = style.clone();
-            persist_overlay_style_for_current_monitor(app, &state, &style)?;
         }
-        window
-            .set_ignore_cursor_events(locked)
-            .map_err(|error| error.to_string())?;
-        let _ = window.set_focusable(!locked);
-        if !locked {
-            crate::refresh_overlay_mouse_tracking(&window);
+        if let Some(window) = window.as_ref() {
+            window
+                .set_ignore_cursor_events(locked)
+                .map_err(|error| error.to_string())?;
+            let _ = window.set_focusable(!locked);
+            if !locked {
+                crate::refresh_overlay_mouse_tracking(window);
+            }
+            let _ = window.set_resizable(false);
         }
-        let _ = window.set_resizable(false);
         state
             .config
             .update(|config| config.overlay.locked = locked)?;
@@ -175,6 +177,61 @@ pub fn nudge_overlay(app: tauri::AppHandle, dx: i32, dy: i32) -> Result<(), Stri
             position.y.saturating_add(dy.clamp(-20, 20)),
         ))
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn start_overlay_drag(app: tauri::AppHandle) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    if state
+        .overlay_settings
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .locked
+    {
+        return Err("请先解锁歌词浮窗".into());
+    }
+    let window = app
+        .get_webview_window("lyrics-overlay")
+        .ok_or_else(|| "歌词浮窗不存在".to_string())?;
+
+    crate::set_overlay_drag_active(&app, true);
+    let drag_result = window.start_dragging().map_err(|error| error.to_string());
+    if drag_result.is_err() {
+        crate::set_overlay_drag_active(&app, false);
+        return drag_result;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        // Tauri 的 start_dragging 只负责把原生拖动请求投递到主线程，因此要等鼠标真正松开后再收尾。
+        let drag_app = app.clone();
+        let drag_window = window.clone();
+        tauri::async_runtime::spawn(async move {
+            while crate::primary_mouse_button_pressed() {
+                tokio::time::sleep(Duration::from_millis(16)).await;
+            }
+            let finish_app = drag_app.clone();
+            if let Err(error) = drag_app.run_on_main_thread(move || {
+                crate::set_overlay_drag_active(&finish_app, false);
+                if let Ok(position) = drag_window.outer_position() {
+                    crate::settle_overlay_position_at(&finish_app, &drag_window, position);
+                }
+            }) {
+                crate::set_overlay_drag_active(&drag_app, false);
+                log::warn!("完成桌面歌词原生拖动失败：{error}");
+            }
+        });
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        crate::set_overlay_drag_active(&app, false);
+        if let Ok(position) = window.outer_position() {
+            crate::settle_overlay_position_at(&app, &window, position);
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]

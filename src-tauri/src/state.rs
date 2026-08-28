@@ -21,6 +21,8 @@ pub struct AppState {
     pub overlay_placement: Arc<Mutex<OverlayPlacementState>>,
     pub last_snapshot: Arc<RwLock<PlaybackSnapshot>>,
     pub spectrum: Arc<PlaybackSpectrumService>,
+    pub pointer_monitor_wake: Arc<tokio::sync::Notify>,
+    pub status_bar_wake: Arc<tokio::sync::Notify>,
     pub lyrics_runtime: Arc<RwLock<LyricsRuntimeSnapshot>>,
     pub lyrics_generation: Arc<std::sync::atomic::AtomicU64>,
     pub lyrics_search_session: Arc<Mutex<LyricsSearchSession>>,

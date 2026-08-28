@@ -78,6 +78,8 @@ pub fn run() {
                 })),
                 last_snapshot: Arc::new(RwLock::new(player::PlaybackSnapshot::empty())),
                 spectrum: Arc::new(player::PlaybackSpectrumService::default()),
+                pointer_monitor_wake: Arc::new(tokio::sync::Notify::new()),
+                status_bar_wake: Arc::new(tokio::sync::Notify::new()),
                 lyrics_runtime: Arc::new(RwLock::new(lyrics::LyricsRuntimeSnapshot::default())),
                 lyrics_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
                 lyrics_search_session: Arc::new(Mutex::new(lyrics::LyricsSearchSession::default())),
@@ -108,13 +110,6 @@ pub fn run() {
                 log::warn!("Failed to configure player follower: {error}");
             }
 
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_size(tauri::LogicalSize::new(980.0, 720.0));
-                let _ = window.set_resizable(false);
-                let _ = window.set_maximizable(false);
-                let _ = center_main_window_on_cursor(app.handle(), &window);
-            }
-
             if notice_accepted {
                 activate_runtime(app.handle()).map_err(std::io::Error::other)?;
             }
@@ -127,6 +122,9 @@ pub fn run() {
             if matches!(event, tauri::WindowEvent::Destroyed) {
                 if let Some(state) = window.app_handle().try_state::<AppState>() {
                     state.spectrum.unsubscribe(&window.app_handle(), window.label());
+                }
+                if window.label() == "lyrics-overlay" {
+                    set_overlay_drag_active(window.app_handle(), false);
                 }
             }
             if window.label() == "main" {
@@ -149,7 +147,9 @@ pub fn run() {
                         return;
                     }
                     api.prevent_close();
-                    let _ = window.hide();
+                    if let Err(error) = destroy_surface(window.app_handle(), "main") {
+                        log::warn!("关闭主窗口时销毁 WebView 失败：{error}");
+                    }
                     #[cfg(target_os = "macos")]
                     if window
                         .app_handle()
@@ -172,13 +172,15 @@ pub fn run() {
             if window.label() == "lyrics-list" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
-                    let _ = window.hide();
                     if let Some(state) = window.app_handle().try_state::<AppState>() {
                         if let Ok(config) = state.config.update(|config| {
                             config.lyrics.displays.list_window.enabled = false;
                         }) {
                             let _ = window.app_handle().emit("config://changed", &config);
                         }
+                    }
+                    if let Err(error) = destroy_surface(window.app_handle(), "lyrics-list") {
+                        log::warn!("关闭列表歌词窗口时销毁 WebView 失败：{error}");
                     }
                     sync_lyrics_surfaces(window.app_handle());
                 }
@@ -187,18 +189,14 @@ pub fn run() {
                 if let tauri::WindowEvent::Moved(position) = event {
                     if let Some(overlay) = window.app_handle().get_webview_window("lyrics-overlay")
                     {
+                        // 原生拖动期间 macOS 独占窗口位置；松手后由 start_overlay_drag 统一收尾。
+                        if overlay_drag_active(window.app_handle()) {
+                            return;
+                        }
                         if ignore_overlay_move(window.app_handle(), &overlay, *position) {
                             return;
                         }
-                        let snapped = snapped_position(&overlay, *position);
-                        let adjusted =
-                            adjust_overlay_toolbar_for_move(window.app_handle(), &overlay, snapped);
-                        if adjusted != *position {
-                            set_overlay_position(window.app_handle(), &overlay, adjusted);
-                            persist_overlay_state_at(window.app_handle(), &overlay, adjusted);
-                            return;
-                        }
-                        persist_overlay_state_at(window.app_handle(), &overlay, adjusted);
+                        settle_overlay_position_at(window.app_handle(), &overlay, *position);
                     }
                 }
                 if matches!(event, tauri::WindowEvent::Resized(_)) {
@@ -257,6 +255,7 @@ pub fn run() {
             commands::get_overlay_style,
             commands::get_overlay_toolbar_placement,
             commands::set_overlay_style,
+            commands::start_overlay_drag,
             commands::nudge_overlay,
             commands::reset_overlay_bounds,
             commands::resize_overlay_edge,
@@ -308,8 +307,39 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building Lyrics Plus");
     app.run(|app, event| {
+        if let tauri::RunEvent::ExitRequested {
+            code: None, api, ..
+        } = &event
+        {
+            let runtime_started = app.try_state::<AppState>().is_some_and(|state| {
+                *state
+                    .runtime_started
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner())
+            });
+            if runtime_started {
+                api.prevent_exit();
+                let app_handle = app.clone();
+                if let Err(error) = app.run_on_main_thread(move || {
+                    if let Err(error) = setup_tray(&app_handle) {
+                        log::warn!("无窗口保活时恢复菜单栏失败：{error}");
+                        return;
+                    }
+                    if let Err(error) = sync_app_menu_bar_icon_visibility(&app_handle) {
+                        log::warn!("无窗口保活时恢复菜单栏图标失败：{error}");
+                    }
+                    #[cfg(target_os = "macos")]
+                    macos_status_item::sync(&app_handle);
+                }) {
+                    log::warn!("无窗口保活时调度菜单栏恢复失败：{error}");
+                }
+            }
+        }
         #[cfg(target_os = "macos")]
         if matches!(event, tauri::RunEvent::Reopen { .. }) {
+            if let Err(error) = sync_app_menu_bar_icon_visibility(app) {
+                log::warn!("重新打开应用时恢复菜单栏图标失败：{error}");
+            }
             let _ = show_main_window_centered(app);
         }
     });
