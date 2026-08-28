@@ -11,7 +11,6 @@ import appIconUrl from "../../../src-tauri/icons/32x32.png";
 import { api, isTauriRuntime } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
 import { useAppConfig } from "../config/AppConfigProvider";
-import { useArtworkAccentColor } from "../player/useArtworkAccentColor";
 import { usePlayback } from "../player/usePlayback";
 import { usePlaybackSpectrum } from "../player/usePlaybackSpectrum";
 import {
@@ -118,10 +117,7 @@ export default function NotchLyricsWindow() {
   const lastObservedGeometryRef = useRef({ collapsedHeight: -1, expandedHeight: -1 });
   const reconcileHoverStateRef = useRef<() => void>(() => undefined);
   const usesSpectrum = notch.leftSlot === "spectrum" || notch.rightSlot === "spectrum";
-  const spectrumColor = useArtworkAccentColor(
-    usesSpectrum ? playback.snapshot.artworkId : null,
-    usesSpectrum ? playback.artworkUrl : null,
-  );
+  const spectrumColor = playback.artworkAccentColor ?? "#ffffff";
   const spectrumNodesRef = useRef(new Set<HTMLSpanElement>());
   const registerSpectrumNode = useCallback((node: HTMLSpanElement) => {
     spectrumNodesRef.current.add(node);

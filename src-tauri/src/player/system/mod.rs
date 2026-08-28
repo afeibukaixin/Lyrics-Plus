@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::process::Command;
@@ -20,6 +21,20 @@ use super::{
 mod compat;
 
 const MAX_ARTWORK_EDGE_PX: u32 = 192;
+const ARTWORK_COLOR_SAMPLE_SIZE: u32 = 32;
+const ARTWORK_COLOR_QUANTIZATION_STEP: u8 = 32;
+const ARTWORK_COLOR_MIN_ALPHA: u8 = 128;
+const ARTWORK_COLOR_MIN_LUMINANCE: f32 = 0.08;
+const ARTWORK_COLOR_MAX_LUMINANCE: f32 = 0.92;
+const DEFAULT_ARTWORK_ACCENT_COLOR: &str = "#ffffff";
+
+struct ArtworkColorBucket {
+    count: u32,
+    red: f32,
+    green: f32,
+    blue: f32,
+    saturation: f32,
+}
 
 pub struct SystemMediaService {
     player: OnceLock<Result<AdapterClient, String>>,
@@ -217,15 +232,17 @@ impl SystemMediaService {
             return Ok(None);
         };
 
+        let thumbnail = image.thumbnail(MAX_ARTWORK_EDGE_PX, MAX_ARTWORK_EDGE_PX);
+        let accent_color = extract_artwork_accent_color(&thumbnail);
         let mut encoded = std::io::Cursor::new(Vec::new());
-        image
-            .thumbnail(MAX_ARTWORK_EDGE_PX, MAX_ARTWORK_EDGE_PX)
+        thumbnail
             .write_to(&mut encoded, ImageFormat::Png)
             .map_err(|error| format!("封面编码失败：{error}"))?;
         let artwork = PlaybackArtwork {
             id: artwork_id.to_string(),
             mime_type: "image/png".into(),
             data_base64: BASE64.encode(encoded.into_inner()),
+            accent_color,
         };
         *self
             .artwork_cache
@@ -233,6 +250,143 @@ impl SystemMediaService {
             .unwrap_or_else(|error| error.into_inner()) = Some(artwork.clone());
         Ok(Some(artwork))
     }
+}
+
+// 保持原前端提色策略一致，避免迁移到后端后出现明显的颜色变化。
+fn extract_artwork_accent_color(image: &image::DynamicImage) -> String {
+    let sampled = image
+        .resize_exact(
+            ARTWORK_COLOR_SAMPLE_SIZE,
+            ARTWORK_COLOR_SAMPLE_SIZE,
+            image::imageops::FilterType::Triangle,
+        )
+        .to_rgba8();
+    let mut bucket_indices = HashMap::<(u8, u8, u8), usize>::new();
+    let mut buckets = Vec::<ArtworkColorBucket>::new();
+
+    for pixel in sampled.pixels() {
+        let [red, green, blue, alpha] = pixel.0;
+        if alpha < ARTWORK_COLOR_MIN_ALPHA {
+            continue;
+        }
+
+        let luminance =
+            (0.2126 * red as f32 + 0.7152 * green as f32 + 0.0722 * blue as f32) / 255.0;
+        if luminance <= ARTWORK_COLOR_MIN_LUMINANCE
+            || luminance >= ARTWORK_COLOR_MAX_LUMINANCE
+        {
+            continue;
+        }
+
+        let (_, saturation, _) = rgb_to_hsl(red as f32, green as f32, blue as f32);
+        let key = (
+            red / ARTWORK_COLOR_QUANTIZATION_STEP,
+            green / ARTWORK_COLOR_QUANTIZATION_STEP,
+            blue / ARTWORK_COLOR_QUANTIZATION_STEP,
+        );
+        let bucket_index = *bucket_indices.entry(key).or_insert_with(|| {
+            buckets.push(ArtworkColorBucket {
+                count: 0,
+                red: 0.0,
+                green: 0.0,
+                blue: 0.0,
+                saturation: 0.0,
+            });
+            buckets.len() - 1
+        });
+        let bucket = &mut buckets[bucket_index];
+        bucket.count += 1;
+        bucket.red += red as f32;
+        bucket.green += green as f32;
+        bucket.blue += blue as f32;
+        bucket.saturation += saturation;
+    }
+
+    let mut selected = None;
+    let mut selected_score = -1.0_f32;
+    for bucket in &buckets {
+        let average_saturation = bucket.saturation / bucket.count as f32;
+        let score = bucket.count as f32 * (0.75 + average_saturation * 0.25);
+        if score > selected_score {
+            selected = Some(bucket);
+            selected_score = score;
+        }
+    }
+    let Some(selected) = selected else {
+        return DEFAULT_ARTWORK_ACCENT_COLOR.into();
+    };
+
+    let red = selected.red / selected.count as f32;
+    let green = selected.green / selected.count as f32;
+    let blue = selected.blue / selected.count as f32;
+    let (hue, saturation, lightness) = rgb_to_hsl(red, green, blue);
+    let lightness = lightness.clamp(0.42, 0.72);
+    hsl_to_hex(hue, saturation, lightness)
+}
+
+fn rgb_to_hsl(red: f32, green: f32, blue: f32) -> (f32, f32, f32) {
+    let red = red / 255.0;
+    let green = green / 255.0;
+    let blue = blue / 255.0;
+    let maximum = red.max(green).max(blue);
+    let minimum = red.min(green).min(blue);
+    let lightness = (maximum + minimum) / 2.0;
+
+    if maximum == minimum {
+        return (0.0, 0.0, lightness);
+    }
+
+    let delta = maximum - minimum;
+    let saturation = if lightness > 0.5 {
+        delta / (2.0 - maximum - minimum)
+    } else {
+        delta / (maximum + minimum)
+    };
+    let hue = if maximum == red {
+        (green - blue) / delta + if green < blue { 6.0 } else { 0.0 }
+    } else if maximum == green {
+        (blue - red) / delta + 2.0
+    } else {
+        (red - green) / delta + 4.0
+    };
+    (hue / 6.0, saturation, lightness)
+}
+
+fn hue_to_rgb(p: f32, q: f32, input: f32) -> f32 {
+    let hue = if input < 0.0 {
+        input + 1.0
+    } else if input > 1.0 {
+        input - 1.0
+    } else {
+        input
+    };
+    if hue < 1.0 / 6.0 {
+        p + (q - p) * 6.0 * hue
+    } else if hue < 0.5 {
+        q
+    } else if hue < 2.0 / 3.0 {
+        p + (q - p) * (2.0 / 3.0 - hue) * 6.0
+    } else {
+        p
+    }
+}
+
+fn hsl_to_hex(hue: f32, saturation: f32, lightness: f32) -> String {
+    if saturation == 0.0 {
+        let value = (lightness * 255.0).round() as u8;
+        return format!("#{value:02x}{value:02x}{value:02x}");
+    }
+
+    let q = if lightness < 0.5 {
+        lightness * (1.0 + saturation)
+    } else {
+        lightness + saturation - lightness * saturation
+    };
+    let p = 2.0 * lightness - q;
+    let red = (hue_to_rgb(p, q, hue + 1.0 / 3.0) * 255.0).round() as u8;
+    let green = (hue_to_rgb(p, q, hue) * 255.0).round() as u8;
+    let blue = (hue_to_rgb(p, q, hue - 1.0 / 3.0) * 255.0).round() as u8;
+    format!("#{red:02x}{green:02x}{blue:02x}")
 }
 
 fn refresh_elapsed(client: &AdapterClient) {

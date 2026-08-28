@@ -10,6 +10,8 @@ import type {
 } from "../../shared/types";
 import { useSurfaceActivity } from "../window/useSurfaceActivity";
 
+const MISSING_ARTWORK_CONFIRMATION_MS = 2_500;
+
 const initialSnapshot: PlaybackSnapshot = {
   player: null,
   isRunning: false,
@@ -51,11 +53,13 @@ export function usePlayback({
   const [configError, setConfigError] = useState<string | null>(null);
   const [snapshotLoadError, setSnapshotLoadError] = useState<string | null>(null);
   const [artworkUrl, setArtworkUrl] = useState<string | null>(null);
+  const [artworkAccentColor, setArtworkAccentColor] = useState<string | null>(null);
   const [artworkLoading, setArtworkLoading] = useState(false);
   const [artworkError, setArtworkError] = useState<string | null>(null);
   const [isControlling, setIsControlling] = useState(false);
   const [controlError, setControlError] = useState<string | null>(null);
   const artworkRequestVersionRef = useRef(0);
+  const loadedArtworkIdRef = useRef<string | null>(null);
   const artworkUrlRef = useRef<string | null>(null);
   const controlPromiseRef = useRef<Promise<void> | null>(null);
 
@@ -99,15 +103,44 @@ export function usePlayback({
   }, [active]);
 
   useEffect(() => {
+    const trackId = snapshot.trackId;
     const artworkId = snapshot.artworkId;
     artworkRequestVersionRef.current += 1;
     const requestVersion = artworkRequestVersionRef.current;
-    if (artworkUrlRef.current) {
-      URL.revokeObjectURL(artworkUrlRef.current);
+    if (!active || !loadArtwork || !trackId || !isTauriRuntime()) {
+      if (artworkUrlRef.current) URL.revokeObjectURL(artworkUrlRef.current);
       artworkUrlRef.current = null;
+      loadedArtworkIdRef.current = null;
+      setArtworkUrl(null);
+      setArtworkAccentColor(null);
+      setArtworkLoading(false);
+      setArtworkError(null);
+      return;
     }
-    setArtworkUrl(null);
-    if (!active || !loadArtwork || !artworkId || !isTauriRuntime()) {
+
+    if (!artworkId) {
+      // 系统媒体信息切歌时可能晚于歌曲元数据到达，确认期间继续显示上一首封面。
+      setArtworkLoading(true);
+      setArtworkError(null);
+      const confirmationTimer = window.setTimeout(() => {
+        if (artworkRequestVersionRef.current !== requestVersion) return;
+        if (artworkUrlRef.current) URL.revokeObjectURL(artworkUrlRef.current);
+        artworkUrlRef.current = null;
+        loadedArtworkIdRef.current = null;
+        setArtworkUrl(null);
+        setArtworkAccentColor(null);
+        setArtworkLoading(false);
+      }, MISSING_ARTWORK_CONFIRMATION_MS);
+      return () => {
+        window.clearTimeout(confirmationTimer);
+        if (artworkRequestVersionRef.current === requestVersion) {
+          artworkRequestVersionRef.current += 1;
+        }
+      };
+    }
+
+    if (loadedArtworkIdRef.current === artworkId && artworkUrlRef.current) {
+      // 暂停或恢复播放可能只改变歌曲来源标识，同一封面无需重新生成 Blob URL。
       setArtworkLoading(false);
       setArtworkError(null);
       return;
@@ -117,17 +150,32 @@ export function usePlayback({
     setArtworkError(null);
     playerService.getArtwork(artworkId).then((value) => {
       if (artworkRequestVersionRef.current !== requestVersion) return;
-      if (!value || value.id !== artworkId) return;
+      if (!value || value.id !== artworkId) {
+        if (artworkUrlRef.current) URL.revokeObjectURL(artworkUrlRef.current);
+        artworkUrlRef.current = null;
+        loadedArtworkIdRef.current = null;
+        setArtworkUrl(null);
+        setArtworkAccentColor(null);
+        return;
+      }
       const nextUrl = artworkBlobUrl(value.mimeType, value.dataBase64);
       if (artworkRequestVersionRef.current !== requestVersion) {
         URL.revokeObjectURL(nextUrl);
         return;
       }
+      const previousUrl = artworkUrlRef.current;
       artworkUrlRef.current = nextUrl;
+      loadedArtworkIdRef.current = artworkId;
       setArtworkUrl(nextUrl);
+      setArtworkAccentColor(value.accentColor);
+      if (previousUrl) URL.revokeObjectURL(previousUrl);
     }).catch((error) => {
       if (artworkRequestVersionRef.current !== requestVersion) return;
+      if (artworkUrlRef.current) URL.revokeObjectURL(artworkUrlRef.current);
+      artworkUrlRef.current = null;
+      loadedArtworkIdRef.current = null;
       setArtworkUrl(null);
+      setArtworkAccentColor(null);
       setArtworkError(messageOf(error));
     }).finally(() => {
       if (artworkRequestVersionRef.current === requestVersion) {
@@ -139,12 +187,13 @@ export function usePlayback({
         artworkRequestVersionRef.current += 1;
       }
     };
-  }, [active, loadArtwork, snapshot.artworkId]);
+  }, [active, loadArtwork, snapshot.artworkId, snapshot.trackId]);
 
   useEffect(() => () => {
     artworkRequestVersionRef.current += 1;
     if (artworkUrlRef.current) URL.revokeObjectURL(artworkUrlRef.current);
     artworkUrlRef.current = null;
+    loadedArtworkIdRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -237,6 +286,7 @@ export function usePlayback({
     controlError,
     clearControlError,
     artworkUrl,
+    artworkAccentColor,
     artworkLoading,
     artworkError,
   };

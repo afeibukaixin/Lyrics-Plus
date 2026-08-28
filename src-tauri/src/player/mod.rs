@@ -61,6 +61,7 @@ pub struct PlaybackArtwork {
     pub id: String,
     pub mime_type: String,
     pub data_base64: String,
+    pub accent_color: String,
 }
 
 impl PlayerSelection {

@@ -77,6 +77,7 @@ export type PlaybackArtwork = {
   id: string;
   mimeType: string;
   dataBase64: string;
+  accentColor: string;
 };
 
 export type PlaybackSpectrumStatus =
