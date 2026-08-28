@@ -155,7 +155,7 @@
 }
 .overlay[data-orientation="vertical"] .active[data-marquee="true"],
 .overlay[data-orientation="vertical"] .next[data-marquee="true"] {
-  text-align: start;
+  text-align: start; clip-path: inset(0);
 }
 .overlay[data-alignment="distributed"][data-layout="double"][data-orientation="horizontal"] .lines[data-double-line-order="reversed"] .active { text-align: right; }
 .overlay[data-alignment="distributed"][data-layout="double"][data-orientation="horizontal"] .lines[data-double-line-order="reversed"] .next { text-align: left; }
