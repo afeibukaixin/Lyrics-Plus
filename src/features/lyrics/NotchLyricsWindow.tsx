@@ -35,6 +35,7 @@ import type {
   PlaybackSpectrumBands,
 } from "../../shared/types";
 import {
+  ArtworkTransitionImage,
   ExpandedPlayer,
   KaraokeLine,
   MIN_LYRIC_MARQUEE_DURATION_MS,
@@ -309,7 +310,16 @@ export default function NotchLyricsWindow() {
     const align = side === "left" ? "left" : "right";
     if (slot === "empty") return null;
     if (slot === "artwork") {
-      return <img className={styles.slotArtwork} alt="" draggable={false} src={playback.artworkUrl ?? appIconUrl} />;
+      return (
+        <ArtworkTransitionImage
+          alt=""
+          artworkLoading={playback.artworkLoading}
+          artworkUrl={playback.artworkUrl}
+          className={styles.slotArtwork}
+          draggable={false}
+          fallbackSrc={appIconUrl}
+        />
+      );
     }
     if (slot === "spectrum") {
       return <SpectrumBars active={usesSpectrum && playback.active} register={registerSpectrumNode} />;

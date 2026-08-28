@@ -141,6 +141,7 @@
   border-radius: 8px;
   object-fit: cover;
   box-shadow: 0 1px 5px rgb(0 0 0 / 25%);
+  backface-visibility: hidden;
 }
 
 .slot[data-side="right"] .slotArtwork {
@@ -319,16 +320,15 @@
   width: 74px;
   height: 74px;
   flex: none;
-  overflow: hidden;
-  border-radius: 14px;
-  background: rgb(255 255 255 / 10%);
 }
 
 .playerArtwork img {
   display: block;
   width: 100%;
   height: 100%;
+  border-radius: 14px;
   object-fit: cover;
+  backface-visibility: hidden;
 }
 
 .playerTrack {
