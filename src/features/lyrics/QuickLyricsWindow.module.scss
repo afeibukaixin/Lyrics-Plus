@@ -28,6 +28,7 @@
 
 .workspace {
   min-height: 0;
+  padding: 1px;
   overflow: hidden;
   display: grid;
   grid-template-columns: minmax(280px, .9fr) minmax(0, 1.35fr);
