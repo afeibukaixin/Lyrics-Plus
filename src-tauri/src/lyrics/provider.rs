@@ -31,16 +31,13 @@ pub const KUWO_DISPLAY_NAME: &str = "Kuwo";
 pub const AMLL_DISPLAY_NAME: &str = "AMLL TTML";
 pub const MIGU_DISPLAY_NAME: &str = "Migu";
 pub const MUSIXMATCH_DISPLAY_NAME: &str = "Musixmatch";
-pub const DEFAULT_AMLL_BASE_URL: &str = "https://amlldb.bikonoo.com";
+pub const DEFAULT_AMLL_BASE_URL: &str = "https://api.amll.dev";
 const MIN_LOCAL_TITLE_SIMILARITY: f64 = 0.6;
-const LEGACY_AMLL_BASE_URLS: [&str; 2] = [
+const LEGACY_AMLL_BASE_URLS: [&str; 3] = [
+    "https://amlldb.bikonoo.com",
     "https://cdn.jsdelivr.net/gh/Steve-xmh/amll-ttml-db@main",
     "https://github.com/amll-dev/amll-ttml-db/raw/refs/heads/main",
 ];
-
-fn default_provider_enabled(provider_id: &str) -> bool {
-    !matches!(provider_id, "amll_ttml" | "musixmatch")
-}
 
 include!("provider_types.rs");
 include!("provider_settings.rs");

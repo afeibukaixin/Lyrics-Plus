@@ -79,7 +79,7 @@ impl Default for ProviderSettings {
                 .into_iter()
                 .map(|(id, _)| ProviderPreference {
                     id: id.into(),
-                    enabled: default_provider_enabled(id),
+                    enabled: true,
                 })
                 .collect(),
             auto_apply_threshold: default_auto_apply_threshold(),

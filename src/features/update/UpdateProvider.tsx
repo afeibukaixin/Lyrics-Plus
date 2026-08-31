@@ -43,7 +43,7 @@ const updatePreviewReleaseNotes = `Lyrics Plus v2.1.0
 
 歌词来源与匹配
 - 新增酷我、咪咕、Musixmatch 和 AMLL TTML 歌词源。
-- 支持 Musixmatch 本地凭据管理、AMLL 服务地址配置和 AMLL 歌词索引缓存。
+- 支持 Musixmatch 本地凭据管理和 AMLL Native API 地址配置。
 - 完善歌词源管理、候选排序、匹配权重、自动匹配阈值和标题过滤。
 
 歌词显示

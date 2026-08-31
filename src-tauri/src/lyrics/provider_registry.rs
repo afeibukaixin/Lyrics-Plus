@@ -32,31 +32,29 @@ impl Default for ProviderRegistry {
 
 impl ProviderRegistry {
     pub fn new(settings: ProviderSettings) -> Self {
-        Self::build(settings, Arc::new(ProviderCredentialStore::memory()), None)
+        Self::build(settings, Arc::new(ProviderCredentialStore::memory()))
     }
 
     pub fn new_with_app_dir(settings: ProviderSettings, app_dir: &Path) -> Result<Self, String> {
         let credentials = Arc::new(ProviderCredentialStore::load(app_dir)?);
-        Ok(Self::build(
-            settings,
-            credentials,
-            Some(app_dir.join("cache").join("amll-index.json")),
-        ))
+        let legacy_cache = app_dir.join("cache").join("amll-index.json");
+        if legacy_cache.is_file() {
+            if let Err(error) = std::fs::remove_file(&legacy_cache) {
+                log::debug!("清理旧 AMLL 索引缓存失败：{error}");
+            }
+        }
+        Ok(Self::build(settings, credentials))
     }
 
-    fn build(
-        settings: ProviderSettings,
-        credentials: Arc<ProviderCredentialStore>,
-        amll_cache_path: Option<std::path::PathBuf>,
-    ) -> Self {
+    fn build(settings: ProviderSettings, credentials: Arc<ProviderCredentialStore>) -> Self {
         let settings = Arc::new(RwLock::new(settings));
         let providers: Vec<Box<dyn LyricsProvider>> = vec![
             Box::new(NeteaseProvider),
             Box::new(QqMusicProvider),
             Box::new(KugouProvider),
-            Box::new(LrcLibProvider),
+            Box::new(LrcLibProvider::default()),
             Box::new(KuwoProvider),
-            Box::new(AmllTtmlProvider::new(settings.clone(), amll_cache_path)),
+            Box::new(AmllTtmlProvider::new(settings.clone())),
             Box::new(MiguProvider),
             Box::new(MusixmatchProvider::new(credentials.clone())),
         ];

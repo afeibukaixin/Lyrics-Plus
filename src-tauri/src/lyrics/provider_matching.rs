@@ -33,9 +33,9 @@ pub(crate) fn validate_settings(settings: &ProviderSettings) -> Result<(), Strin
         return Err("请至少启用一个歌词源".into());
     }
     let amll_url = reqwest::Url::parse(settings.amll_base_url.trim())
-        .map_err(|_| "AMLL TTML 镜像地址必须是有效的绝对 URL".to_string())?;
+        .map_err(|_| "AMLL API 根地址必须是有效的绝对 URL".to_string())?;
     if !matches!(amll_url.scheme(), "http" | "https") {
-        return Err("AMLL TTML 镜像地址只支持 http 或 https".into());
+        return Err("AMLL API 根地址只支持 http 或 https".into());
     }
     prepare_title_filter_keywords_with_normalization(
         &settings.title_filter_keywords,
@@ -101,7 +101,7 @@ fn complete_settings(settings: &mut ProviderSettings) {
         if !settings.providers.iter().any(|provider| provider.id == id) {
             settings.providers.push(ProviderPreference {
                 id: id.into(),
-                enabled: default_provider_enabled(id),
+                enabled: true,
             });
         }
     }

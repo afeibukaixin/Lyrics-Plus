@@ -61,10 +61,11 @@ impl LyricsProvider for MiguProvider {
         input: &'a LyricsSearchInput,
     ) -> ProviderFuture<'a, ProviderSearchReport> {
         Box::pin(async move {
-            let mut url = reqwest::Url::parse(
-                "https://c.musicapp.migu.cn/MIGUM3.0/v1.0/content/search_all.do",
-            )
-            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
+            let mut url =
+                reqwest::Url::parse("https://c.musicapp.migu.cn/v1.0/content/search_all.do")
+                    .map_err(|error| {
+                        self.error(ProviderErrorKind::InvalidResponse, error.to_string())
+                    })?;
             url.query_pairs_mut()
                 .append_pair(
                     "text",
@@ -112,34 +113,44 @@ impl MiguProvider {
         input: &LyricsSearchInput,
         song: MiguSong,
     ) -> Result<Option<LyricsSearchResult>, ProviderError> {
-        let mut selected = None;
-        let mut last_error = None;
-        for (index, lyric_url) in [song.trc_url.as_str(), song.lrc_url.as_str()]
-            .into_iter()
-            .enumerate()
+        let original_url = song.lrc_url.trim();
+        if original_url.is_empty() {
+            return Ok(None);
+        }
+        let original = self.download_lyrics(client, original_url).await?;
+        let original_document = match parse_lrc_with_options(&original, self.display_name(), false)
         {
-            if lyric_url.is_empty()
-                || selected.is_some()
-                || index == 1 && lyric_url == song.trc_url.as_str()
-            {
-                continue;
+            Ok(document) if !document.tracks.original.lines.is_empty() => document,
+            Ok(_) => return Ok(None),
+            Err(error) => {
+                log::debug!("咪咕原文歌词解析失败，不使用翻译冒充原文：{error}");
+                return Ok(None);
             }
-            match self.download_lyrics(client, lyric_url).await {
-                Ok(lyrics) => {
-                    if let Ok(document) =
-                        parse_lrc_with_options(&lyrics, self.display_name(), false)
-                    {
-                        selected = Some((lyrics, document));
+        };
+        let mut lyrics = original.trim().to_string();
+        let translation_url = song.trc_url.trim();
+        if !translation_url.is_empty() && translation_url != original_url {
+            match self.download_lyrics(client, translation_url).await {
+                Ok(translation) => {
+                    match parse_lrc_with_options(&translation, self.display_name(), false) {
+                        Ok(document) if !document.tracks.original.lines.is_empty() => {
+                            lyrics.push_str("\n[lyrics-plus:translation]\n");
+                            lyrics.push_str(translation.trim());
+                        }
+                        Ok(_) => log::debug!("咪咕翻译歌词没有有效时间标签，保留原文"),
+                        Err(error) => log::debug!("咪咕翻译歌词解析失败，保留原文：{error}"),
                     }
                 }
-                Err(error) => last_error = Some(error),
+                Err(error) => log::debug!("咪咕翻译歌词获取失败，保留原文：{error}"),
             }
         }
-        let Some((lyrics, document)) = selected else {
-            return match last_error {
-                Some(error) => Err(error),
-                None => Ok(None),
-            };
+        let document = match parse_lrc_with_options(&lyrics, self.display_name(), false) {
+            Ok(document) => document,
+            Err(error) => {
+                log::debug!("咪咕合并歌词解析失败，保留原文：{error}");
+                lyrics = original.trim().to_string();
+                original_document
+            }
         };
         let artist = song
             .singers

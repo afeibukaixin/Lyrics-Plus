@@ -41,10 +41,18 @@ struct NeteaseAlbum {
 
 #[derive(Debug, Deserialize)]
 struct LyricsEnvelope {
+    #[serde(default)]
     lrc: Option<LyricValue>,
+    #[serde(default)]
     tlyric: Option<LyricValue>,
+    #[serde(default)]
     yrc: Option<LyricValue>,
+    #[serde(default)]
     romalrc: Option<LyricValue>,
+    #[serde(default)]
+    ytlrc: Option<LyricValue>,
+    #[serde(default)]
+    yromalrc: Option<LyricValue>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -69,7 +77,7 @@ impl LyricsProvider for NeteaseProvider {
         input: &'a LyricsSearchInput,
     ) -> ProviderFuture<'a, ProviderSearchReport> {
         Box::pin(async move {
-            let mut url = reqwest::Url::parse("https://music.163.com/api/search/get/web").map_err(
+            let mut url = reqwest::Url::parse("https://music.163.com/api/cloudsearch/pc").map_err(
                 |error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()),
             )?;
             url.query_pairs_mut()
@@ -156,11 +164,13 @@ fn result_from_detail(
         .map(|value| value.lyric)
         .filter(|value| !value.trim().is_empty());
     let translation = detail
-        .tlyric
+        .ytlrc
+        .or(detail.tlyric)
         .map(|value| value.lyric)
         .filter(|value| has_timed_text(value));
     let romanization = detail
-        .romalrc
+        .yromalrc
+        .or(detail.romalrc)
         .map(|value| value.lyric)
         .filter(|value| has_timed_text(value));
     let lyrics = merge_tracks(
@@ -188,7 +198,29 @@ impl NeteaseProvider {
         client: &reqwest::Client,
         id: &str,
     ) -> Result<LyricsEnvelope, ProviderError> {
-        let mut url = reqwest::Url::parse("https://music.163.com/api/song/lyric")
+        match self.fetch_detail_at(client, id, "api/song/lyric/v1").await {
+            Ok(detail) => Ok(detail),
+            Err(error)
+                if matches!(
+                    &error.kind,
+                    ProviderErrorKind::Network
+                        | ProviderErrorKind::Http
+                        | ProviderErrorKind::InvalidResponse
+                ) =>
+            {
+                self.fetch_detail_at(client, id, "api/song/lyric").await
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    async fn fetch_detail_at(
+        &self,
+        client: &reqwest::Client,
+        id: &str,
+        endpoint: &str,
+    ) -> Result<LyricsEnvelope, ProviderError> {
+        let mut url = reqwest::Url::parse(&format!("https://music.163.com/{endpoint}"))
             .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
         url.query_pairs_mut()
             .append_pair("id", id)
@@ -272,6 +304,8 @@ mod tests {
             tlyric: None,
             yrc: None,
             romalrc: None,
+            ytlrc: None,
+            yromalrc: None,
         }
     }
 

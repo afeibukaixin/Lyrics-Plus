@@ -51,22 +51,26 @@ struct TrackItem {
 
 #[derive(Debug, Deserialize)]
 struct MusixmatchTrack {
+    #[serde(default)]
     track_id: u64,
+    #[serde(default)]
     track_name: String,
+    #[serde(default)]
     artist_name: String,
+    #[serde(default)]
     album_name: Option<String>,
+    #[serde(default)]
     track_length: Option<u64>,
+    #[serde(default)]
+    commontrack_id: Option<u64>,
+    #[serde(default)]
+    has_richsync: Option<u8>,
 }
 
 #[derive(Debug, Deserialize)]
 struct SubtitlesBody {
     #[serde(default)]
     subtitle_list: Vec<SubtitleItem>,
-}
-
-#[derive(Debug, Deserialize)]
-struct SubtitleBody {
-    subtitle: Subtitle,
 }
 
 #[derive(Debug, Deserialize)]
@@ -184,28 +188,44 @@ impl MusixmatchProvider {
         token: &str,
         source: DesktopTokenSource,
     ) -> Result<ProviderSearchReport, ProviderError> {
-        let mut url = self.api_url(DESKTOP_API_BASE, "track.search")?;
+        let mut url = self.api_url(DESKTOP_API_BASE, "macro.subtitles.get")?;
         url.query_pairs_mut()
+            .append_pair("namespace", "lyrics_richsynched")
+            .append_pair("subtitle_format", "lrc")
             .append_pair("q_track", input.title.trim())
             .append_pair("q_artist", input.artist.trim())
-            .append_pair("page", "1")
-            .append_pair("page_size", "10")
-            .append_pair("s_track_rating", "desc")
             .append_pair("app_id", DESKTOP_APP_ID)
             .append_pair("usertoken", token);
+        if let Some(album) = input
+            .album
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+        {
+            url.query_pairs_mut().append_pair("q_album", album.trim());
+        }
+        if let Some(duration_ms) = input.duration_ms {
+            url.query_pairs_mut().append_pair(
+                "q_duration",
+                &(duration_ms as f64 / 1000.0).round().to_string(),
+            );
+        }
         let envelope = self.send_desktop(client.get(url)).await?;
         if envelope.message.header.status_code == 404 {
             return Ok(ProviderSearchReport::available(Vec::new()));
         }
         self.ensure_desktop_status(envelope.message.header.status_code, source)?;
-        let tracks = self.ranked_tracks(input, envelope.message.body)?;
-        let outcomes = join_all(
-            tracks
-                .into_iter()
-                .map(|track| self.fetch_desktop_result(client, input, token, source, track)),
-        )
-        .await;
-        collect_provider_results(outcomes)
+        if nested_status_code(&envelope.message.body) == Some(401) {
+            return Err(self.error(
+                ProviderErrorKind::Unauthorized,
+                "Musixmatch Desktop Token 已失效",
+            ));
+        }
+        let result = self
+            .fetch_desktop_result(client, input, token, source, envelope.message.body)
+            .await?;
+        Ok(ProviderSearchReport::available(
+            result.into_iter().collect(),
+        ))
     }
 
     async fn fetch_developer_result(
@@ -243,12 +263,47 @@ impl MusixmatchProvider {
         input: &LyricsSearchInput,
         token: &str,
         source: DesktopTokenSource,
-        track: MusixmatchTrack,
+        body: serde_json::Value,
     ) -> Result<Option<LyricsSearchResult>, ProviderError> {
-        let mut url = self.api_url(DESKTOP_API_BASE, "track.subtitle.get")?;
+        let Some(track) = macro_track(&body) else {
+            return Ok(None);
+        };
+        let line_lyrics = macro_subtitle_body(&body)
+            .filter(|value| has_timed_text(value))
+            .map(|value| value.trim().to_string());
+        let richsync = match (track.commontrack_id, track.has_richsync == Some(1)) {
+            (Some(commontrack_id), true) => match self
+                .fetch_richsync(client, token, source, commontrack_id)
+                .await
+            {
+                Ok(value) => value,
+                Err(error) if line_lyrics.is_some() => {
+                    log::debug!(
+                        "Musixmatch RichSync 获取失败，使用逐行歌词：{}",
+                        error.message
+                    );
+                    None
+                }
+                Err(error) => return Err(error),
+            },
+            _ => None,
+        };
+        let Some(lyrics) = richsync.or(line_lyrics) else {
+            return Ok(None);
+        };
+        self.result_from_lyrics(input, track, lyrics)
+    }
+
+    async fn fetch_richsync(
+        &self,
+        client: &reqwest::Client,
+        token: &str,
+        source: DesktopTokenSource,
+        commontrack_id: u64,
+    ) -> Result<Option<String>, ProviderError> {
+        let mut url = self.api_url(DESKTOP_API_BASE, "track.richsync.get")?;
         url.query_pairs_mut()
-            .append_pair("track_id", &track.track_id.to_string())
-            .append_pair("subtitle_format", "lrc")
+            .append_pair("commontrack_id", &commontrack_id.to_string())
             .append_pair("app_id", DESKTOP_APP_ID)
             .append_pair("usertoken", token);
         let envelope = self.send_desktop(client.get(url)).await?;
@@ -256,9 +311,10 @@ impl MusixmatchProvider {
             return Ok(None);
         }
         self.ensure_desktop_status(envelope.message.header.status_code, source)?;
-        let body = serde_json::from_value::<SubtitleBody>(envelope.message.body)
-            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
-        self.result_from_subtitles(input, track, vec![body.subtitle])
+        let Some(body) = deep_find(&envelope.message.body, "richsync_body") else {
+            return Ok(None);
+        };
+        Ok(richsync_to_lrc(body))
     }
 
     fn ranked_tracks(
@@ -305,6 +361,15 @@ impl MusixmatchProvider {
             ),
             None => original.subtitle_body.trim().to_string(),
         };
+        self.result_from_lyrics(input, track, lyrics)
+    }
+
+    fn result_from_lyrics(
+        &self,
+        input: &LyricsSearchInput,
+        track: MusixmatchTrack,
+        lyrics: String,
+    ) -> Result<Option<LyricsSearchResult>, ProviderError> {
         let parsed = parse_lrc_with_options(&lyrics, self.display_name(), false).ok();
         let mut result = LyricsSearchResult {
             id: track.track_id.to_string(),
@@ -503,6 +568,109 @@ fn has_timed_text(raw: &str) -> bool {
         line.find(']')
             .is_some_and(|end| line[..end].contains(':') && !line[end + 1..].trim().is_empty())
     })
+}
+
+fn deep_find<'a>(value: &'a serde_json::Value, key: &str) -> Option<&'a serde_json::Value> {
+    match value {
+        serde_json::Value::Object(object) => {
+            if let Some(value) = object.get(key) {
+                return Some(value);
+            }
+            object.values().find_map(|value| deep_find(value, key))
+        }
+        serde_json::Value::Array(values) => values.iter().find_map(|value| deep_find(value, key)),
+        _ => None,
+    }
+}
+
+fn nested_status_code(value: &serde_json::Value) -> Option<u16> {
+    deep_find(value, "status_code")?.as_u64()?.try_into().ok()
+}
+
+fn macro_track(body: &serde_json::Value) -> Option<MusixmatchTrack> {
+    let value = body
+        .get("macro_calls")
+        .and_then(|calls| calls.get("matcher.track.get"))
+        .and_then(|call| call.get("message"))
+        .and_then(|message| message.get("body"))
+        .and_then(|body| body.get("track"))
+        .or_else(|| deep_find(body, "track"))?;
+    serde_json::from_value(value.clone()).ok()
+}
+
+fn macro_subtitle_body(body: &serde_json::Value) -> Option<String> {
+    deep_find(body, "subtitle_body")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned)
+}
+
+fn richsync_to_lrc(value: &serde_json::Value) -> Option<String> {
+    let entries = match value {
+        serde_json::Value::String(raw) => serde_json::from_str::<serde_json::Value>(raw).ok()?,
+        serde_json::Value::Array(_) => value.clone(),
+        _ => return None,
+    };
+    let serde_json::Value::Array(entries) = entries else {
+        return None;
+    };
+    let mut lines = Vec::new();
+    let mut has_words = false;
+    for entry in entries {
+        let Some(timestamp) = entry.get("ts").and_then(serde_json::Value::as_f64) else {
+            continue;
+        };
+        let words = entry
+            .get("l")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|word| {
+                let text = word.get("c")?.as_str()?;
+                if text.is_empty() {
+                    return None;
+                }
+                let offset = word
+                    .get("o")
+                    .and_then(serde_json::Value::as_f64)
+                    .unwrap_or(0.0);
+                Some((timestamp + offset, text.to_string()))
+            })
+            .collect::<Vec<_>>();
+        if !words.is_empty() {
+            has_words = true;
+            let text = words
+                .into_iter()
+                .map(|(start, text)| format!("<{}>{text}", stamp_seconds(start)))
+                .collect::<Vec<_>>()
+                .join("");
+            lines.push((timestamp, format!("[{}]{text}", stamp_seconds(timestamp))));
+        } else if let Some(text) = entry
+            .get("x")
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|text| !text.is_empty())
+        {
+            lines.push((timestamp, format!("[{}]{text}", stamp_seconds(timestamp))));
+        }
+    }
+    if !has_words {
+        return None;
+    }
+    lines.sort_by(|left, right| left.0.total_cmp(&right.0));
+    Some(
+        lines
+            .into_iter()
+            .map(|(_, line)| line)
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
+}
+
+fn stamp_seconds(seconds: f64) -> String {
+    let total_centiseconds = (seconds.max(0.0) * 100.0).round() as u64;
+    let minutes = total_centiseconds / 6_000;
+    let remaining = total_centiseconds % 6_000;
+    format!("{minutes:02}:{:02}.{:02}", remaining / 100, remaining % 100)
 }
 
 fn metadata_score(input: &LyricsSearchInput, track: &MusixmatchTrack) -> f64 {

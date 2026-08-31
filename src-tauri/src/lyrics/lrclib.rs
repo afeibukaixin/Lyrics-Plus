@@ -1,3 +1,6 @@
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
 use serde::Deserialize;
 
 use super::parse_lrc_with_options;
@@ -6,6 +9,9 @@ use super::provider::{
     LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
     LRCLIB_DISPLAY_NAME,
 };
+
+const DEFAULT_COOLDOWN_SECS: u64 = 60;
+const MAX_COOLDOWN_SECS: u64 = 300;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -16,9 +22,21 @@ struct LrcLibItem {
     album_name: Option<String>,
     duration: Option<f64>,
     synced_lyrics: Option<String>,
+    #[serde(default, alias = "lyricsFile")]
+    lyricsfile: Option<String>,
 }
 
-pub struct LrcLibProvider;
+pub struct LrcLibProvider {
+    cooldown_until: Mutex<Option<Instant>>,
+}
+
+impl Default for LrcLibProvider {
+    fn default() -> Self {
+        Self {
+            cooldown_until: Mutex::new(None),
+        }
+    }
+}
 
 impl LyricsProvider for LrcLibProvider {
     fn id(&self) -> &'static str {
@@ -59,6 +77,7 @@ impl LrcLibProvider {
         client: &reqwest::Client,
         input: &LyricsSearchInput,
     ) -> Result<Option<LrcLibItem>, ProviderError> {
+        self.ensure_not_rate_limited()?;
         let mut url = reqwest::Url::parse("https://lrclib.net/api/get")
             .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
         {
@@ -86,6 +105,9 @@ impl LrcLibProvider {
                 format!("精确歌词查询失败：{error}"),
             )
         })?;
+        if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            return Err(self.rate_limit_error(&response));
+        }
         if response.status() == reqwest::StatusCode::NOT_FOUND {
             return Ok(None);
         }
@@ -112,6 +134,7 @@ impl LrcLibProvider {
         client: &reqwest::Client,
         input: &LyricsSearchInput,
     ) -> Result<Vec<LrcLibItem>, ProviderError> {
+        self.ensure_not_rate_limited()?;
         let mut url = reqwest::Url::parse("https://lrclib.net/api/search")
             .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
         {
@@ -129,6 +152,9 @@ impl LrcLibProvider {
         let response = client.get(url).send().await.map_err(|error| {
             self.error(ProviderErrorKind::Network, format!("歌词搜索失败：{error}"))
         })?;
+        if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            return Err(self.rate_limit_error(&response));
+        }
         if !response.status().is_success() {
             return Err(self.error(
                 ProviderErrorKind::Http,
@@ -143,15 +169,76 @@ impl LrcLibProvider {
         })
     }
 
+    fn ensure_not_rate_limited(&self) -> Result<(), ProviderError> {
+        let now = Instant::now();
+        let mut cooldown = self
+            .cooldown_until
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let Some(until) = *cooldown else {
+            return Ok(());
+        };
+        if until <= now {
+            *cooldown = None;
+            return Ok(());
+        }
+        let remaining = until.duration_since(now);
+        let seconds = remaining
+            .as_secs()
+            .saturating_add(if remaining.subsec_nanos() > 0 { 1 } else { 0 })
+            .max(1);
+        Err(self.error(
+            ProviderErrorKind::Http,
+            format!("LRCLIB 请求冷却中，请约 {seconds} 秒后重试"),
+        ))
+    }
+
+    fn rate_limit_error(&self, response: &reqwest::Response) -> ProviderError {
+        let seconds = self.record_rate_limit(response);
+        self.error(
+            ProviderErrorKind::Http,
+            format!("LRCLIB 请求过于频繁，请约 {seconds} 秒后重试"),
+        )
+    }
+
+    fn record_rate_limit(&self, response: &reqwest::Response) -> u64 {
+        let requested_seconds = response
+            .headers()
+            .get("retry-after")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.trim().parse::<u64>().ok())
+            .map(|value| value.clamp(1, MAX_COOLDOWN_SECS))
+            .unwrap_or(DEFAULT_COOLDOWN_SECS);
+        let now = Instant::now();
+        let requested_until = now + Duration::from_secs(requested_seconds);
+        let mut cooldown = self
+            .cooldown_until
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let until = match *cooldown {
+            Some(existing) if existing > requested_until => existing,
+            _ => requested_until,
+        };
+        *cooldown = Some(until);
+        let remaining = until.duration_since(now);
+        remaining
+            .as_secs()
+            .saturating_add(if remaining.subsec_nanos() > 0 { 1 } else { 0 })
+            .max(1)
+    }
+
     fn result_from_item(
         &self,
         input: &LyricsSearchInput,
         item: LrcLibItem,
     ) -> Option<LyricsSearchResult> {
-        let lyrics = item.synced_lyrics?.trim().to_string();
-        if lyrics.is_empty() {
-            return None;
-        }
+        let lyrics = item
+            .lyricsfile
+            .filter(|value| !value.trim().is_empty())
+            .filter(|value| parse_lrc_with_options(value, LRCLIB_DISPLAY_NAME, false).is_ok())
+            .or(item.synced_lyrics)
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())?;
         let (has_translation, has_word_timing, has_romanization) = capabilities(&lyrics);
         let mut result = LyricsSearchResult {
             id: item.id.to_string(),
