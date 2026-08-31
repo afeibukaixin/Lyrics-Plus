@@ -236,6 +236,7 @@ pub fn run() {
             commands::get_player_selection,
             commands::set_player_selection,
             commands::search_lyrics,
+            commands::get_completed_lyrics_search,
             commands::get_provider_settings,
             commands::get_provider_credentials,
             commands::set_provider_settings,

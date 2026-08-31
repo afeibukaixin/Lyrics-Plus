@@ -23,6 +23,8 @@ struct Association {
     offset_ms: i64,
     original_format: String,
     manual_selected: bool,
+    provider_id: Option<String>,
+    provider_item_id: Option<String>,
 }
 
 struct LocalLyricsCandidate {
@@ -115,6 +117,7 @@ pub(super) fn upsert_file_index(
     title: &str,
     artist: &str,
     source: &str,
+    original_format: &str,
     manual_selected: bool,
     hash: &str,
 ) -> Result<(), String> {
@@ -123,7 +126,7 @@ pub(super) fn upsert_file_index(
             "INSERT INTO lyric_files
                (content_path, title, artist, source, original_format, manual_selected,
                 content_hash, app_owned, updated_at)
-             VALUES (?1, ?2, ?3, ?4, 'lrc', ?5, ?6, ?7, unixepoch())
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, unixepoch())
              ON CONFLICT(content_path) DO UPDATE SET
                title=excluded.title, artist=excluded.artist, source=excluded.source,
                original_format=excluded.original_format, manual_selected=excluded.manual_selected,
@@ -133,6 +136,7 @@ pub(super) fn upsert_file_index(
                 title,
                 artist,
                 source,
+                original_format,
                 manual_selected,
                 hash,
                 !is_user_owned_source(source),
@@ -189,12 +193,16 @@ fn migrate_legacy_files(
         } else {
             old_path.clone()
         };
+        let original_format = parse_lrc_with_options(&raw, &source, manual_selected)
+            .map(|document| document.metadata.original_format)
+            .unwrap_or_else(|_| "lrc".into());
         upsert_file_index(
             connection,
             &path,
             &title,
             &artist,
             &source,
+            &original_format,
             manual_selected,
             &content_hash(&raw),
         )?;

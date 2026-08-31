@@ -651,12 +651,16 @@ struct ParsedMetadata {
 }
 
 fn lyric_metadata(path: &Path, raw: &str, source: &str) -> ParsedMetadata {
-    let format = path
+    let extension_format = path
         .extension()
         .and_then(|value| value.to_str())
         .unwrap_or("lrc")
         .to_ascii_lowercase();
     let document = parse_lrc_with_options(raw, source, false).ok();
+    let format = document
+        .as_ref()
+        .map(|value| value.metadata.original_format.clone())
+        .unwrap_or(extension_format);
     let (filename_artist, filename_title) = path
         .file_stem()
         .and_then(|value| value.to_str())

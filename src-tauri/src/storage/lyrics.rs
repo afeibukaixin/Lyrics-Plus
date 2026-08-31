@@ -53,7 +53,7 @@ impl Storage {
                 "INSERT INTO lyric_associations
                    (track_key, title, artist, source, content_path, offset_ms, original_format,
                     manual_selected, provider_id, provider_item_id, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'lrc', ?7, ?8, ?9, unixepoch())
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, unixepoch())
                  ON CONFLICT(track_key) DO UPDATE SET
                    title=excluded.title, artist=excluded.artist, source=excluded.source,
                    content_path=excluded.content_path, original_format=excluded.original_format,
@@ -66,6 +66,7 @@ impl Storage {
                     source,
                     path.to_string_lossy(),
                     document.offset_ms,
+                    document.metadata.original_format.as_str(),
                     kind.is_manual(),
                     provider_id,
                     provider_item_id
@@ -78,6 +79,7 @@ impl Storage {
             title,
             artist,
             source,
+            &document.metadata.original_format,
             kind.is_manual(),
             &content_hash,
         )?;

@@ -33,6 +33,20 @@ impl Storage {
         }
     }
 
+    pub(crate) fn automatic_provider_item_id(
+        &self,
+        track_key: &str,
+        provider_id: &str,
+    ) -> Result<Option<String>, String> {
+        let Some(association) = self.association(track_key)? else {
+            return Ok(None);
+        };
+        if association.manual_selected || association.provider_id.as_deref() != Some(provider_id) {
+            return Ok(None);
+        }
+        Ok(association
+            .provider_item_id
+            .filter(|item_id| !item_id.trim().is_empty()))
     }
 
     fn association(&self, track_key: &str) -> Result<Option<Association>, String> {
@@ -43,7 +57,8 @@ impl Storage {
             .unwrap_or_else(|error| error.into_inner());
         connection
             .query_row(
-                "SELECT title, artist, source, content_path, offset_ms, original_format, manual_selected
+                "SELECT title, artist, source, content_path, offset_ms, original_format,
+                        manual_selected, provider_id, provider_item_id
                  FROM lyric_associations WHERE track_key=?1",
                 params![canonical_track_key],
                 |row| {
@@ -55,6 +70,8 @@ impl Storage {
                         offset_ms: row.get(4)?,
                         original_format: row.get(5)?,
                         manual_selected: row.get::<_, i64>(6)? != 0,
+                        provider_id: row.get(7)?,
+                        provider_item_id: row.get(8)?,
                     })
                 },
             )
