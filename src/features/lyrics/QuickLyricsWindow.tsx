@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { FileText, Music2 } from "lucide-react";
 import { localizedSource } from "../i18n/userText";
 import { useLyrics } from "./useLyrics";
 import { usePlayback } from "../player/usePlayback";
+import { isTauriRuntime } from "../../shared/api";
+import { createTauriListenerCleanup, QUICK_LYRICS_REFRESH_EVENT } from "../../shared/tauriEvent";
 import type { LyricsSearchResult } from "../../shared/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +71,20 @@ export default function QuickLyricsWindow() {
   const playback = usePlayback();
   const lyrics = useLyrics(playback.snapshot, playback.positionMs, playback.active);
   const searchedTrack = useRef<string | null>(null);
+  const searchRef = useRef(lyrics.search);
+  searchRef.current = lyrics.search;
+  const searchStateRef = useRef({
+    trackKey: lyrics.trackKey,
+    title: playback.snapshot.title,
+    artist: playback.snapshot.artist,
+    searching: lyrics.searching,
+  });
+  searchStateRef.current = {
+    trackKey: lyrics.trackKey,
+    title: playback.snapshot.title,
+    artist: playback.snapshot.artist,
+    searching: lyrics.searching,
+  };
   const applying = useRef(false);
   const [searchForm, setSearchForm] = useState<SearchFormState>({
     title: "",
@@ -104,12 +121,21 @@ export default function QuickLyricsWindow() {
       !lyrics.trackKey
       || !playback.snapshot.title
       || !playback.snapshot.artist
-      || lyrics.loadState !== "missing"
+      || (lyrics.loadState !== "ready" && lyrics.loadState !== "missing")
     ) return;
     if (searchedTrack.current === lyrics.trackKey) return;
     searchedTrack.current = lyrics.trackKey;
-    void lyrics.search();
+    void lyrics.search("manual");
   }, [lyrics.loadState, lyrics.trackKey, playback.snapshot.artist, playback.snapshot.title]);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    return createTauriListenerCleanup(listen(QUICK_LYRICS_REFRESH_EVENT, () => {
+      const current = searchStateRef.current;
+      if (!current.trackKey || !current.title || !current.artist || current.searching) return;
+      void searchRef.current("manual");
+    }));
+  }, []);
 
   useEffect(() => {
     if (lyrics.results.length === 0) {

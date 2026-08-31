@@ -57,6 +57,8 @@ pub struct SearchResponse {
 pub enum LyricsLoadStatus {
     Ready,
     Missing,
+    /// 保留给前端状态兼容；当前缓存无效会解除关联并按 Missing 返回。
+    #[allow(dead_code)]
     Error,
 }
 

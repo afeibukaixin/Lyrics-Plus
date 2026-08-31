@@ -107,12 +107,21 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, active
   }, [t]);
 
   const restoreCompletedSearch = useCallback(async (key: string) => {
+    const restoreGeneration = searchGeneration.current;
     try {
       const response = await api.getCompletedLyricsSearch(key);
-      if (response && activeTrackKey.current === key) applySearchResponse(response);
+      if (
+        response
+        && activeTrackKey.current === key
+        && searchGeneration.current === restoreGeneration
+      ) {
+        applySearchResponse(response);
+      }
       return response;
     } catch (restoreError) {
-      if (activeTrackKey.current === key) setError(messageOf(restoreError));
+      if (activeTrackKey.current === key && searchGeneration.current === restoreGeneration) {
+        setError(messageOf(restoreError));
+      }
       return null;
     }
   }, [applySearchResponse]);
