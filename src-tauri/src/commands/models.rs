@@ -21,4 +21,5 @@ pub struct GlobalShortcutStatus {
     pub toggle_status_bar_lyrics: bool,
     pub toggle_list_lyrics: bool,
     pub toggle_notch_lyrics: bool,
+    pub switch_lyrics: bool,
 }

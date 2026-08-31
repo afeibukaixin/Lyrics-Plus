@@ -96,7 +96,7 @@ function applyPendingNotchPreferences(
 }
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 57,
+  schemaVersion: 59,
   app: { theme: "dark", language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, hideMenuBarIcon: false, silentStartup: false, autoCheckUpdates: true, lyricsWindowsShowOnAllSpaces: false, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     chineseConversion: "original",
@@ -107,16 +107,16 @@ const defaultConfig: AppConfig = {
       matchWeights: { title: 39, artist: 36, album: 8, duration: 17 },
       normalizeChinese: true,
       titleFilterKeywords: defaultTitleFilterKeywords,
-      amllBaseUrl: "https://amlldb.bikonoo.com",
+      amllBaseUrl: "https://api.amll.dev",
       providers: [
         { id: "lrclib", enabled: true },
         { id: "kugou", enabled: true },
         { id: "qqmusic", enabled: true },
         { id: "netease", enabled: true },
         { id: "kuwo", enabled: true },
-        { id: "amll_ttml", enabled: false },
+        { id: "amll_ttml", enabled: true },
         { id: "migu", enabled: true },
-        { id: "musixmatch", enabled: false },
+        { id: "musixmatch", enabled: true },
       ],
     },
     displays: {

@@ -309,7 +309,11 @@ pub(crate) fn show_quick_lyrics_window(app: &tauri::AppHandle) -> Result<(), Str
             log::warn!("Failed to unminimize the quick lyrics window: {error}");
         }
         window.show().map_err(|error| error.to_string())?;
-        return window.set_focus().map_err(|error| error.to_string());
+        window.set_focus().map_err(|error| error.to_string())?;
+        if let Err(error) = window.emit(QUICK_LYRICS_REFRESH_EVENT, ()) {
+            log::debug!("Failed to request quick lyrics refresh: {error}");
+        }
+        return Ok(());
     }
 
     let window = WebviewWindowBuilder::new(
@@ -327,6 +331,16 @@ pub(crate) fn show_quick_lyrics_window(app: &tauri::AppHandle) -> Result<(), Str
     .map_err(|error| error.to_string())?;
 
     window.set_focus().map_err(|error| error.to_string())
+}
+
+pub(crate) fn toggle_quick_lyrics_window(app: &tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("quick-lyrics") {
+        if window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(false) {
+            window.hide().map_err(|error| error.to_string())?;
+            return Ok(());
+        }
+    }
+    show_quick_lyrics_window(app)
 }
 
 fn create_list_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {

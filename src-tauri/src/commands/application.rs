@@ -311,8 +311,10 @@ pub fn get_global_shortcut_status(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<GlobalShortcutStatus, String> {
-    let ([toggle, unlock, reset], [toggle_status_bar, toggle_list, toggle_notch]) =
-        state.config.snapshot().app.shortcuts.parsed()?;
+    let (
+        [toggle, unlock, reset],
+        [toggle_status_bar, toggle_list, toggle_notch, switch_lyrics],
+    ) = state.config.snapshot().app.shortcuts.parsed()?;
     let shortcuts = app.global_shortcut();
     Ok(GlobalShortcutStatus {
         toggle_overlay: shortcuts.is_registered(toggle),
@@ -322,6 +324,7 @@ pub fn get_global_shortcut_status(
             .is_some_and(|shortcut| shortcuts.is_registered(shortcut)),
         toggle_list_lyrics: toggle_list.is_some_and(|shortcut| shortcuts.is_registered(shortcut)),
         toggle_notch_lyrics: toggle_notch.is_some_and(|shortcut| shortcuts.is_registered(shortcut)),
+        switch_lyrics: switch_lyrics.is_some_and(|shortcut| shortcuts.is_registered(shortcut)),
     })
 }
 

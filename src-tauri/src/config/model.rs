@@ -165,6 +165,7 @@ pub struct GlobalShortcutSettings {
     pub toggle_status_bar_lyrics: String,
     pub toggle_list_lyrics: String,
     pub toggle_notch_lyrics: String,
+    pub switch_lyrics: String,
 }
 
 impl Default for GlobalShortcutSettings {
@@ -176,13 +177,14 @@ impl Default for GlobalShortcutSettings {
             toggle_status_bar_lyrics: String::new(),
             toggle_list_lyrics: String::new(),
             toggle_notch_lyrics: String::new(),
+            switch_lyrics: DEFAULT_SWITCH_LYRICS_SHORTCUT.into(),
         }
     }
 }
 
 impl GlobalShortcutSettings {
-    pub fn parsed(&self) -> Result<([Shortcut; 3], [Option<Shortcut>; 3]), String> {
-        let mut parsed = Vec::<Shortcut>::with_capacity(6);
+    pub fn parsed(&self) -> Result<([Shortcut; 3], [Option<Shortcut>; 4]), String> {
+        let mut parsed = Vec::<Shortcut>::with_capacity(7);
         let mut parse = |label: &str, value: &str, optional: bool| {
             let value = value.trim();
             if optional && value.is_empty() {
@@ -219,6 +221,7 @@ impl GlobalShortcutSettings {
             )?,
             parse("显示 / 隐藏歌词窗口", &self.toggle_list_lyrics, true)?,
             parse("显示 / 隐藏灵动岛歌词", &self.toggle_notch_lyrics, true)?,
+            parse("切换歌词", &self.switch_lyrics, true)?,
         ];
         Ok((required, optional))
     }

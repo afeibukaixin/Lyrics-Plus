@@ -82,21 +82,69 @@ fn migrate_v13_provider_defaults(settings: &mut ProviderSettings) {
 }
 
 fn migrate_v45_provider_sources(settings: &mut ProviderSettings) {
-    for (id, enabled) in [
-        ("kuwo", true),
-        ("amll_ttml", false),
-        ("migu", true),
-        ("musixmatch", false),
-    ] {
+    for id in ["kuwo", "amll_ttml", "migu", "musixmatch"] {
         if !settings.providers.iter().any(|provider| provider.id == id) {
             settings
                 .providers
                 .push(crate::lyrics::provider::ProviderPreference {
                     id: id.into(),
-                    enabled,
+                    enabled: true,
                 });
         }
     }
+}
+
+fn migrate_v58_enable_all_provider_sources(settings: &mut ProviderSettings) {
+    let is_old_default = settings.providers.len() == 8
+        && settings.providers.iter().all(|provider| match provider.id.as_str() {
+            "lrclib" | "kugou" | "qqmusic" | "netease" | "kuwo" | "migu" => {
+                provider.enabled
+            }
+            "amll_ttml" | "musixmatch" => !provider.enabled,
+            _ => false,
+        });
+    if is_old_default {
+        for provider in &mut settings.providers {
+            provider.enabled = true;
+        }
+    }
+}
+
+fn migrate_v59_switch_lyrics_shortcut(user: &mut Value) {
+    let Some(shortcuts) = user
+        .get_mut("app")
+        .and_then(Value::as_object_mut)
+        .and_then(|app| app.get_mut("shortcuts"))
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    if shortcuts.contains_key("switchLyrics") {
+        return;
+    }
+
+    // 通过解析后的 ID 判断快捷键别名，避免升级时覆盖用户已有绑定。
+    let default_id = DEFAULT_SWITCH_LYRICS_SHORTCUT
+        .parse::<tauri_plugin_global_shortcut::Shortcut>()
+        .ok()
+        .map(|shortcut| shortcut.id());
+    let conflicts = default_id.is_some_and(|default_id| {
+        shortcuts.values().filter_map(Value::as_str).any(|value| {
+            value
+                .trim()
+                .parse::<tauri_plugin_global_shortcut::Shortcut>()
+                .ok()
+                .is_some_and(|shortcut| shortcut.id() == default_id)
+        })
+    });
+    shortcuts.insert(
+        "switchLyrics".into(),
+        Value::from(if conflicts {
+            ""
+        } else {
+            DEFAULT_SWITCH_LYRICS_SHORTCUT
+        }),
+    );
 }
 
 fn migrate_legacy_overlay_layout(

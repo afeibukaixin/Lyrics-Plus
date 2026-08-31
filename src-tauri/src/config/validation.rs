@@ -93,6 +93,7 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
     migrate_v50_notch_layout(&mut user, version);
     migrate_v54_notch_double_line_settings(&mut user, version);
     migrate_v57_chinese_conversion(&mut user, version);
+    migrate_v59_switch_lyrics_shortcut(&mut user);
     remove_retired_fullscreen_space_preferences(&mut user);
     validate_known_fields(&user, raw)?;
     validate_field_types_and_options(&user, raw)?;
@@ -124,6 +125,9 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
     }
     if version < 45 {
         migrate_v45_provider_sources(&mut config.lyrics.providers);
+    }
+    if version < 58 {
+        migrate_v58_enable_all_provider_sources(&mut config.lyrics.providers);
     }
     let config = config.normalized().map_err(|message| {
         let key = if message.contains("歌词源") {
@@ -257,6 +261,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                     "toggleStatusBarLyrics",
                     "toggleListLyrics",
                     "toggleNotchLyrics",
+                    "switchLyrics",
                 ],
             )?;
         }
@@ -762,6 +767,7 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         ),
         ("/app/shortcuts/toggleListLyrics", "toggleListLyrics"),
         ("/app/shortcuts/toggleNotchLyrics", "toggleNotchLyrics"),
+        ("/app/shortcuts/switchLyrics", "switchLyrics"),
     ] {
         if value
             .pointer(pointer)

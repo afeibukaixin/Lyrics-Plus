@@ -5,6 +5,7 @@ type MaybeAsyncUnlistenFn = () => void | Promise<void>;
 export const NOTCH_WIDTH_PREVIEW_EVENT = "notch://width-preview";
 export const NOTCH_VISIBILITY_TRANSITION_EVENT = "notch://visibility-transition";
 export const NOTCH_POINTER_SAMPLE_EVENT = "notch://pointer-sample";
+export const QUICK_LYRICS_REFRESH_EVENT = "quick-lyrics://refresh";
 
 export type NotchWidthPreviewPayload =
   | { phase: "update" | "commit"; maxWidth: number; expandedMaxWidth: number }

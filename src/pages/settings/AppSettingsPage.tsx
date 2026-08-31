@@ -26,6 +26,7 @@ const shortcutActions: ShortcutAction[] = [
   "toggleStatusBarLyrics",
   "toggleListLyrics",
   "toggleNotchLyrics",
+  "switchLyrics",
 ];
 
 function shortcutDisplay(value: string) {

@@ -95,6 +95,7 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let status_bar_accelerator = accelerator(&shortcuts.toggle_status_bar_lyrics);
     let list_accelerator = accelerator(&shortcuts.toggle_list_lyrics);
     let notch_accelerator = accelerator(&shortcuts.toggle_notch_lyrics);
+    let switch_accelerator = accelerator(&shortcuts.switch_lyrics);
     let toggle_overlay = CheckMenuItem::with_id(
         app,
         "toggle-overlay",
@@ -132,7 +133,7 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         "switch-lyrics",
         labels.switch_lyrics,
         true,
-        None::<&str>,
+        switch_accelerator.as_deref(),
     )?;
     let settings = MenuItem::with_id(app, "settings", labels.settings, true, Some("CmdOrCtrl+,"))?;
     let quit = MenuItem::with_id(app, "quit", labels.quit, true, None::<&str>)?;
@@ -227,8 +228,8 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                 );
             }
             "switch-lyrics" => {
-                if let Err(error) = show_quick_lyrics_window(app) {
-                    log::warn!("Failed to open quick lyrics from the tray: {error}");
+                if let Err(error) = toggle_quick_lyrics_window(app) {
+                    log::warn!("Failed to toggle quick lyrics from the tray: {error}");
                 }
             }
             "settings" => {

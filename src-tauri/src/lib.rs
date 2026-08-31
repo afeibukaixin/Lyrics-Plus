@@ -49,6 +49,7 @@ pub(crate) const LEGAL_NOTICE_PREFERENCE: &str = "legal.notice.acceptedVersion";
 const LIST_LYRICS_DEFAULT_WIDTH: f64 = 520.0;
 const LIST_LYRICS_DEFAULT_HEIGHT: f64 = 720.0;
 const NOTCH_VISIBILITY_TRANSITION_EVENT: &str = "notch://visibility-transition";
+const QUICK_LYRICS_REFRESH_EVENT: &str = "quick-lyrics://refresh";
 const NOTCH_EXIT_ANIMATION_DURATION: Duration = Duration::from_millis(400);
 const SURFACE_RUNTIME_STATE_EVENT: &str = "surface://runtime-state";
 

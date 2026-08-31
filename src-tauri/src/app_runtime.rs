@@ -109,6 +109,16 @@ fn sync_tray_toggle_accelerator(
                 clear_macos_tray_accelerator(&tray, index)?;
             }
         }
+        let value = shortcuts.switch_lyrics.as_str();
+        let accelerator =
+            (!value.trim().is_empty()).then(|| value.replace("CommandOrControl", "CmdOrCtrl"));
+        tray.switch_lyrics
+            .set_accelerator(accelerator.as_deref())
+            .map_err(|error| format!("更新菜单栏快捷键失败：{error}"))?;
+        #[cfg(target_os = "macos")]
+        if accelerator.is_none() {
+            clear_macos_tray_accelerator(&tray, 4)?;
+        }
     }
     Ok(())
 }
@@ -156,8 +166,10 @@ fn register_global_shortcuts(
     app: &tauri::AppHandle,
     shortcuts: &GlobalShortcutSettings,
 ) -> Result<(), String> {
-    let ([toggle, toggle_lock, reset], [toggle_status_bar, toggle_list, toggle_notch]) =
-        shortcuts.parsed()?;
+    let (
+        [toggle, toggle_lock, reset],
+        [toggle_status_bar, toggle_list, toggle_notch, switch_lyrics],
+    ) = shortcuts.parsed()?;
     let mut registered = Vec::<Shortcut>::new();
 
     let result = (|| {
@@ -333,6 +345,26 @@ fn register_global_shortcuts(
                 )
             })?;
             registered.push(toggle_notch);
+        }
+
+        if let Some(switch_lyrics) = switch_lyrics {
+            app.global_shortcut()
+                .on_shortcut(switch_lyrics, |app, _, event| {
+                    if event.state == ShortcutState::Pressed {
+                        if let Err(error) = toggle_quick_lyrics_window(app) {
+                            log::warn!(
+                                "Failed to toggle quick lyrics from global shortcut: {error}"
+                            );
+                        }
+                    }
+                })
+                .map_err(|error| {
+                    format!(
+                        "注册切换歌词快捷键 {} 失败：{error}",
+                        shortcuts.switch_lyrics
+                    )
+                })?;
+            registered.push(switch_lyrics);
         }
         Ok(())
     })();

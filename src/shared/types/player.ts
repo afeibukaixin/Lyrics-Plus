@@ -38,6 +38,7 @@ export type GlobalShortcutSettings = {
   toggleStatusBarLyrics: string;
   toggleListLyrics: string;
   toggleNotchLyrics: string;
+  switchLyrics: string;
 };
 
 export type GlobalShortcutStatus = Record<keyof GlobalShortcutSettings, boolean>;
@@ -54,6 +55,7 @@ export const defaultGlobalShortcuts: GlobalShortcutSettings = {
   toggleStatusBarLyrics: "",
   toggleListLyrics: "",
   toggleNotchLyrics: "",
+  switchLyrics: "CommandOrControl+Shift+KeyY",
 };
 export type PlaybackSnapshot = {
   player: PlayerKind | null;
@@ -78,6 +80,19 @@ export type PlaybackArtwork = {
   mimeType: string;
   dataBase64: string;
   accentColor: string;
+  spectrumColors: PlaybackSpectrumColors;
+};
+
+export type PlaybackSpectrumColors = {
+  left: PlaybackSpectrumColumnColors;
+  center: PlaybackSpectrumColumnColors;
+  right: PlaybackSpectrumColumnColors;
+};
+
+export type PlaybackSpectrumColumnColors = {
+  top: string;
+  middle: string;
+  bottom: string;
 };
 
 export type PlaybackSpectrumStatus =
