@@ -62,6 +62,25 @@ pub fn set_lyrics_chinese_conversion(
 }
 
 #[tauri::command]
+pub fn set_list_lyrics_locked(
+    app: tauri::AppHandle,
+    locked: bool,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let previous = state.config.snapshot().lyrics.displays.list_window.locked;
+    let config = state
+        .config
+        .update(|config| config.lyrics.displays.list_window.locked = locked)?;
+    if let Err(error) = crate::apply_list_lyrics_window_lock(&app, locked) {
+        let _ = state
+            .config
+            .update(|config| config.lyrics.displays.list_window.locked = previous);
+        return Err(error);
+    }
+    finish_display_config_update(&app, config)
+}
+
+#[tauri::command]
 pub fn set_notch_lyrics_visible(
     app: tauri::AppHandle,
     visible: bool,

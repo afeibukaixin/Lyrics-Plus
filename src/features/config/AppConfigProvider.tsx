@@ -121,7 +121,7 @@ const defaultConfig: AppConfig = {
     },
     displays: {
       statusBar: { enabled: false, hideWhenNotPlaying: false, appearance: defaultStatusBarLyricsAppearance },
-      listWindow: { enabled: false, alwaysOnTop: false, showTranslation: true, showRomanization: false, appearance: defaultListLyricsAppearance },
+      listWindow: { enabled: false, alwaysOnTop: false, locked: false, showTranslation: true, showRomanization: false, appearance: defaultListLyricsAppearance },
       notch: {
         enabled: false,
         hideWhenNotPlaying: false,
@@ -165,6 +165,7 @@ type AppConfigContextValue = {
   setStatusBarLyricsEnabled: (enabled: boolean) => Promise<void>;
   setListLyricsVisible: (visible: boolean) => Promise<void>;
   setListLyricsOptions: (showTranslation: boolean, showRomanization: boolean) => Promise<void>;
+  setListLyricsLocked: (locked: boolean) => Promise<void>;
   setLyricsChineseConversion: (conversion: ChineseConversion) => Promise<void>;
   setNotchLyricsVisible: (visible: boolean) => Promise<void>;
   setLyricsDisplayPreferences: <Mode extends Exclude<LyricsStyleMode, "desktop">>(mode: Mode, preferences: LyricsDisplayPreferences[Mode]) => Promise<void>;
@@ -182,7 +183,7 @@ export function AppConfigProvider({
   windowType = "main",
 }: {
   children: React.ReactNode;
-  windowType?: "main" | "quick-lyrics" | "overlay" | "unlock-handle" | "lyrics-status-bar" | "lyrics-list" | "lyrics-notch";
+  windowType?: "main" | "quick-lyrics" | "overlay" | "unlock-handle" | "lyrics-list-unlock-handle" | "lyrics-status-bar" | "lyrics-list" | "lyrics-notch";
 }) {
   const [config, setConfig] = useState(defaultConfig);
   const [loaded, setLoaded] = useState(!isTauriRuntime());
@@ -411,6 +412,22 @@ export function AppConfigProvider({
         return;
       }
       setConfig(await api.setListLyricsOptions(showTranslation, showRomanization));
+    },
+    setListLyricsLocked: async (locked) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({
+          ...current,
+          lyrics: {
+            ...current.lyrics,
+            displays: {
+              ...current.lyrics.displays,
+              listWindow: { ...current.lyrics.displays.listWindow, locked },
+            },
+          },
+        }));
+        return;
+      }
+      setConfig(await api.setListLyricsLocked(locked));
     },
     setLyricsChineseConversion: async (conversion) => {
       if (!isTauriRuntime()) {

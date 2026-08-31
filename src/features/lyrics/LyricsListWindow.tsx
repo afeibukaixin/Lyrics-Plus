@@ -5,6 +5,7 @@ import {
   ClockArrowLeft,
   ClockArrowRight,
   EyeOff,
+  Lock,
   Minus,
   Music2,
   Pin,
@@ -51,7 +52,7 @@ function formatOffset(value: number) {
 
 export default function LyricsListWindow() {
   const { t } = useTranslation();
-  const { config, setLyricsDisplayPreferences } = useAppConfig();
+  const { config, setLyricsDisplayPreferences, setListLyricsLocked } = useAppConfig();
   const playback = usePlayback();
   const lyrics = useLyricsPresentation(playback.snapshot, playback.positionMs, playback.active);
   const activeRef = useRef<HTMLDivElement>(null);
@@ -61,6 +62,7 @@ export default function LyricsListWindow() {
   const [following, setFollowing] = useState(true);
   const [toolbarVisible, setToolbarVisible] = useState(false);
   const options = config.lyrics.displays.listWindow;
+  const locked = options.locked;
   const appearance = options.appearance;
   const lines = lyrics.document?.tracks.original.lines ?? [];
   const offsetAvailable = Boolean(lyrics.document && lyrics.trackKey);
@@ -87,6 +89,10 @@ export default function LyricsListWindow() {
     });
   }, [following, lyrics.activeIndex]);
 
+  useEffect(() => {
+    if (locked) setToolbarVisible(false);
+  }, [locked]);
+
   const auxiliary = useMemo(() => lines.map((line) => ({
     translation: options.showTranslation && lyrics.document?.tracks.translation
       ? findAlignedAuxiliaryLine(lyrics.document.tracks.translation.lines, line)
@@ -105,6 +111,11 @@ export default function LyricsListWindow() {
   const updateAppearance = (patch: Partial<ListLyricsPreferences["appearance"]>) =>
     updatePreferences({ ...options, appearance: { ...appearance, ...patch } });
 
+  const updateLocked = (nextLocked: boolean) =>
+    setListLyricsLocked(nextLocked).catch((error) => {
+      reportFrontendError("Failed to update lyrics window lock state", error);
+    });
+
   const pauseFollowing = () => {
     if (lines.length > 0) setFollowing(false);
   };
@@ -118,6 +129,7 @@ export default function LyricsListWindow() {
   };
 
   const showToolbar = () => {
+    if (locked) return;
     if (toolbarHideTimer.current !== null) clearTimeout(toolbarHideTimer.current);
     toolbarHideTimer.current = null;
     setToolbarVisible(true);
@@ -145,7 +157,7 @@ export default function LyricsListWindow() {
   };
 
   const startWindowDrag = (event: ReactPointerEvent<HTMLElement>) => {
-    if (!isTauriRuntime() || event.button !== 0 || event.detail > 1) return;
+    if (!isTauriRuntime() || locked || event.button !== 0 || event.detail > 1) return;
     if ((event.target as HTMLElement).closest("button, [role='slider'], [data-no-window-drag]")) return;
     event.preventDefault();
     void getCurrentWindow().startDragging().catch((error) => {
@@ -154,7 +166,7 @@ export default function LyricsListWindow() {
   };
 
   const startResize = (direction: ResizeDirection) => (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!isTauriRuntime() || event.button !== 0) return;
+    if (!isTauriRuntime() || locked || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
     void getCurrentWindow().startResizeDragging(direction).catch((error) => {
@@ -188,6 +200,7 @@ export default function LyricsListWindow() {
       className={styles.shell}
       data-background-mode={appearance.backgroundMode}
       data-following={following}
+      data-locked={locked}
       data-toolbar-visible={toolbarVisible}
       onMouseEnter={showToolbar}
       onMouseLeave={() => scheduleToolbarHide()}
@@ -214,15 +227,17 @@ export default function LyricsListWindow() {
         <div className={styles.dragRegion} aria-hidden="true" onPointerDown={startWindowDrag} />
       )}
 
-      <header className={styles.header} onPointerDown={startWindowDrag}>
-        <div className={styles.track}>
-          <h1>{title}</h1>
-          <p>{artist}</p>
-        </div>
-        {lyrics.document && <span className={styles.source}>{lyrics.document.metadata.source}</span>}
-      </header>
+      {!locked && (
+        <header className={styles.header} onPointerDown={startWindowDrag}>
+          <div className={styles.track}>
+            <h1>{title}</h1>
+            <p>{artist}</p>
+          </div>
+          {lyrics.document && <span className={styles.source}>{lyrics.document.metadata.source}</span>}
+        </header>
+      )}
 
-      <div
+      {!locked && <div
         className={styles.toolbar}
         data-no-window-drag
         role="toolbar"
@@ -230,6 +245,7 @@ export default function LyricsListWindow() {
         onFocusCapture={showToolbar}
         onBlurCapture={() => scheduleToolbarHide()}
       >
+        <IconButton label={t("lyricsList.toolbar.lock")} variant="ghost" size="icon-sm" onClick={() => void updateLocked(true)}><Lock /></IconButton>
         <IconButton label={t("lyricsList.toolbar.decreaseFont")} variant="ghost" size="icon-sm" disabled={appearance.fontSize <= 12} onClick={() => void updateAppearance({ fontSize: Math.max(12, appearance.fontSize - 2) })}><Minus /></IconButton>
         <IconButton label={t("lyricsList.toolbar.increaseFont")} variant="ghost" size="icon-sm" disabled={appearance.fontSize >= 56} onClick={() => void updateAppearance({ fontSize: Math.min(56, appearance.fontSize + 2) })}><Plus /></IconButton>
         <div className={styles.offsetControl} role="group" aria-label={t("lyricsList.toolbar.offsetGroup", { value: formatOffset(offsetMs) })}>
@@ -278,7 +294,7 @@ export default function LyricsListWindow() {
         ><Pin /></IconButton>
         <IconButton label={t("lyricsList.toolbar.resetSize")} variant="ghost" size="icon-sm" onClick={resetWindowSize}><RotateCcw /></IconButton>
         <IconButton label={t("lyricsList.toolbar.hide")} variant="ghost" size="icon-sm" onClick={() => void updatePreferences({ ...options, enabled: false })}><EyeOff /></IconButton>
-      </div>
+      </div>}
 
       {lines.length > 0 ? (
         <div className={styles.workspace}>
@@ -325,7 +341,7 @@ export default function LyricsListWindow() {
         </Empty>
       )}
 
-      {resizeDirections.map(({ direction, className }) => (
+      {!locked && resizeDirections.map(({ direction, className }) => (
         <div key={direction} className={cn(styles.resizeHandle, className)} aria-hidden="true" onPointerDown={startResize(direction)} />
       ))}
     </main>

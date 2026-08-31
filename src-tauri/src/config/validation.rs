@@ -382,6 +382,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                     &[
                         "enabled",
                         "alwaysOnTop",
+                        "locked",
                         "showTranslation",
                         "showRomanization",
                         "appearance",
@@ -602,6 +603,7 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             "/lyrics/displays/listWindow/alwaysOnTop",
             "alwaysOnTop",
         ),
+        ("/lyrics/displays/listWindow/locked", "locked"),
         (
             "/lyrics/displays/listWindow/showTranslation",
             "showTranslation",

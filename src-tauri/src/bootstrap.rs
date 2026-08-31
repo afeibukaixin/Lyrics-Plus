@@ -182,6 +182,9 @@ pub fn run() {
                     if let Err(error) = destroy_surface(window.app_handle(), "lyrics-list") {
                         log::warn!("关闭列表歌词窗口时销毁 WebView 失败：{error}");
                     }
+                    if let Err(error) = destroy_surface(window.app_handle(), "lyrics-list-unlock-handle") {
+                        log::warn!("关闭列表歌词解锁按钮时销毁 WebView 失败：{error}");
+                    }
                     sync_lyrics_surfaces(window.app_handle());
                 }
             }
@@ -295,6 +298,7 @@ pub fn run() {
             commands::set_status_bar_lyrics_enabled,
             commands::set_list_lyrics_visible,
             commands::set_list_lyrics_options,
+            commands::set_list_lyrics_locked,
             commands::set_lyrics_chinese_conversion,
             commands::set_notch_lyrics_visible,
             commands::set_lyrics_display_preferences,

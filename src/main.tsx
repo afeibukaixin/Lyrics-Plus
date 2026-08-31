@@ -26,13 +26,14 @@ function AppToaster() {
 
 const view = new URLSearchParams(window.location.search).get("view");
 const updatePreview = import.meta.env.DEV && new URLSearchParams(window.location.search).get("update-preview") === "1";
-const windowType = view === "overlay" || view === "unlock-handle" || view === "quick-lyrics" || view === "lyrics-status-bar" || view === "lyrics-list" || view === "lyrics-notch"
+const isUnlockHandleView = view === "unlock-handle" || view === "lyrics-list-unlock-handle";
+const windowType = view === "overlay" || view === "unlock-handle" || view === "lyrics-list-unlock-handle" || view === "quick-lyrics" || view === "lyrics-status-bar" || view === "lyrics-list" || view === "lyrics-notch"
   ? view
   : "main";
 
 const content = view === "overlay" ? (
   <Overlay />
-) : view === "unlock-handle" ? (
+) : isUnlockHandleView ? (
   <UnlockHandle />
 ) : view === "quick-lyrics" ? (
   <DebugLogProvider><QuickLyricsWindow /></DebugLogProvider>

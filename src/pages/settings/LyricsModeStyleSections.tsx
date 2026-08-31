@@ -27,6 +27,7 @@ type Props = {
   displays: LyricsDisplayPreferences;
   inheritance: LyricsStyleInheritance;
   update: <Mode extends AuxiliaryMode>(mode: Mode, preferences: LyricsDisplayPreferences[Mode]) => Promise<void>;
+  setListLyricsLocked: (locked: boolean) => Promise<void>;
   updateInheritance: (mode: LyricsStyleMode, inheritance: LyricsModeStyleInheritance) => Promise<void>;
   resetPosition: (mode: AuxiliaryMode) => Promise<void>;
 };
@@ -72,7 +73,7 @@ export function auxiliarySections(mode: AuxiliaryMode, labels: AuxiliarySectionL
   ];
 }
 
-export default function LyricsModeStyleSections({ mode, displays, inheritance, update, updateInheritance, resetPosition }: Props) {
+export default function LyricsModeStyleSections({ mode, displays, inheritance, update, setListLyricsLocked, updateInheritance, resetPosition }: Props) {
   const { t } = useTranslation();
   const [notchMonitors, setNotchMonitors] = useState<LyricsMonitor[]>([]);
   const notchWidthPreviewActiveRef = useRef(false);
@@ -89,6 +90,10 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
   }, [cancelNotchWidthPreview, mode]);
 
   useEffect(() => () => cancelNotchWidthPreview(), [cancelNotchWidthPreview]);
+
+  const updateListLocked = (locked: boolean) => setListLyricsLocked(locked).catch((error) => {
+    reportFrontendError("Failed to update lyrics window lock state", error);
+  });
 
   useEffect(() => {
     if (mode !== "notch" || !isTauriRuntime()) {
@@ -157,6 +162,7 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
     return <>
       <SettingsSection id="mode-state" title={t("settings.style.modeControls.displayInteraction")}>
         <ToggleRow label={t("settings.display.listWindow.show")} value={value.enabled} onChange={(enabled) => save({ ...value, enabled })} />
+        <ToggleRow label={t("settings.display.listWindow.lock")} description={t("settings.display.listWindow.lockHint")} value={value.locked} onChange={updateListLocked} />
         <ToggleRow label={t("settings.display.listWindow.translation")} value={value.showTranslation} onChange={(showTranslation) => save({ ...value, showTranslation })} />
         <ToggleRow label={t("settings.display.listWindow.romanization")} value={value.showRomanization} onChange={(showRomanization) => save({ ...value, showRomanization })} />
       </SettingsSection>

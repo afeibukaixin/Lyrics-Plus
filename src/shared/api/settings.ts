@@ -34,6 +34,8 @@ export const settingsApi = {
     invoke<AppConfig>("set_list_lyrics_visible", { visible }),
   setListLyricsOptions: (showTranslation: boolean, showRomanization: boolean) =>
     invoke<AppConfig>("set_list_lyrics_options", { showTranslation, showRomanization }),
+  setListLyricsLocked: (locked: boolean) =>
+    invoke<AppConfig>("set_list_lyrics_locked", { locked }),
   setLyricsChineseConversion: (conversion: ChineseConversion) =>
     invoke<AppConfig>("set_lyrics_chinese_conversion", { conversion }),
   setNotchLyricsVisible: (visible: boolean) =>

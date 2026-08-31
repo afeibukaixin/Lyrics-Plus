@@ -40,6 +40,41 @@ fn create_unlock_handle(app: &tauri::AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+fn create_list_unlock_handle(app: &tauri::AppHandle) -> tauri::Result<()> {
+    if app
+        .get_webview_window("lyrics-list-unlock-handle")
+        .is_some()
+    {
+        return Ok(());
+    }
+    let builder = WebviewWindowBuilder::new(
+        app,
+        "lyrics-list-unlock-handle",
+        WebviewUrl::App("index.html?view=lyrics-list-unlock-handle".into()),
+    )
+    .title(UiLanguage::ZhCn.native_labels().unlock_title)
+    .inner_size(28.0, 28.0)
+    .transparent(true)
+    .decorations(false)
+    .shadow(false)
+    .resizable(false)
+    .focusable(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .visible(false);
+
+    #[cfg(target_os = "macos")]
+    let builder = {
+        let list = app
+            .get_webview_window("lyrics-list")
+            .ok_or(tauri::Error::WindowNotFound)?;
+        builder.parent(&list)?
+    };
+
+    builder.build()?;
+    Ok(())
+}
+
 fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     if app.try_state::<TrayMenuState>().is_some() {
         return Ok(());

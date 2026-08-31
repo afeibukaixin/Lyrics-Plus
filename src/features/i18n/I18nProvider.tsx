@@ -35,6 +35,7 @@ export function AppI18nProvider({ children }: { children: React.ReactNode }) {
       "lyrics-list": "window.lyricsList",
       "lyrics-notch": "window.notchLyrics",
       "unlock-handle": "window.unlockHandle",
+      "lyrics-list-unlock-handle": "window.unlockHandle",
     };
     const titleKey = titleKeys[view ?? ""] ?? "window.main";
     void appI18n.changeLanguage(language).then(() => {

@@ -6,6 +6,7 @@
     "main",
     "lyrics-overlay",
     "lyrics-unlock-handle",
+    "lyrics-list-unlock-handle",
     "quick-lyrics",
     "lyrics-status-bar",
     "lyrics-list",

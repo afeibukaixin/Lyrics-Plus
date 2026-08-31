@@ -37,6 +37,7 @@ pub(crate) fn apply_native_language(
     for (label, title) in [
         ("quick-lyrics", labels.quick_title),
         ("lyrics-unlock-handle", labels.unlock_title),
+        ("lyrics-list-unlock-handle", labels.unlock_title),
         ("lyrics-overlay", labels.overlay_title),
         ("lyrics-list", labels.list_title),
         ("lyrics-notch", labels.notch_title),

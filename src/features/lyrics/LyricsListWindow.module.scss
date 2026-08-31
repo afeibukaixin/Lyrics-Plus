@@ -13,6 +13,8 @@
   user-select: none;
 }
 
+.shell[data-locked="true"] { pointer-events: none; }
+
 .background {
   position: absolute;
   inset: 0;

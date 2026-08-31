@@ -341,6 +341,14 @@ fn create_list_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {
         .displays
         .list_window
         .always_on_top;
+    let locked = app
+        .state::<AppState>()
+        .config
+        .snapshot()
+        .lyrics
+        .displays
+        .list_window
+        .locked;
     let window = WebviewWindowBuilder::new(
         app,
         "lyrics-list",
@@ -367,6 +375,29 @@ fn create_list_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {
         .app
         .lyrics_windows_show_on_all_spaces;
     apply_lyrics_window_space_behavior(&window, enabled)?;
+    apply_list_lyrics_window_lock(app, locked).map_err(std::io::Error::other)?;
+    Ok(())
+}
+
+pub(crate) fn apply_list_lyrics_window_lock(
+    app: &tauri::AppHandle,
+    locked: bool,
+) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("lyrics-list") {
+        window
+            .set_ignore_cursor_events(locked)
+            .map_err(|error| error.to_string())?;
+        window
+            .set_focusable(!locked)
+            .map_err(|error| error.to_string())?;
+        window
+            .set_resizable(!locked)
+            .map_err(|error| error.to_string())?;
+        if !locked {
+            refresh_overlay_mouse_tracking(&window);
+        }
+    }
+    sync_list_unlock_handle(app);
     Ok(())
 }
 
@@ -842,14 +873,17 @@ fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), Stri
             window
                 .set_always_on_top(displays.list_window.always_on_top)
                 .map_err(|error| error.to_string())?;
+            apply_list_lyrics_window_lock(app, displays.list_window.locked)?;
             apply_lyrics_window_space_behavior(&window, lyrics_windows_show_on_all_spaces)
                 .map_err(|error| error.to_string())?;
             if !window.is_visible().unwrap_or(false) {
                 window.show().map_err(|error| error.to_string())?;
                 set_surface_runtime_state(app, &window, SurfaceRuntimeState::Active);
             }
+            sync_list_unlock_handle(app);
         }
     } else {
+        destroy_surface(app, "lyrics-list-unlock-handle")?;
         destroy_surface(app, "lyrics-list")?;
     }
 

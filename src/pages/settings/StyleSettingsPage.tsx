@@ -89,6 +89,7 @@ export default function StyleSettingsPage() {
     setLocked,
     setOverlayHideWhenNotPlaying,
     setLyricsDisplayPreferences,
+    setListLyricsLocked,
     setLyricsBaseAppearance,
     setLyricsStyleInheritance,
     resetLyricsBaseAppearance,
@@ -301,7 +302,7 @@ export default function StyleSettingsPage() {
         <RangeRow label={t("settings.overlay.backgroundPaddingX")} value={style.backgroundPaddingX} min={0} max={64} suffix="px" onChange={(backgroundPaddingX) => void updateStyle({ backgroundPaddingX })} />
         <RangeRow label={t("settings.overlay.backgroundPaddingY")} value={style.backgroundPaddingY} min={0} max={64} suffix="px" onChange={(backgroundPaddingY) => void updateStyle({ backgroundPaddingY })} />
       </SettingsSection>
-      </> : <LyricsModeStyleSections mode={mode} displays={config.lyrics.displays} inheritance={config.lyrics.styleInheritance} update={setLyricsDisplayPreferences} updateInheritance={setLyricsStyleInheritance} resetPosition={resetDisplayPosition} />}
+      </> : <LyricsModeStyleSections mode={mode} displays={config.lyrics.displays} update={setLyricsDisplayPreferences} setListLyricsLocked={setListLyricsLocked} inheritance={config.lyrics.styleInheritance} updateInheritance={setLyricsStyleInheritance} resetPosition={resetDisplayPosition} />}
     </SettingsPage>
   );
 }

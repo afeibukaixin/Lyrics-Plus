@@ -146,6 +146,7 @@ export type LyricsDisplayPreferences = {
   listWindow: {
     enabled: boolean;
     alwaysOnTop: boolean;
+    locked: boolean;
     showTranslation: boolean;
     showRomanization: boolean;
     appearance: ListLyricsAppearance;

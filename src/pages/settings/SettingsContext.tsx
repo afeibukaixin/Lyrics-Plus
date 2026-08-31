@@ -39,6 +39,7 @@ export type SettingsOutletContext = {
   setStatusBarLyricsEnabled: ReturnType<typeof useAppConfig>["setStatusBarLyricsEnabled"];
   setListLyricsVisible: ReturnType<typeof useAppConfig>["setListLyricsVisible"];
   setListLyricsOptions: ReturnType<typeof useAppConfig>["setListLyricsOptions"];
+  setListLyricsLocked: ReturnType<typeof useAppConfig>["setListLyricsLocked"];
   setNotchLyricsVisible: ReturnType<typeof useAppConfig>["setNotchLyricsVisible"];
   setLyricsDisplayPreferences: ReturnType<typeof useAppConfig>["setLyricsDisplayPreferences"];
   setLyricsBaseAppearance: ReturnType<typeof useAppConfig>["setLyricsBaseAppearance"];

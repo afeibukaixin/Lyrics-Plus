@@ -412,6 +412,7 @@ impl Default for StatusBarLyricsAppearance {
 pub struct ListLyricsPreferences {
     pub enabled: bool,
     pub always_on_top: bool,
+    pub locked: bool,
     pub show_translation: bool,
     pub show_romanization: bool,
     pub appearance: ListLyricsAppearance,
@@ -422,6 +423,7 @@ impl Default for ListLyricsPreferences {
         Self {
             enabled: false,
             always_on_top: false,
+            locked: false,
             show_translation: true,
             show_romanization: false,
             appearance: ListLyricsAppearance::default(),
