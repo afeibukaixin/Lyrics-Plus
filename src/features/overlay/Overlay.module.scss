@@ -33,6 +33,8 @@
 }
 .overlay[data-background-mode="transparent"] .surface::before {
   opacity: 0; background: rgba(16,17,23,.22); box-shadow: none;
+  // 预先固定透明背景层的合成，避免 hover 首次显示时重新栅格化竖排歌词。
+  will-change: opacity;
   transition: opacity .16s ease, box-shadow .16s ease;
 }
 .overlay[data-background="glass"] .surface::before {
