@@ -216,25 +216,28 @@ export function SpectrumBars({
       xmlns="http://www.w3.org/2000/svg"
     >
       <defs>
-        <linearGradient
-          gradientUnits="userSpaceOnUse"
-          id={gradientId}
-          x1="0"
-          x2="0"
-          y1="25"
-          y2="3"
-        >
-          <stop offset="0%" stopColor="var(--notch-spectrum-color, currentColor)" />
-          <stop offset="55%" stopColor="var(--notch-spectrum-color, currentColor)" stopOpacity="0.88" />
-          <stop offset="100%" stopColor="var(--notch-spectrum-color, currentColor)" stopOpacity="0.58" />
-        </linearGradient>
+        {(["left", "center", "right"] as const).map((column) => (
+          <linearGradient
+            gradientUnits="userSpaceOnUse"
+            id={`${gradientId}-${column}`}
+            key={column}
+            x1="0"
+            x2="0"
+            y1="25"
+            y2="3"
+          >
+            <stop offset="0%" stopColor={`var(--notch-spectrum-${column}-bottom-color, currentColor)`} />
+            <stop offset="50%" stopColor={`var(--notch-spectrum-${column}-middle-color, currentColor)`} />
+            <stop offset="100%" stopColor={`var(--notch-spectrum-${column}-top-color, currentColor)`} />
+          </linearGradient>
+        ))}
       </defs>
       {Array.from({ length: 6 }, (_, index) => (
         <line
           className={styles.spectrumBar}
           data-spectrum-line="true"
           key={index}
-          stroke={`url(#${gradientId})`}
+          stroke={`url(#${gradientId}-${index < 2 ? "left" : index < 4 ? "center" : "right"})`}
           x1={1.5 + index * 5}
           x2={1.5 + index * 5}
           y1="3"

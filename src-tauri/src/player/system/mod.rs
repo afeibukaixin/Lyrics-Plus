@@ -15,7 +15,8 @@ use serde_json::Value;
 
 use super::{
     normalized_track_component, now_ms, run_with_timeout, PlaybackAction, PlaybackArtwork,
-    PlaybackErrorCode, PlaybackSnapshot, PlayerKind,
+    PlaybackErrorCode, PlaybackSnapshot, PlaybackSpectrumColors, PlaybackSpectrumColumnColors,
+    PlayerKind,
 };
 
 mod compat;
@@ -26,7 +27,17 @@ const ARTWORK_COLOR_QUANTIZATION_STEP: u8 = 32;
 const ARTWORK_COLOR_MIN_ALPHA: u8 = 128;
 const ARTWORK_COLOR_MIN_LUMINANCE: f32 = 0.08;
 const ARTWORK_COLOR_MAX_LUMINANCE: f32 = 0.92;
+const ARTWORK_SPECTRUM_MIN_SATURATION: f32 = 0.68;
+const ARTWORK_SPECTRUM_MAX_SATURATION: f32 = 0.82;
+const ARTWORK_SPECTRUM_MIN_LIGHTNESS: f32 = 0.58;
+const ARTWORK_SPECTRUM_MAX_LIGHTNESS: f32 = 0.64;
+const ARTWORK_SPECTRUM_LIGHTNESS_STEP: f32 = 0.07;
 const DEFAULT_ARTWORK_ACCENT_COLOR: &str = "#ffffff";
+
+struct ArtworkAccentColors {
+    primary: String,
+    spectrum: PlaybackSpectrumColors,
+}
 
 struct ArtworkColorBucket {
     count: u32,
@@ -34,6 +45,60 @@ struct ArtworkColorBucket {
     green: f32,
     blue: f32,
     saturation: f32,
+}
+
+#[derive(Default)]
+struct ArtworkColorBuckets {
+    bucket_indices: HashMap<(u8, u8, u8), usize>,
+    buckets: Vec<ArtworkColorBucket>,
+}
+
+impl ArtworkColorBuckets {
+    fn add(&mut self, red: u8, green: u8, blue: u8, saturation: f32) {
+        let key = (
+            red / ARTWORK_COLOR_QUANTIZATION_STEP,
+            green / ARTWORK_COLOR_QUANTIZATION_STEP,
+            blue / ARTWORK_COLOR_QUANTIZATION_STEP,
+        );
+        let bucket_index = if let Some(index) = self.bucket_indices.get(&key) {
+            *index
+        } else {
+            let index = self.buckets.len();
+            self.bucket_indices.insert(key, index);
+            self.buckets.push(ArtworkColorBucket {
+                count: 0,
+                red: 0.0,
+                green: 0.0,
+                blue: 0.0,
+                saturation: 0.0,
+            });
+            index
+        };
+        let bucket = &mut self.buckets[bucket_index];
+        bucket.count += 1;
+        bucket.red += red as f32;
+        bucket.green += green as f32;
+        bucket.blue += blue as f32;
+        bucket.saturation += saturation;
+    }
+
+    fn dominant_hsl(&self) -> Option<(f32, f32, f32)> {
+        let mut selected = None;
+        let mut selected_score = -1.0_f32;
+        for bucket in &self.buckets {
+            let average_saturation = bucket.saturation / bucket.count as f32;
+            let score = bucket.count as f32 * (0.75 + average_saturation * 0.25);
+            if score > selected_score {
+                selected = Some(bucket);
+                selected_score = score;
+            }
+        }
+        let selected = selected?;
+        let red = selected.red / selected.count as f32;
+        let green = selected.green / selected.count as f32;
+        let blue = selected.blue / selected.count as f32;
+        Some(rgb_to_hsl(red, green, blue))
+    }
 }
 
 pub struct SystemMediaService {
@@ -233,7 +298,7 @@ impl SystemMediaService {
         };
 
         let thumbnail = image.thumbnail(MAX_ARTWORK_EDGE_PX, MAX_ARTWORK_EDGE_PX);
-        let accent_color = extract_artwork_accent_color(&thumbnail);
+        let accent_colors = extract_artwork_accent_colors(&thumbnail);
         let mut encoded = std::io::Cursor::new(Vec::new());
         thumbnail
             .write_to(&mut encoded, ImageFormat::Png)
@@ -242,7 +307,8 @@ impl SystemMediaService {
             id: artwork_id.to_string(),
             mime_type: "image/png".into(),
             data_base64: BASE64.encode(encoded.into_inner()),
-            accent_color,
+            accent_color: accent_colors.primary,
+            spectrum_colors: accent_colors.spectrum,
         };
         *self
             .artwork_cache
@@ -252,8 +318,8 @@ impl SystemMediaService {
     }
 }
 
-// 保持原前端提色策略一致，避免迁移到后端后出现明显的颜色变化。
-fn extract_artwork_accent_color(image: &image::DynamicImage) -> String {
+// 保持原前端提色策略一致，并从封面主色生成一套干净的单色频谱渐变。
+fn extract_artwork_accent_colors(image: &image::DynamicImage) -> ArtworkAccentColors {
     let sampled = image
         .resize_exact(
             ARTWORK_COLOR_SAMPLE_SIZE,
@@ -261,8 +327,7 @@ fn extract_artwork_accent_color(image: &image::DynamicImage) -> String {
             image::imageops::FilterType::Triangle,
         )
         .to_rgba8();
-    let mut bucket_indices = HashMap::<(u8, u8, u8), usize>::new();
-    let mut buckets = Vec::<ArtworkColorBucket>::new();
+    let mut overall_buckets = ArtworkColorBuckets::default();
 
     for pixel in sampled.pixels() {
         let [red, green, blue, alpha] = pixel.0;
@@ -272,56 +337,66 @@ fn extract_artwork_accent_color(image: &image::DynamicImage) -> String {
 
         let luminance =
             (0.2126 * red as f32 + 0.7152 * green as f32 + 0.0722 * blue as f32) / 255.0;
-        if luminance <= ARTWORK_COLOR_MIN_LUMINANCE
-            || luminance >= ARTWORK_COLOR_MAX_LUMINANCE
-        {
+        if luminance <= ARTWORK_COLOR_MIN_LUMINANCE || luminance >= ARTWORK_COLOR_MAX_LUMINANCE {
             continue;
         }
 
         let (_, saturation, _) = rgb_to_hsl(red as f32, green as f32, blue as f32);
-        let key = (
-            red / ARTWORK_COLOR_QUANTIZATION_STEP,
-            green / ARTWORK_COLOR_QUANTIZATION_STEP,
-            blue / ARTWORK_COLOR_QUANTIZATION_STEP,
-        );
-        let bucket_index = *bucket_indices.entry(key).or_insert_with(|| {
-            buckets.push(ArtworkColorBucket {
-                count: 0,
-                red: 0.0,
-                green: 0.0,
-                blue: 0.0,
-                saturation: 0.0,
-            });
-            buckets.len() - 1
-        });
-        let bucket = &mut buckets[bucket_index];
-        bucket.count += 1;
-        bucket.red += red as f32;
-        bucket.green += green as f32;
-        bucket.blue += blue as f32;
-        bucket.saturation += saturation;
+        overall_buckets.add(red, green, blue, saturation);
     }
 
-    let mut selected = None;
-    let mut selected_score = -1.0_f32;
-    for bucket in &buckets {
-        let average_saturation = bucket.saturation / bucket.count as f32;
-        let score = bucket.count as f32 * (0.75 + average_saturation * 0.25);
-        if score > selected_score {
-            selected = Some(bucket);
-            selected_score = score;
-        }
-    }
-    let Some(selected) = selected else {
-        return DEFAULT_ARTWORK_ACCENT_COLOR.into();
+    let Some((hue, saturation, lightness)) = overall_buckets.dominant_hsl() else {
+        return ArtworkAccentColors {
+            primary: DEFAULT_ARTWORK_ACCENT_COLOR.into(),
+            spectrum: PlaybackSpectrumColors {
+                left: default_spectrum_column_colors(),
+                center: default_spectrum_column_colors(),
+                right: default_spectrum_column_colors(),
+            },
+        };
     };
 
-    let red = selected.red / selected.count as f32;
-    let green = selected.green / selected.count as f32;
-    let blue = selected.blue / selected.count as f32;
-    let (hue, saturation, lightness) = rgb_to_hsl(red, green, blue);
-    let lightness = lightness.clamp(0.42, 0.72);
-    hsl_to_hex(hue, saturation, lightness)
+    let primary_lightness = lightness.clamp(0.42, 0.72);
+    let primary = hsl_to_hex(hue, saturation, primary_lightness);
+    let spectrum_saturation = if saturation < 0.08 {
+        0.0
+    } else {
+        saturation.clamp(
+            ARTWORK_SPECTRUM_MIN_SATURATION,
+            ARTWORK_SPECTRUM_MAX_SATURATION,
+        )
+    };
+    let spectrum_middle_lightness = primary_lightness.clamp(
+        ARTWORK_SPECTRUM_MIN_LIGHTNESS,
+        ARTWORK_SPECTRUM_MAX_LIGHTNESS,
+    );
+    let spectrum_column = PlaybackSpectrumColumnColors {
+        top: hsl_to_hex(
+            hue,
+            spectrum_saturation,
+            spectrum_middle_lightness + ARTWORK_SPECTRUM_LIGHTNESS_STEP,
+        ),
+        middle: hsl_to_hex(hue, spectrum_saturation, spectrum_middle_lightness),
+        bottom: hsl_to_hex(
+            hue,
+            spectrum_saturation,
+            spectrum_middle_lightness - ARTWORK_SPECTRUM_LIGHTNESS_STEP,
+        ),
+    };
+    let spectrum = PlaybackSpectrumColors {
+        left: spectrum_column.clone(),
+        center: spectrum_column.clone(),
+        right: spectrum_column,
+    };
+    ArtworkAccentColors { primary, spectrum }
+}
+
+fn default_spectrum_column_colors() -> PlaybackSpectrumColumnColors {
+    PlaybackSpectrumColumnColors {
+        top: DEFAULT_ARTWORK_ACCENT_COLOR.into(),
+        middle: DEFAULT_ARTWORK_ACCENT_COLOR.into(),
+        bottom: DEFAULT_ARTWORK_ACCENT_COLOR.into(),
+    }
 }
 
 fn rgb_to_hsl(red: f32, green: f32, blue: f32) -> (f32, f32, f32) {

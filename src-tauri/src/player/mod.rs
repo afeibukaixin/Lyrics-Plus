@@ -57,11 +57,28 @@ pub enum PlaybackAction {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PlaybackSpectrumColors {
+    pub left: PlaybackSpectrumColumnColors,
+    pub center: PlaybackSpectrumColumnColors,
+    pub right: PlaybackSpectrumColumnColors,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaybackSpectrumColumnColors {
+    pub top: String,
+    pub middle: String,
+    pub bottom: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PlaybackArtwork {
     pub id: String,
     pub mime_type: String,
     pub data_base64: String,
     pub accent_color: String,
+    pub spectrum_colors: PlaybackSpectrumColors,
 }
 
 impl PlayerSelection {

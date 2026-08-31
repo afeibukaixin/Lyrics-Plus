@@ -6,6 +6,7 @@ import { playerService } from "./playerService";
 import type {
   PlaybackAction,
   PlaybackSnapshot,
+  PlaybackSpectrumColors,
   PlayerSelection,
 } from "../../shared/types";
 import { useSurfaceActivity } from "../window/useSurfaceActivity";
@@ -54,6 +55,7 @@ export function usePlayback({
   const [snapshotLoadError, setSnapshotLoadError] = useState<string | null>(null);
   const [artworkUrl, setArtworkUrl] = useState<string | null>(null);
   const [artworkAccentColor, setArtworkAccentColor] = useState<string | null>(null);
+  const [artworkSpectrumColors, setArtworkSpectrumColors] = useState<PlaybackSpectrumColors | null>(null);
   const [artworkLoading, setArtworkLoading] = useState(false);
   const [artworkError, setArtworkError] = useState<string | null>(null);
   const [isControlling, setIsControlling] = useState(false);
@@ -119,6 +121,7 @@ export function usePlayback({
       loadedArtworkTrackKeyRef.current = null;
       setArtworkUrl(null);
       setArtworkAccentColor(null);
+      setArtworkSpectrumColors(null);
       setArtworkLoading(false);
       setArtworkError(null);
       return;
@@ -138,6 +141,7 @@ export function usePlayback({
       loadedArtworkTrackKeyRef.current = null;
       setArtworkUrl(null);
       setArtworkAccentColor(null);
+      setArtworkSpectrumColors(null);
       setArtworkLoading(false);
       setArtworkError(null);
       return;
@@ -164,6 +168,7 @@ export function usePlayback({
         loadedArtworkTrackKeyRef.current = null;
         setArtworkUrl(null);
         setArtworkAccentColor(null);
+        setArtworkSpectrumColors(null);
         setArtworkLoading(false);
       }, MISSING_ARTWORK_CONFIRMATION_MS);
       return () => {
@@ -192,6 +197,7 @@ export function usePlayback({
         loadedArtworkTrackKeyRef.current = null;
         setArtworkUrl(null);
         setArtworkAccentColor(null);
+        setArtworkSpectrumColors(null);
         return;
       }
       const nextUrl = artworkBlobUrl(value.mimeType, value.dataBase64);
@@ -205,6 +211,7 @@ export function usePlayback({
       loadedArtworkTrackKeyRef.current = artworkTrackKey;
       setArtworkUrl(nextUrl);
       setArtworkAccentColor(value.accentColor);
+      setArtworkSpectrumColors(value.spectrumColors);
       if (previousUrl) URL.revokeObjectURL(previousUrl);
     }).catch((error) => {
       if (artworkRequestVersionRef.current !== requestVersion) return;
@@ -214,6 +221,7 @@ export function usePlayback({
       loadedArtworkTrackKeyRef.current = null;
       setArtworkUrl(null);
       setArtworkAccentColor(null);
+      setArtworkSpectrumColors(null);
       setArtworkError(messageOf(error));
     }).finally(() => {
       if (artworkRequestVersionRef.current === requestVersion) {
@@ -333,6 +341,7 @@ export function usePlayback({
     clearControlError,
     artworkUrl,
     artworkAccentColor,
+    artworkSpectrumColors,
     artworkLoading,
     artworkError,
   };

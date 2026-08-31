@@ -123,7 +123,11 @@ export default function NotchLyricsWindow() {
   const lastObservedGeometryRef = useRef({ collapsedHeight: -1, expandedHeight: -1 });
   const reconcileHoverStateRef = useRef<() => void>(() => undefined);
   const usesSpectrum = notch.leftSlot === "spectrum" || notch.rightSlot === "spectrum";
-  const spectrumColor = playback.artworkAccentColor ?? "#ffffff";
+  const spectrumColors = playback.artworkSpectrumColors ?? {
+    left: { top: "#ffffff", middle: "#ffffff", bottom: "#ffffff" },
+    center: { top: "#ffffff", middle: "#ffffff", bottom: "#ffffff" },
+    right: { top: "#ffffff", middle: "#ffffff", bottom: "#ffffff" },
+  };
   const spectrumNodesRef = useRef(new Map<SVGSVGElement, SpectrumMotion>());
   const registerSpectrumNode = useCallback((node: SVGSVGElement) => {
     const lines = Array.from(node.querySelectorAll<SVGLineElement>("[data-spectrum-line]"));
@@ -467,7 +471,15 @@ export default function NotchLyricsWindow() {
         "--notch-inactive-color": appearance.inactiveColor,
         "--notch-translation-color": appearance.translationColor,
         "--notch-romanization-color": appearance.romanizationColor,
-        "--notch-spectrum-color": spectrumColor,
+        "--notch-spectrum-left-top-color": spectrumColors.left.top,
+        "--notch-spectrum-left-middle-color": spectrumColors.left.middle,
+        "--notch-spectrum-left-bottom-color": spectrumColors.left.bottom,
+        "--notch-spectrum-center-top-color": spectrumColors.center.top,
+        "--notch-spectrum-center-middle-color": spectrumColors.center.middle,
+        "--notch-spectrum-center-bottom-color": spectrumColors.center.bottom,
+        "--notch-spectrum-right-top-color": spectrumColors.right.top,
+        "--notch-spectrum-right-middle-color": spectrumColors.right.middle,
+        "--notch-spectrum-right-bottom-color": spectrumColors.right.bottom,
         "--notch-line-gap": `${appearance.lineGap}px`,
         "--notch-radius": `${appearance.borderRadius}px`,
         "--notch-slot-padding": `${slotPadding}px`,
