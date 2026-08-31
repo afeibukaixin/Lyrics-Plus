@@ -114,9 +114,9 @@ const defaultConfig: AppConfig = {
         { id: "qqmusic", enabled: true },
         { id: "netease", enabled: true },
         { id: "kuwo", enabled: true },
-        { id: "amll_ttml", enabled: true },
+        { id: "amll_ttml", enabled: false },
         { id: "migu", enabled: true },
-        { id: "musixmatch", enabled: true },
+        { id: "musixmatch", enabled: false },
       ],
     },
     displays: {

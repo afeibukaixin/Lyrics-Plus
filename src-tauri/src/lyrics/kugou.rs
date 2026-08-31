@@ -128,7 +128,6 @@ impl KugouProvider {
             .search_lyrics(
                 client,
                 &song.file_hash,
-                duration_ms,
                 song.mix_song_id.as_deref(),
             )
             .await?
@@ -178,7 +177,6 @@ impl KugouProvider {
         &self,
         client: &reqwest::Client,
         hash: &str,
-        duration_ms: Option<u64>,
         mix_song_id: Option<&str>,
     ) -> Result<Vec<KugouLyricCandidate>, ProviderError> {
         let mut url = reqwest::Url::parse("https://lyrics.kugou.com/search")
@@ -190,9 +188,6 @@ impl KugouProvider {
                 .append_pair("man", "yes")
                 .append_pair("client", "pc")
                 .append_pair("hash", hash);
-            if let Some(duration_ms) = duration_ms {
-                query.append_pair("duration", &duration_ms.to_string());
-            }
             if let Some(mix_song_id) = mix_song_id {
                 query.append_pair("album_audio_id", mix_song_id);
             }

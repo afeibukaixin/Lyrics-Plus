@@ -104,7 +104,7 @@ export default function QuickLyricsWindow() {
       !lyrics.trackKey
       || !playback.snapshot.title
       || !playback.snapshot.artist
-      || (lyrics.loadState !== "ready" && lyrics.loadState !== "missing")
+      || lyrics.loadState !== "missing"
     ) return;
     if (searchedTrack.current === lyrics.trackKey) return;
     searchedTrack.current = lyrics.trackKey;

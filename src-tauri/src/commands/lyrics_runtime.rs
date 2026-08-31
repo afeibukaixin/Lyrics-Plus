@@ -195,31 +195,6 @@ fn lyric_content_key(lyrics: &str) -> String {
         .collect()
 }
 
-fn qqmusic_refresh_item_id(
-    state: &AppState,
-    track_key: &str,
-    document: &LyricsDocument,
-) -> Option<String> {
-    if document.tracks.translation.is_some()
-        || document
-            .raw
-            .lines()
-            .any(|line| line.trim() == QQMUSIC_PLAY_LYRIC_VERSION_TAG)
-    {
-        return None;
-    }
-    match state
-        .storage
-        .automatic_provider_item_id(track_key, QQMUSIC_PROVIDER_ID)
-    {
-        Ok(item_id) => item_id,
-        Err(error) => {
-            log::debug!("读取 QQMusic 旧歌词刷新信息失败：{error}");
-            None
-        }
-    }
-}
-
 fn save_automatic_search_result(
     state: &AppState,
     track_key: &str,
@@ -426,12 +401,11 @@ fn sync_lyrics_runtime_inner(app: &tauri::AppHandle, playback: &PlaybackSnapshot
     tauri::async_runtime::spawn(async move {
         let state = worker_app.state::<AppState>();
         let current = || state.lyrics_generation.load(Ordering::SeqCst) == generation;
-        let refresh_item_id = match state.storage.load_with_status(&track_key) {
+        match state.storage.load_with_status(&track_key) {
             Ok(crate::storage::LyricsLoadResult::Ready(document)) => {
                 if !current() {
                     return;
                 }
-                let refresh_item_id = qqmusic_refresh_item_id(&state, &track_key, &document);
                 publish_lyrics_runtime(
                     &worker_app,
                     LyricsRuntimeSnapshot {
@@ -441,10 +415,7 @@ fn sync_lyrics_runtime_inner(app: &tauri::AppHandle, playback: &PlaybackSnapshot
                         error: None,
                     },
                 );
-                let Some(refresh_item_id) = refresh_item_id else {
-                    return;
-                };
-                Some(refresh_item_id)
+                return;
             }
             Ok(crate::storage::LyricsLoadResult::Invalid(error)) => {
                 log::warn!("当前歌曲歌词关联内容无效，准备解除关联：{error}");
@@ -462,7 +433,6 @@ fn sync_lyrics_runtime_inner(app: &tauri::AppHandle, playback: &PlaybackSnapshot
                     }
                     return;
                 }
-                None
             }
             Err(error) => {
                 if current() {
@@ -478,11 +448,11 @@ fn sync_lyrics_runtime_inner(app: &tauri::AppHandle, playback: &PlaybackSnapshot
                 }
                 return;
             }
-            Ok(crate::storage::LyricsLoadResult::Missing) => None,
-        };
+            Ok(crate::storage::LyricsLoadResult::Missing) => {}
+        }
 
         let (Some(title), Some(artist)) = (playback.title.clone(), playback.artist.clone()) else {
-            if refresh_item_id.is_none() && current() {
+            if current() {
                 publish_lyrics_runtime(
                     &worker_app,
                     LyricsRuntimeSnapshot {
@@ -508,43 +478,6 @@ fn sync_lyrics_runtime_inner(app: &tauri::AppHandle, playback: &PlaybackSnapshot
         {
             Ok(response) => {
                 if !current() {
-                    return;
-                }
-                if let Some(refresh_item_id) = refresh_item_id.as_deref() {
-                    let refreshed = response.results.iter().find(|result| {
-                        result.provider_id == QQMUSIC_PROVIDER_ID
-                            && result.id == refresh_item_id
-                            && (result.has_translation
-                                || result
-                                    .lyrics
-                                    .lines()
-                                    .any(|line| line.trim() == QQMUSIC_PLAY_LYRIC_VERSION_TAG))
-                    });
-                    let Some(refreshed) = refreshed else {
-                        if let Some(error) = response.error.as_deref() {
-                            log::debug!("QQMusic 旧歌词后台刷新未取得可用结果：{error}");
-                        }
-                        return;
-                    };
-                    match save_automatic_search_result(
-                        &state, &track_key, &title, &artist, refreshed,
-                    ) {
-                        Ok(document) => {
-                            let _ = worker_app.emit("lyrics://changed", &track_key);
-                            if current() {
-                                publish_lyrics_runtime(
-                                    &worker_app,
-                                    LyricsRuntimeSnapshot {
-                                        track_key: Some(track_key),
-                                        document: Some(document),
-                                        status: LyricsRuntimeStatus::Ready,
-                                        error: None,
-                                    },
-                                );
-                            }
-                        }
-                        Err(error) => log::debug!("保存 QQMusic 后台刷新歌词失败：{error}"),
-                    }
                     return;
                 }
                 if let Some(error) = response.error {
@@ -584,11 +517,6 @@ fn sync_lyrics_runtime_inner(app: &tauri::AppHandle, playback: &PlaybackSnapshot
                             error: None,
                         },
                     );
-                }
-            }
-            Err(error) if refresh_item_id.is_some() => {
-                if error != LYRICS_SEARCH_INVALIDATED {
-                    log::debug!("QQMusic 旧歌词后台刷新失败：{error}");
                 }
             }
             Err(error) if current() && error == LYRICS_SEARCH_INVALIDATED => {

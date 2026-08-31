@@ -33,22 +33,6 @@ impl Storage {
         }
     }
 
-    pub(crate) fn automatic_provider_item_id(
-        &self,
-        track_key: &str,
-        provider_id: &str,
-    ) -> Result<Option<String>, String> {
-        let Some(association) = self.association(track_key)? else {
-            return Ok(None);
-        };
-        if association.manual_selected || association.provider_id.as_deref() != Some(provider_id) {
-            return Ok(None);
-        }
-        Ok(association
-            .provider_item_id
-            .filter(|item_id| !item_id.trim().is_empty()))
-    }
-
     fn association(&self, track_key: &str) -> Result<Option<Association>, String> {
         let canonical_track_key = self.canonical_track_key(track_key)?;
         let connection = self

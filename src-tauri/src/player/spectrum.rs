@@ -11,7 +11,7 @@ use rustfft::{Fft, FftPlanner};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
-use super::{now_ms, PlaybackSnapshot, PlayerKind};
+use super::{now_ms, PlaybackErrorCode, PlaybackSnapshot, PlayerKind};
 
 pub const PLAYBACK_SPECTRUM_FRAME_EVENT: &str = "playback://spectrum-frame";
 pub const PLAYBACK_SPECTRUM_STATE_EVENT: &str = "playback://spectrum-state";
@@ -589,6 +589,22 @@ impl PlaybackSpectrumService {
             .unwrap_or(false);
         if !has_subscribers {
             return;
+        }
+
+        if snapshot.error_code == Some(PlaybackErrorCode::SourceNotAllowed) {
+            let preserve_current_target = self
+                .runtime
+                .lock()
+                .map(|runtime| {
+                    runtime.target_bundle_id.as_deref().is_some_and(|target| {
+                        snapshot.source_app_bundle_id.as_deref() != Some(target)
+                    })
+                })
+                .unwrap_or(false);
+            if preserve_current_target {
+                // 被过滤的系统播放器不应打断当前有效播放器的频谱捕获。
+                return;
+            }
         }
 
         let target = spectrum_target_bundle_id(snapshot).map(str::to_owned);

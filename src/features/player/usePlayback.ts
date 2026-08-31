@@ -60,6 +60,7 @@ export function usePlayback({
   const [controlError, setControlError] = useState<string | null>(null);
   const artworkRequestVersionRef = useRef(0);
   const loadedArtworkIdRef = useRef<string | null>(null);
+  const loadedArtworkTrackKeyRef = useRef<string | null>(null);
   const artworkUrlRef = useRef<string | null>(null);
   const controlPromiseRef = useRef<Promise<void> | null>(null);
 
@@ -105,12 +106,36 @@ export function usePlayback({
   useEffect(() => {
     const trackId = snapshot.trackId;
     const artworkId = snapshot.artworkId;
+    const errorCode = snapshot.errorCode;
+    const artworkTrackKey = trackId && snapshot.player
+      ? `${snapshot.player}:${trackId}`
+      : null;
     artworkRequestVersionRef.current += 1;
     const requestVersion = artworkRequestVersionRef.current;
-    if (!active || !loadArtwork || !trackId || !isTauriRuntime()) {
+    if (!active || !loadArtwork || !isTauriRuntime()) {
       if (artworkUrlRef.current) URL.revokeObjectURL(artworkUrlRef.current);
       artworkUrlRef.current = null;
       loadedArtworkIdRef.current = null;
+      loadedArtworkTrackKeyRef.current = null;
+      setArtworkUrl(null);
+      setArtworkAccentColor(null);
+      setArtworkLoading(false);
+      setArtworkError(null);
+      return;
+    }
+
+    if (errorCode === "source_not_allowed") {
+      // 被过滤的系统播放器不应覆盖当前有效播放器的封面。
+      setArtworkLoading(false);
+      setArtworkError(null);
+      return;
+    }
+
+    if (!trackId) {
+      if (artworkUrlRef.current) URL.revokeObjectURL(artworkUrlRef.current);
+      artworkUrlRef.current = null;
+      loadedArtworkIdRef.current = null;
+      loadedArtworkTrackKeyRef.current = null;
       setArtworkUrl(null);
       setArtworkAccentColor(null);
       setArtworkLoading(false);
@@ -119,6 +144,15 @@ export function usePlayback({
     }
 
     if (!artworkId) {
+      if (
+        artworkUrlRef.current
+        && loadedArtworkTrackKeyRef.current === artworkTrackKey
+      ) {
+        // 系统封面来源短暂切换时，同一播放器的同一首歌继续复用当前封面。
+        setArtworkLoading(false);
+        setArtworkError(null);
+        return;
+      }
       // 系统媒体信息切歌时可能晚于歌曲元数据到达，确认期间继续显示上一首封面。
       setArtworkLoading(true);
       setArtworkError(null);
@@ -127,6 +161,7 @@ export function usePlayback({
         if (artworkUrlRef.current) URL.revokeObjectURL(artworkUrlRef.current);
         artworkUrlRef.current = null;
         loadedArtworkIdRef.current = null;
+        loadedArtworkTrackKeyRef.current = null;
         setArtworkUrl(null);
         setArtworkAccentColor(null);
         setArtworkLoading(false);
@@ -154,6 +189,7 @@ export function usePlayback({
         if (artworkUrlRef.current) URL.revokeObjectURL(artworkUrlRef.current);
         artworkUrlRef.current = null;
         loadedArtworkIdRef.current = null;
+        loadedArtworkTrackKeyRef.current = null;
         setArtworkUrl(null);
         setArtworkAccentColor(null);
         return;
@@ -166,6 +202,7 @@ export function usePlayback({
       const previousUrl = artworkUrlRef.current;
       artworkUrlRef.current = nextUrl;
       loadedArtworkIdRef.current = artworkId;
+      loadedArtworkTrackKeyRef.current = artworkTrackKey;
       setArtworkUrl(nextUrl);
       setArtworkAccentColor(value.accentColor);
       if (previousUrl) URL.revokeObjectURL(previousUrl);
@@ -174,6 +211,7 @@ export function usePlayback({
       if (artworkUrlRef.current) URL.revokeObjectURL(artworkUrlRef.current);
       artworkUrlRef.current = null;
       loadedArtworkIdRef.current = null;
+      loadedArtworkTrackKeyRef.current = null;
       setArtworkUrl(null);
       setArtworkAccentColor(null);
       setArtworkError(messageOf(error));
@@ -187,13 +225,21 @@ export function usePlayback({
         artworkRequestVersionRef.current += 1;
       }
     };
-  }, [active, loadArtwork, snapshot.artworkId, snapshot.trackId]);
+  }, [
+    active,
+    loadArtwork,
+    snapshot.artworkId,
+    snapshot.errorCode,
+    snapshot.player,
+    snapshot.trackId,
+  ]);
 
   useEffect(() => () => {
     artworkRequestVersionRef.current += 1;
     if (artworkUrlRef.current) URL.revokeObjectURL(artworkUrlRef.current);
     artworkUrlRef.current = null;
     loadedArtworkIdRef.current = null;
+    loadedArtworkTrackKeyRef.current = null;
   }, []);
 
   useEffect(() => {

@@ -23,7 +23,6 @@ use crate::lyrics::provider::{
     can_auto_apply, LyricsSearchInput, LyricsSearchResult, ProviderSettings, ProviderSettingsView,
     ProviderStatus,
 };
-use crate::lyrics::qqmusic::{QQMUSIC_PLAY_LYRIC_VERSION_TAG, QQMUSIC_PROVIDER_ID};
 use crate::lyrics::LyricsDocument;
 use crate::player::{
     control_playback as control_player, run_with_timeout, seek_playback as seek_player,
