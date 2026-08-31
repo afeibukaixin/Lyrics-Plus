@@ -35,9 +35,29 @@ fn publish_lyrics_runtime(app: &tauri::AppHandle, snapshot: LyricsRuntimeSnapsho
             .lyrics_runtime
             .write()
             .unwrap_or_else(|error| error.into_inner()) = snapshot.clone();
+
+        let conversion = state.config.snapshot().lyrics.chinese_conversion;
+        let mut presented = snapshot;
+        presented.document = presented
+            .document
+            .map(|document| document.converted_for_output(conversion));
+        let _ = app.emit("lyrics://runtime-changed", &presented);
+    } else {
+        let _ = app.emit("lyrics://runtime-changed", &snapshot);
     }
-    let _ = app.emit("lyrics://runtime-changed", &snapshot);
     crate::sync_lyrics_surfaces(app);
+}
+
+pub(crate) fn republish_lyrics_runtime(app: &tauri::AppHandle) {
+    let Some(state) = app.try_state::<AppState>() else {
+        return;
+    };
+    let snapshot = state
+        .lyrics_runtime
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .clone();
+    publish_lyrics_runtime(app, snapshot);
 }
 
 fn reset_lyrics_search_session(state: &AppState, track_key: Option<String>) {

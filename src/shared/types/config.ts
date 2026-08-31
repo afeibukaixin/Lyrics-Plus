@@ -8,6 +8,7 @@ export type SettingsSection = "style" | "lyrics" | "player" | "application" | "a
 export type LanguagePreference = "system" | SupportedLanguage;
 export type ThemePreference = "system" | "light" | "dark";
 export type NativeLanguage = "zh-CN" | "en-US";
+export type ChineseConversion = "original" | "simplified" | "traditional";
 
 export type SettingsResetResponse = {
   overlaySettings: OverlaySettings;
@@ -35,6 +36,7 @@ export type AppConfig = {
     shortcuts: GlobalShortcutSettings;
   };
   lyrics: {
+    chineseConversion: ChineseConversion;
     providers: ProviderSettings;
     displays: LyricsDisplayPreferences;
     baseAppearance: LyricsBaseAppearance;

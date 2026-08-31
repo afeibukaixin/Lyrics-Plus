@@ -295,6 +295,7 @@ pub fn run() {
             commands::set_status_bar_lyrics_enabled,
             commands::set_list_lyrics_visible,
             commands::set_list_lyrics_options,
+            commands::set_lyrics_chinese_conversion,
             commands::set_notch_lyrics_visible,
             commands::set_lyrics_display_preferences,
             commands::set_lyrics_base_appearance,

@@ -202,30 +202,31 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
             let adjusted = (position_ms as i128 + document.offset_ms as i128).max(0) as u64;
             let lines = &document.tracks.original.lines;
             let current_index = lines.iter().rposition(|line| line.start_ms <= adjusted);
-            if let Some((index, line)) =
-                current_index.and_then(|index| lines.get(index).map(|line| (index, line)))
-            {
-                text = line.text.trim().to_owned();
-                content_key = format!("{track_key}:line:{}:{text}", line.start_ms);
-                scroll_duration = lines
-                    .get(index + 1)
-                    .map(|next| next.start_ms)
-                    .or(line.end_ms)
-                    .and_then(|end_ms| end_ms.checked_sub(line.start_ms))
-                    .filter(|duration_ms| *duration_ms > 0)
-                    .map(Duration::from_millis);
-                if let Some(words) = line.words.as_deref().filter(|words| !words.is_empty()) {
-                    match preferences.appearance.karaoke_style {
-                        CompactKaraokeStyle::Sweep => {
-                            base_color = preferences.appearance.inactive_color.clone();
-                            highlighted_ranges = highlight_ranges(&text, words, adjusted);
+            if let Some(index) = current_index {
+                if let Some(raw_line) = lines.get(index) {
+                    let line = raw_line.converted_for_output(config.lyrics.chinese_conversion);
+                    text = line.text.trim().to_owned();
+                    content_key = format!("{track_key}:line:{}:{text}", line.start_ms);
+                    scroll_duration = lines
+                        .get(index + 1)
+                        .map(|next| next.start_ms)
+                        .or(raw_line.end_ms)
+                        .and_then(|end_ms| end_ms.checked_sub(raw_line.start_ms))
+                        .filter(|duration_ms| *duration_ms > 0)
+                        .map(Duration::from_millis);
+                    if let Some(words) = line.words.as_deref().filter(|words| !words.is_empty()) {
+                        match preferences.appearance.karaoke_style {
+                            CompactKaraokeStyle::Sweep => {
+                                base_color = preferences.appearance.inactive_color.clone();
+                                highlighted_ranges = highlight_ranges(&text, words, adjusted);
+                            }
+                            CompactKaraokeStyle::Highlight => {
+                                base_color = preferences.appearance.highlight_color.clone();
+                            }
                         }
-                        CompactKaraokeStyle::Highlight => {
-                            base_color = preferences.appearance.highlight_color.clone();
-                        }
+                    } else {
+                        base_color = preferences.appearance.highlight_color.clone();
                     }
-                } else {
-                    base_color = preferences.appearance.highlight_color.clone();
                 }
             }
         }

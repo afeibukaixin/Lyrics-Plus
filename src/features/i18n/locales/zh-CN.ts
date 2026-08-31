@@ -189,6 +189,7 @@ export const zhCN = {
       titleFilters: "标题屏蔽内容", titleFiltersHint: "输入需要忽略的文字，程序会智能移除所在的括号或标题后缀；仅影响本地匹配评分。",
       titleFilterPlaceholder: "例如：feat、片尾曲、主题曲", titleFiltersEmpty: "未配置标题屏蔽内容。", addTitleFilter: "添加", removeTitleFilter: "删除第 {{index}} 项", restoreTitleFilters: "恢复默认关键词", titleFilterDuplicate: "该关键词已存在。", titleFilterTooLong: "关键词不能超过 64 个字符。", titleFilterLimit: "最多添加 32 个关键词。",
       currentTrack: "当前歌曲", noTrack: "没有正在播放的歌曲", notAssociated: "未关联歌词", manualSearch: "手动搜索当前歌曲",
+      output: "中文歌词输出", chineseConversion: "中文歌词输出", chineseConversionHint: "仅转换已采用歌词的原文和翻译，不影响搜索候选、音译、元数据和原始歌词文件。", chineseConversionOriginal: "保持原文", chineseConversionSimplified: "转换为简体", chineseConversionTraditional: "转换为繁体",
       importLrc: "导入 LRC", unlink: "解除关联", offset: "歌词偏移 {{value}}ms", providerPriority: "歌词源优先级", notParticipated: "未参与本次搜索",
       strict: "严格优先级", smart: "智能排序", smartHint: "智能排序会在分数差距较大时覆盖手动顺序。",
       strictHint: "搜索结果按下列优先级排列；拖动左侧把手可调整并立即保存。", dragProvider: "拖动{{provider}}调整优先级",

@@ -49,6 +49,19 @@ pub fn set_list_lyrics_options(
 }
 
 #[tauri::command]
+pub fn set_lyrics_chinese_conversion(
+    app: tauri::AppHandle,
+    conversion: ChineseConversion,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let config = state
+        .config
+        .update(|config| config.lyrics.chinese_conversion = conversion)?;
+    republish_lyrics_runtime(&app);
+    finish_display_config_update(&app, config)
+}
+
+#[tauri::command]
 pub fn set_notch_lyrics_visible(
     app: tauri::AppHandle,
     visible: bool,
@@ -238,6 +251,8 @@ fn apply_app_config(
     let dock_visibility_changed = previous_dock_icon_hidden != next.app.hide_dock_icon;
     let menu_bar_icon_visibility_changed =
         previous_menu_bar_icon_hidden != next.app.hide_menu_bar_icon;
+    let chinese_conversion_changed =
+        previous_config.lyrics.chinese_conversion != next.lyrics.chinese_conversion;
     if dock_visibility_changed {
         crate::apply_dock_icon_hidden(app, next.app.hide_dock_icon)?;
     }
@@ -305,6 +320,9 @@ fn apply_app_config(
         .providers
         .set_settings(saved.lyrics.providers.clone())?;
     invalidate_lyrics_search_session(&state);
+    if chinese_conversion_changed {
+        republish_lyrics_runtime(app);
+    }
     *state
         .selection
         .write()
@@ -455,9 +473,10 @@ pub fn reset_settings_section(
         }
         SettingsSection::Lyrics => {
             let view = state.providers.set_settings(ProviderSettings::default())?;
-            state
-                .config
-                .update(|config| config.lyrics.providers = view.settings)?;
+            state.config.update(|config| {
+                config.lyrics.providers = view.settings;
+                config.lyrics.chinese_conversion = ChineseConversion::Original;
+            })?;
             invalidate_lyrics_search_session(&state);
         }
         SettingsSection::Player => {
@@ -490,6 +509,9 @@ pub fn reset_settings_section(
     }
 
     let configured = state.config.snapshot();
+    if matches!(section, SettingsSection::Lyrics) {
+        republish_lyrics_runtime(&app);
+    }
     crate::sync_lyrics_surfaces(&app);
     let _ = app.emit("config://changed", &configured);
     if let Some(error) = player_follower_error {

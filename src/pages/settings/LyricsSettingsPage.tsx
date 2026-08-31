@@ -1,4 +1,4 @@
-import type { LibraryScanStatus, MatchWeights, MusixmatchTokenType, ProviderSettings, ProviderStatus } from "../../shared/types";
+import type { ChineseConversion, LibraryScanStatus, MatchWeights, MusixmatchTokenType, ProviderSettings, ProviderStatus } from "../../shared/types";
 import type { TFunction } from "i18next";
 import { useEffect, useState, type FormEvent } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -7,9 +7,10 @@ import { listen } from "@tauri-apps/api/event";
 import { localizedSource } from "../../features/i18n/userText";
 import { api, isTauriRuntime, messageOf } from "../../shared/api";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
+import { useAppConfig } from "../../features/config/AppConfigProvider";
 import { useSettingsContext } from "../settings";
 import styles from "../settings.module.scss";
-import { PageHeader, RangeRow, SettingsPage, SettingsSection, ToggleRow } from "./components";
+import { PageHeader, RangeRow, SelectRow, SettingsPage, SettingsSection, ToggleRow } from "./components";
 import { GripVertical, Settings2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ function healthLabel(status: ProviderStatus | undefined, t: TFunction) {
 
 export default function LyricsSettingsPage() {
   const { t } = useTranslation();
+  const { config, setLyricsChineseConversion } = useAppConfig();
   const [titleFilterDraft, setTitleFilterDraft] = useState("");
   const [savingTitleFilters, setSavingTitleFilters] = useState(false);
   const [libraryDir, setLibraryDir] = useState<string | null>(null);
@@ -51,6 +53,7 @@ export default function LyricsSettingsPage() {
   const [savingProviderConfig, setSavingProviderConfig] = useState(false);
   const [matchWeightsDraft, setMatchWeightsDraft] = useState<MatchWeights>(defaultMatchWeights);
   const [savingMatchRules, setSavingMatchRules] = useState(false);
+  const [savingChineseConversion, setSavingChineseConversion] = useState(false);
   const {
     playback, lyrics, fileInput, providerRows, providerView, providerCredentials, testingProvider,
     resettingSection, confirmingReset, providerDrag, savingProviderOrder,
@@ -188,6 +191,19 @@ export default function LyricsSettingsPage() {
     setSavingMatchRules(false);
   };
 
+  const updateChineseConversion = async (conversion: string) => {
+    if (savingChineseConversion) return;
+    setSavingChineseConversion(true);
+    setError(null);
+    try {
+      await setLyricsChineseConversion(conversion as ChineseConversion);
+    } catch (error) {
+      setError(messageOf(error));
+    } finally {
+      setSavingChineseConversion(false);
+    }
+  };
+
   const commitMatchWeight = async (key: MatchWeightKey, value: number) => {
     if (!providerView) return;
     const previous = providerView.settings.matchWeights;
@@ -220,6 +236,7 @@ export default function LyricsSettingsPage() {
     : 0;
   const sections = [
     { id: "lyrics-current-track", label: t("settings.lyrics.currentTrack") },
+    { id: "lyrics-output", label: t("settings.lyrics.output") },
     { id: "lyrics-directory", label: t("settings.lyrics.directory") },
     { id: "lyrics-auto-match", label: t("settings.lyrics.autoMatch") },
     { id: "lyrics-match-rules", label: t("settings.lyrics.matchRules") },
@@ -238,6 +255,20 @@ export default function LyricsSettingsPage() {
         {lyrics.document && <Button variant="destructive" size="sm" onClick={() => void lyrics.remove()}>{t("settings.lyrics.unlink")}</Button>}
       </div>
       {lyrics.document && <div className={styles.offsetRow}><span>{t("settings.lyrics.offset", { value: `${lyrics.document.offsetMs > 0 ? "+" : ""}${lyrics.document.offsetMs}` })}</span><div><Button variant="outline" size="sm" onClick={() => void lyrics.changeOffset(-100)}>−100</Button><Button variant="outline" size="sm" onClick={() => void lyrics.changeOffset(100)}>+100</Button><Button variant="outline" size="sm" onClick={() => void lyrics.setOffset(0)}>{t("common.actions.reset")}</Button></div></div>}
+    </SettingsSection>
+    <SettingsSection id="lyrics-output" title={t("settings.lyrics.output")}>
+      <SelectRow
+        label={t("settings.lyrics.chineseConversion")}
+        description={t("settings.lyrics.chineseConversionHint")}
+        value={config.lyrics.chineseConversion}
+        options={[
+          ["original", t("settings.lyrics.chineseConversionOriginal")],
+          ["simplified", t("settings.lyrics.chineseConversionSimplified")],
+          ["traditional", t("settings.lyrics.chineseConversionTraditional")],
+        ]}
+        disabled={savingChineseConversion}
+        onChange={(value) => void updateChineseConversion(value)}
+      />
     </SettingsSection>
     <SettingsSection id="lyrics-directory" title={t("settings.lyrics.directory")}>
       <p className={styles.directoryPath}>{libraryDir ?? t("library.loadingDirectory")}</p>

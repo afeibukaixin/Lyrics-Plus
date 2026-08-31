@@ -376,11 +376,19 @@ fn migrate_v54_notch_double_line_settings(user: &mut Value, version: u16) {
     }
 }
 
+fn migrate_v57_chinese_conversion(user: &mut Value, version: u16) {
+    if version >= 57 {
+        return;
+    }
+    if let Some(lyrics) = user.pointer_mut("/lyrics").and_then(Value::as_object_mut) {
+        lyrics
+            .entry("chineseConversion")
+            .or_insert_with(|| Value::from("original"));
+    }
+}
+
 fn remove_retired_fullscreen_space_preferences(user: &mut Value) {
-    if let Some(overlay) = user
-        .pointer_mut("/overlay")
-        .and_then(Value::as_object_mut)
-    {
+    if let Some(overlay) = user.pointer_mut("/overlay").and_then(Value::as_object_mut) {
         overlay.remove("joinOtherAppsFullscreen");
     }
     if let Some(notch) = user

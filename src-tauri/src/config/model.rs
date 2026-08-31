@@ -224,9 +224,19 @@ impl GlobalShortcutSettings {
     }
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ChineseConversion {
+    #[default]
+    Original,
+    Simplified,
+    Traditional,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct LyricsPreferences {
+    pub chinese_conversion: ChineseConversion,
     pub providers: ProviderSettings,
     pub displays: LyricsDisplayPreferences,
     pub base_appearance: LyricsBaseAppearance,
@@ -236,6 +246,7 @@ pub struct LyricsPreferences {
 impl Default for LyricsPreferences {
     fn default() -> Self {
         Self {
+            chinese_conversion: ChineseConversion::Original,
             providers: ProviderSettings::default(),
             displays: LyricsDisplayPreferences::default(),
             base_appearance: LyricsBaseAppearance::default(),

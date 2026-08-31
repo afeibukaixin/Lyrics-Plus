@@ -17,7 +17,7 @@ use crate::overlay_model::{
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 55;
+pub const CONFIG_SCHEMA_VERSION: u16 = 57;
 const APP_CONFIG_KEYS: &[&str] = &[
     "theme",
     "language",

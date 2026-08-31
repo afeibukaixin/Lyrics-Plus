@@ -11,6 +11,7 @@ import {
   defaultOverlayStyle,
   defaultStatusBarLyricsAppearance,
   type AppConfig,
+  type ChineseConversion,
   type GlobalShortcutSettings,
   type LanguagePreference,
   type LyricsDisplayPreferences,
@@ -95,9 +96,10 @@ function applyPendingNotchPreferences(
 }
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 55,
+  schemaVersion: 57,
   app: { theme: "dark", language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, hideMenuBarIcon: false, silentStartup: false, autoCheckUpdates: true, lyricsWindowsShowOnAllSpaces: false, shortcuts: defaultGlobalShortcuts },
   lyrics: {
+    chineseConversion: "original",
     providers: {
       mode: "smart",
       autoApplyThreshold: 60,
@@ -163,6 +165,7 @@ type AppConfigContextValue = {
   setStatusBarLyricsEnabled: (enabled: boolean) => Promise<void>;
   setListLyricsVisible: (visible: boolean) => Promise<void>;
   setListLyricsOptions: (showTranslation: boolean, showRomanization: boolean) => Promise<void>;
+  setLyricsChineseConversion: (conversion: ChineseConversion) => Promise<void>;
   setNotchLyricsVisible: (visible: boolean) => Promise<void>;
   setLyricsDisplayPreferences: <Mode extends Exclude<LyricsStyleMode, "desktop">>(mode: Mode, preferences: LyricsDisplayPreferences[Mode]) => Promise<void>;
   setLyricsBaseAppearance: (appearance: LyricsBaseAppearance) => Promise<void>;
@@ -408,6 +411,16 @@ export function AppConfigProvider({
         return;
       }
       setConfig(await api.setListLyricsOptions(showTranslation, showRomanization));
+    },
+    setLyricsChineseConversion: async (conversion) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({
+          ...current,
+          lyrics: { ...current.lyrics, chineseConversion: conversion },
+        }));
+        return;
+      }
+      setConfig(await api.setLyricsChineseConversion(conversion));
     },
     setNotchLyricsVisible: async (enabled) => {
       if (!isTauriRuntime()) {

@@ -92,6 +92,7 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
     migrate_v49_notch_width(&mut user, version);
     migrate_v50_notch_layout(&mut user, version);
     migrate_v54_notch_double_line_settings(&mut user, version);
+    migrate_v57_chinese_conversion(&mut user, version);
     remove_retired_fullscreen_space_preferences(&mut user);
     validate_known_fields(&user, raw)?;
     validate_field_types_and_options(&user, raw)?;
@@ -270,6 +271,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
             lyrics,
             raw,
             &[
+                "chineseConversion",
                 "providers",
                 "displays",
                 "baseAppearance",
@@ -772,6 +774,13 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         "/lyrics/providers/mode",
         "mode",
         &["strict", "smart"],
+    )?;
+    validate_string_option(
+        value,
+        raw,
+        "/lyrics/chineseConversion",
+        "chineseConversion",
+        &["original", "simplified", "traditional"],
     )?;
     for (pointer, key, options) in [
         (

@@ -183,6 +183,7 @@ export const zhTW = {
       titleFilters: "標題忽略內容", titleFiltersHint: "輸入需要忽略的文字，程式會智慧移除所在的括號或標題後綴；只影響本機比對分數。",
       titleFilterPlaceholder: "例如：feat、片尾曲、主題曲", titleFiltersEmpty: "尚未設定標題忽略內容。", addTitleFilter: "新增", removeTitleFilter: "刪除第 {{index}} 項", restoreTitleFilters: "恢復預設關鍵字", titleFilterDuplicate: "此關鍵字已存在。", titleFilterTooLong: "關鍵字不可超過 64 個字元。", titleFilterLimit: "最多可新增 32 個關鍵字。",
       currentTrack: "目前歌曲", noTrack: "目前沒有歌曲正在播放", notAssociated: "尚未連結歌詞", manualSearch: "手動搜尋目前歌曲",
+      output: "中文歌詞輸出", chineseConversion: "中文歌詞輸出", chineseConversionHint: "只轉換已套用歌詞的原文與翻譯，不影響搜尋候選、音譯、歌曲資訊與原始歌詞檔案。", chineseConversionOriginal: "保持原文", chineseConversionSimplified: "轉換為簡體", chineseConversionTraditional: "轉換為繁體",
       importLrc: "匯入 LRC", unlink: "取消連結", offset: "歌詞偏移 {{value}}ms", providerPriority: "歌詞來源優先順序", notParticipated: "未參與本次搜尋",
       strict: "嚴格優先順序", smart: "智慧排序", smartHint: "分數差距較大時，智慧排序可能會覆蓋手動順序。",
       strictHint: "搜尋結果會依照下列優先順序排列；拖曳左側控制點即可調整並立即儲存。", dragProvider: "拖曳{{provider}}以調整優先順序",

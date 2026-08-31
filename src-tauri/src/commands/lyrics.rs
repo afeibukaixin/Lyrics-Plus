@@ -132,7 +132,9 @@ pub fn get_cached_lyrics(
     match state.storage.load_with_status(&track_key)? {
         crate::storage::LyricsLoadResult::Ready(document) => Ok(LyricsLoadResponse {
             status: LyricsLoadStatus::Ready,
-            document: Some(document),
+            document: Some(
+                document.converted_for_output(state.config.snapshot().lyrics.chinese_conversion),
+            ),
             error: None,
         }),
         crate::storage::LyricsLoadResult::Missing => Ok(LyricsLoadResponse {
@@ -162,11 +164,15 @@ pub fn get_completed_lyrics_search(
 
 #[tauri::command]
 pub fn get_lyrics_runtime_snapshot(state: State<'_, AppState>) -> LyricsRuntimeSnapshot {
-    state
+    let mut snapshot = state
         .lyrics_runtime
         .read()
         .unwrap_or_else(|error| error.into_inner())
-        .clone()
+        .clone();
+    snapshot.document = snapshot.document.map(|document| {
+        document.converted_for_output(state.config.snapshot().lyrics.chinese_conversion)
+    });
+    snapshot
 }
 
 #[tauri::command]
@@ -236,7 +242,7 @@ fn save_and_emit(
     app.emit("lyrics://changed", &input.track_key)
         .map_err(|error| error.to_string())?;
     set_runtime_document_if_active(app, &input.track_key, Some(document.clone()));
-    Ok(document)
+    Ok(document.converted_for_output(state.config.snapshot().lyrics.chinese_conversion))
 }
 
 #[tauri::command]

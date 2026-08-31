@@ -53,6 +53,9 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             line if line.starts_with("      \"providers\":") => {
                 Some(("      ", ConfigComment::Providers))
             }
+            line if line.starts_with("    \"chineseConversion\":") => {
+                Some(("    ", ConfigComment::ChineseConversion))
+            }
             line if line.starts_with("    \"displays\":") => {
                 Some(("    ", ConfigComment::LyricsDisplays))
             }
