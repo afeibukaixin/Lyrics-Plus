@@ -42,7 +42,7 @@ impl Storage {
         connection
             .query_row(
                 "SELECT title, artist, source, content_path, offset_ms, original_format,
-                        manual_selected, provider_id, provider_item_id
+                        manual_selected
                  FROM lyric_associations WHERE track_key=?1",
                 params![canonical_track_key],
                 |row| {
@@ -54,8 +54,6 @@ impl Storage {
                         offset_ms: row.get(4)?,
                         original_format: row.get(5)?,
                         manual_selected: row.get::<_, i64>(6)? != 0,
-                        provider_id: row.get(7)?,
-                        provider_item_id: row.get(8)?,
                     })
                 },
             )

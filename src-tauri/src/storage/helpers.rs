@@ -23,8 +23,6 @@ struct Association {
     offset_ms: i64,
     original_format: String,
     manual_selected: bool,
-    provider_id: Option<String>,
-    provider_item_id: Option<String>,
 }
 
 struct LocalLyricsCandidate {
@@ -80,19 +78,30 @@ pub(super) fn safe_component(value: &str) -> String {
     }
 }
 
-pub(super) fn available_path(library_dir: &Path, title: &str, artist: &str, raw: &str) -> PathBuf {
+pub(super) fn available_path(
+    library_dir: &Path,
+    title: &str,
+    artist: &str,
+    raw: &str,
+    original_format: &str,
+) -> PathBuf {
     let stem = format!("{} - {}", safe_component(artist), safe_component(title));
-    let initial = library_dir.join(format!("{stem}.lrc"));
+    let extension = if original_format == "lyricsfile" {
+        ".lyricsfile.yaml"
+    } else {
+        ".lrc"
+    };
+    let initial = library_dir.join(format!("{stem}{extension}"));
     if !initial.exists() || fs::read_to_string(&initial).ok().as_deref() == Some(raw) {
         return initial;
     }
     for suffix in 2..10_000 {
-        let candidate = library_dir.join(format!("{stem} ({suffix}).lrc"));
+        let candidate = library_dir.join(format!("{stem} ({suffix}){extension}"));
         if !candidate.exists() || fs::read_to_string(&candidate).ok().as_deref() == Some(raw) {
             return candidate;
         }
     }
-    library_dir.join(format!("{stem}-{}.lrc", content_hash(raw)))
+    library_dir.join(format!("{stem}-{}{extension}", content_hash(raw)))
 }
 
 pub(super) fn content_hash(raw: &str) -> String {
@@ -174,10 +183,19 @@ fn migrate_legacy_files(
             continue;
         }
         let raw = fs::read_to_string(&old_path)?;
+        let original_format = parse_lrc_with_options(&raw, &source, manual_selected)
+            .map(|document| document.metadata.original_format)
+            .unwrap_or_else(|_| "lrc".into());
         let path = if old_path.starts_with(library_dir) {
             old_path.clone()
         } else if old_path.starts_with(legacy_dir) {
-            let destination = available_path(library_dir, &title, &artist, &raw);
+            let destination = available_path(
+                library_dir,
+                &title,
+                &artist,
+                &raw,
+                &original_format,
+            );
             if destination != old_path && !destination.exists() {
                 fs::copy(&old_path, &destination)?;
             }
@@ -193,9 +211,6 @@ fn migrate_legacy_files(
         } else {
             old_path.clone()
         };
-        let original_format = parse_lrc_with_options(&raw, &source, manual_selected)
-            .map(|document| document.metadata.original_format)
-            .unwrap_or_else(|_| "lrc".into());
         upsert_file_index(
             connection,
             &path,

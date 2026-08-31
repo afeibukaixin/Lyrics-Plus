@@ -24,7 +24,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
-const defaultAmllBaseUrl = "https://amlldb.bikonoo.com";
+const defaultAmllBaseUrl = "https://api.amll.dev";
 const defaultMatchWeights: MatchWeights = { title: 39, artist: 36, album: 8, duration: 17 };
 const matchWeightKeys = ["title", "artist", "album", "duration"] as const;
 type MatchWeightKey = (typeof matchWeightKeys)[number];
@@ -251,7 +251,7 @@ export default function LyricsSettingsPage() {
       <div className={styles.buttonRow}>
         <Button variant="secondary" size="sm" disabled={!lyrics.trackKey} onClick={() => void api.showQuickLyricsWindow().catch((error) => setError(messageOf(error)))}>{t("settings.lyrics.manualSearch")}</Button>
         <Button variant="secondary" size="sm" disabled={!lyrics.trackKey} onClick={() => fileInput.current?.click()}>{t("settings.lyrics.importLrc")}</Button>
-        <input ref={fileInput} hidden type="file" accept=".lrc,text/plain" onChange={(event) => void handleFile(event.currentTarget.files?.[0])} />
+        <input ref={fileInput} hidden type="file" accept=".lrc,.lyricsfile.yaml,text/plain,application/yaml,text/yaml" onChange={(event) => void handleFile(event.currentTarget.files?.[0])} />
         {lyrics.document && <Button variant="destructive" size="sm" onClick={() => void lyrics.remove()}>{t("settings.lyrics.unlink")}</Button>}
       </div>
       {lyrics.document && <div className={styles.offsetRow}><span>{t("settings.lyrics.offset", { value: `${lyrics.document.offsetMs > 0 ? "+" : ""}${lyrics.document.offsetMs}` })}</span><div><Button variant="outline" size="sm" onClick={() => void lyrics.changeOffset(-100)}>−100</Button><Button variant="outline" size="sm" onClick={() => void lyrics.changeOffset(100)}>+100</Button><Button variant="outline" size="sm" onClick={() => void lyrics.setOffset(0)}>{t("common.actions.reset")}</Button></div></div>}

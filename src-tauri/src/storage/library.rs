@@ -569,7 +569,10 @@ fn index_file_if_changed(
 }
 
 fn collision_filename_parts(path: &Path) -> Option<(PathBuf, String, String)> {
-    let stem = path.file_stem()?.to_str()?;
+    let file_name = path.file_name()?.to_str()?;
+    let lyricsfile_stem = strip_lyricsfile_suffix(file_name);
+    let is_lyricsfile = lyricsfile_stem.is_some();
+    let stem = lyricsfile_stem.or_else(|| path.file_stem()?.to_str())?;
     let suffix_start = stem.rfind(" (")?;
     let suffix = stem.get(suffix_start + 2..stem.len().checked_sub(1)?)?;
     if suffix.is_empty() || !suffix.chars().all(|character| character.is_ascii_digit()) {
@@ -577,9 +580,13 @@ fn collision_filename_parts(path: &Path) -> Option<(PathBuf, String, String)> {
     }
     let base_stem = stem.get(..suffix_start)?.trim_end();
     let (artist, title) = base_stem.split_once(" - ")?;
-    let extension = path.extension()?.to_str()?;
+    let extension = if is_lyricsfile {
+        ".lyricsfile.yaml"
+    } else {
+        ".lrc"
+    };
     Some((
-        path.with_file_name(format!("{base_stem}.{extension}")),
+        path.with_file_name(format!("{base_stem}{extension}")),
         artist.to_owned(),
         title.to_owned(),
     ))
@@ -651,19 +658,25 @@ struct ParsedMetadata {
 }
 
 fn lyric_metadata(path: &Path, raw: &str, source: &str) -> ParsedMetadata {
-    let extension_format = path
-        .extension()
+    let extension_format = if path
+        .file_name()
         .and_then(|value| value.to_str())
-        .unwrap_or("lrc")
-        .to_ascii_lowercase();
+        .and_then(strip_lyricsfile_suffix)
+        .is_some()
+    {
+        "lyricsfile".into()
+    } else {
+        path.extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or("lrc")
+            .to_ascii_lowercase()
+    };
     let document = parse_lrc_with_options(raw, source, false).ok();
     let format = document
         .as_ref()
         .map(|value| value.metadata.original_format.clone())
         .unwrap_or(extension_format);
-    let (filename_artist, filename_title) = path
-        .file_stem()
-        .and_then(|value| value.to_str())
+    let (filename_artist, filename_title) = lyric_filename_stem(path)
         .and_then(|value| value.split_once(" - "))
         .map(|(artist, title)| (Some(artist.to_string()), Some(title.to_string())))
         .unwrap_or((None, None));
@@ -735,14 +748,38 @@ fn read_lyric(path: &Path) -> Result<String, String> {
 }
 
 fn has_supported_extension(path: &Path) -> bool {
+    if path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .and_then(strip_lyricsfile_suffix)
+        .is_some()
+    {
+        return true;
+    }
     path.extension()
         .and_then(|value| value.to_str())
         .is_some_and(|value| {
             matches!(
                 value.to_ascii_lowercase().as_str(),
-                "lrc" | "yrc" | "qrc" | "ttml" | "lrcx"
+                "lrc" | "yrc" | "qrc" | "krc" | "ttml" | "lrcx"
             )
         })
+}
+
+fn strip_lyricsfile_suffix(file_name: &str) -> Option<&str> {
+    const SUFFIX: &str = ".lyricsfile.yaml";
+    let suffix_start = file_name.len().checked_sub(SUFFIX.len())?;
+    let suffix = file_name.get(suffix_start..)?;
+    if suffix.eq_ignore_ascii_case(SUFFIX) {
+        file_name.get(..suffix_start)
+    } else {
+        None
+    }
+}
+
+fn lyric_filename_stem(path: &Path) -> Option<&str> {
+    let file_name = path.file_name()?.to_str()?;
+    strip_lyricsfile_suffix(file_name).or_else(|| path.file_stem()?.to_str())
 }
 
 fn canonical_directory(path: &str) -> Result<PathBuf, String> {

@@ -38,10 +38,19 @@ impl Storage {
             .as_ref()
             .map(|association| association.path.clone())
             .filter(|path| path.starts_with(&library_dir))
-            .filter(|path| self.file_is_app_owned(path).unwrap_or(false));
+            .filter(|path| self.file_is_app_owned(path).unwrap_or(false))
+            .filter(|path| lyric_path_matches_format(path, &document.metadata.original_format));
         let path = reusable_path
             .clone()
-            .unwrap_or_else(|| available_path(&library_dir, title, artist, raw));
+            .unwrap_or_else(|| {
+                available_path(
+                    &library_dir,
+                    title,
+                    artist,
+                    raw,
+                    &document.metadata.original_format,
+                )
+            });
         fs::write(&path, raw).map_err(|error| format!("保存歌词文件失败：{error}"))?;
         let content_hash = content_hash(raw);
         let connection = self
@@ -124,15 +133,11 @@ impl Storage {
                 .unwrap_or_else(|error| error.into_inner());
             let mut statement = connection
                 .prepare(
+                    // 在线歌词保存到歌词目录后仍是缓存，不应以本地候选参与在线结果去重。
                     "SELECT content_path, title, artist, duration_ms, content_hash
                      FROM lyric_files
                      WHERE managed=1
-                       AND (
-                         app_owned=0 OR source IN ('本地文件', '本地导入', '手动导入') OR EXISTS(
-                           SELECT 1 FROM lyric_associations
-                           WHERE lyric_associations.content_path=lyric_files.content_path
-                         )
-                       )",
+                       AND (app_owned=0 OR source IN ('本地文件', '本地导入', '手动导入'))",
                 )
                 .map_err(|error| format!("读取本地歌词索引失败：{error}"))?;
             let rows = statement
@@ -346,4 +351,12 @@ impl Storage {
         }
         Ok(document)
     }
+}
+
+fn lyric_path_matches_format(path: &Path, original_format: &str) -> bool {
+    let is_lyricsfile = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .is_some_and(|value| value.to_ascii_lowercase().ends_with(".lyricsfile.yaml"));
+    (original_format == "lyricsfile") == is_lyricsfile
 }

@@ -1,5 +1,6 @@
 use base64::Engine;
 use futures::future::join_all;
+use lyrics_crypto::decrypter::krc::decrypter::decrypt_lyrics;
 use serde::Deserialize;
 
 use super::parse_lrc_with_options;
@@ -139,21 +140,22 @@ impl KugouProvider {
         let lyrics = self
             .download(client, &lyric_candidate.id, &lyric_candidate.accesskey)
             .await?;
-        let parsed = parse_lrc_with_options(&lyrics, self.display_name(), false).ok();
-        let has_translation = parsed
-            .as_ref()
-            .is_some_and(|document| document.tracks.translation.is_some());
-        let has_word_timing = parsed.as_ref().is_some_and(|document| {
-            document
-                .tracks
-                .original
-                .lines
-                .iter()
-                .any(|line| line.words.as_ref().is_some_and(|words| !words.is_empty()))
-        });
-        let has_romanization = parsed
-            .as_ref()
-            .is_some_and(|document| document.tracks.romanization.is_some());
+        let parsed =
+            parse_lrc_with_options(&lyrics, self.display_name(), false).map_err(|error| {
+                log::debug!("酷狗 KRC 与普通 LRC 歌词均解析失败：{error}");
+                self.error(
+                    ProviderErrorKind::InvalidResponse,
+                    format!("酷狗歌词解析失败：{error}"),
+                )
+            })?;
+        let has_translation = parsed.tracks.translation.is_some();
+        let has_word_timing = parsed
+            .tracks
+            .original
+            .lines
+            .iter()
+            .any(|line| line.words.as_ref().is_some_and(|words| !words.is_empty()));
+        let has_romanization = parsed.tracks.romanization.is_some();
         let mut result = LyricsSearchResult {
             id: format!("{}|{}", lyric_candidate.id, lyric_candidate.accesskey),
             provider_id: self.id().into(),
@@ -217,13 +219,60 @@ impl KugouProvider {
         id: &str,
         access_key: &str,
     ) -> Result<String, ProviderError> {
+        match self.download_krc(client, id, access_key).await {
+            Ok(lyrics) if parse_lrc_with_options(&lyrics, self.display_name(), false).is_ok() => {
+                return Ok(lyrics);
+            }
+            Ok(_) => log::debug!("酷狗 KRC 歌词解析失败，回退普通 LRC"),
+            Err(error) => log::debug!("酷狗 KRC 歌词获取失败，回退普通 LRC：{error}"),
+        }
+
+        self.download_lrc(client, id, access_key).await
+    }
+
+    async fn download_krc(
+        &self,
+        client: &reqwest::Client,
+        id: &str,
+        access_key: &str,
+    ) -> Result<String, ProviderError> {
+        let envelope = self
+            .download_envelope(client, id, access_key, "krc")
+            .await?;
+        decrypt_lyrics(&envelope.content)
+            .ok_or_else(|| self.error(ProviderErrorKind::InvalidResponse, "酷狗 KRC 歌词解密失败"))
+    }
+
+    async fn download_lrc(
+        &self,
+        client: &reqwest::Client,
+        id: &str,
+        access_key: &str,
+    ) -> Result<String, ProviderError> {
+        let envelope = self
+            .download_envelope(client, id, access_key, "lrc")
+            .await?;
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(envelope.content)
+            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
+        String::from_utf8(decoded)
+            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))
+    }
+
+    async fn download_envelope(
+        &self,
+        client: &reqwest::Client,
+        id: &str,
+        access_key: &str,
+        format: &str,
+    ) -> Result<DownloadEnvelope, ProviderError> {
         let mut url = reqwest::Url::parse("https://lyrics.kugou.com/download")
             .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
         url.query_pairs_mut()
             .append_pair("ver", "1")
             .append_pair("client", "pc")
             .append_pair("id", id)
-            .append_pair("fmt", "lrc")
+            .append_pair("fmt", format)
             .append_pair("charset", "utf8")
             .append_pair("accesskey", access_key);
         let response = client
@@ -237,14 +286,9 @@ impl KugouProvider {
                 format!("歌词下载返回 HTTP {}", response.status()),
             ));
         }
-        let envelope = response
+        response
             .json::<DownloadEnvelope>()
             .await
-            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
-        let decoded = base64::engine::general_purpose::STANDARD
-            .decode(envelope.content)
-            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
-        String::from_utf8(decoded)
             .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))
     }
 

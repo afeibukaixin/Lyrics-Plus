@@ -1,5 +1,6 @@
 use base64::Engine;
 use futures::future::join_all;
+use lyrics_crypto::decrypter::qrc::decrypter::decrypt_lyrics;
 use serde::Deserialize;
 
 use super::provider::{
@@ -10,7 +11,7 @@ use super::provider::{
 
 pub(crate) const QQMUSIC_PROVIDER_ID: &str = "qqmusic";
 pub(crate) const QQMUSIC_PLAY_LYRIC_VERSION_TAG: &str =
-    "[lyrics-plus:provider-version:qqmusic-play-lyric-v1]";
+    "[lyrics-plus:provider-version:qqmusic-play-lyric-v2]";
 
 #[derive(Debug, Deserialize)]
 struct SearchEnvelope {
@@ -63,12 +64,14 @@ struct QqRichData {
     lyric: Option<String>,
     trans: Option<String>,
     lrc: Option<String>,
+    roma: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
 struct QqLyricsPayload {
     lyric: Option<String>,
     trans: Option<String>,
+    romanization: Option<String>,
     rich_verified: bool,
 }
 
@@ -171,6 +174,7 @@ impl LyricsProvider for QqMusicProvider {
     }
 }
 
+#[cfg(test)]
 fn result_from_detail(
     candidate: LyricsSearchResult,
     detail: LyricsEnvelope,
@@ -180,6 +184,7 @@ fn result_from_detail(
         QqLyricsPayload {
             lyric: detail.lyric,
             trans: detail.trans,
+            romanization: None,
             rich_verified: false,
         },
     )
@@ -191,12 +196,23 @@ fn result_from_payload(
 ) -> Option<LyricsSearchResult> {
     let original = detail.lyric.filter(|value| has_timed_text(value))?;
     let translation = detail.trans.filter(|value| has_timed_text(value));
-    let lyrics = merge_tracks(&original, translation.as_deref(), detail.rich_verified);
+    let romanization = detail.romanization.filter(|value| has_timed_text(value));
+    let lyrics = merge_tracks(
+        &original,
+        translation.as_deref(),
+        romanization.as_deref(),
+        detail.rich_verified,
+    );
     let parsed = super::parse_lrc_with_options(&lyrics, QQMUSIC_DISPLAY_NAME, false).ok()?;
     candidate.synced = true;
     candidate.has_translation = parsed.tracks.translation.is_some();
-    candidate.has_word_timing = false;
-    candidate.has_romanization = false;
+    candidate.has_word_timing = parsed
+        .tracks
+        .original
+        .lines
+        .iter()
+        .any(|line| line.words.as_ref().is_some_and(|words| !words.is_empty()));
+    candidate.has_romanization = parsed.tracks.romanization.is_some();
     candidate.lyrics = lyrics;
     Some(candidate)
 }
@@ -250,6 +266,77 @@ fn decode_base64_lyrics(raw: &str) -> Result<String, String> {
     String::from_utf8(decoded).map_err(|error| format!("QQMusic 歌词文本编码无效：{error}"))
 }
 
+fn decode_rich_lyric(raw: &str) -> Result<String, String> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Err("QQMusic 歌词内容为空".into());
+    }
+    if raw.starts_with('[') || raw.starts_with('<') {
+        return Ok(raw.to_string());
+    }
+    if let Some(decoded) = decrypt_lyrics(raw) {
+        return Ok(decoded);
+    }
+    decode_base64_lyrics(raw)
+}
+
+fn extract_qrc_lyric_content(raw: &str) -> Option<String> {
+    let marker = "LyricContent=";
+    let start = raw.find(marker)? + marker.len();
+    let quote = raw[start..].chars().next()?;
+    if !matches!(quote, '\'' | '"') {
+        return None;
+    }
+    let value_start = start + quote.len_utf8();
+    let value_end = value_start + raw[value_start..].find(quote)?;
+    let value = super::decode_xml_text(&raw[value_start..value_end]);
+    (!value.trim().is_empty()).then_some(value)
+}
+
+fn has_qrc_timing(raw: &str) -> bool {
+    raw.lines().any(|line| {
+        let line = line.trim_start();
+        let Some(after_open) = line.strip_prefix('[') else {
+            return false;
+        };
+        let Some(close) = after_open.find(']') else {
+            return false;
+        };
+        super::parse_integer_list(&after_open[..close]).len() == 2
+    })
+}
+
+fn qrc_to_lrc(raw: &str) -> Option<String> {
+    let parsed = super::parse_lrc_with_options(raw, QQMUSIC_DISPLAY_NAME, false).ok()?;
+    let lines = parsed
+        .tracks
+        .original
+        .lines
+        .into_iter()
+        .filter(|line| !line.text.trim().is_empty())
+        .map(|line| {
+            let minutes = line.start_ms / 60_000;
+            let seconds = (line.start_ms % 60_000) / 1_000;
+            let milliseconds = line.start_ms % 1_000;
+            format!(
+                "[{minutes:02}:{seconds:02}.{milliseconds:03}]{}",
+                line.text.trim()
+            )
+        })
+        .collect::<Vec<_>>();
+    (!lines.is_empty()).then_some(lines.join("\n"))
+}
+
+// 翻译和音译可能返回普通 LRC，也可能沿用 QRC XML 包装；统一还原成可合并的 LRC。
+fn normalize_rich_auxiliary(raw: &str) -> Option<String> {
+    let raw = extract_qrc_lyric_content(raw).unwrap_or_else(|| raw.to_string());
+    if has_qrc_timing(&raw) {
+        qrc_to_lrc(&raw)
+    } else {
+        clean_qq_auxiliary(&raw)
+    }
+}
+
 impl QqMusicProvider {
     async fn fetch_detail(
         &self,
@@ -275,6 +362,7 @@ impl QqMusicProvider {
             .map(|detail| QqLyricsPayload {
                 lyric: detail.lyric,
                 trans: detail.trans.and_then(|value| clean_qq_auxiliary(&value)),
+                romanization: None,
                 rich_verified: false,
             })
     }
@@ -307,14 +395,14 @@ impl QqMusicProvider {
                 "module": "music.musichallSong.PlayLyricInfo",
                 "param": {
                     "albumName": encode_base64(album),
-                    "crypt": 0,
+                    "crypt": 1,
                     "ct": 19,
                     "cv": 2111,
                     "interval": candidate.result.duration_ms.map(|value| value / 1000).unwrap_or(0),
                     "lrc_t": 0,
-                    "qrc": 0,
+                    "qrc": 1,
                     "qrc_t": 0,
-                    "roma": 0,
+                    "roma": 1,
                     "roma_t": 0,
                     "singerName": encode_base64(&candidate.result.artist),
                     "songID": song_id,
@@ -353,27 +441,61 @@ impl QqMusicProvider {
             .or_else(|| data.lrc.as_deref().filter(|value| !value.trim().is_empty()))
             .ok_or_else(|| self.error(ProviderErrorKind::InvalidResponse, "新歌词接口原文为空"))
             .and_then(|value| {
-                decode_base64_lyrics(value)
+                decode_rich_lyric(value)
                     .map_err(|message| self.error(ProviderErrorKind::InvalidResponse, message))
-            })?;
-        let (trans, rich_verified) = match data
+            })
+            .map(|value| extract_qrc_lyric_content(&value).unwrap_or(value))?;
+        let mut rich_verified = true;
+        let trans = match data
             .trans
             .as_deref()
             .filter(|value| !value.trim().is_empty())
         {
-            Some(value) => match decode_base64_lyrics(value) {
-                Ok(value) => (clean_qq_auxiliary(&value), true),
+            Some(value) => match decode_rich_lyric(value) {
+                Ok(value) => normalize_rich_auxiliary(&value),
                 Err(error) => {
-                    // 翻译轨道损坏时保留有效原文，但不写版本标记，让后续播放可以重试。
                     log::debug!("QQMusic 翻译歌词解码失败，保留原文并等待重试：{error}");
-                    (None, false)
+                    rich_verified = false;
+                    None
                 }
             },
-            None => (None, true),
+            None => None,
         };
+        if data
+            .trans
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty())
+            && trans.is_none()
+        {
+            rich_verified = false;
+        }
+        let romanization = match data
+            .roma
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+        {
+            Some(value) => match decode_rich_lyric(value) {
+                Ok(value) => normalize_rich_auxiliary(&value),
+                Err(error) => {
+                    log::debug!("QQMusic 音译歌词解码失败，保留其他轨道：{error}");
+                    rich_verified = false;
+                    None
+                }
+            },
+            None => None,
+        };
+        if data
+            .roma
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty())
+            && romanization.is_none()
+        {
+            rich_verified = false;
+        }
         Ok(QqLyricsPayload {
             lyric: Some(original),
             trans,
+            romanization,
             rich_verified,
         })
     }
@@ -434,19 +556,34 @@ fn clean_qq_auxiliary(raw: &str) -> Option<String> {
 
 fn has_timed_text(raw: &str) -> bool {
     raw.lines().any(|line| {
-        line.find(']')
-            .is_some_and(|end| line[..end].contains(':') && !line[end + 1..].trim().is_empty())
+        let line = line.trim_start();
+        line.find(']').is_some_and(|end| {
+            let tag = line
+                .strip_prefix('[')
+                .and_then(|value| value.get(..end.saturating_sub(1)));
+            let timed = tag
+                .is_some_and(|tag| tag.contains(':') || super::parse_integer_list(tag).len() == 2);
+            timed && !line[end + 1..].trim().is_empty()
+        })
     })
 }
 
-fn merge_tracks(original: &str, translation: Option<&str>, rich_verified: bool) -> String {
-    let mut sections = Vec::with_capacity(3);
+fn merge_tracks(
+    original: &str,
+    translation: Option<&str>,
+    romanization: Option<&str>,
+    rich_verified: bool,
+) -> String {
+    let mut sections = Vec::with_capacity(4);
     if rich_verified {
         sections.push(QQMUSIC_PLAY_LYRIC_VERSION_TAG.to_string());
     }
     sections.push(original.trim().to_string());
     if let Some(value) = translation.filter(|value| !value.trim().is_empty()) {
         sections.push(format!("[lyrics-plus:translation]\n{}", value.trim()));
+    }
+    if let Some(value) = romanization.filter(|value| !value.trim().is_empty()) {
+        sections.push(format!("[lyrics-plus:romanization]\n{}", value.trim()));
     }
     sections.join("\n")
 }

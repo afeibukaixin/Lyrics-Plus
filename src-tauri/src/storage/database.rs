@@ -120,7 +120,7 @@ impl Storage {
         if !readme.exists() {
             fs::write(
                 &readme,
-                "Lyrics Plus 歌词库\n\n这里的歌词文件归你所有，可直接查看、编辑和备份。\n应用自动下载或手动导入的歌词会使用“歌手 - 歌名.lrc”格式保存。\n外部歌词文件夹默认仅建立只读索引。\n",
+                "Lyrics Plus 歌词库\n\n这里的歌词文件归你所有，可直接查看、编辑和备份。\n应用自动下载或手动导入的普通歌词会使用“歌手 - 歌名.lrc”格式保存；Lyricsfile 歌词会保留为“歌手 - 歌名.lyricsfile.yaml”。\n外部歌词文件夹默认仅建立只读索引。\n",
             )?;
         }
         let scanner = library::LibraryScanCoordinator::new(&library_dir);
