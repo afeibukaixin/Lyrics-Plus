@@ -57,6 +57,12 @@ import {
 } from "./NotchLyricsLayout";
 import styles from "./NotchLyricsWindow.module.scss";
 
+const SPECTRUM_MIN_SCALE = 0.11;
+
+type SpectrumMotion = {
+  lines: SVGLineElement[];
+};
+
 function previewLineAtPosition(lines: LyricsLine[], positionMs: number) {
   let activeIndex = -1;
   for (let index = 0; index < lines.length; index += 1) {
@@ -118,16 +124,33 @@ export default function NotchLyricsWindow() {
   const reconcileHoverStateRef = useRef<() => void>(() => undefined);
   const usesSpectrum = notch.leftSlot === "spectrum" || notch.rightSlot === "spectrum";
   const spectrumColor = playback.artworkAccentColor ?? "#ffffff";
-  const spectrumNodesRef = useRef(new Set<HTMLSpanElement>());
-  const registerSpectrumNode = useCallback((node: HTMLSpanElement) => {
-    spectrumNodesRef.current.add(node);
-    return () => spectrumNodesRef.current.delete(node);
+  const spectrumNodesRef = useRef(new Map<SVGSVGElement, SpectrumMotion>());
+  const registerSpectrumNode = useCallback((node: SVGSVGElement) => {
+    const lines = Array.from(node.querySelectorAll<SVGLineElement>("[data-spectrum-line]"));
+    lines.forEach((line) => {
+      line.style.transform = `scaleY(${SPECTRUM_MIN_SCALE})`;
+    });
+    const motion = { lines };
+    spectrumNodesRef.current.set(node, motion);
+    return () => {
+      if (spectrumNodesRef.current.get(node) !== motion) return;
+      lines.forEach((line) => {
+        line.style.removeProperty("transform");
+      });
+      spectrumNodesRef.current.delete(node);
+    };
   }, []);
+
   const paintSpectrum = useCallback((bands: PlaybackSpectrumBands) => {
-    for (const node of spectrumNodesRef.current) {
-      Array.from(node.children).forEach((bar, index) => {
-        const level = Math.max(0.12, bands[index] ?? 0);
-        (bar as HTMLElement).style.transform = `scaleY(${level})`;
+    // 后端已经完成频段合并与响应处理，前端只把 0..1 映射为柱高。
+    for (const motion of spectrumNodesRef.current.values()) {
+      motion.lines.forEach((line, index) => {
+        const value = bands[index];
+        const level = Number.isFinite(value)
+          ? SPECTRUM_MIN_SCALE
+            + (1 - SPECTRUM_MIN_SCALE) * Math.max(0, Math.min(1, value))
+          : SPECTRUM_MIN_SCALE;
+        line.style.transform = `scaleY(${level})`;
       });
     }
   }, []);

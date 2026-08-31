@@ -17,9 +17,7 @@ pub fn start_playback_spectrum(
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .clone();
-    state
-        .spectrum
-        .subscribe(&app, window.label(), &snapshot)
+    state.spectrum.subscribe(&app, window.label(), &snapshot)
 }
 
 #[tauri::command]

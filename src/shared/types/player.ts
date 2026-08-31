@@ -96,16 +96,6 @@ export type PlaybackSpectrumBands = [
   number,
   number,
   number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
 ];
 
 export type PlaybackSpectrumFrame = {

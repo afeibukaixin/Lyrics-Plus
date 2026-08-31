@@ -6,10 +6,7 @@ import type {
 } from "../../shared/types";
 import { playerService } from "./playerService";
 
-const silentBands: PlaybackSpectrumBands = [
-  0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0,
-];
+const silentBands: PlaybackSpectrumBands = [0, 0, 0, 0, 0, 0];
 
 const initialState: PlaybackSpectrumState = {
   status: "idle",

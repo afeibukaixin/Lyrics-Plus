@@ -1,4 +1,5 @@
 import {
+  useId,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -193,9 +194,10 @@ export function SpectrumBars({
   register,
 }: {
   active: boolean;
-  register: (node: HTMLSpanElement) => () => void;
+  register: (node: SVGSVGElement) => () => void;
 }) {
-  const rootRef = useRef<HTMLSpanElement>(null);
+  const gradientId = `spectrum-gradient-${useId().replace(/:/g, "")}`;
+  const rootRef = useRef<SVGSVGElement>(null);
   useEffect(() => {
     const node = rootRef.current;
     if (!node) return;
@@ -203,11 +205,43 @@ export function SpectrumBars({
   }, [register]);
 
   return (
-    <span className={styles.spectrum} data-active={active || undefined} aria-hidden="true" ref={rootRef}>
+    <svg
+      aria-hidden="true"
+      className={styles.spectrum}
+      data-active={active || undefined}
+      focusable="false"
+      preserveAspectRatio="none"
+      ref={rootRef}
+      viewBox="0 0 28 28"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <linearGradient
+          gradientUnits="userSpaceOnUse"
+          id={gradientId}
+          x1="0"
+          x2="0"
+          y1="25"
+          y2="3"
+        >
+          <stop offset="0%" stopColor="var(--notch-spectrum-color, currentColor)" />
+          <stop offset="55%" stopColor="var(--notch-spectrum-color, currentColor)" stopOpacity="0.88" />
+          <stop offset="100%" stopColor="var(--notch-spectrum-color, currentColor)" stopOpacity="0.58" />
+        </linearGradient>
+      </defs>
       {Array.from({ length: 6 }, (_, index) => (
-        <span className={styles.spectrumBar} key={index} />
+        <line
+          className={styles.spectrumBar}
+          data-spectrum-line="true"
+          key={index}
+          stroke={`url(#${gradientId})`}
+          x1={1.5 + index * 5}
+          x2={1.5 + index * 5}
+          y1="3"
+          y2="25"
+        />
       ))}
-    </span>
+    </svg>
   );
 }
 
