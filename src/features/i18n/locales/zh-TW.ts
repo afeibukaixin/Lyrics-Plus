@@ -177,7 +177,7 @@ export const zhTW = {
     lyrics: {
       title: "歌詞與搜尋", description: "達到設定相似度的同步歌詞會自動套用；其他結果可在快速切換視窗中預覽。",
       autoMatch: "自動比對", threshold: "自動比對相似度", thresholdHint: "第一筆同步歌詞達到此相似度時會自動套用；低於門檻的結果仍可手動選擇。",
-      matchRules: "比對規則", preferCapabilities: "歌詞能力偏好", preferCapabilitiesHint: "預設關閉。開啟後，僅在匹配度相差不超過 4 個百分點時優先選擇逐字歌詞及目前需要的翻譯或音譯，可能犧牲少量匹配度。", normalizeChinese: "統一繁體與簡體", normalizeChineseHint: "評分前將標題、歌手與專輯統一為簡體；關閉後按原文字形比較。",
+      matchRules: "比對規則", preferCapabilities: "歌詞能力偏好", preferCapabilitiesHint: "預設開啟。關閉後只按匹配度選擇；開啟時，僅在匹配度相差不超過 4 個百分點時優先選擇逐字歌詞及目前需要的翻譯或音譯，可能犧牲少量匹配度。", normalizeChinese: "統一繁體與簡體", normalizeChineseHint: "評分前將標題、歌手與專輯統一為簡體；關閉後按原文字形比較。",
       matchWeight: { title: "標題重要度", artist: "歌手重要度", album: "專輯重要度", duration: "時長重要度" },
       matchWeightSummary: "實際占比：標題 {{title}}% · 歌手 {{artist}}% · 專輯 {{album}}% · 時長 {{duration}}%", matchRulesHint: "重要度會自動換算為占比，不需要合計為 100；同步歌詞仍固定額外加 4 分。", matchWeightsEmpty: "歌詞比對重要度不可全部為 0。",
       titleFilters: "標題忽略內容", titleFiltersHint: "輸入需要忽略的文字，程式會智慧移除所在的括號或標題後綴；只影響本機比對分數。",

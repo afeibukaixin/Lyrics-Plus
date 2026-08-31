@@ -2,8 +2,9 @@ use serde::Deserialize;
 
 use super::parse_lrc_with_options;
 use super::provider::{
-    score_candidate, LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderError,
-    ProviderErrorKind, ProviderFuture, ProviderSearchReport, LRCLIB_DISPLAY_NAME,
+    duration_ms_from_seconds, score_candidate, LyricsProvider, LyricsSearchInput,
+    LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
+    LRCLIB_DISPLAY_NAME,
 };
 
 #[derive(Debug, Deserialize)]
@@ -34,73 +35,141 @@ impl LyricsProvider for LrcLibProvider {
         input: &'a LyricsSearchInput,
     ) -> ProviderFuture<'a, ProviderSearchReport> {
         Box::pin(async move {
-            let mut url =
-                reqwest::Url::parse("https://lrclib.net/api/search").map_err(|error| {
-                    self.error(ProviderErrorKind::InvalidResponse, error.to_string())
-                })?;
-            {
-                let mut query = url.query_pairs_mut();
-                query.append_pair("track_name", input.title.trim());
-                query.append_pair("artist_name", input.artist.trim());
-                if let Some(album) = input
-                    .album
-                    .as_deref()
-                    .filter(|album| !album.trim().is_empty())
-                {
-                    query.append_pair("album_name", album.trim());
+            if let Ok(Some(item)) = self.fetch_exact(client, input).await {
+                if let Some(result) = self.result_from_item(input, item) {
+                    return Ok(ProviderSearchReport::available(vec![result]));
                 }
             }
 
-            let response = client.get(url).send().await.map_err(|error| {
-                self.error(ProviderErrorKind::Network, format!("歌词搜索失败：{error}"))
-            })?;
-            if !response.status().is_success() {
-                return Err(self.error(
-                    ProviderErrorKind::Http,
-                    format!("歌词服务返回 HTTP {}", response.status()),
-                ));
-            }
-
-            let items = response.json::<Vec<LrcLibItem>>().await.map_err(|error| {
-                self.error(
-                    ProviderErrorKind::InvalidResponse,
-                    format!("无法解析歌词搜索结果：{error}"),
-                )
-            })?;
+            let items = self.fetch_broad(client, input).await?;
             let mut results = items
                 .into_iter()
-                .filter_map(|item| {
-                    let lyrics = item.synced_lyrics?.trim().to_string();
-                    if lyrics.is_empty() {
-                        return None;
-                    }
-                    let (has_translation, has_word_timing, has_romanization) =
-                        capabilities(&lyrics);
-                    let mut result = LyricsSearchResult {
-                        id: item.id.to_string(),
-                        provider_id: self.id().into(),
-                        title: item.track_name,
-                        artist: item.artist_name,
-                        album: item.album_name,
-                        duration_ms: item
-                            .duration
-                            .map(|seconds| (seconds * 1000.0).round() as u64),
-                        source: self.display_name().into(),
-                        synced: true,
-                        has_translation,
-                        has_word_timing,
-                        has_romanization,
-                        score: 0.0,
-                        lyrics,
-                    };
-                    result.score = score_candidate(input, &result);
-                    Some(result)
-                })
+                .filter_map(|item| self.result_from_item(input, item))
                 .collect::<Vec<_>>();
             results.sort_by(|left, right| right.score.total_cmp(&left.score));
             results.truncate(8);
             Ok(ProviderSearchReport::available(results))
         })
+    }
+}
+
+impl LrcLibProvider {
+    async fn fetch_exact(
+        &self,
+        client: &reqwest::Client,
+        input: &LyricsSearchInput,
+    ) -> Result<Option<LrcLibItem>, ProviderError> {
+        let mut url = reqwest::Url::parse("https://lrclib.net/api/get")
+            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
+        {
+            let mut query = url.query_pairs_mut();
+            query.append_pair("track_name", input.title.trim());
+            query.append_pair("artist_name", input.artist.trim());
+            if let Some(album) = input
+                .album
+                .as_deref()
+                .filter(|album| !album.trim().is_empty())
+            {
+                query.append_pair("album_name", album.trim());
+            }
+            if let Some(duration_ms) = input.duration_ms {
+                query.append_pair(
+                    "duration",
+                    &(duration_ms as f64 / 1000.0).round().to_string(),
+                );
+            }
+        }
+
+        let response = client.get(url).send().await.map_err(|error| {
+            self.error(
+                ProviderErrorKind::Network,
+                format!("精确歌词查询失败：{error}"),
+            )
+        })?;
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        if !response.status().is_success() {
+            return Err(self.error(
+                ProviderErrorKind::Http,
+                format!("歌词服务返回 HTTP {}", response.status()),
+            ));
+        }
+        response
+            .json::<LrcLibItem>()
+            .await
+            .map(Some)
+            .map_err(|error| {
+                self.error(
+                    ProviderErrorKind::InvalidResponse,
+                    format!("无法解析精确歌词结果：{error}"),
+                )
+            })
+    }
+
+    async fn fetch_broad(
+        &self,
+        client: &reqwest::Client,
+        input: &LyricsSearchInput,
+    ) -> Result<Vec<LrcLibItem>, ProviderError> {
+        let mut url = reqwest::Url::parse("https://lrclib.net/api/search")
+            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
+        {
+            let mut query = url.query_pairs_mut();
+            query.append_pair("track_name", input.title.trim());
+            query.append_pair("artist_name", input.artist.trim());
+            if let Some(album) = input
+                .album
+                .as_deref()
+                .filter(|album| !album.trim().is_empty())
+            {
+                query.append_pair("album_name", album.trim());
+            }
+        }
+        let response = client.get(url).send().await.map_err(|error| {
+            self.error(ProviderErrorKind::Network, format!("歌词搜索失败：{error}"))
+        })?;
+        if !response.status().is_success() {
+            return Err(self.error(
+                ProviderErrorKind::Http,
+                format!("歌词服务返回 HTTP {}", response.status()),
+            ));
+        }
+        response.json::<Vec<LrcLibItem>>().await.map_err(|error| {
+            self.error(
+                ProviderErrorKind::InvalidResponse,
+                format!("无法解析歌词搜索结果：{error}"),
+            )
+        })
+    }
+
+    fn result_from_item(
+        &self,
+        input: &LyricsSearchInput,
+        item: LrcLibItem,
+    ) -> Option<LyricsSearchResult> {
+        let lyrics = item.synced_lyrics?.trim().to_string();
+        if lyrics.is_empty() {
+            return None;
+        }
+        let (has_translation, has_word_timing, has_romanization) = capabilities(&lyrics);
+        let mut result = LyricsSearchResult {
+            id: item.id.to_string(),
+            provider_id: self.id().into(),
+            title: item.track_name,
+            artist: item.artist_name,
+            album: item.album_name,
+            duration_ms: item.duration.and_then(duration_ms_from_seconds),
+            source: self.display_name().into(),
+            synced: true,
+            has_translation,
+            has_word_timing,
+            has_romanization,
+            score: 0.0,
+            lyrics,
+        };
+        result.score = score_candidate(input, &result);
+        Some(result)
     }
 }
 

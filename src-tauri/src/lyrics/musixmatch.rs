@@ -7,9 +7,9 @@ use tokio::sync::Mutex as AsyncMutex;
 use super::credentials::{MusixmatchTokenType, ProviderCredentialStore};
 use super::parse_lrc_with_options;
 use super::provider::{
-    collect_provider_results, score_candidate, LyricsProvider, LyricsSearchInput,
-    LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
-    MUSIXMATCH_DISPLAY_NAME,
+    collect_provider_results, duration_ms_from_seconds_u64, score_candidate, LyricsProvider,
+    LyricsSearchInput, LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture,
+    ProviderSearchReport, MUSIXMATCH_DISPLAY_NAME,
 };
 
 const DESKTOP_API_BASE: &str = "https://apic-desktop.musixmatch.com/ws/1.1";
@@ -312,12 +312,12 @@ impl MusixmatchProvider {
             title: track.track_name,
             artist: track.artist_name,
             album: track.album_name.filter(|album| !album.is_empty()),
-            duration_ms: track
-                .track_length
-                .map(|seconds| seconds.saturating_mul(1000)),
+            duration_ms: track.track_length.map(duration_ms_from_seconds_u64),
             source: self.display_name().into(),
             synced: parsed.is_some(),
-            has_translation: translation.is_some(),
+            has_translation: parsed
+                .as_ref()
+                .is_some_and(|document| document.tracks.translation.is_some()),
             has_word_timing: parsed.as_ref().is_some_and(|document| {
                 document
                     .tracks
@@ -512,9 +512,7 @@ fn metadata_score(input: &LyricsSearchInput, track: &MusixmatchTrack) -> f64 {
         title: track.track_name.clone(),
         artist: track.artist_name.clone(),
         album: track.album_name.clone(),
-        duration_ms: track
-            .track_length
-            .map(|seconds| seconds.saturating_mul(1000)),
+        duration_ms: track.track_length.map(duration_ms_from_seconds_u64),
         source: MUSIXMATCH_DISPLAY_NAME.into(),
         synced: true,
         has_translation: false,

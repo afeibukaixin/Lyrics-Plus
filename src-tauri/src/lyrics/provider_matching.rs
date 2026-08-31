@@ -101,7 +101,7 @@ fn complete_settings(settings: &mut ProviderSettings) {
         if !settings.providers.iter().any(|provider| provider.id == id) {
             settings.providers.push(ProviderPreference {
                 id: id.into(),
-                enabled: true,
+                enabled: default_provider_enabled(id),
             });
         }
     }
@@ -260,6 +260,72 @@ fn filter_title_with_options(value: &str, keywords: &[String], normalize_chinese
     title
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum DurationUnit {
+    Seconds,
+    SecondsOrMilliseconds,
+}
+
+const DURATION_FUZZY_WINDOW_MS: u64 = 12_000;
+
+pub(crate) fn duration_ms_from_seconds(seconds: f64) -> Option<u64> {
+    if !seconds.is_finite() || seconds < 0.0 {
+        return None;
+    }
+    let milliseconds = seconds * 1000.0;
+    if milliseconds >= u64::MAX as f64 {
+        Some(u64::MAX)
+    } else {
+        Some(milliseconds.round() as u64)
+    }
+}
+
+pub(crate) fn duration_ms_from_seconds_u64(seconds: u64) -> u64 {
+    seconds.saturating_mul(1000)
+}
+
+pub(crate) fn parse_duration_text_ms(raw: &str, unit: DurationUnit) -> Option<u64> {
+    let raw = raw.trim();
+    if let Ok(value) = raw.parse::<u64>() {
+        return Some(match unit {
+            DurationUnit::Seconds => duration_ms_from_seconds_u64(value),
+            DurationUnit::SecondsOrMilliseconds if value < 10_000 => {
+                duration_ms_from_seconds_u64(value)
+            }
+            DurationUnit::SecondsOrMilliseconds => value,
+        });
+    }
+
+    let parts = raw.split(':').collect::<Vec<_>>();
+    let (hours, minutes, seconds): (u64, u64, f64) = match parts.as_slice() {
+        [minutes, seconds] => (
+            0_u64,
+            minutes.trim().parse().ok()?,
+            seconds.trim().parse().ok()?,
+        ),
+        [hours, minutes, seconds] => (
+            hours.trim().parse().ok()?,
+            minutes.trim().parse().ok()?,
+            seconds.trim().parse().ok()?,
+        ),
+        _ => return None,
+    };
+    let whole_ms = hours
+        .saturating_mul(3_600_000)
+        .saturating_add(minutes.saturating_mul(60_000));
+    whole_ms.checked_add(duration_ms_from_seconds(seconds)?)
+}
+
+pub(crate) fn duration_score(expected: Option<u64>, actual: Option<u64>) -> f64 {
+    match (expected, actual) {
+        (Some(expected), Some(actual)) => {
+            let delta = expected.abs_diff(actual) as f64;
+            (1.0 - delta / DURATION_FUZZY_WINDOW_MS as f64).clamp(0.0, 1.0)
+        }
+        _ => 0.6,
+    }
+}
+
 pub fn score_candidate(input: &LyricsSearchInput, result: &LyricsSearchResult) -> f64 {
     let scoring = &input.scoring;
     let title = normalized_levenshtein(
@@ -277,13 +343,7 @@ pub fn score_candidate(input: &LyricsSearchInput, result: &LyricsSearchResult) -
         ),
         _ => 0.6,
     };
-    let duration = match (input.duration_ms, result.duration_ms) {
-        (Some(expected), Some(actual)) => {
-            let delta = expected.abs_diff(actual) as f64;
-            (1.0 - delta / 12_000.0).clamp(0.0, 1.0)
-        }
-        _ => 0.6,
-    };
+    let duration = duration_score(input.duration_ms, result.duration_ms);
     let weights = scoring.match_weights;
     let weight_total = f64::from(weights.total());
     (title * f64::from(weights.title) / weight_total

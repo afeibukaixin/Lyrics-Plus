@@ -4,9 +4,9 @@ use serde::Deserialize;
 
 use super::parse_lrc_with_options;
 use super::provider::{
-    collect_provider_results, score_candidate, LyricsProvider, LyricsSearchInput,
-    LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
-    KUGOU_DISPLAY_NAME,
+    collect_provider_results, duration_ms_from_seconds_u64, score_candidate, LyricsProvider,
+    LyricsSearchInput, LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture,
+    ProviderSearchReport, KUGOU_DISPLAY_NAME,
 };
 
 #[derive(Debug, Deserialize)]
@@ -123,7 +123,7 @@ impl KugouProvider {
         input: &LyricsSearchInput,
         song: KugouSong,
     ) -> Result<Option<LyricsSearchResult>, ProviderError> {
-        let duration_ms = song.duration.map(|duration| duration * 1000);
+        let duration_ms = song.duration.map(duration_ms_from_seconds_u64);
         let Some(lyric_candidate) = self
             .search_lyrics(
                 client,
@@ -269,7 +269,7 @@ fn metadata_score(input: &LyricsSearchInput, song: &KugouSong) -> f64 {
         title: song.song_name.clone(),
         artist: song.singer_name.clone(),
         album: song.album_name.clone(),
-        duration_ms: song.duration.map(|duration| duration * 1000),
+        duration_ms: song.duration.map(duration_ms_from_seconds_u64),
         source: KUGOU_DISPLAY_NAME.into(),
         synced: true,
         has_translation: false,

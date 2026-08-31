@@ -3,9 +3,9 @@ use serde::Deserialize;
 
 use super::parse_lrc_with_options;
 use super::provider::{
-    collect_provider_results, score_candidate, LyricsProvider, LyricsSearchInput,
-    LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
-    KUWO_DISPLAY_NAME,
+    collect_provider_results, parse_duration_text_ms, score_candidate, DurationUnit,
+    LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderError, ProviderErrorKind,
+    ProviderFuture, ProviderSearchReport, KUWO_DISPLAY_NAME,
 };
 
 #[derive(Debug, Deserialize)]
@@ -168,7 +168,7 @@ impl KuwoProvider {
             title: song.song_name,
             artist: song.artist,
             album: (!song.album.is_empty()).then_some(song.album),
-            duration_ms: parse_duration_ms(&song.duration),
+            duration_ms: parse_duration_text_ms(&song.duration, DurationUnit::Seconds),
             source: self.display_name().into(),
             synced: parsed.is_some(),
             has_translation: parsed
@@ -213,17 +213,6 @@ fn normalize_time(raw: &str) -> String {
     )
 }
 
-fn parse_duration_ms(raw: &str) -> Option<u64> {
-    if let Ok(seconds) = raw.trim().parse::<u64>() {
-        return Some(seconds.saturating_mul(1000));
-    }
-    let (minutes, seconds) = raw.split_once(':')?;
-    Some(
-        minutes.trim().parse::<u64>().ok()?.saturating_mul(60_000)
-            + seconds.trim().parse::<u64>().ok()?.saturating_mul(1000),
-    )
-}
-
 fn metadata_score(input: &LyricsSearchInput, song: &KuwoSong) -> f64 {
     let result = LyricsSearchResult {
         id: String::new(),
@@ -231,7 +220,7 @@ fn metadata_score(input: &LyricsSearchInput, song: &KuwoSong) -> f64 {
         title: song.song_name.clone(),
         artist: song.artist.clone(),
         album: (!song.album.is_empty()).then_some(song.album.clone()),
-        duration_ms: parse_duration_ms(&song.duration),
+        duration_ms: parse_duration_text_ms(&song.duration, DurationUnit::Seconds),
         source: KUWO_DISPLAY_NAME.into(),
         synced: true,
         has_translation: false,

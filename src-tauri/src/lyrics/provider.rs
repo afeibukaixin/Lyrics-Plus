@@ -38,6 +38,10 @@ const LEGACY_AMLL_BASE_URLS: [&str; 2] = [
     "https://github.com/amll-dev/amll-ttml-db/raw/refs/heads/main",
 ];
 
+fn default_provider_enabled(provider_id: &str) -> bool {
+    !matches!(provider_id, "amll_ttml" | "musixmatch")
+}
+
 include!("provider_types.rs");
 include!("provider_settings.rs");
 include!("provider_registry.rs");

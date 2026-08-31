@@ -84,15 +84,17 @@ fn migrate_v13_provider_defaults(settings: &mut ProviderSettings) {
 fn migrate_v45_provider_sources(settings: &mut ProviderSettings) {
     for (id, enabled) in [
         ("kuwo", true),
-        ("amll_ttml", true),
+        ("amll_ttml", false),
         ("migu", true),
         ("musixmatch", false),
     ] {
         if !settings.providers.iter().any(|provider| provider.id == id) {
-            settings.providers.push(crate::lyrics::provider::ProviderPreference {
-                id: id.into(),
-                enabled,
-            });
+            settings
+                .providers
+                .push(crate::lyrics::provider::ProviderPreference {
+                    id: id.into(),
+                    enabled,
+                });
         }
     }
 }

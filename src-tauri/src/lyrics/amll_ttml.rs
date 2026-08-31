@@ -11,9 +11,9 @@ use tokio::sync::Mutex as AsyncMutex;
 
 use super::parse_lrc_with_options;
 use super::provider::{
-    collect_provider_results, score_candidate, LyricsProvider, LyricsSearchInput,
-    LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
-    ProviderSettings, AMLL_DISPLAY_NAME,
+    collect_provider_results, parse_duration_text_ms, score_candidate, DurationUnit,
+    LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderError, ProviderErrorKind,
+    ProviderFuture, ProviderSearchReport, ProviderSettings, AMLL_DISPLAY_NAME,
 };
 
 const INDEX_PATHS: [&str; 4] = [
@@ -415,7 +415,7 @@ fn convert_index_entry(folder: &str, entry: IndexEntry) -> Option<AmllEntry> {
         .filter(|album| !album.is_empty());
     let duration_ms = metadata_values(&entry.metadata, "duration")
         .first()
-        .and_then(|duration| parse_duration_ms(duration));
+        .and_then(|duration| parse_duration_text_ms(duration, DurationUnit::SecondsOrMilliseconds));
     let path = format!("{folder}/{}.ttml", entry.id);
     let canonical_key = if entry.raw_lyric_file.is_empty() {
         path.clone()
@@ -439,32 +439,6 @@ fn metadata_values<'a>(metadata: &'a [(String, Vec<String>)], key: &str) -> &'a 
         .find(|(candidate, _)| candidate == key)
         .map(|(_, values)| values.as_slice())
         .unwrap_or_default()
-}
-
-fn parse_duration_ms(raw: &str) -> Option<u64> {
-    if let Ok(milliseconds) = raw.parse::<u64>() {
-        return Some(if milliseconds < 10_000 {
-            milliseconds.saturating_mul(1000)
-        } else {
-            milliseconds
-        });
-    }
-    let parts = raw.split(':').collect::<Vec<_>>();
-    let (hours, minutes, seconds): (u64, u64, f64) = match parts.as_slice() {
-        [minutes, seconds] => (0_u64, minutes.parse().ok()?, seconds.parse::<f64>().ok()?),
-        [hours, minutes, seconds] => (
-            hours.parse().ok()?,
-            minutes.parse().ok()?,
-            seconds.parse::<f64>().ok()?,
-        ),
-        _ => return None,
-    };
-    Some(
-        hours
-            .saturating_mul(3_600_000)
-            .saturating_add(minutes.saturating_mul(60_000))
-            .saturating_add((seconds * 1000.0).round() as u64),
-    )
 }
 
 fn metadata_score(input: &LyricsSearchInput, entry: &AmllEntry) -> f64 {

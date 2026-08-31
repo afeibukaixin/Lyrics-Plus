@@ -3,9 +3,9 @@ use serde::Deserialize;
 
 use super::parse_lrc_with_options;
 use super::provider::{
-    collect_provider_results, score_candidate, LyricsProvider, LyricsSearchInput,
-    LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
-    MIGU_DISPLAY_NAME,
+    collect_provider_results, parse_duration_text_ms, score_candidate, DurationUnit,
+    LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderError, ProviderErrorKind,
+    ProviderFuture, ProviderSearchReport, MIGU_DISPLAY_NAME,
 };
 
 #[derive(Debug, Deserialize)]
@@ -158,7 +158,10 @@ impl MiguProvider {
                 .into_iter()
                 .map(|album| album.name)
                 .find(|album| !album.is_empty()),
-            duration_ms: parse_duration_ms(&song.duration),
+            duration_ms: parse_duration_text_ms(
+                &song.duration,
+                DurationUnit::SecondsOrMilliseconds,
+            ),
             source: self.display_name().into(),
             synced: true,
             has_translation: document.tracks.translation.is_some(),
@@ -218,21 +221,6 @@ fn normalize_resource_url(raw: &str) -> Option<reqwest::Url> {
     reqwest::Url::parse(&normalized).ok()
 }
 
-fn parse_duration_ms(raw: &str) -> Option<u64> {
-    if let Ok(milliseconds) = raw.parse::<u64>() {
-        return Some(if milliseconds < 10_000 {
-            milliseconds.saturating_mul(1000)
-        } else {
-            milliseconds
-        });
-    }
-    let (minutes, seconds) = raw.split_once(':')?;
-    Some(
-        minutes.trim().parse::<u64>().ok()?.saturating_mul(60_000)
-            + seconds.trim().parse::<u64>().ok()?.saturating_mul(1000),
-    )
-}
-
 fn metadata_score(input: &LyricsSearchInput, song: &MiguSong) -> f64 {
     let artist = song
         .singers
@@ -251,7 +239,7 @@ fn metadata_score(input: &LyricsSearchInput, song: &MiguSong) -> f64 {
             .iter()
             .map(|album| album.name.clone())
             .find(|album| !album.is_empty()),
-        duration_ms: parse_duration_ms(&song.duration),
+        duration_ms: parse_duration_text_ms(&song.duration, DurationUnit::SecondsOrMilliseconds),
         source: MIGU_DISPLAY_NAME.into(),
         synced: true,
         has_translation: false,

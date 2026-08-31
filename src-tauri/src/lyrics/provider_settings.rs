@@ -20,7 +20,7 @@ pub struct ProviderSettings {
     pub providers: Vec<ProviderPreference>,
     #[serde(default = "default_auto_apply_threshold")]
     pub auto_apply_threshold: u8,
-    #[serde(default)]
+    #[serde(default = "default_prefer_capabilities")]
     pub prefer_capabilities: bool,
     #[serde(default)]
     pub match_weights: MatchWeights,
@@ -40,6 +40,10 @@ const fn default_auto_apply_threshold() -> u8 {
 }
 
 const fn default_normalize_chinese() -> bool {
+    true
+}
+
+const fn default_prefer_capabilities() -> bool {
     true
 }
 
@@ -75,11 +79,11 @@ impl Default for ProviderSettings {
                 .into_iter()
                 .map(|(id, _)| ProviderPreference {
                     id: id.into(),
-                    enabled: true,
+                    enabled: default_provider_enabled(id),
                 })
                 .collect(),
             auto_apply_threshold: default_auto_apply_threshold(),
-            prefer_capabilities: false,
+            prefer_capabilities: default_prefer_capabilities(),
             match_weights: MatchWeights::default(),
             normalize_chinese: default_normalize_chinese(),
             title_filter_keywords: default_title_filter_keywords(),

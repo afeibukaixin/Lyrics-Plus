@@ -183,7 +183,7 @@ export const zhCN = {
     lyrics: {
       title: "歌词与搜索", description: "达到设定相似度的同步歌词会自动采用；其他结果可在快速切换窗口中预览。",
       autoMatch: "自动匹配", threshold: "自动匹配相似度", thresholdHint: "首条同步歌词达到此相似度时自动采用；低于阈值的结果仍可手动选择。",
-      matchRules: "匹配规则", preferCapabilities: "歌词能力偏好", preferCapabilitiesHint: "默认关闭。开启后，仅在匹配度相差不超过 4 个百分点时优先选择逐字歌词及当前需要的翻译或音译，可能牺牲少量匹配度。", normalizeChinese: "统一繁体与简体", normalizeChineseHint: "评分前将标题、歌手和专辑统一为简体；关闭后按原文字形比较。",
+      matchRules: "匹配规则", preferCapabilities: "歌词能力偏好", preferCapabilitiesHint: "默认开启。关闭后仅按匹配度选择；开启时，仅在匹配度相差不超过 4 个百分点时优先选择逐字歌词及当前需要的翻译或音译，可能牺牲少量匹配度。", normalizeChinese: "统一繁体与简体", normalizeChineseHint: "评分前将标题、歌手和专辑统一为简体；关闭后按原文字形比较。",
       matchWeight: { title: "标题重要度", artist: "歌手重要度", album: "专辑重要度", duration: "时长重要度" },
       matchWeightSummary: "实际占比：标题 {{title}}% · 歌手 {{artist}}% · 专辑 {{album}}% · 时长 {{duration}}%", matchRulesHint: "重要度会自动换算为占比，无需合计为 100；同步歌词仍固定额外加 4 分。", matchWeightsEmpty: "歌词匹配重要度不能全部为 0。",
       titleFilters: "标题屏蔽内容", titleFiltersHint: "输入需要忽略的文字，程序会智能移除所在的括号或标题后缀；仅影响本地匹配评分。",
