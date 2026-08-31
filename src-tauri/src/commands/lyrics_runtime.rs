@@ -179,13 +179,14 @@ async fn search_lyrics_for_session(
     state: &AppState,
     track_key: &str,
     input: LyricsSearchInput,
-    force: bool,
+    intent: LyricsSearchIntent,
 ) -> Result<SearchResponse, String> {
     if input.title.trim().is_empty() || input.artist.trim().is_empty() {
         return Err("搜索歌词需要歌曲名和歌手".into());
     }
 
     let request_key = LyricsSearchRequestKey::new(&input);
+    let force = intent.is_manual();
     let (activation, request_id, flight) = {
         let mut session = state
             .lyrics_search_session
@@ -194,32 +195,27 @@ async fn search_lyrics_for_session(
         if session.track_key.as_deref() != Some(track_key) {
             return Err("当前歌曲已发生变化".into());
         }
-        if !force {
+        let same_request = session.request_key.as_ref() == Some(&request_key);
+        if !force && same_request {
             if let Some(completed) = &session.completed {
                 return completed.clone();
             }
+        }
+        if same_request {
             if let Some(flight) = &session.in_flight {
                 (session.activation, session.request_id, flight.clone())
             } else {
                 session.request_id = session.request_id.wrapping_add(1);
-                session.request_key = Some(request_key);
-                let flight = Arc::new(LyricsSearchFlight::new());
-                session.in_flight = Some(flight.clone());
-                (session.activation, session.request_id, flight)
-            }
-        } else if session.request_key.as_ref() == Some(&request_key) {
-            if let Some(flight) = &session.in_flight {
-                (session.activation, session.request_id, flight.clone())
-            } else {
-                session.request_id = session.request_id.wrapping_add(1);
-                session.completed = None;
+                if force {
+                    session.completed = None;
+                }
                 let flight = Arc::new(LyricsSearchFlight::new());
                 session.in_flight = Some(flight.clone());
                 (session.activation, session.request_id, flight)
             }
         } else {
             session.request_id = session.request_id.wrapping_add(1);
-            session.request_key = Some(request_key);
+            session.request_key = Some(request_key.clone());
             session.completed = None;
             let flight = Arc::new(LyricsSearchFlight::new());
             session.in_flight = Some(flight.clone());
@@ -241,6 +237,20 @@ async fn search_lyrics_for_session(
     session.completed = Some(result.clone());
     session.in_flight = None;
     result
+}
+
+fn completed_lyrics_search(state: &AppState, track_key: &str) -> Option<SearchResponse> {
+    let session = state
+        .lyrics_search_session
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    if session.track_key.as_deref() != Some(track_key) {
+        return None;
+    }
+    session
+        .completed
+        .as_ref()
+        .and_then(|completed| completed.as_ref().ok().cloned())
 }
 
 pub(crate) fn set_runtime_document_if_active(
@@ -401,7 +411,9 @@ fn sync_lyrics_runtime_inner(app: &tauri::AppHandle, playback: &PlaybackSnapshot
             duration_ms: playback.duration_ms,
             scoring: Arc::default(),
         };
-        match search_lyrics_for_session(&state, &track_key, input, false).await {
+        match search_lyrics_for_session(&state, &track_key, input, LyricsSearchIntent::Automatic)
+            .await
+        {
             Ok(response) => {
                 if !current() {
                     return;

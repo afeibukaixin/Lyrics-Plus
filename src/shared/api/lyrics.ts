@@ -2,6 +2,7 @@ import { invoke } from "./core";
 import type {
   LibraryScanStatus,
   LyricsDocument,
+  LyricsLoadResponse,
   LyricsMonitor,
   LyricsRuntimeSnapshot,
   LyricsSearchInput,
@@ -14,11 +15,14 @@ import type {
   ProviderSettingsView,
   ProviderStatus,
   SearchResponse,
+  LyricsSearchIntent,
  } from "./types";
 
 export const lyricsApi = {
   getCachedLyrics: (trackKey: string) =>
-    invoke<LyricsDocument | null>("get_cached_lyrics", { trackKey }),
+    invoke<LyricsLoadResponse>("get_cached_lyrics", { trackKey }),
+  getCompletedLyricsSearch: (trackKey: string) =>
+    invoke<SearchResponse | null>("get_completed_lyrics_search", { trackKey }),
   getLyricsRuntimeSnapshot: () =>
     invoke<LyricsRuntimeSnapshot>("get_lyrics_runtime_snapshot"),
   getNotchLayoutMetrics: () => invoke<NotchLayoutMetrics>("get_notch_layout_metrics"),
@@ -28,8 +32,11 @@ export const lyricsApi = {
   setLyricsDirectory: (path: string) =>
     invoke<LibraryScanStatus>("set_lyrics_directory", { path }),
   openLyricsDirectory: () => invoke<void>("open_lyrics_directory"),
-  searchLyrics: (trackKey: string, input: LyricsSearchInput, force = false) =>
-    invoke<SearchResponse>("search_lyrics", { trackKey, input, force }),
+  searchLyrics: (
+    trackKey: string,
+    input: LyricsSearchInput,
+    intent: LyricsSearchIntent = "automatic",
+  ) => invoke<SearchResponse>("search_lyrics", { trackKey, input, intent }),
   getProviderSettings: () => invoke<ProviderSettingsView>("get_provider_settings"),
   getProviderCredentials: () => invoke<ProviderCredentialView>("get_provider_credentials"),
   setProviderSettings: (settings: ProviderSettings) =>

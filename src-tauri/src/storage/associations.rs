@@ -1,16 +1,38 @@
+pub(crate) enum LyricsLoadResult {
+    Missing,
+    Ready(LyricsDocument),
+    Invalid(String),
+}
+
 impl Storage {
-    pub fn load(&self, track_key: &str) -> Result<Option<LyricsDocument>, String> {
+    pub(crate) fn load_with_status(&self, track_key: &str) -> Result<LyricsLoadResult, String> {
         let Some(association) = self.association(track_key)? else {
-            return Ok(None);
+            return Ok(LyricsLoadResult::Missing);
         };
-        let raw = read_lyric_text(&association.path)?;
+        let raw = match read_lyric_text(&association.path) {
+            Ok(raw) => raw,
+            Err(error) => return Ok(LyricsLoadResult::Invalid(error)),
+        };
         let mut document =
-            parse_lrc_with_options(&raw, &association.source, association.manual_selected)?;
+            match parse_lrc_with_options(&raw, &association.source, association.manual_selected) {
+                Ok(document) => document,
+                Err(error) => return Ok(LyricsLoadResult::Invalid(error)),
+            };
         document.metadata.title = Some(association.title);
         document.metadata.artist = Some(association.artist);
         document.metadata.original_format = association.original_format;
         document.offset_ms = association.offset_ms;
-        Ok(Some(document))
+        Ok(LyricsLoadResult::Ready(document))
+    }
+
+    pub fn load(&self, track_key: &str) -> Result<Option<LyricsDocument>, String> {
+        match self.load_with_status(track_key)? {
+            LyricsLoadResult::Missing => Ok(None),
+            LyricsLoadResult::Ready(document) => Ok(Some(document)),
+            LyricsLoadResult::Invalid(error) => Err(error),
+        }
+    }
+
     }
 
     fn association(&self, track_key: &str) -> Result<Option<Association>, String> {

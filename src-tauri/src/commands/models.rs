@@ -1,7 +1,7 @@
 pub(crate) use crate::lyrics::{
-    LyricsMonitor, LyricsRuntimeSnapshot, LyricsRuntimeStatus, LyricsSearchFlight,
-    LyricsSearchRequestKey, SaveLyricsInput, SearchResponse,
-    LYRICS_SEARCH_INVALIDATED,
+    LyricsLoadResponse, LyricsLoadStatus, LyricsMonitor, LyricsRuntimeSnapshot,
+    LyricsRuntimeStatus, LyricsSearchFlight, LyricsSearchIntent, LyricsSearchRequestKey,
+    SaveLyricsInput, SearchResponse, LYRICS_SEARCH_INVALIDATED,
 };
 pub(crate) use crate::runtime_model::{NotchLayoutMetrics, OverlaySettings};
 

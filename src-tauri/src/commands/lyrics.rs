@@ -128,8 +128,36 @@ pub async fn test_provider(
 pub fn get_cached_lyrics(
     track_key: String,
     state: State<'_, AppState>,
-) -> Result<Option<LyricsDocument>, String> {
-    state.storage.load(&track_key)
+) -> Result<LyricsLoadResponse, String> {
+    match state.storage.load_with_status(&track_key)? {
+        crate::storage::LyricsLoadResult::Ready(document) => Ok(LyricsLoadResponse {
+            status: LyricsLoadStatus::Ready,
+            document: Some(document),
+            error: None,
+        }),
+        crate::storage::LyricsLoadResult::Missing => Ok(LyricsLoadResponse {
+            status: LyricsLoadStatus::Missing,
+            document: None,
+            error: None,
+        }),
+        crate::storage::LyricsLoadResult::Invalid(error) => {
+            log::warn!("歌词关联内容无效，准备解除关联：{error}");
+            state.storage.remove(&track_key)?;
+            Ok(LyricsLoadResponse {
+                status: LyricsLoadStatus::Missing,
+                document: None,
+                error: None,
+            })
+        }
+    }
+}
+
+#[tauri::command]
+pub fn get_completed_lyrics_search(
+    track_key: String,
+    state: State<'_, AppState>,
+) -> Option<SearchResponse> {
+    completed_lyrics_search(&state, &track_key)
 }
 
 #[tauri::command]

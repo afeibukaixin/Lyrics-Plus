@@ -189,13 +189,13 @@ mod tests {
     }
 
     #[test]
-    fn word_timing_precedes_auxiliary_track_preference() {
+    fn translation_precedes_word_timing_for_translation_display() {
         let mut results = vec![
             word_timed_result(0.92, false, true),
             word_timed_result(0.91, true, false),
         ];
         prefer_candidate_capabilities(&mut results, SecondaryDisplayMode::Translation);
-        assert!(results[0].has_word_timing);
+        assert!(results[0].has_translation);
     }
 
     #[test]

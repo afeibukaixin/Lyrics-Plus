@@ -78,10 +78,10 @@ pub fn set_player_selection(
 pub async fn search_lyrics(
     track_key: String,
     input: LyricsSearchInput,
-    force: bool,
+    intent: LyricsSearchIntent,
     state: State<'_, AppState>,
 ) -> Result<SearchResponse, String> {
-    search_lyrics_for_session(&state, &track_key, input, force).await
+    search_lyrics_for_session(&state, &track_key, input, intent).await
 }
 
 fn candidate_capability_rank(

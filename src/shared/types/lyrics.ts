@@ -37,6 +37,14 @@ export type LyricsDocument = {
 
 export type LyricsRuntimeStatus = "idle" | "loading" | "ready" | "not_found" | "error";
 
+export type LyricsLoadStatus = "ready" | "missing" | "error";
+
+export type LyricsLoadResponse = {
+  status: LyricsLoadStatus;
+  document: LyricsDocument | null;
+  error: string | null;
+};
+
 export type LyricsRuntimeSnapshot = {
   trackKey: string | null;
   document: LyricsDocument | null;

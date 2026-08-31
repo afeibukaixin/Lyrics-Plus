@@ -5,7 +5,9 @@ import { api, isTauriRuntime, messageOf, trackKeyOf } from "../../shared/api";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
 import type {
   LyricsDocument,
+  LyricsLoadStatus,
   LyricsLine,
+  LyricsSearchIntent,
   LyricsSearchInput,
   LyricsSearchResult,
   PlaybackSnapshot,
@@ -18,6 +20,8 @@ type PendingOffsetWrite = {
   desiredOffsetMs: number;
   count: number;
 };
+
+type LyricsLoadState = "idle" | "loading" | LyricsLoadStatus;
 
 export function findAlignedAuxiliaryLine(lines: LyricsLine[], currentLine: LyricsLine) {
   const exact = lines.find((line) => line.startMs === currentLine.startMs && line.text.trim());
@@ -43,6 +47,7 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, active
   const [searching, setSearching] = useState(false);
   const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loadState, setLoadState] = useState<LyricsLoadState>("idle");
   const searchGeneration = useRef(0);
   const activeTrackKey = useRef(trackKey);
   const documentRef = useRef<LyricsDocument | null>(null);
@@ -58,16 +63,25 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, active
   }, []);
 
   const loadTrack = useCallback(async (key: string) => {
+    if (activeTrackKey.current === key) setLoadState("loading");
     try {
       const cached = await api.getCachedLyrics(key);
       const pending = pendingOffsetWrites.current.get(key);
-      const next = cached && pending
-        ? { ...cached, offsetMs: pending.desiredOffsetMs }
-        : cached;
-      if (activeTrackKey.current === key) updateDocument(next, key);
+      const next = cached.document && pending
+        ? { ...cached.document, offsetMs: pending.desiredOffsetMs }
+        : cached.document;
+      if (activeTrackKey.current === key) {
+        updateDocument(cached.status === "ready" ? next : null, key);
+        setLoadState(cached.status);
+        if (cached.error) setError(cached.error);
+      }
       return next;
     } catch (loadError) {
-      if (activeTrackKey.current === key) setError(messageOf(loadError));
+      if (activeTrackKey.current === key) {
+        updateDocument(null, key);
+        setLoadState("error");
+        setError(messageOf(loadError));
+      }
       return null;
     }
   }, [updateDocument]);
@@ -76,10 +90,32 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, active
     if (!trackKey) {
       updateDocument(null);
       setResults([]);
+      setLoadState("idle");
       return null;
     }
     return loadTrack(trackKey);
   }, [loadTrack, trackKey, updateDocument]);
+
+  const applySearchResponse = useCallback((response: { results: LyricsSearchResult[]; providerStatuses: ProviderStatus[]; error: string | null }) => {
+    setResults(response.results);
+    setProviderStatuses(response.providerStatuses);
+    if (response.error) {
+      setError(response.error);
+    } else if (response.results.length === 0) {
+      setError(t("settings.lyrics.noResults"));
+    }
+  }, [t]);
+
+  const restoreCompletedSearch = useCallback(async (key: string) => {
+    try {
+      const response = await api.getCompletedLyricsSearch(key);
+      if (response && activeTrackKey.current === key) applySearchResponse(response);
+      return response;
+    } catch (restoreError) {
+      if (activeTrackKey.current === key) setError(messageOf(restoreError));
+      return null;
+    }
+  }, [applySearchResponse]);
 
   const applyResult = useCallback(async (result: LyricsSearchResult, manualSelected = true) => {
     if (!trackKey || !snapshot.title || !snapshot.artist) return null;
@@ -94,7 +130,10 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, active
         result,
         manualSelected,
       );
-      if (activeTrackKey.current === trackKey) updateDocument(saved, trackKey);
+      if (activeTrackKey.current === trackKey) {
+        updateDocument(saved, trackKey);
+        setLoadState("ready");
+      }
       return saved;
     } catch (saveError) {
       if (activeTrackKey.current === trackKey) setError(messageOf(saveError));
@@ -103,7 +142,7 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, active
   }, [snapshot.album, snapshot.artist, snapshot.durationMs, snapshot.title, trackKey, updateDocument]);
 
   const search = useCallback(async (
-    force = false,
+    intent: LyricsSearchIntent = "automatic",
     override?: LyricsSearchInput,
   ) => {
     const input = override ?? {
@@ -119,15 +158,9 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, active
     setSearching(true);
     setError(null);
     try {
-      const response = await api.searchLyrics(trackKey, input, force);
+      const response = await api.searchLyrics(trackKey, input, intent);
       if (!isCurrent()) return null;
-      setResults(response.results);
-      setProviderStatuses(response.providerStatuses);
-      if (response.error) {
-        setError(response.error);
-      } else if (response.results.length === 0) {
-        setError(t("settings.lyrics.noResults"));
-      }
+      applySearchResponse(response);
       return response;
     } catch (searchError) {
       if (isCurrent()) setError(messageOf(searchError));
@@ -135,16 +168,18 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, active
     } finally {
       if (isCurrent()) setSearching(false);
     }
-  }, [snapshot.album, snapshot.artist, snapshot.durationMs, snapshot.title, t, trackKey]);
+  }, [applySearchResponse, snapshot.album, snapshot.artist, snapshot.durationMs, snapshot.title, trackKey]);
   useEffect(() => {
     ++searchGeneration.current;
     setSearching(false);
     setError(null);
     setResults([]);
     updateDocument(null);
+    setLoadState(active && trackKey ? "loading" : "idle");
     if (!active || !trackKey) return;
     void loadTrack(trackKey);
-  }, [active, loadTrack, trackKey, updateDocument]);
+    void restoreCompletedSearch(trackKey);
+  }, [active, loadTrack, restoreCompletedSearch, trackKey, updateDocument]);
 
   useEffect(() => {
     if (!active || !isTauriRuntime()) return;
@@ -196,7 +231,10 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, active
         snapshot.durationMs,
         raw,
       );
-      if (activeTrackKey.current === trackKey) updateDocument(imported, trackKey);
+      if (activeTrackKey.current === trackKey) {
+        updateDocument(imported, trackKey);
+        setLoadState("ready");
+      }
     } catch (importError) {
       setError(messageOf(importError));
     }
@@ -244,7 +282,10 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, active
     if (!trackKey) return;
     try {
       await api.removeLyricsAssociation(trackKey);
-      if (activeTrackKey.current === trackKey) updateDocument(null);
+      if (activeTrackKey.current === trackKey) {
+        updateDocument(null);
+        setLoadState("missing");
+      }
     } catch (removeError) {
       setError(messageOf(removeError));
     }
@@ -256,6 +297,7 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, active
     results,
     providerStatuses,
     searching,
+    loadState,
     error,
     activeIndex,
     currentLine,
@@ -263,8 +305,8 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, active
     currentTranslation,
     currentRomanization,
     adjustedPositionMs: positionMs + (document?.offsetMs ?? 0),
-    search: (force = false) => search(force),
-    searchWith: (input: LyricsSearchInput, force = false) => search(force, input),
+    search: (intent: LyricsSearchIntent = "automatic") => search(intent),
+    searchWith: (input: LyricsSearchInput, intent: LyricsSearchIntent = "manual") => search(intent, input),
     applyResult,
     importRaw,
     changeOffset,

@@ -2,6 +2,19 @@ use std::sync::Arc;
 
 use crate::lyrics::provider::{LyricsSearchInput, LyricsSearchResult, ProviderStatus};
 
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LyricsSearchIntent {
+    Automatic,
+    Manual,
+}
+
+impl LyricsSearchIntent {
+    pub(crate) fn is_manual(self) -> bool {
+        matches!(self, Self::Manual)
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LyricsMonitor {
@@ -36,6 +49,22 @@ pub struct SearchResponse {
     pub auto_apply: bool,
     pub results: Vec<LyricsSearchResult>,
     pub provider_statuses: Vec<ProviderStatus>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LyricsLoadStatus {
+    Ready,
+    Missing,
+    Error,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LyricsLoadResponse {
+    pub status: LyricsLoadStatus,
+    pub document: Option<LyricsDocument>,
     pub error: Option<String>,
 }
 
