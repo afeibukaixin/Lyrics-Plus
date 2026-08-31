@@ -4,8 +4,7 @@ import {
 } from "react";
 import { Outlet, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Bug, CircleAlert, Download, FileJson, Info, LoaderCircle, Monitor, MonitorUp, Moon, Music2, Palette, RotateCw, Settings2, Sun, X } from "lucide-react";
-import { Alert } from "@/components/ui/alert";
+import { Bug, CircleAlert, Download, FileJson, Info, LoaderCircle, Monitor, MonitorUp, Moon, Music2, Palette, RotateCw, Settings2, Sun } from "lucide-react";
 import { IconButton } from "@/components/ui/icon-button";
 import {
   SidebarInset,
@@ -76,7 +75,6 @@ export default function Settings() {
   const lyrics = useLyrics(playback.snapshot, playback.positionMs, playback.active);
   const {
     confirmingReset,
-    error,
     fileInput,
     overlaySettings,
     providerCredentials,
@@ -473,7 +471,6 @@ export default function Settings() {
           ) : null}
         </div>
         <div className={styles.content} data-settings-scroll-root>
-          {error && <Alert className={styles.inlineError}><span>{error}</span><IconButton label={t("settings.shell.closeToast")} variant="ghost" size="icon-sm" onClick={() => setError(null)}><X /></IconButton></Alert>}
           <Outlet context={context} />
         </div>
       </SidebarInset>

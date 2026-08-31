@@ -73,6 +73,12 @@ export function useSettingsData({
   }, [notice]);
 
   useEffect(() => {
+    if (!error) return;
+    toast.error(error);
+    setError(null);
+  }, [error]);
+
+  useEffect(() => {
     if (providerStatuses.length === 0) return;
     setProviderView((current) => current ? { ...current, statuses: providerStatuses } : current);
   }, [providerStatuses]);

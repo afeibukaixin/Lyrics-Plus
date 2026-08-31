@@ -147,9 +147,6 @@
 .debugLogEntry[data-level="warn"] strong, .debugLogEntry[data-level="warn"] code { color: var(--warning); }
 .debugLogEntry[data-level="error"] strong, .debugLogEntry[data-level="error"] code { color: var(--destructive); }
 
-.inlineError { position: sticky; top: 0; z-index: 4; margin-bottom: 16px; display: flex; grid-template-columns: none; align-items: center; justify-content: space-between; gap: 12px; }
-.inlineError button { flex: none; }
-
 @media (max-width: 840px) {
   .sidebarTriggerRow { left: 10px; align-items: flex-start; transform: none; }
   .content { padding: 48px 24px 40px; }
