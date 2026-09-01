@@ -222,18 +222,27 @@ pub(crate) struct LyricsQualityReport {
 }
 
 /// 对所有解析分支执行同一套时间轴收尾校验，保持公开解析函数的返回类型不变。
+/// 发生降级时仅记录时间轴字段，不记录歌词正文。
 fn normalize_document(document: &mut LyricsDocument) {
+    let source = document.metadata.source.clone();
+    let format = document.metadata.original_format.clone();
     for line in &mut document.tracks.original.lines {
         let Some(words) = line.words.as_mut() else {
             continue;
         };
         let mut previous_start = None;
-        let mut invalid = false;
+        let mut invalid_reason = None;
+        let mut invalid_overflow_ms = None;
+        let mut invalid_word = None;
         for word in words.iter_mut() {
-            if previous_start.is_some_and(|start| word.start_ms < start)
-                || word.end_ms < word.start_ms
-            {
-                invalid = true;
+            if previous_start.is_some_and(|start| word.start_ms < start) {
+                invalid_reason = Some("word_start_decreased");
+                invalid_word = Some((word.start_ms, word.end_ms));
+                break;
+            }
+            if word.end_ms < word.start_ms {
+                invalid_reason = Some("word_end_before_start");
+                invalid_word = Some((word.start_ms, word.end_ms));
                 break;
             }
             if word.start_ms < line.start_ms {
@@ -241,7 +250,9 @@ fn normalize_document(document: &mut LyricsDocument) {
                 if overflow <= 250 {
                     word.start_ms = line.start_ms;
                 } else {
-                    invalid = true;
+                    invalid_reason = Some("word_start_before_line");
+                    invalid_overflow_ms = Some(overflow);
+                    invalid_word = Some((word.start_ms, word.end_ms));
                     break;
                 }
             }
@@ -251,7 +262,9 @@ fn normalize_document(document: &mut LyricsDocument) {
                     if overflow <= 250 {
                         word.end_ms = line_end;
                     } else {
-                        invalid = true;
+                        invalid_reason = Some("word_end_after_line");
+                        invalid_overflow_ms = Some(overflow);
+                        invalid_word = Some((word.start_ms, word.end_ms));
                         break;
                     }
                 }
@@ -261,18 +274,28 @@ fn normalize_document(document: &mut LyricsDocument) {
                         word.start_ms = line_end;
                         word.end_ms = word.end_ms.max(word.start_ms);
                     } else {
-                        invalid = true;
+                        invalid_reason = Some("word_start_after_line");
+                        invalid_overflow_ms = Some(overflow);
+                        invalid_word = Some((word.start_ms, word.end_ms));
                         break;
                     }
                 }
             }
             if word.end_ms < word.start_ms {
-                invalid = true;
+                invalid_reason = Some("word_end_before_start");
+                invalid_word = Some((word.start_ms, word.end_ms));
                 break;
             }
             previous_start = Some(word.start_ms);
         }
-        if invalid {
+        if let Some(reason) = invalid_reason {
+            let (word_start_ms, word_end_ms) = invalid_word.unwrap_or((0, 0));
+            log::debug!(
+                "lyrics.parse degraded source={source:?} format={format} line_start_ms={} line_end_ms={:?} reason={reason} overflow_ms={} word_start_ms={word_start_ms} word_end_ms={word_end_ms}",
+                line.start_ms,
+                line.end_ms,
+                invalid_overflow_ms.unwrap_or(0),
+            );
             line.words = None;
         }
     }
@@ -372,11 +395,7 @@ fn attempted_word_line_starts(document: &LyricsDocument) -> std::collections::Ha
             }
         }
         "qrc" | "yrc" | "krc" => {
-            let marker = if document.metadata.original_format == "krc" {
-                '<'
-            } else {
-                '('
-            };
+            let format = document.metadata.original_format.as_str();
             let mut track_kind = 0_u8;
             for source_line in document.raw.lines() {
                 match source_line.trim() {
@@ -401,7 +420,14 @@ fn attempted_word_line_starts(document: &LyricsDocument) -> std::collections::Ha
                     continue;
                 };
                 let values = parse_integer_list(&after_open[..close]);
-                if values.len() == 2 && after_open[close + 1..].contains(marker) {
+                let content = &after_open[close + 1..];
+                let has_word_timing = match format {
+                    "qrc" => contains_qrc_word_tag(content),
+                    "yrc" => content.contains('('),
+                    "krc" => content.contains('<'),
+                    _ => false,
+                };
+                if values.len() == 2 && has_word_timing {
                     starts.insert(values[0]);
                 }
             }
@@ -409,6 +435,26 @@ fn attempted_word_line_starts(document: &LyricsDocument) -> std::collections::Ha
         _ => {}
     }
     starts
+}
+
+/// QRC 的逐字标签是 `(开始时间,时长)`；普通括号文本不应被当作逐字行。
+fn contains_qrc_word_tag(raw: &str) -> bool {
+    let mut cursor = 0;
+    while let Some(relative_open) = raw[cursor..].find('(') {
+        let open = cursor + relative_open;
+        let Some(relative_close) = raw[open + 1..].find(')') else {
+            return false;
+        };
+        let close = open + 1 + relative_close;
+        if parse_integer_list(&raw[open + 1..close]).len() == 2 {
+            return true;
+        }
+        cursor = close + 1;
+        if cursor >= raw.len() {
+            break;
+        }
+    }
+    false
 }
 
 pub fn parse_lrc_with_options(
@@ -802,7 +848,51 @@ fn parse_platform_word_lyrics(raw: &str) -> Option<(&'static str, Vec<LyricsLine
         });
     }
     lines.sort_by_key(|line| line.start_ms);
+    if matches!(format, Some("krc" | "qrc")) {
+        repair_platform_line_ends(&mut lines);
+    }
     format.map(|format| (format, lines))
+}
+
+/// KRC/QRC 的声明行时长偶尔早于最后一个字的结束时间；仅在不越过下一行时修正行尾。
+fn repair_platform_line_ends(lines: &mut [LyricsLine]) {
+    for index in 0..lines.len() {
+        let line = &lines[index];
+        let Some(words) = line.words.as_ref() else {
+            continue;
+        };
+        let Some(line_end) = line.end_ms else {
+            continue;
+        };
+        let mut previous_start = None;
+        let mut valid = true;
+        for word in words {
+            if previous_start.is_some_and(|start| word.start_ms < start)
+                || word.start_ms < line.start_ms
+                || word.end_ms < word.start_ms
+            {
+                valid = false;
+                break;
+            }
+            previous_start = Some(word.start_ms);
+        }
+        if !valid {
+            continue;
+        }
+        let Some(last_word_end) = words.last().map(|word| word.end_ms) else {
+            continue;
+        };
+        if last_word_end <= line_end {
+            continue;
+        }
+        if lines
+            .get(index + 1)
+            .is_some_and(|next| last_word_end > next.start_ms)
+        {
+            continue;
+        }
+        lines[index].end_ms = Some(last_word_end);
+    }
 }
 
 struct ParsedPlatformWords {
