@@ -1,7 +1,7 @@
 {
   "name": "lyrics-plus",
   "private": true,
-  "version": "2.2.8-beta.2",
+  "version": "2.2.8",
   "type": "module",
   "scripts": {
     "dev": "vite",
