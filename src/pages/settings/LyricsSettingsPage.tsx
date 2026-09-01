@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 
 const defaultAmllBaseUrl = "https://api.amll.dev";
 const defaultMatchWeights: MatchWeights = { title: 39, artist: 36, album: 8, duration: 17 };
+const defaultCapabilityPreferenceTolerance = 4;
 const matchWeightKeys = ["title", "artist", "album", "duration"] as const;
 type MatchWeightKey = (typeof matchWeightKeys)[number];
 
@@ -191,6 +192,14 @@ export default function LyricsSettingsPage() {
     setSavingMatchRules(false);
   };
 
+  const commitCapabilityPreferenceTolerance = async (capabilityPreferenceTolerance: number) => {
+    if (!providerView) return;
+    setSavingMatchRules(true);
+    const saved = await saveProviderSettings({ ...providerView.settings, capabilityPreferenceTolerance });
+    setSavingMatchRules(false);
+    if (!saved) throw new Error("failed to save capability preference tolerance");
+  };
+
   const updateChineseConversion = async (conversion: string) => {
     if (savingChineseConversion) return;
     setSavingChineseConversion(true);
@@ -221,6 +230,13 @@ export default function LyricsSettingsPage() {
       setMatchWeightsDraft(previous);
       throw new Error("failed to save match weights");
     }
+  };
+
+  const commitAutoSearchDebounce = async (seconds: number) => {
+    if (!providerView) return;
+    const autoSearchDebounceMs = Math.round(seconds * 1_000 / 100) * 100;
+    const saved = await saveProviderSettings({ ...providerView.settings, autoSearchDebounceMs });
+    if (!saved) throw new Error("failed to save lyric search debounce");
   };
 
   const matchWeightTotal = matchWeightKeys.reduce((sum, key) => sum + matchWeightsDraft[key], 0);
@@ -287,9 +303,22 @@ export default function LyricsSettingsPage() {
     <SettingsSection id="lyrics-auto-match" title={t("settings.lyrics.autoMatch")}>
       <RangeRow label={t("settings.lyrics.threshold")} value={providerView?.settings.autoApplyThreshold ?? 60} min={0} max={100} suffix="%" onChange={(autoApplyThreshold) => { if (providerView) void saveProviderSettings({ ...providerView.settings, autoApplyThreshold }); }} />
       <p className={styles.cardHint}>{t("settings.lyrics.thresholdHint")}</p>
+      <RangeRow label={t("settings.lyrics.autoSearchDebounce")} value={(providerView?.settings.autoSearchDebounceMs ?? 2000) / 1000} min={0} max={5} step={0.1} suffix="s" disabled={!providerView} onChange={() => undefined} onValueCommitted={commitAutoSearchDebounce} />
+      <p className={styles.cardHint}>{t("settings.lyrics.autoSearchDebounceHint")}</p>
     </SettingsSection>
     <SettingsSection id="lyrics-match-rules" title={t("settings.lyrics.matchRules")}>
       <ToggleRow label={t("settings.lyrics.preferCapabilities")} description={t("settings.lyrics.preferCapabilitiesHint")} value={providerView?.settings.preferCapabilities ?? true} disabled={!providerView || savingMatchRules} onChange={updatePreferCapabilities} />
+      <RangeRow
+        label={t("settings.lyrics.capabilityPreferenceTolerance")}
+        description={t("settings.lyrics.capabilityPreferenceToleranceHint")}
+        value={providerView?.settings.capabilityPreferenceTolerance ?? defaultCapabilityPreferenceTolerance}
+        min={0}
+        max={20}
+        suffix="%"
+        disabled={!providerView || savingMatchRules || providerView.settings.mode !== "smart" || !providerView.settings.preferCapabilities}
+        onChange={() => undefined}
+        onValueCommitted={commitCapabilityPreferenceTolerance}
+      />
       <ToggleRow label={t("settings.lyrics.normalizeChinese")} description={t("settings.lyrics.normalizeChineseHint")} value={providerView?.settings.normalizeChinese ?? true} disabled={!providerView || savingMatchRules} onChange={updateNormalizeChinese} />
       {matchWeightKeys.map((key) => <RangeRow key={key} label={t(`settings.lyrics.matchWeight.${key}`)} value={providerView?.settings.matchWeights[key] ?? defaultMatchWeights[key]} min={0} max={100} suffix="" disabled={!providerView || savingMatchRules} onChange={() => undefined} onValuePreview={(value) => previewMatchWeight(key, value)} onValueCommitted={(value) => commitMatchWeight(key, value)} onPreviewCanceled={() => setMatchWeightsDraft(providerView?.settings.matchWeights ?? defaultMatchWeights)} />)}
       <p className={styles.cardHint}>{t("settings.lyrics.matchWeightSummary", { title: matchWeightPercentage("title"), artist: matchWeightPercentage("artist"), album: matchWeightPercentage("album"), duration: matchWeightPercentage("duration") })}<br />{t("settings.lyrics.matchRulesHint")}</p>

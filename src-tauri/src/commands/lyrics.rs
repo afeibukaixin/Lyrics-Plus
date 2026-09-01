@@ -1,33 +1,4 @@
-fn best_result_index(
-    results: &[LyricsSearchResult],
-    prefer_capabilities: bool,
-    secondary_display: SecondaryDisplayMode,
-) -> Option<usize> {
-    let max_score = results
-        .iter()
-        .map(|result| result.score)
-        .max_by(|left, right| left.total_cmp(right))?;
-    let capability_band = if prefer_capabilities { 0.04 } else { 0.0 };
-    results
-        .iter()
-        .enumerate()
-        .filter(|(_, result)| max_score - result.score <= capability_band + f64::EPSILON)
-        .min_by(|(left_index, left), (right_index, right)| {
-            if prefer_capabilities {
-                candidate_capability_rank(left, secondary_display)
-                    .cmp(&candidate_capability_rank(right, secondary_display))
-                    .then_with(|| right.score.total_cmp(&left.score))
-                    .then_with(|| left_index.cmp(right_index))
-            } else {
-                right
-                    .score
-                    .total_cmp(&left.score)
-                    .then_with(|| left_index.cmp(right_index))
-            }
-        })
-        .map(|(index, _)| index)
-}
-
+#[cfg(test)]
 fn prefer_candidate_capabilities(
     results: &mut [LyricsSearchResult],
     secondary_display: SecondaryDisplayMode,

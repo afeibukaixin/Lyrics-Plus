@@ -82,7 +82,7 @@ export type LyricsSearchInput = {
   durationMs: number | null;
 };
 
-export type LyricsSearchIntent = "automatic" | "manual";
+export type LyricsSearchIntent = "automatic" | "refresh" | "manual";
 
 export type LibraryScanPhase =
   | "idle"

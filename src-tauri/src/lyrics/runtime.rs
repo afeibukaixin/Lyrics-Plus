@@ -6,12 +6,17 @@ use crate::lyrics::provider::{LyricsSearchInput, LyricsSearchResult, ProviderSta
 #[serde(rename_all = "snake_case")]
 pub enum LyricsSearchIntent {
     Automatic,
+    Refresh,
     Manual,
 }
 
 impl LyricsSearchIntent {
     pub(crate) fn is_manual(self) -> bool {
         matches!(self, Self::Manual)
+    }
+
+    pub(crate) fn uses_debounce(self) -> bool {
+        matches!(self, Self::Automatic | Self::Refresh)
     }
 }
 

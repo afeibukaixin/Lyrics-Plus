@@ -80,9 +80,10 @@ impl LyricsProvider for MiguProvider {
                 .await
                 .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
             if !response.status().is_success() {
-                return Err(self.error(
-                    ProviderErrorKind::Http,
-                    format!("搜索返回 HTTP {}", response.status()),
+                return Err(super::provider::response_error(
+                    self.id(),
+                    &response,
+                    "搜索请求失败",
                 ));
             }
             let mut songs = response
@@ -203,9 +204,10 @@ impl MiguProvider {
             .await
             .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
         if !response.status().is_success() {
-            return Err(self.error(
-                ProviderErrorKind::Http,
-                format!("歌词返回 HTTP {}", response.status()),
+            return Err(super::provider::response_error(
+                self.id(),
+                &response,
+                "歌词请求失败",
             ));
         }
         response
@@ -215,11 +217,7 @@ impl MiguProvider {
     }
 
     fn error(&self, kind: ProviderErrorKind, message: impl Into<String>) -> ProviderError {
-        ProviderError {
-            provider_id: self.id().into(),
-            kind,
-            message: message.into(),
-        }
+        ProviderError::new(self.id(), kind, message)
     }
 }
 

@@ -86,15 +86,46 @@ fn invalidate_lyrics_search_session(state: &AppState) {
 async fn perform_lyrics_search(
     state: &AppState,
     input: &LyricsSearchInput,
+    intent: LyricsSearchIntent,
 ) -> Result<SearchResponse, String> {
     let (local_result, provider_result) = tokio::join!(
         search_local_lyrics(state, input),
-        state.providers.search(&state.http, input),
+        state
+            .providers
+            .search_with_cache(&state.http, input, intent.is_manual()),
     );
     let (mut local_results, auto_apply_threshold) = local_result?;
-    let mut outcome = match provider_result {
-        Ok(outcome) => Some(outcome),
-        Err(_error) if !local_results.is_empty() => None,
+    let (
+        mut outcome,
+        fallback_statuses,
+        fallback_mode,
+        fallback_order,
+        fallback_prefer,
+        fallback_tolerance,
+    ) = match provider_result {
+        Ok(outcome) => (
+            Some(outcome),
+            Vec::<ProviderStatus>::new(),
+            ProviderOrderMode::Smart,
+            Vec::<String>::new(),
+            true,
+            DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
+        ),
+        Err(_error) if !local_results.is_empty() => {
+            let view = state.providers.settings_view();
+            (
+                None,
+                view.statuses,
+                view.settings.mode,
+                view.settings
+                    .providers
+                    .into_iter()
+                    .map(|provider| provider.id)
+                    .collect(),
+                view.settings.prefer_capabilities,
+                view.settings.capability_preference_tolerance,
+            )
+        }
         Err(error) => return Err(error),
     };
     let secondary_display = state
@@ -102,63 +133,314 @@ async fn perform_lyrics_search(
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .secondary_display;
-    if outcome
-        .as_ref()
-        .is_some_and(|outcome| outcome.prefer_capabilities)
-    {
-        prefer_candidate_capabilities(&mut local_results, secondary_display);
-        if let Some(outcome) = &mut outcome {
-            prefer_candidate_capabilities(&mut outcome.results, secondary_display);
-        }
-    }
     let had_local_results = !local_results.is_empty();
-    let prefer_local = local_results.first().is_some_and(|result| {
-        result.provider_id == LOCAL_PROVIDER_ID
-            && can_auto_apply_local(&local_results, auto_apply_threshold)
-    });
-    let mut seen_lyrics = local_results
-        .iter()
-        .map(|result| lyric_content_key(&result.lyrics))
-        .collect::<std::collections::HashSet<_>>();
-    let mut online_results = outcome
+    let (
+        mode,
+        provider_order,
+        prefer_capabilities,
+        capability_preference_tolerance,
+        provider_threshold,
+    ) = outcome
+        .as_ref()
+        .map(|outcome| {
+            (
+                outcome.mode,
+                outcome.provider_order.clone(),
+                outcome.prefer_capabilities,
+                outcome.capability_preference_tolerance,
+                outcome.auto_apply_threshold,
+            )
+        })
+        .unwrap_or((
+            fallback_mode,
+            fallback_order,
+            fallback_prefer,
+            fallback_tolerance,
+            auto_apply_threshold,
+        ));
+    let online_results = outcome
         .as_mut()
         .map(|outcome| std::mem::take(&mut outcome.results))
         .unwrap_or_default();
-    online_results.retain(|result| seen_lyrics.insert(lyric_content_key(&result.lyrics)));
-    local_results.append(&mut online_results);
-
-    let prefer_capabilities = outcome
-        .as_ref()
-        .is_some_and(|outcome| outcome.prefer_capabilities);
-    let recommended_index = if prefer_local {
-        Some(0)
-    } else {
-        best_result_index(&local_results, prefer_capabilities, secondary_display)
-    };
-    if let Some(recommended_index) = recommended_index {
-        let recommended = local_results.remove(recommended_index);
-        local_results.insert(0, recommended);
-    }
-    let auto_apply = local_results.first().is_some_and(|result| {
-        if result.provider_id == LOCAL_PROVIDER_ID {
-            can_auto_apply_local(&local_results, auto_apply_threshold)
-        } else {
-            outcome
-                .as_ref()
-                .is_some_and(|outcome| can_auto_apply(&local_results, outcome.auto_apply_threshold))
-        }
-    });
+    let mut candidates = local_results
+        .drain(..)
+        .enumerate()
+        .map(|(index, result)| analyze_candidate(result, input.duration_ms, index, true))
+        .collect::<Vec<_>>();
+    let local_count = candidates.len();
+    candidates.extend(
+        online_results
+            .into_iter()
+            .enumerate()
+            .map(|(index, result)| {
+                analyze_candidate(result, input.duration_ms, local_count + index, false)
+            }),
+    );
+    deduplicate_analyzed_candidates(&mut candidates, mode, &provider_order, secondary_display);
+    sort_analyzed_candidates(
+        &mut candidates,
+        mode,
+        &provider_order,
+        prefer_capabilities,
+        capability_preference_tolerance,
+        secondary_display,
+    );
+    let auto_apply = can_auto_apply_analyzed(&candidates, provider_threshold);
+    candidates.truncate(24);
+    let results = candidates
+        .into_iter()
+        .map(|candidate| candidate.result)
+        .collect::<Vec<_>>();
     Ok(SearchResponse {
         auto_apply,
-        results: local_results,
+        results,
         provider_statuses: outcome
             .as_ref()
             .map(|outcome| outcome.statuses.clone())
-            .unwrap_or_default(),
+            .unwrap_or(fallback_statuses),
         error: (!had_local_results)
             .then(|| outcome.and_then(|outcome| outcome.error))
             .flatten(),
     })
+}
+
+struct AnalyzedCandidate {
+    result: LyricsSearchResult,
+    #[allow(dead_code)]
+    document: Option<LyricsDocument>,
+    quality: LyricsQualityReport,
+    fingerprint: String,
+    stable_index: usize,
+    is_local: bool,
+}
+
+fn analyze_candidate(
+    result: LyricsSearchResult,
+    duration_ms: Option<u64>,
+    stable_index: usize,
+    is_local: bool,
+) -> AnalyzedCandidate {
+    let document = parse_lrc_with_options(&result.lyrics, &result.source, false).ok();
+    let mut quality = document
+        .as_ref()
+        .map(|document| lyrics_quality_report(document, duration_ms.or(result.duration_ms)))
+        .unwrap_or(LyricsQualityReport {
+            has_valid_synced_original: false,
+            degraded_word_lines: 0,
+            last_valid_time_ms: None,
+            auto_applicable: false,
+        });
+    if !result.synced {
+        quality.auto_applicable = false;
+    }
+    let fingerprint = document
+        .as_ref()
+        .map(semantic_fingerprint)
+        .filter(|fingerprint| !fingerprint.is_empty())
+        .unwrap_or_default();
+    AnalyzedCandidate {
+        result,
+        document,
+        quality,
+        fingerprint,
+        stable_index,
+        is_local,
+    }
+}
+
+fn provider_rank(candidate: &AnalyzedCandidate, provider_order: &[String]) -> usize {
+    if candidate.is_local {
+        return 0;
+    }
+    provider_order
+        .iter()
+        .position(|provider| provider == &candidate.result.provider_id)
+        .map(|index| index + 1)
+        .unwrap_or(usize::MAX)
+}
+
+fn auxiliary_track_rank(result: &LyricsSearchResult) -> (u8, u8) {
+    (
+        u8::from(!result.has_translation),
+        u8::from(!result.has_romanization),
+    )
+}
+
+fn quality_order(
+    left: &AnalyzedCandidate,
+    right: &AnalyzedCandidate,
+    secondary_display: SecondaryDisplayMode,
+) -> std::cmp::Ordering {
+    right
+        .quality
+        .auto_applicable
+        .cmp(&left.quality.auto_applicable)
+        .then_with(|| {
+            left.quality
+                .degraded_word_lines
+                .cmp(&right.quality.degraded_word_lines)
+        })
+        .then_with(|| {
+            u8::from(!left.result.has_word_timing).cmp(&u8::from(!right.result.has_word_timing))
+        })
+        .then_with(|| {
+            auxiliary_track_rank(&left.result).cmp(&auxiliary_track_rank(&right.result))
+        })
+        .then_with(|| {
+            candidate_capability_rank(&left.result, secondary_display)
+                .cmp(&candidate_capability_rank(&right.result, secondary_display))
+        })
+        .then_with(|| right.result.score.total_cmp(&left.result.score))
+        .then_with(|| left.stable_index.cmp(&right.stable_index))
+}
+
+fn smart_sort_order(
+    left: &AnalyzedCandidate,
+    right: &AnalyzedCandidate,
+    prefer_capabilities: bool,
+    secondary_display: SecondaryDisplayMode,
+) -> std::cmp::Ordering {
+    let base = right
+        .quality
+        .auto_applicable
+        .cmp(&left.quality.auto_applicable)
+        .then_with(|| {
+            left.quality
+                .degraded_word_lines
+                .cmp(&right.quality.degraded_word_lines)
+        });
+    let with_capabilities = if prefer_capabilities {
+        base.then_with(|| {
+            u8::from(!left.result.has_word_timing)
+                .cmp(&u8::from(!right.result.has_word_timing))
+        })
+        .then_with(|| {
+            auxiliary_track_rank(&left.result).cmp(&auxiliary_track_rank(&right.result))
+        })
+        .then_with(|| {
+            candidate_capability_rank(&left.result, secondary_display)
+                .cmp(&candidate_capability_rank(&right.result, secondary_display))
+        })
+    } else {
+        base
+    };
+    with_capabilities
+        .then_with(|| right.result.score.total_cmp(&left.result.score))
+        .then_with(|| left.stable_index.cmp(&right.stable_index))
+}
+
+fn deduplicate_analyzed_candidates(
+    candidates: &mut Vec<AnalyzedCandidate>,
+    mode: ProviderOrderMode,
+    provider_order: &[String],
+    secondary_display: SecondaryDisplayMode,
+) {
+    let mut deduplicated = Vec::with_capacity(candidates.len());
+    for candidate in candidates.drain(..) {
+        if candidate.fingerprint.is_empty() {
+            deduplicated.push(candidate);
+            continue;
+        }
+        let Some(existing_index) = deduplicated
+            .iter()
+            .position(|existing: &AnalyzedCandidate| existing.fingerprint == candidate.fingerprint)
+        else {
+            deduplicated.push(candidate);
+            continue;
+        };
+        let existing = &deduplicated[existing_index];
+        let replace = match (existing.is_local, candidate.is_local) {
+            (true, true) => matches!(
+                mode,
+                ProviderOrderMode::Smart
+            ) && quality_order(&candidate, existing, secondary_display)
+                == std::cmp::Ordering::Less,
+            (true, false) => false,
+            (false, true) => true,
+            (false, false) => match mode {
+                ProviderOrderMode::Strict => {
+                    provider_rank(&candidate, provider_order)
+                        < provider_rank(existing, provider_order)
+                }
+                ProviderOrderMode::Smart => {
+                    quality_order(&candidate, existing, secondary_display)
+                        == std::cmp::Ordering::Less
+                }
+            },
+        };
+        if replace {
+            deduplicated[existing_index] = candidate;
+        }
+    }
+    *candidates = deduplicated;
+}
+
+fn sort_analyzed_candidates(
+    candidates: &mut [AnalyzedCandidate],
+    mode: ProviderOrderMode,
+    provider_order: &[String],
+    prefer_capabilities: bool,
+    capability_preference_tolerance: u8,
+    secondary_display: SecondaryDisplayMode,
+) {
+    match mode {
+        ProviderOrderMode::Strict => candidates.sort_by(|left, right| {
+            provider_rank(left, provider_order)
+                .cmp(&provider_rank(right, provider_order))
+                .then_with(|| right.result.score.total_cmp(&left.result.score))
+                .then_with(|| left.stable_index.cmp(&right.stable_index))
+        }),
+        ProviderOrderMode::Smart => {
+            let score_band = if prefer_capabilities {
+                f64::from(capability_preference_tolerance) / 100.0
+            } else {
+                f64::from(DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE) / 100.0
+            };
+            candidates.sort_by(|left, right| {
+                right
+                    .result
+                    .score
+                    .total_cmp(&left.result.score)
+                    .then_with(|| left.stable_index.cmp(&right.stable_index))
+            });
+            let mut band_start = 0;
+            while band_start < candidates.len() {
+                let band_score = candidates[band_start].result.score;
+                let band_len = candidates[band_start..]
+                    .iter()
+                    .take_while(|candidate| {
+                        band_score - candidate.result.score <= score_band + f64::EPSILON
+                    })
+                    .count();
+                let band_end = band_start + band_len;
+                candidates[band_start..band_end].sort_by(|left, right| {
+                    smart_sort_order(left, right, prefer_capabilities, secondary_display)
+                });
+                band_start = band_end;
+            }
+        }
+    }
+}
+
+fn can_auto_apply_analyzed(candidates: &[AnalyzedCandidate], threshold_percent: u8) -> bool {
+    let Some(first) = candidates.first() else {
+        return false;
+    };
+    if first.result.score * 100.0 < f64::from(threshold_percent) || !first.quality.auto_applicable {
+        if first.result.score * 100.0 < f64::from(threshold_percent) {
+            log::debug!(
+                "歌词候选因相似度未达到阈值而拦截：score={:.4} threshold={threshold_percent}",
+                first.result.score
+            );
+        } else {
+            log::debug!(
+                "歌词候选因质量门槛而拦截：provider={}",
+                first.result.provider_id
+            );
+        }
+        return false;
+    }
+    true
 }
 
 async fn search_local_lyrics(
@@ -171,28 +453,6 @@ async fn search_local_lyrics(
         .await
         .map_err(|error| format!("本地歌词搜索任务失败：{error}"))??;
     Ok((results, threshold))
-}
-
-fn can_auto_apply_local(results: &[LyricsSearchResult], threshold_percent: u8) -> bool {
-    let Some(first) = results.first() else {
-        return false;
-    };
-    if !can_auto_apply(std::slice::from_ref(first), threshold_percent) {
-        return false;
-    }
-    results
-        .iter()
-        .skip(1)
-        .filter(|result| result.provider_id == LOCAL_PROVIDER_ID)
-        .max_by(|left, right| left.score.total_cmp(&right.score))
-        .is_none_or(|second| first.score - second.score >= 0.05)
-}
-
-fn lyric_content_key(lyrics: &str) -> String {
-    lyrics
-        .chars()
-        .filter(|character| !character.is_whitespace())
-        .collect()
 }
 
 fn save_automatic_search_result(
@@ -230,8 +490,8 @@ async fn search_lyrics_for_session(
     }
 
     let request_key = LyricsSearchRequestKey::new(&input);
-    let force = intent.is_manual();
-    let (activation, request_id, flight) = {
+    let reuse_completed = matches!(intent, LyricsSearchIntent::Automatic);
+    let (activation, request_id, flight, should_debounce) = {
         let mut session = state
             .lyrics_search_session
             .lock()
@@ -240,22 +500,30 @@ async fn search_lyrics_for_session(
             return Err("当前歌曲已发生变化".into());
         }
         let same_request = session.request_key.as_ref() == Some(&request_key);
-        if !force && same_request {
+        if reuse_completed && same_request {
             if let Some(completed) = &session.completed {
                 return completed.clone();
             }
         }
         if same_request {
             if let Some(flight) = &session.in_flight {
-                (session.activation, session.request_id, flight.clone())
+                (
+                    session.activation,
+                    session.request_id,
+                    flight.clone(),
+                    intent.uses_debounce(),
+                )
             } else {
                 session.request_id = session.request_id.wrapping_add(1);
-                if force {
-                    session.completed = None;
-                }
+                session.completed = None;
                 let flight = Arc::new(LyricsSearchFlight::new());
                 session.in_flight = Some(flight.clone());
-                (session.activation, session.request_id, flight)
+                (
+                    session.activation,
+                    session.request_id,
+                    flight,
+                    intent.uses_debounce(),
+                )
             }
         } else {
             session.request_id = session.request_id.wrapping_add(1);
@@ -263,12 +531,43 @@ async fn search_lyrics_for_session(
             session.completed = None;
             let flight = Arc::new(LyricsSearchFlight::new());
             session.in_flight = Some(flight.clone());
-            (session.activation, session.request_id, flight)
+            (
+                session.activation,
+                session.request_id,
+                flight,
+                intent.uses_debounce(),
+            )
         }
     };
 
+    if should_debounce {
+        let debounce = state.providers.auto_search_debounce();
+        if !debounce.is_zero() {
+            log::debug!(
+                "歌词搜索进入防抖等待：track_key={track_key} intent={intent:?} debounce_ms={}",
+                debounce.as_millis()
+            );
+            tokio::time::sleep(debounce).await;
+            let still_active = {
+                let session = state
+                    .lyrics_search_session
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner());
+                session.activation == activation
+                    && session.request_id == request_id
+                    && session.track_key.as_deref() == Some(track_key)
+            };
+            if !still_active {
+                log::debug!(
+                    "歌词搜索防抖取消：track_key={track_key} intent={intent:?} 原会话已失效"
+                );
+                return Err(LYRICS_SEARCH_INVALIDATED.into());
+            }
+        }
+    }
+
     let result = flight
-        .get_or_init(|| perform_lyrics_search(state, &input))
+        .get_or_init(|| perform_lyrics_search(state, &input, intent))
         .await
         .clone();
     let mut session = state

@@ -112,9 +112,10 @@ impl LrcLibProvider {
             return Ok(None);
         }
         if !response.status().is_success() {
-            return Err(self.error(
-                ProviderErrorKind::Http,
-                format!("歌词服务返回 HTTP {}", response.status()),
+            return Err(super::provider::response_error(
+                self.id(),
+                &response,
+                "歌词服务请求失败",
             ));
         }
         response
@@ -156,9 +157,10 @@ impl LrcLibProvider {
             return Err(self.rate_limit_error(&response));
         }
         if !response.status().is_success() {
-            return Err(self.error(
-                ProviderErrorKind::Http,
-                format!("歌词服务返回 HTTP {}", response.status()),
+            return Err(super::provider::response_error(
+                self.id(),
+                &response,
+                "歌词服务请求失败",
             ));
         }
         response.json::<Vec<LrcLibItem>>().await.map_err(|error| {
@@ -194,21 +196,15 @@ impl LrcLibProvider {
     }
 
     fn rate_limit_error(&self, response: &reqwest::Response) -> ProviderError {
-        let seconds = self.record_rate_limit(response);
-        self.error(
-            ProviderErrorKind::Http,
-            format!("LRCLIB 请求过于频繁，请约 {seconds} 秒后重试"),
-        )
+        let mut error = super::provider::response_error(self.id(), response, "LRCLIB 请求过于频繁");
+        let seconds = self.record_rate_limit(error.retry_after_ms);
+        error.message = format!("LRCLIB 请求过于频繁，请约 {seconds} 秒后重试");
+        error
     }
 
-    fn record_rate_limit(&self, response: &reqwest::Response) -> u64 {
-        let requested_seconds = response
-            .headers()
-            .get("retry-after")
-            .and_then(|value| value.to_str().ok())
-            .and_then(|value| value.trim().parse::<u64>().ok())
-            .map(|value| value.clamp(1, MAX_COOLDOWN_SECS))
-            .unwrap_or(DEFAULT_COOLDOWN_SECS);
+    fn record_rate_limit(&self, retry_after_ms: Option<u64>) -> u64 {
+        let requested_ms = retry_after_ms.unwrap_or(DEFAULT_COOLDOWN_SECS * 1_000);
+        let requested_seconds = (requested_ms / 1_000).clamp(1, MAX_COOLDOWN_SECS);
         let now = Instant::now();
         let requested_until = now + Duration::from_secs(requested_seconds);
         let mut cooldown = self
@@ -281,11 +277,7 @@ fn capabilities(lyrics: &str) -> (bool, bool, bool) {
 
 impl LrcLibProvider {
     fn error(&self, kind: ProviderErrorKind, message: impl Into<String>) -> ProviderError {
-        ProviderError {
-            provider_id: self.id().into(),
-            kind,
-            message: message.into(),
-        }
+        ProviderError::new(self.id(), kind, message)
     }
 }
 

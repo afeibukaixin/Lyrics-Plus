@@ -318,7 +318,9 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                     "mode",
                     "providers",
                     "autoApplyThreshold",
+                    "autoSearchDebounceMs",
                     "preferCapabilities",
+                    "capabilityPreferenceTolerance",
                     "matchWeights",
                     "normalizeChinese",
                     "titleFilterKeywords",
@@ -680,6 +682,10 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
     for (pointer, key) in [
         ("/schemaVersion", "schemaVersion"),
         ("/lyrics/providers/autoApplyThreshold", "autoApplyThreshold"),
+        (
+            "/lyrics/providers/autoSearchDebounceMs",
+            "autoSearchDebounceMs",
+        ),
         ("/lyrics/displays/statusBar/appearance/fontSize", "fontSize"),
         (
             "/lyrics/displays/statusBar/appearance/fontWeight",
@@ -717,6 +723,10 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         (
             "/overlay/appearance/secondaryFontWeight",
             "secondaryFontWeight",
+        ),
+        (
+            "/lyrics/providers/capabilityPreferenceTolerance",
+            "capabilityPreferenceTolerance",
         ),
     ] {
         if value
@@ -1075,6 +1085,18 @@ fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftEr
             100.0,
         ),
         (
+            "autoSearchDebounceMs",
+            value.pointer("/lyrics/providers/autoSearchDebounceMs"),
+            0.0,
+            5_000.0,
+        ),
+        (
+            "capabilityPreferenceTolerance",
+            value.pointer("/lyrics/providers/capabilityPreferenceTolerance"),
+            0.0,
+            20.0,
+        ),
+        (
             "title",
             value.pointer("/lyrics/providers/matchWeights/title"),
             0.0,
@@ -1259,6 +1281,17 @@ fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftEr
                     raw,
                     key,
                     &format!("{key} 必须在 {minimum}–{maximum} 之间"),
+                ));
+            }
+        }
+    }
+    if let Some(candidate) = value.pointer("/lyrics/providers/autoSearchDebounceMs") {
+        if let Some(milliseconds) = candidate.as_u64() {
+            if milliseconds % 100 != 0 {
+                return Err(error_at_key(
+                    raw,
+                    "autoSearchDebounceMs",
+                    "autoSearchDebounceMs 必须是 100 毫秒的整数倍",
                 ));
             }
         }

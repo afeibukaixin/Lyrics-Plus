@@ -257,7 +257,7 @@ export default function Settings() {
     if (testingProvider || !lyrics.trackKey) return;
     setTestingProvider("*");
     try {
-      const response = await lyrics.search();
+      const response = await lyrics.search("manual");
       if (!response) return;
       setProviderView((current) => current ? {
         ...current,

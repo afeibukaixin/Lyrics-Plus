@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
     #[test]
     fn defaults_to_all_providers_enabled() {
@@ -42,18 +42,20 @@ mod tests {
                     tokio::time::sleep(self.delay).await;
                 }
                 if self.fails {
-                    return Err(ProviderError {
-                        provider_id: self.id.into(),
-                        kind: ProviderErrorKind::Network,
-                        message: "mock failure".into(),
-                    });
+                    return Err(ProviderError::new(
+                        self.id,
+                        ProviderErrorKind::Network,
+                        "mock failure",
+                    ));
                 }
                 Ok(ProviderSearchReport {
                     results: (!self.empty)
                         .then(|| result(self.id, self.score, self.lyrics))
                         .into_iter()
                         .collect(),
-                    warning: self.warning.map(str::to_owned),
+                    warning: self.warning.map(|message| {
+                        ProviderError::new(self.id, ProviderErrorKind::Network, message)
+                    }),
                 })
             })
         }
@@ -312,7 +314,9 @@ mod tests {
         let settings = ProviderSettings {
             mode: ProviderOrderMode::Smart,
             auto_apply_threshold: 60,
+            auto_search_debounce_ms: 2_000,
             prefer_capabilities: false,
+            capability_preference_tolerance: DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
             match_weights: MatchWeights::default(),
             normalize_chinese: true,
             providers: ["netease", "qqmusic", "kugou", "lrclib"]
@@ -351,7 +355,9 @@ mod tests {
         let settings = ProviderSettings {
             mode,
             auto_apply_threshold: 60,
+            auto_search_debounce_ms: 2_000,
             prefer_capabilities: false,
+            capability_preference_tolerance: DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
             match_weights: MatchWeights::default(),
             normalize_chinese: true,
             providers: vec![
@@ -409,6 +415,9 @@ mod tests {
             credentials: Arc::new(ProviderCredentialStore::memory()),
             statuses: RwLock::new(statuses),
             in_flight: Mutex::new(HashMap::new()),
+            cache: Mutex::new(HashMap::new()),
+            cooldowns: Mutex::new(HashMap::new()),
+            revision: AtomicU64::new(0),
             timeout: Duration::from_millis(100),
         }
     }
@@ -428,7 +437,9 @@ mod tests {
             settings: Arc::new(RwLock::new(ProviderSettings {
                 mode: ProviderOrderMode::Smart,
                 auto_apply_threshold: 60,
+                auto_search_debounce_ms: 2_000,
                 prefer_capabilities: false,
+                capability_preference_tolerance: DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
                 match_weights: MatchWeights::default(),
                 normalize_chinese: true,
                 providers: vec![ProviderPreference {
@@ -450,6 +461,9 @@ mod tests {
                 },
             )])),
             in_flight: Mutex::new(HashMap::new()),
+            cache: Mutex::new(HashMap::new()),
+            cooldowns: Mutex::new(HashMap::new()),
+            revision: AtomicU64::new(0),
             timeout: Duration::from_millis(100),
         }
     }
@@ -485,6 +499,9 @@ mod tests {
                 },
             )])),
             in_flight: Mutex::new(HashMap::new()),
+            cache: Mutex::new(HashMap::new()),
+            cooldowns: Mutex::new(HashMap::new()),
+            revision: AtomicU64::new(0),
             timeout: Duration::from_millis(100),
         }
     }
@@ -521,7 +538,7 @@ mod tests {
     }
 
     #[test]
-    fn partial_provider_failure_is_reported_as_degraded() {
+    fn partial_provider_failure_keeps_results_and_enters_cooldown() {
         tauri::async_runtime::block_on(async {
             let outcome = single_mock_registry(Some("detail failed"), false)
                 .search(
@@ -537,11 +554,11 @@ mod tests {
                 .await
                 .unwrap();
             let status = &outcome.statuses[0];
-            assert_eq!(status.health, ProviderHealth::Degraded);
-            assert_eq!(
-                status.message.as_deref(),
-                Some("部分请求失败：detail failed")
-            );
+            assert_eq!(status.health, ProviderHealth::Unavailable);
+            assert!(status
+                .message
+                .as_deref()
+                .is_some_and(|message| message.contains("冷却中")));
         });
     }
 
@@ -597,7 +614,7 @@ mod tests {
     }
 
     #[test]
-    fn concurrent_identical_searches_share_only_in_flight_work() {
+    fn concurrent_identical_searches_share_in_flight_and_cached_work() {
         tauri::async_runtime::block_on(async {
             let calls = Arc::new(AtomicUsize::new(0));
             let registry = counting_registry(calls.clone());
@@ -618,7 +635,7 @@ mod tests {
             assert_eq!(first.unwrap().results[0].id, second.unwrap().results[0].id);
 
             registry.search(&client, &input).await.unwrap();
-            assert_eq!(calls.load(Ordering::SeqCst), 2);
+            assert_eq!(calls.load(Ordering::SeqCst), 1);
 
             let mut different = input.clone();
             different.title = "World".into();
@@ -626,7 +643,7 @@ mod tests {
                 registry.search(&client, &input),
                 registry.search(&client, &different),
             );
-            assert_eq!(calls.load(Ordering::SeqCst), 4);
+            assert_eq!(calls.load(Ordering::SeqCst), 2);
         });
     }
 
@@ -650,7 +667,9 @@ mod tests {
                 let settings = ProviderSettings {
                     mode: ProviderOrderMode::Smart,
                     auto_apply_threshold: 60,
+                    auto_search_debounce_ms: 2_000,
                     prefer_capabilities: false,
+                    capability_preference_tolerance: DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
                     match_weights: MatchWeights::default(),
                     normalize_chinese: true,
                     providers: provider_definitions()

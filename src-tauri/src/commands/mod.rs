@@ -20,10 +20,13 @@ use crate::config::{
 use crate::language::UiLanguage;
 use crate::lyrics::credentials::{MusixmatchTokenType, ProviderCredentialView};
 use crate::lyrics::provider::{
-    can_auto_apply, LyricsSearchInput, LyricsSearchResult, ProviderSettings, ProviderSettingsView,
-    ProviderStatus,
+    LyricsSearchInput, LyricsSearchResult, ProviderOrderMode, ProviderSettings,
+    ProviderSettingsView, ProviderStatus, DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
 };
-use crate::lyrics::LyricsDocument;
+use crate::lyrics::{
+    lyrics_quality_report, parse_lrc_with_options, semantic_fingerprint, LyricsDocument,
+    LyricsQualityReport,
+};
 use crate::player::{
     control_playback as control_player, run_with_timeout, seek_playback as seek_player,
     PlaybackAction, PlaybackArtwork, PlaybackSnapshot, PlaybackSpectrumState, PlayerKind,
@@ -32,13 +35,11 @@ use crate::player::{
 use crate::storage::library::LibraryScanStatus;
 use crate::storage::{SaveKind, SaveRequest, LOCAL_PROVIDER_ID};
 
-pub use crate::overlay_model::{
-    OverlayOrientation, OverlayStyleSettings, SecondaryDisplayMode,
-};
 #[cfg(test)]
 use crate::overlay_model::{
     KaraokeStyle, OverlayAlignment, OverlayBackground, OverlayBackgroundMode, OverlayLayout,
 };
+pub use crate::overlay_model::{OverlayOrientation, OverlayStyleSettings, SecondaryDisplayMode};
 pub use crate::state::AppState;
 
 include!("models.rs");

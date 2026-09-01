@@ -90,9 +90,10 @@ impl LyricsProvider for KugouProvider {
                 .await
                 .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
             if !response.status().is_success() {
-                return Err(self.error(
-                    ProviderErrorKind::Http,
-                    format!("搜索返回 HTTP {}", response.status()),
+                return Err(super::provider::response_error(
+                    self.id(),
+                    &response,
+                    "搜索请求失败",
                 ));
             }
             let envelope = response.json::<SearchEnvelope>().await.map_err(|error| {
@@ -126,11 +127,7 @@ impl KugouProvider {
     ) -> Result<Option<LyricsSearchResult>, ProviderError> {
         let duration_ms = song.duration.map(duration_ms_from_seconds_u64);
         let Some(lyric_candidate) = self
-            .search_lyrics(
-                client,
-                &song.file_hash,
-                song.mix_song_id.as_deref(),
-            )
+            .search_lyrics(client, &song.file_hash, song.mix_song_id.as_deref())
             .await?
             .into_iter()
             .next()
@@ -201,9 +198,10 @@ impl KugouProvider {
             .await
             .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
         if !response.status().is_success() {
-            return Err(self.error(
-                ProviderErrorKind::Http,
-                format!("歌词搜索返回 HTTP {}", response.status()),
+            return Err(super::provider::response_error(
+                self.id(),
+                &response,
+                "歌词搜索请求失败",
             ));
         }
         response
@@ -281,9 +279,10 @@ impl KugouProvider {
             .await
             .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
         if !response.status().is_success() {
-            return Err(self.error(
-                ProviderErrorKind::Http,
-                format!("歌词下载返回 HTTP {}", response.status()),
+            return Err(super::provider::response_error(
+                self.id(),
+                &response,
+                "歌词下载请求失败",
             ));
         }
         response
@@ -293,11 +292,7 @@ impl KugouProvider {
     }
 
     fn error(&self, kind: ProviderErrorKind, message: impl Into<String>) -> ProviderError {
-        ProviderError {
-            provider_id: self.id().into(),
-            kind,
-            message: message.into(),
-        }
+        ProviderError::new(self.id(), kind, message)
     }
 }
 
@@ -343,11 +338,7 @@ mod tests {
     }
 
     fn failure(message: &str) -> ProviderError {
-        ProviderError {
-            provider_id: "kugou".into(),
-            kind: ProviderErrorKind::Network,
-            message: message.into(),
-        }
+        ProviderError::new("kugou", ProviderErrorKind::Network, message)
     }
 
     #[test]
@@ -367,7 +358,10 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(report.results[0].id, "available");
-        assert_eq!(report.warning.as_deref(), Some("download failed"));
+        assert_eq!(
+            report.warning.as_ref().map(|error| error.message.as_str()),
+            Some("download failed")
+        );
     }
 
     #[test]

@@ -111,9 +111,10 @@ impl LyricsProvider for QqMusicProvider {
                 .await
                 .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
             if !response.status().is_success() {
-                return Err(self.error(
-                    ProviderErrorKind::Http,
-                    format!("搜索返回 HTTP {}", response.status()),
+                return Err(super::provider::response_error(
+                    self.id(),
+                    &response,
+                    "搜索请求失败",
                 ));
             }
             let envelope = response.json::<SearchEnvelope>().await.map_err(|error| {
@@ -423,9 +424,10 @@ impl QqMusicProvider {
             .await
             .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
         if !response.status().is_success() {
-            return Err(self.error(
-                ProviderErrorKind::Http,
-                format!("新歌词接口返回 HTTP {}", response.status()),
+            return Err(super::provider::response_error(
+                self.id(),
+                &response,
+                "新歌词接口请求失败",
             ));
         }
         let value = response
@@ -521,9 +523,10 @@ impl QqMusicProvider {
             .await
             .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
         if !response.status().is_success() {
-            return Err(self.error(
-                ProviderErrorKind::Http,
-                format!("歌词返回 HTTP {}", response.status()),
+            return Err(super::provider::response_error(
+                self.id(),
+                &response,
+                "歌词请求失败",
             ));
         }
         response
@@ -533,11 +536,7 @@ impl QqMusicProvider {
     }
 
     fn error(&self, kind: ProviderErrorKind, message: impl Into<String>) -> ProviderError {
-        ProviderError {
-            provider_id: self.id().into(),
-            kind,
-            message: message.into(),
-        }
+        ProviderError::new(self.id(), kind, message)
     }
 }
 
@@ -618,11 +617,7 @@ mod tests {
     }
 
     fn failure(message: &str) -> ProviderError {
-        ProviderError {
-            provider_id: "qqmusic".into(),
-            kind: ProviderErrorKind::Network,
-            message: message.into(),
-        }
+        ProviderError::new("qqmusic", ProviderErrorKind::Network, message)
     }
 
     #[test]
@@ -655,7 +650,10 @@ mod tests {
         .unwrap();
 
         assert_eq!(report.results[0].id, "available");
-        assert_eq!(report.warning.as_deref(), Some("temporary failure"));
+        assert_eq!(
+            report.warning.as_ref().map(|error| error.message.as_str()),
+            Some("temporary failure")
+        );
     }
 
     #[test]

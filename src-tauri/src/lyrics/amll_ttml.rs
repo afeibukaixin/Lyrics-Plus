@@ -150,9 +150,10 @@ impl AmllTtmlProvider {
             return Ok(None);
         }
         if !response.status().is_success() {
-            return Err(self.error(
-                ProviderErrorKind::Http,
-                format!("歌词返回 HTTP {}", response.status()),
+            return Err(super::provider::response_error(
+                self.id(),
+                &response,
+                "歌词请求失败",
             ));
         }
         let envelope = response
@@ -220,9 +221,10 @@ impl AmllTtmlProvider {
             .await
             .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
         if !response.status().is_success() {
-            return Err(self.error(
-                ProviderErrorKind::Http,
-                format!("服务返回 HTTP {}", response.status()),
+            return Err(super::provider::response_error(
+                self.id(),
+                &response,
+                "服务请求失败",
             ));
         }
         response
@@ -243,22 +245,16 @@ impl AmllTtmlProvider {
         message: Option<String>,
     ) -> ProviderError {
         let detail = message.or(error).unwrap_or_else(|| "未知错误".into());
-        self.error(
-            if status == 429 {
-                ProviderErrorKind::Http
-            } else {
-                ProviderErrorKind::InvalidResponse
-            },
+        ProviderError::with_http(
+            self.id(),
+            status,
+            None,
             format!("AMLL API 返回状态 {status}：{detail}"),
         )
     }
 
     fn error(&self, kind: ProviderErrorKind, message: impl Into<String>) -> ProviderError {
-        ProviderError {
-            provider_id: self.id().into(),
-            kind,
-            message: message.into(),
-        }
+        ProviderError::new(self.id(), kind, message)
     }
 }
 

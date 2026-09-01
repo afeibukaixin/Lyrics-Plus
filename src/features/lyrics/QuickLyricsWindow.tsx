@@ -125,7 +125,7 @@ export default function QuickLyricsWindow() {
     ) return;
     if (searchedTrack.current === lyrics.trackKey) return;
     searchedTrack.current = lyrics.trackKey;
-    void lyrics.search("manual");
+    void lyrics.search("refresh");
   }, [lyrics.loadState, lyrics.trackKey, playback.snapshot.artist, playback.snapshot.title]);
 
   useEffect(() => {
@@ -133,7 +133,7 @@ export default function QuickLyricsWindow() {
     return createTauriListenerCleanup(listen(QUICK_LYRICS_REFRESH_EVENT, () => {
       const current = searchStateRef.current;
       if (!current.trackKey || !current.title || !current.artist || current.searching) return;
-      void searchRef.current("manual");
+      void searchRef.current("refresh");
     }));
   }, []);
 

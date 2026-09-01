@@ -20,8 +20,12 @@ pub struct ProviderSettings {
     pub providers: Vec<ProviderPreference>,
     #[serde(default = "default_auto_apply_threshold")]
     pub auto_apply_threshold: u8,
+    #[serde(default = "default_auto_search_debounce_ms")]
+    pub auto_search_debounce_ms: u64,
     #[serde(default = "default_prefer_capabilities")]
     pub prefer_capabilities: bool,
+    #[serde(default = "default_capability_preference_tolerance")]
+    pub capability_preference_tolerance: u8,
     #[serde(default)]
     pub match_weights: MatchWeights,
     #[serde(default = "default_normalize_chinese")]
@@ -34,9 +38,15 @@ pub struct ProviderSettings {
 
 const MAX_TITLE_FILTER_KEYWORDS: usize = 32;
 const MAX_TITLE_FILTER_KEYWORD_LENGTH: usize = 64;
+pub(crate) const DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE: u8 = 4;
+const MAX_CAPABILITY_PREFERENCE_TOLERANCE: u8 = 20;
 
 const fn default_auto_apply_threshold() -> u8 {
     60
+}
+
+const fn default_auto_search_debounce_ms() -> u64 {
+    2_000
 }
 
 const fn default_normalize_chinese() -> bool {
@@ -45,6 +55,10 @@ const fn default_normalize_chinese() -> bool {
 
 const fn default_prefer_capabilities() -> bool {
     true
+}
+
+const fn default_capability_preference_tolerance() -> u8 {
+    DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE
 }
 
 fn default_title_filter_keywords() -> Vec<String> {
@@ -83,7 +97,9 @@ impl Default for ProviderSettings {
                 })
                 .collect(),
             auto_apply_threshold: default_auto_apply_threshold(),
+            auto_search_debounce_ms: default_auto_search_debounce_ms(),
             prefer_capabilities: default_prefer_capabilities(),
+            capability_preference_tolerance: default_capability_preference_tolerance(),
             match_weights: MatchWeights::default(),
             normalize_chinese: default_normalize_chinese(),
             title_filter_keywords: default_title_filter_keywords(),
@@ -105,6 +121,9 @@ pub struct ProviderSearchOutcome {
     pub statuses: Vec<ProviderStatus>,
     pub auto_apply_threshold: u8,
     pub prefer_capabilities: bool,
+    pub capability_preference_tolerance: u8,
+    pub mode: ProviderOrderMode,
+    pub provider_order: Vec<String>,
     pub error: Option<String>,
 }
 

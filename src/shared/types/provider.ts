@@ -39,7 +39,9 @@ export type ProviderSettings = {
   mode: ProviderOrderMode;
   providers: ProviderPreference[];
   autoApplyThreshold: number;
+  autoSearchDebounceMs: number;
   preferCapabilities: boolean;
+  capabilityPreferenceTolerance: number;
   matchWeights: MatchWeights;
   normalizeChinese: boolean;
   titleFilterKeywords: string[];

@@ -452,12 +452,10 @@ impl MusixmatchProvider {
             } else {
                 "Musixmatch 匿名 Token 获取失败"
             };
-            return Err(self.error(
-                if status == 401 || status == 403 {
-                    ProviderErrorKind::Unauthorized
-                } else {
-                    ProviderErrorKind::Http
-                },
+            return Err(ProviderError::with_http(
+                self.id(),
+                status,
+                None,
                 format!("{message}（状态码 {status}）"),
             ));
         }
@@ -484,13 +482,10 @@ impl MusixmatchProvider {
             self.error(ProviderErrorKind::Network, error.without_url().to_string())
         })?;
         if !response.status().is_success() {
-            return Err(self.error(
-                if matches!(response.status().as_u16(), 401 | 402 | 403) {
-                    ProviderErrorKind::Unauthorized
-                } else {
-                    ProviderErrorKind::Http
-                },
-                format!("服务返回 HTTP {}", response.status()),
+            return Err(super::provider::response_error(
+                self.id(),
+                &response,
+                "服务请求失败",
             ));
         }
         response.json::<MessageEnvelope>().await.map_err(|error| {
@@ -521,11 +516,18 @@ impl MusixmatchProvider {
     fn ensure_developer_status(&self, status: u16) -> Result<(), ProviderError> {
         match status {
             200 => Ok(()),
-            401 | 402 | 403 | 429 => Err(self.error(
-                ProviderErrorKind::Unauthorized,
+            401 | 402 | 403 | 429 => Err(ProviderError::with_http(
+                self.id(),
+                status,
+                None,
                 format!("Developer API Key 无效、无歌词权限或额度不足（状态码 {status}）"),
             )),
-            _ => Err(self.error(ProviderErrorKind::Http, format!("服务返回状态码 {status}"))),
+            _ => Err(ProviderError::with_http(
+                self.id(),
+                status,
+                None,
+                format!("服务返回状态码 {status}"),
+            )),
         }
     }
 
@@ -541,25 +543,30 @@ impl MusixmatchProvider {
                     DesktopTokenSource::Anonymous => "匿名 Desktop Token 已失效",
                     DesktopTokenSource::Manual => "Desktop Token 无效或无歌词权限",
                 };
-                Err(self.error(
-                    ProviderErrorKind::Unauthorized,
+                Err(ProviderError::with_http(
+                    self.id(),
+                    status,
+                    None,
                     format!("{message}（状态码 {status}）"),
                 ))
             }
-            429 => Err(self.error(
-                ProviderErrorKind::Http,
+            429 => Err(ProviderError::with_http(
+                self.id(),
+                status,
+                None,
                 "Musixmatch Desktop 接口请求过于频繁（状态码 429）",
             )),
-            _ => Err(self.error(ProviderErrorKind::Http, format!("服务返回状态码 {status}"))),
+            _ => Err(ProviderError::with_http(
+                self.id(),
+                status,
+                None,
+                format!("服务返回状态码 {status}"),
+            )),
         }
     }
 
     fn error(&self, kind: ProviderErrorKind, message: impl Into<String>) -> ProviderError {
-        ProviderError {
-            provider_id: self.id().into(),
-            kind,
-            message: message.into(),
-        }
+        ProviderError::new(self.id(), kind, message)
     }
 }
 

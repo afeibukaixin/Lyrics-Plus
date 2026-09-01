@@ -103,7 +103,9 @@ const defaultConfig: AppConfig = {
     providers: {
       mode: "smart",
       autoApplyThreshold: 60,
+      autoSearchDebounceMs: 2000,
       preferCapabilities: true,
+      capabilityPreferenceTolerance: 4,
       matchWeights: { title: 39, artist: 36, album: 8, duration: 17 },
       normalizeChinese: true,
       titleFilterKeywords: defaultTitleFilterKeywords,
