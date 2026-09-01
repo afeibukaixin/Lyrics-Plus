@@ -45,6 +45,10 @@ Download the latest build from [GitHub Releases](https://github.com/afeibukaixin
 - `aarch64` for Apple Silicon Macs.
 - `x64` for Intel Macs.
 
+## Community
+
+Join the [QQ Group 1045190390](https://qm.qq.com/q/KDcSY7Yhii) for discussion and support.
+
 > [!IMPORTANT]
 > **First launch:** Move Lyrics Plus to the Applications folder before opening it.
 >

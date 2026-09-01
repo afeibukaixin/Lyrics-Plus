@@ -45,6 +45,10 @@ Lyrics Plus 是一款免费开源的 macOS 应用，会跟随音乐播放器，�
 - `aarch64`：Apple Silicon Mac。
 - `x64`：Intel Mac。
 
+## 社区交流
+
+欢迎加入 [QQ 群 1045190390](https://qm.qq.com/q/KDcSY7Yhii) 交流与获取支持。
+
 > [!IMPORTANT]
 > **首次运行提示：** 请先将 Lyrics Plus 移动到“应用程序”文件夹，再打开应用。
 >
