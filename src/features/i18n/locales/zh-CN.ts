@@ -184,7 +184,7 @@ export const zhCN = {
     lyrics: {
       title: "歌词与搜索", description: "达到设定相似度的同步歌词会自动采用；其他结果可在快速切换窗口中预览。",
       autoMatch: "自动匹配", threshold: "自动匹配相似度", thresholdHint: "首条同步歌词达到此相似度时自动采用；低于阈值的结果仍可手动选择。", autoSearchDebounce: "自动搜索防抖", autoSearchDebounceHint: "数值越低，自动歌词响应越快，但快速切歌会产生更多无效请求，并提高触发歌词源限流的风险；0 表示关闭。",
-      matchRules: "匹配规则", preferCapabilities: "歌词能力偏好", preferCapabilitiesHint: "默认开启。关闭后仍会在相近分数内避开明显降级的时间轴；开启后会按下方设置的范围优先选择逐字歌词及当前需要的翻译或音译。", capabilityPreferenceTolerance: "可牺牲匹配度", capabilityPreferenceToleranceHint: "智能排序中，允许能力更完整的歌词比最高匹配分低多少个百分点；仅在智能排序且开启歌词能力偏好时生效。", normalizeChinese: "统一繁体与简体", normalizeChineseHint: "评分前将标题、歌手和专辑统一为简体；关闭后按原文字形比较。",
+      matchRules: "匹配规则", preferCapabilities: "歌词能力偏好", preferCapabilitiesHint: "默认开启。关闭后仍会在相近分数内避开明显降级的时间轴；开启后会按下方设置的范围优先选择逐字歌词及当前需要的翻译或音译。", capabilityPreferenceTolerance: "能力优选范围", capabilityPreferenceToleranceHint: "智能排序中，以最高匹配分为基准，在该范围内优先选择质量合格且具有逐字、翻译或音译能力的歌词；范围外候选仍按匹配分排序。仅在智能排序且开启歌词能力偏好时生效。", normalizeChinese: "统一繁体与简体", normalizeChineseHint: "评分前将标题、歌手和专辑统一为简体；关闭后按原文字形比较。",
       matchWeight: { title: "标题重要度", artist: "歌手重要度", album: "专辑重要度", duration: "时长重要度" },
       matchWeightSummary: "实际占比：标题 {{title}}% · 歌手 {{artist}}% · 专辑 {{album}}% · 时长 {{duration}}%", matchRulesHint: "重要度会自动换算为占比，无需合计为 100；同步歌词仍固定额外加 4 分。", matchWeightsEmpty: "歌词匹配重要度不能全部为 0。",
       titleFilters: "标题屏蔽内容", titleFiltersHint: "输入需要忽略的文字，程序会智能移除所在的括号或标题后缀；仅影响本地匹配评分。",

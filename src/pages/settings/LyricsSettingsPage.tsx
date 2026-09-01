@@ -310,7 +310,6 @@ export default function LyricsSettingsPage() {
       <ToggleRow label={t("settings.lyrics.preferCapabilities")} description={t("settings.lyrics.preferCapabilitiesHint")} value={providerView?.settings.preferCapabilities ?? true} disabled={!providerView || savingMatchRules} onChange={updatePreferCapabilities} />
       <RangeRow
         label={t("settings.lyrics.capabilityPreferenceTolerance")}
-        description={t("settings.lyrics.capabilityPreferenceToleranceHint")}
         value={providerView?.settings.capabilityPreferenceTolerance ?? defaultCapabilityPreferenceTolerance}
         min={0}
         max={20}
@@ -319,6 +318,7 @@ export default function LyricsSettingsPage() {
         onChange={() => undefined}
         onValueCommitted={commitCapabilityPreferenceTolerance}
       />
+      <p className={styles.cardHint}>{t("settings.lyrics.capabilityPreferenceToleranceHint")}</p>
       <ToggleRow label={t("settings.lyrics.normalizeChinese")} description={t("settings.lyrics.normalizeChineseHint")} value={providerView?.settings.normalizeChinese ?? true} disabled={!providerView || savingMatchRules} onChange={updateNormalizeChinese} />
       {matchWeightKeys.map((key) => <RangeRow key={key} label={t(`settings.lyrics.matchWeight.${key}`)} value={providerView?.settings.matchWeights[key] ?? defaultMatchWeights[key]} min={0} max={100} suffix="" disabled={!providerView || savingMatchRules} onChange={() => undefined} onValuePreview={(value) => previewMatchWeight(key, value)} onValueCommitted={(value) => commitMatchWeight(key, value)} onPreviewCanceled={() => setMatchWeightsDraft(providerView?.settings.matchWeights ?? defaultMatchWeights)} />)}
       <p className={styles.cardHint}>{t("settings.lyrics.matchWeightSummary", { title: matchWeightPercentage("title"), artist: matchWeightPercentage("artist"), album: matchWeightPercentage("album"), duration: matchWeightPercentage("duration") })}<br />{t("settings.lyrics.matchRulesHint")}</p>

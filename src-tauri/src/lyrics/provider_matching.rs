@@ -9,7 +9,7 @@ pub(crate) fn validate_settings(settings: &ProviderSettings) -> Result<(), Strin
         return Err("自动匹配防抖时间必须是 100 毫秒的整数倍".into());
     }
     if settings.capability_preference_tolerance > MAX_CAPABILITY_PREFERENCE_TOLERANCE {
-        return Err("歌词能力偏好容差必须在 0–20 之间".into());
+        return Err("歌词能力优选范围必须在 0–20 之间".into());
     }
     if [
         settings.match_weights.title,

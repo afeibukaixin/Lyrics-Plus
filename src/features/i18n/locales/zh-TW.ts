@@ -178,7 +178,7 @@ export const zhTW = {
     lyrics: {
       title: "歌詞與搜尋", description: "達到設定相似度的同步歌詞會自動套用；其他結果可在快速切換視窗中預覽。",
       autoMatch: "自動比對", threshold: "自動比對相似度", thresholdHint: "第一筆同步歌詞達到此相似度時會自動套用；低於門檻的結果仍可手動選擇。", autoSearchDebounce: "自動搜尋防抖", autoSearchDebounceHint: "數值越低，自動歌詞回應越快，但快速切歌會產生更多無效請求，並提高觸發歌詞來源限流的風險；0 表示關閉。",
-      matchRules: "比對規則", preferCapabilities: "歌詞能力偏好", preferCapabilitiesHint: "預設開啟。關閉後在相近分數內仍會避開明顯降級的時間軸；開啟後會依照下方設定的範圍優先選擇逐字歌詞及目前需要的翻譯或音譯。", capabilityPreferenceTolerance: "可犧牲比對度", capabilityPreferenceToleranceHint: "智慧排序中，允許能力更完整的歌詞比最高比對分低多少個百分點；只在智慧排序且開啟歌詞能力偏好時生效。", normalizeChinese: "統一繁體與簡體", normalizeChineseHint: "評分前將標題、歌手與專輯統一為簡體；關閉後按原文字形比較。",
+      matchRules: "比對規則", preferCapabilities: "歌詞能力偏好", preferCapabilitiesHint: "預設開啟。關閉後在相近分數內仍會避開明顯降級的時間軸；開啟後會依照下方設定的範圍優先選擇逐字歌詞及目前需要的翻譯或音譯。", capabilityPreferenceTolerance: "能力優選範圍", capabilityPreferenceToleranceHint: "智慧排序中，以最高比對分為基準，在此範圍內優先選擇品質合格且具備逐字、翻譯或音譯能力的歌詞；範圍外候選仍按比對分排序。只在智慧排序且開啟歌詞能力偏好時生效。", normalizeChinese: "統一繁體與簡體", normalizeChineseHint: "評分前將標題、歌手與專輯統一為簡體；關閉後按原文字形比較。",
       matchWeight: { title: "標題重要度", artist: "歌手重要度", album: "專輯重要度", duration: "時長重要度" },
       matchWeightSummary: "實際占比：標題 {{title}}% · 歌手 {{artist}}% · 專輯 {{album}}% · 時長 {{duration}}%", matchRulesHint: "重要度會自動換算為占比，不需要合計為 100；同步歌詞仍固定額外加 4 分。", matchWeightsEmpty: "歌詞比對重要度不可全部為 0。",
       titleFilters: "標題忽略內容", titleFiltersHint: "輸入需要忽略的文字，程式會智慧移除所在的括號或標題後綴；只影響本機比對分數。",

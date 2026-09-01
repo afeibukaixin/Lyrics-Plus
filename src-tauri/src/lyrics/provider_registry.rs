@@ -389,23 +389,17 @@ impl ProviderRegistry {
                     f64::from(DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE) / 100.0
                 };
                 results.sort_by(|left, right| right.score.total_cmp(&left.score));
-                let mut band_start = 0;
-                while band_start < results.len() {
-                    let band_score = results[band_start].score;
-                    let band_len = results[band_start..]
+                if let Some(top_score) = results.first().map(|result| result.score) {
+                    let band_len = results
                         .iter()
-                        .take_while(|result| {
-                            band_score - result.score <= score_band + f64::EPSILON
-                        })
+                        .take_while(|result| top_score - result.score <= score_band + f64::EPSILON)
                         .count();
-                    let band_end = band_start + band_len;
-                    results[band_start..band_end].sort_by(|left, right| {
+                    results[..band_len].sort_by(|left, right| {
                         priority
                             .get(left.provider_id.as_str())
                             .cmp(&priority.get(right.provider_id.as_str()))
                             .then_with(|| right.score.total_cmp(&left.score))
                     });
-                    band_start = band_end;
                 }
             }
         }
