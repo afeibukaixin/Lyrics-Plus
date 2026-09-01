@@ -1,6 +1,6 @@
 [package]
 name = "lyrics-plus"
-version = "2.2.8-beta.1"
+version = "2.2.8-beta.2"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
