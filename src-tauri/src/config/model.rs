@@ -443,8 +443,11 @@ pub struct ListLyricsAppearance {
     pub secondary_font_scale: f64,
     pub line_height: f64,
     pub line_gap: f64,
+    pub secondary_line_gap: f64,
     pub active_color: String,
     pub inactive_color: String,
+    pub active_opacity: f64,
+    pub inactive_opacity: f64,
     pub translation_color: String,
     pub romanization_color: String,
     pub active_background_color: String,
@@ -463,8 +466,11 @@ impl Default for ListLyricsAppearance {
             secondary_font_scale: 0.58,
             line_height: 1.45,
             line_gap: 8.0,
+            secondary_line_gap: 5.0,
             active_color: "#a3e635".into(),
             inactive_color: "#ecfccb".into(),
+            active_opacity: 1.0,
+            inactive_opacity: 0.58,
             translation_color: "#d9f99d".into(),
             romanization_color: "#bef264".into(),
             active_background_color: "rgba(148, 163, 184, 0.14)".into(),
@@ -830,6 +836,9 @@ impl AppConfig {
             list_appearance.secondary_font_scale.clamp(0.35, 1.0);
         list_appearance.line_height = list_appearance.line_height.clamp(0.8, 2.0);
         list_appearance.line_gap = list_appearance.line_gap.clamp(0.0, 32.0);
+        list_appearance.secondary_line_gap = list_appearance.secondary_line_gap.clamp(0.0, 32.0);
+        list_appearance.active_opacity = list_appearance.active_opacity.clamp(0.0, 1.0);
+        list_appearance.inactive_opacity = list_appearance.inactive_opacity.clamp(0.0, 1.0);
         list_appearance.background_opacity =
             list_appearance.background_opacity.clamp(0.0, 1.0);
         if !matches!(

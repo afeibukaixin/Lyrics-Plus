@@ -406,8 +406,11 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                             "secondaryFontScale",
                             "lineHeight",
                             "lineGap",
+                            "secondaryLineGap",
                             "activeColor",
                             "inactiveColor",
+                            "activeOpacity",
+                            "inactiveOpacity",
                             "translationColor",
                             "romanizationColor",
                             "activeBackgroundColor",
@@ -465,12 +468,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
         check_keys(
             overlay,
             raw,
-            &[
-                "visible",
-                "locked",
-                "hideWhenNotPlaying",
-                "appearance",
-            ],
+            &["visible", "locked", "hideWhenNotPlaying", "appearance"],
         )?;
         if let Some(appearance) = overlay.get("appearance") {
             check_keys(
@@ -600,16 +598,10 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             "/lyrics/displays/statusBar/hideWhenNotPlaying",
             "hideWhenNotPlaying",
         ),
-        (
-            "/lyrics/displays/statusBar/showTrayIcon",
-            "showTrayIcon",
-        ),
+        ("/lyrics/displays/statusBar/showTrayIcon", "showTrayIcon"),
         ("/lyrics/displays/statusBar/locked", "locked"),
         ("/lyrics/displays/listWindow/enabled", "enabled"),
-        (
-            "/lyrics/displays/listWindow/alwaysOnTop",
-            "alwaysOnTop",
-        ),
+        ("/lyrics/displays/listWindow/alwaysOnTop", "alwaysOnTop"),
         ("/lyrics/displays/listWindow/locked", "locked"),
         (
             "/lyrics/displays/listWindow/showTranslation",
@@ -625,10 +617,7 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             "hideWhenNotPlaying",
         ),
         ("/lyrics/displays/notch/showLyrics", "showLyrics"),
-        (
-            "/lyrics/displays/notch/showTranslation",
-            "showTranslation",
-        ),
+        ("/lyrics/displays/notch/showTranslation", "showTranslation"),
         (
             "/lyrics/displays/notch/showRomanization",
             "showRomanization",
@@ -692,10 +681,7 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             "fontWeight",
         ),
         ("/lyrics/displays/statusBar/appearance/width", "width"),
-        (
-            "/lyrics/displays/statusBar/appearance/maxWidth",
-            "maxWidth",
-        ),
+        ("/lyrics/displays/statusBar/appearance/maxWidth", "maxWidth"),
         (
             "/lyrics/displays/listWindow/appearance/fontSize",
             "fontSize",
@@ -710,10 +696,7 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             "/lyrics/displays/notch/appearance/secondaryFontWeight",
             "secondaryFontWeight",
         ),
-        (
-            "/lyrics/displays/notch/appearance/maxWidth",
-            "maxWidth",
-        ),
+        ("/lyrics/displays/notch/appearance/maxWidth", "maxWidth"),
         (
             "/lyrics/displays/notch/appearance/expandedMaxWidth",
             "expandedMaxWidth",
@@ -948,15 +931,11 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         }
     }
     if let Some(candidate) = value.pointer("/lyrics/providers/amllBaseUrl") {
-        let base_url = candidate.as_str().ok_or_else(|| {
-            error_at_key(raw, "amllBaseUrl", "amllBaseUrl 必须是字符串")
-        })?;
+        let base_url = candidate
+            .as_str()
+            .ok_or_else(|| error_at_key(raw, "amllBaseUrl", "amllBaseUrl 必须是字符串"))?;
         if base_url.trim().is_empty() {
-            return Err(error_at_key(
-                raw,
-                "amllBaseUrl",
-                "amllBaseUrl 不能为空",
-            ));
+            return Err(error_at_key(raw, "amllBaseUrl", "amllBaseUrl 不能为空"));
         }
     }
     for key in [
@@ -1147,6 +1126,24 @@ fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftEr
         (
             "backgroundOpacity",
             value.pointer("/lyrics/displays/listWindow/appearance/backgroundOpacity"),
+            0.0,
+            1.0,
+        ),
+        (
+            "secondaryLineGap",
+            value.pointer("/lyrics/displays/listWindow/appearance/secondaryLineGap"),
+            0.0,
+            32.0,
+        ),
+        (
+            "activeOpacity",
+            value.pointer("/lyrics/displays/listWindow/appearance/activeOpacity"),
+            0.0,
+            1.0,
+        ),
+        (
+            "inactiveOpacity",
+            value.pointer("/lyrics/displays/listWindow/appearance/inactiveOpacity"),
             0.0,
             1.0,
         ),

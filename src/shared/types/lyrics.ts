@@ -102,8 +102,11 @@ export type ListLyricsAppearance = {
   secondaryFontScale: number;
   lineHeight: number;
   lineGap: number;
+  secondaryLineGap: number;
   activeColor: string;
   inactiveColor: string;
+  activeOpacity: number;
+  inactiveOpacity: number;
   translationColor: string;
   romanizationColor: string;
   activeBackgroundColor: string;

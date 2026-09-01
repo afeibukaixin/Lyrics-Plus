@@ -174,6 +174,7 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
         <RangeRow label={t("settings.style.modeControls.secondaryFontSize")} value={appearance.secondaryFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(appearance.secondaryFontScale * 100)} onChange={(secondaryFontScale) => save(patchAppearance(value, { secondaryFontScale }))} />
         <RangeRow label={t("settings.overlay.lineHeight")} value={appearance.lineHeight} min={0.8} max={2} step={0.05} suffix="×" onChange={(lineHeight) => save(patchAppearance(value, { lineHeight }))} />
         <RangeRow label={t("settings.style.modeControls.lineGap")} value={appearance.lineGap} min={0} max={32} suffix="px" onChange={(lineGap) => save(patchAppearance(value, { lineGap }))} />
+        <RangeRow label={t("settings.style.modeControls.secondaryLineGap")} value={appearance.secondaryLineGap} min={0} max={32} suffix="px" onChange={(secondaryLineGap) => save(patchAppearance(value, { secondaryLineGap }))} />
         <SelectRow label={t("settings.style.modeControls.alignment")} value={appearance.alignment} options={[["left", t("settings.style.modeControls.left")], ["center", t("settings.style.modeControls.center")], ["right", t("settings.style.modeControls.right")]]} onChange={(alignment) => save(patchAppearance(value, { alignment: alignment as ListLyricsPreferences["appearance"]["alignment"] }))} />
       </SettingsSection>
       <SettingsSection id="mode-colors" title={t("settings.style.modeControls.colorEffects")}>
@@ -183,6 +184,8 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
           <ColorRow label={t("settings.overlay.translationColor")} value={appearance.translationColor} onChange={(translationColor) => save(patchAppearance(value, { translationColor }))} />
           <ColorRow label={t("settings.overlay.romanizationColor")} value={appearance.romanizationColor} onChange={(romanizationColor) => save(patchAppearance(value, { romanizationColor }))} />
         </>}
+        <RangeRow label={t("settings.display.listWindow.activeOpacity")} value={appearance.activeOpacity} min={0} max={1} step={0.05} suffix="%" displayValue={Math.round(appearance.activeOpacity * 100)} onChange={(activeOpacity) => save(patchAppearance(value, { activeOpacity }))} />
+        <RangeRow label={t("settings.display.listWindow.inactiveOpacity")} value={appearance.inactiveOpacity} min={0} max={1} step={0.05} suffix="%" displayValue={Math.round(appearance.inactiveOpacity * 100)} onChange={(inactiveOpacity) => save(patchAppearance(value, { inactiveOpacity }))} />
         <ColorRow label={t("settings.style.modeControls.activeBackground")} value={appearance.activeBackgroundColor} onChange={(activeBackgroundColor) => save(patchAppearance(value, { activeBackgroundColor }))} />
       </SettingsSection>
       <SettingsSection id="mode-background" title={t("settings.style.modeControls.backgroundSize")}>

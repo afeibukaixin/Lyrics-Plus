@@ -137,6 +137,10 @@
   backdrop-filter: blur(14px);
 }
 
+:global(html[data-resolved-theme="light"]) .toolbar {
+  background: var(--popover);
+}
+
 .shell[data-toolbar-visible="true"] .toolbar,
 .toolbar:focus-within {
   opacity: 1;
@@ -145,12 +149,6 @@
 }
 
 .toolbar::-webkit-scrollbar { display: none; }
-
-.toolbar button:not(:disabled):hover,
-.toolbar button:not(:disabled):focus-visible {
-  background: var(--accent);
-  color: var(--accent-foreground);
-}
 
 .offsetControl {
   display: flex;
@@ -200,6 +198,13 @@
   color: var(--accent-foreground);
 }
 
+.toolbar button:not(:disabled):hover,
+.toolbar button:not(:disabled):focus-visible,
+.toolbar button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
 .workspace {
   position: relative;
   z-index: 1;
@@ -235,30 +240,33 @@
 .line {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: var(--list-secondary-line-gap);
   padding: 9px 12px;
   border-radius: 6px;
   color: var(--list-inactive-color);
-  opacity: 0.58;
   pointer-events: none;
-  transition: color 180ms ease, opacity 180ms ease, background-color 180ms ease;
+  transition: color 180ms ease, background-color 180ms ease;
 }
 
 .line p {
   font-size: var(--list-font-size);
   font-weight: var(--list-font-weight);
   line-height: var(--list-line-height);
+  opacity: var(--list-inactive-opacity);
   text-align: var(--list-alignment);
   text-shadow: 0 1px 3px rgb(0 0 0 / 36%);
   text-wrap: pretty;
+  transition: opacity 180ms ease;
 }
 
 .line small {
   font-size: calc(var(--list-font-size) * var(--list-secondary-scale));
-  line-height: 1.4;
+  line-height: var(--list-line-height);
+  opacity: var(--list-inactive-opacity);
   text-align: var(--list-alignment);
   text-shadow: 0 1px 2px rgb(0 0 0 / 36%);
   text-wrap: pretty;
+  transition: opacity 180ms ease;
 }
 
 .line small[data-kind="translation"] { color: var(--list-translation-color); }
@@ -266,9 +274,11 @@
 
 .activeLine {
   color: var(--list-active-color);
-  opacity: 1;
   background: var(--list-active-background);
 }
+
+.activeLine p,
+.activeLine small { opacity: var(--list-active-opacity); }
 
 .shell[data-background-mode="transparent"] .activeLine { background: transparent; }
 
@@ -329,6 +339,8 @@
 @media (prefers-reduced-motion: reduce) {
   .header,
   .line,
+  .line p,
+  .line small,
   .toolbar,
   .scroller :global([data-slot="scroll-area-scrollbar"]) { transition: none; }
 }

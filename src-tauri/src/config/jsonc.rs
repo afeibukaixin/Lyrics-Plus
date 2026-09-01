@@ -119,6 +119,9 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             line if line.starts_with("      \"lineGap\":") => {
                 Some(("      ", ConfigComment::LineGap))
             }
+            line if line.starts_with("      \"secondaryLineGap\":") => {
+                Some(("      ", ConfigComment::SecondaryLineGap))
+            }
             line if line.starts_with("      \"longText\":") => {
                 Some(("      ", ConfigComment::LongText))
             }
@@ -133,6 +136,12 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             }
             line if line.starts_with("      \"secondaryFontScale\":") => {
                 Some(("      ", ConfigComment::SecondaryFontScale))
+            }
+            line if line.starts_with("      \"activeOpacity\":") => {
+                Some(("      ", ConfigComment::ActiveLyricsOpacity))
+            }
+            line if line.starts_with("      \"inactiveOpacity\":") => {
+                Some(("      ", ConfigComment::InactiveLyricsOpacity))
             }
             line if line.starts_with("      \"textShadowOffsetX\":") => {
                 Some(("      ", ConfigComment::TextShadow))
