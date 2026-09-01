@@ -13,6 +13,7 @@
   font-size: min(var(--status-font-size), 18px);
   font-weight: var(--status-font-weight);
   line-height: 1;
+  transform: translateY(calc(-1 * var(--status-vertical-offset)));
   white-space: nowrap;
   user-select: none;
 }

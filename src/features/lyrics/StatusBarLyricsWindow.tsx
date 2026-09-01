@@ -21,6 +21,7 @@ export default function StatusBarLyricsWindow() {
       style={{
         "--status-font-family": appearance.fontFamily,
         "--status-font-size": `${appearance.fontSize}px`,
+        "--status-vertical-offset": `${appearance.verticalOffset}px`,
         "--status-font-weight": appearance.fontWeight,
         "--status-text-color": appearance.textColor,
       } as CSSProperties}

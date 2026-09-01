@@ -86,6 +86,7 @@ export type LyricsStyleInheritance = Record<LyricsStyleMode, LyricsModeStyleInhe
 export type StatusBarLyricsAppearance = {
   fontFamily: string;
   fontSize: number;
+  verticalOffset: number;
   fontWeight: OverlayFontWeight;
   textColor: string;
   inactiveColor: string;

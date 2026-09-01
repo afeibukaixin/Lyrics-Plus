@@ -83,6 +83,7 @@ export const defaultLyricsStyleInheritance: LyricsStyleInheritance = {
 export const defaultStatusBarLyricsAppearance: StatusBarLyricsAppearance = {
   fontFamily: defaultOverlayStyle.fontFamily,
   fontSize: 14,
+  verticalOffset: 0,
   fontWeight: 600,
   textColor: "#a3e635",
   inactiveColor: "#ecfccb",

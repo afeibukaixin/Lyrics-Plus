@@ -384,6 +384,7 @@ impl Default for StatusBarLyricsPreferences {
 pub struct StatusBarLyricsAppearance {
     pub font_family: String,
     pub font_size: u16,
+    pub vertical_offset: f64,
     pub font_weight: u16,
     pub text_color: String,
     pub inactive_color: String,
@@ -399,6 +400,7 @@ impl Default for StatusBarLyricsAppearance {
         Self {
             font_family: OverlayAppearance::default().font_family,
             font_size: 14,
+            vertical_offset: 0.0,
             font_weight: 600,
             text_color: "#a3e635".into(),
             inactive_color: "#ecfccb".into(),
@@ -826,6 +828,11 @@ impl AppConfig {
             .filter(|value| !value.is_empty());
         let status_appearance = &mut self.lyrics.displays.status_bar.appearance;
         status_appearance.font_size = status_appearance.font_size.clamp(10, 18);
+        status_appearance.vertical_offset = if status_appearance.vertical_offset.is_finite() {
+            status_appearance.vertical_offset.clamp(-6.0, 6.0)
+        } else {
+            0.0
+        };
         status_appearance.font_weight =
             normalize_display_font_weight(status_appearance.font_weight);
         status_appearance.width = status_appearance.width.clamp(120, 360);

@@ -50,6 +50,7 @@ struct RenderPayload {
     width: f64,
     font_family: String,
     font_size: f64,
+    vertical_offset: f64,
     font_weight: u16,
     alignment: StatusBarAlignment,
     base_color: String,
@@ -232,12 +233,13 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
         }
     }
     content_key.push_str(&format!(
-        ":style:{}:{}:{}:{}:{:?}",
+        ":style:{}:{}:{}:{}:{:?}:{}",
         preferences.appearance.width,
         preferences.appearance.font_family,
         preferences.appearance.font_size,
         preferences.appearance.font_weight,
         preferences.appearance.alignment,
+        preferences.appearance.vertical_offset,
     ));
 
     Some(RenderPayload {
@@ -246,6 +248,7 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
         width: preferences.appearance.width as f64,
         font_family: preferences.appearance.font_family,
         font_size: preferences.appearance.font_size as f64,
+        vertical_offset: preferences.appearance.vertical_offset,
         font_weight: preferences.appearance.font_weight,
         alignment: preferences.appearance.alignment,
         base_color,
@@ -514,7 +517,13 @@ fn render_on_main(payload: RenderPayload, tray: &tauri::tray::TrayIcon) {
                 }
             }
         };
-        let origin_y = ((button_height - layer_height) / 2.0).floor();
+        // AppKit 可能为状态栏按钮使用翻转坐标系，统一让正值表示视觉上移。
+        let vertical_offset = if host_layer.isGeometryFlipped() {
+            -payload.vertical_offset
+        } else {
+            payload.vertical_offset
+        };
+        let origin_y = (button_height - layer_height) / 2.0 + vertical_offset;
 
         CATransaction::begin();
         CATransaction::setDisableActions(true);

@@ -363,6 +363,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                         &[
                             "fontFamily",
                             "fontSize",
+                            "verticalOffset",
                             "fontWeight",
                             "textColor",
                             "inactiveColor",
@@ -1104,6 +1105,12 @@ fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftEr
             value.pointer("/lyrics/displays/statusBar/appearance/fontSize"),
             10.0,
             32.0,
+        ),
+        (
+            "verticalOffset",
+            value.pointer("/lyrics/displays/statusBar/appearance/verticalOffset"),
+            -6.0,
+            6.0,
         ),
         (
             "width",
