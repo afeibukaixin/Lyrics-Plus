@@ -39,7 +39,7 @@ const RELEASE_SMOOTHING: f32 = 0.18;
 const VISUAL_RELEASE_SMOOTHING: f32 = 0.28;
 // 瞬态增强只放大 FFT 中实际出现的正向变化，不生成固定轮廓。
 const SPECTRAL_FLUX_BOOST: f32 = 0.18;
-const BASS_TRANSIENT_BOOST: f32 = 0.14;
+const KICK_TRANSIENT_BOOST: f32 = 0.30;
 const MAX_TRANSIENT_BOOST: f32 = 0.24;
 // 衰减到该阈值后直接归零，保证暂停时对外最终是严格的全零。
 const SILENCE_EPSILON: f32 = 0.001;
@@ -349,18 +349,16 @@ impl AudioVisualizerProcessor {
                 0.0
             }
         });
-        let bass_flux = normalized[0].max(normalized[1])
-            - self.previous_normalized_levels[0].max(self.previous_normalized_levels[1]);
-        let bass_flux = bass_flux.max(0.0);
+        let kick_flux = (normalized[0] - self.previous_normalized_levels[0]).max(0.0);
         let levels = std::array::from_fn(|index| {
             let flux = (normalized[index] - self.previous_normalized_levels[index]).max(0.0);
             let local_boost = (flux * SPECTRAL_FLUX_BOOST).min(MAX_TRANSIENT_BOOST);
-            let bass_boost = if index < 2 {
-                (bass_flux * BASS_TRANSIENT_BOOST).min(MAX_TRANSIENT_BOOST)
+            let kick_boost = if index == 0 {
+                (kick_flux * KICK_TRANSIENT_BOOST).min(MAX_TRANSIENT_BOOST)
             } else {
                 0.0
             };
-            (normalized[index].powf(NORMALIZATION_CURVE) + local_boost + bass_boost).min(1.0)
+            (normalized[index].powf(NORMALIZATION_CURVE) + local_boost + kick_boost).min(1.0)
         });
         self.previous_normalized_levels = normalized;
         self.process_visual_levels(levels)
