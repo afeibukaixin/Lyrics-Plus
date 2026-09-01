@@ -1,3 +1,5 @@
+use base64::Engine;
+
 fn timestamp_ms(tag: &str) -> Option<u64> {
     let mut parts = tag.trim().split(':');
     let minutes: u64 = parts.next()?.trim().parse().ok()?;
@@ -13,7 +15,9 @@ fn timestamp_ms(tag: &str) -> Option<u64> {
         let fraction_part = fraction_part.trim();
         if fraction_part.is_empty()
             || fraction_part.len() > 3
-            || !fraction_part.chars().all(|character| character.is_ascii_digit())
+            || !fraction_part
+                .chars()
+                .all(|character| character.is_ascii_digit())
         {
             return None;
         }
@@ -29,11 +33,7 @@ fn timestamp_ms(tag: &str) -> Option<u64> {
         }
         (seconds * 1_000.0).round() as u64
     };
-    Some(
-        minutes
-            .saturating_mul(60_000)
-            .saturating_add(milliseconds),
-    )
+    Some(minutes.saturating_mul(60_000).saturating_add(milliseconds))
 }
 fn finish_lines(entries: impl IntoIterator<Item = (u64, String)>) -> Vec<LyricsLine> {
     let mut entries = entries.into_iter().collect::<Vec<_>>();
@@ -96,9 +96,9 @@ fn looks_like_lyricsfile(raw: &str) -> bool {
     raw.lines()
         .map(str::trim)
         .find(|line| !line.is_empty() && !line.starts_with('#') && *line != "---")
-        .is_some_and(|line| line == "version: '1.0'"
-            || line == "version: \"1.0\""
-            || line.starts_with("version:"))
+        .is_some_and(|line| {
+            line == "version: '1.0'" || line == "version: \"1.0\"" || line.starts_with("version:")
+        })
 }
 
 fn parse_lyricsfile(
@@ -213,6 +213,204 @@ fn words_next_start(words: &[(u64, Option<u64>, String)], index: usize) -> Optio
     words.get(index + 1).map(|(start_ms, _, _)| *start_ms)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct LyricsQualityReport {
+    pub has_valid_synced_original: bool,
+    pub degraded_word_lines: usize,
+    pub last_valid_time_ms: Option<u64>,
+    pub auto_applicable: bool,
+}
+
+/// 对所有解析分支执行同一套时间轴收尾校验，保持公开解析函数的返回类型不变。
+fn normalize_document(document: &mut LyricsDocument) {
+    for line in &mut document.tracks.original.lines {
+        let Some(words) = line.words.as_mut() else {
+            continue;
+        };
+        let mut previous_start = None;
+        let mut invalid = false;
+        for word in words.iter_mut() {
+            if previous_start.is_some_and(|start| word.start_ms < start)
+                || word.end_ms < word.start_ms
+            {
+                invalid = true;
+                break;
+            }
+            if word.start_ms < line.start_ms {
+                let overflow = line.start_ms - word.start_ms;
+                if overflow <= 250 {
+                    word.start_ms = line.start_ms;
+                } else {
+                    invalid = true;
+                    break;
+                }
+            }
+            if let Some(line_end) = line.end_ms {
+                if word.end_ms > line_end {
+                    let overflow = word.end_ms - line_end;
+                    if overflow <= 250 {
+                        word.end_ms = line_end;
+                    } else {
+                        invalid = true;
+                        break;
+                    }
+                }
+                if word.start_ms > line_end {
+                    let overflow = word.start_ms - line_end;
+                    if overflow <= 250 {
+                        word.start_ms = line_end;
+                        word.end_ms = word.end_ms.max(word.start_ms);
+                    } else {
+                        invalid = true;
+                        break;
+                    }
+                }
+            }
+            if word.end_ms < word.start_ms {
+                invalid = true;
+                break;
+            }
+            previous_start = Some(word.start_ms);
+        }
+        if invalid {
+            line.words = None;
+        }
+    }
+}
+
+pub(crate) fn lyrics_quality_report(
+    document: &LyricsDocument,
+    duration_ms: Option<u64>,
+) -> LyricsQualityReport {
+    let original = &document.tracks.original.lines;
+    let has_valid_synced_original = original.iter().any(|line| {
+        !line.text.trim().is_empty() && line.start_ms <= line.end_ms.unwrap_or(u64::MAX)
+    });
+    let last_valid_time_ms = original
+        .iter()
+        .filter(|line| {
+            !line.text.trim().is_empty() && line.start_ms <= line.end_ms.unwrap_or(u64::MAX)
+        })
+        .map(|line| {
+            line.end_ms.unwrap_or_else(|| {
+                line.words
+                    .as_ref()
+                    .and_then(|words| words.last())
+                    .map(|word| word.end_ms)
+                    .unwrap_or(line.start_ms)
+            })
+        })
+        .max();
+    let attempted_word_lines = attempted_word_line_starts(document);
+    let degraded_word_lines = original
+        .iter()
+        .filter(|line| {
+            !line.text.trim().is_empty()
+                && line.words.is_none()
+                && attempted_word_lines.contains(&line.start_ms)
+        })
+        .count();
+    let auto_applicable = has_valid_synced_original
+        && duration_ms.is_none_or(|duration| {
+            last_valid_time_ms.is_none_or(|last| last <= duration.saturating_add(12_000))
+        });
+    LyricsQualityReport {
+        has_valid_synced_original,
+        degraded_word_lines,
+        last_valid_time_ms,
+        auto_applicable,
+    }
+}
+
+pub(crate) fn semantic_fingerprint(document: &LyricsDocument) -> String {
+    document
+        .tracks
+        .original
+        .lines
+        .iter()
+        .flat_map(|line| line.text.chars())
+        .filter(|character| character.is_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+fn attempted_word_line_starts(document: &LyricsDocument) -> std::collections::HashSet<u64> {
+    let mut starts = std::collections::HashSet::new();
+    match document.metadata.original_format.as_str() {
+        "enhanced_lrc" => {
+            let mut track_kind = 0_u8;
+            for source_line in document.raw.lines() {
+                match source_line.trim() {
+                    "[lyrics-plus:translation]" => {
+                        track_kind = 1;
+                        continue;
+                    }
+                    "[lyrics-plus:romanization]" => {
+                        track_kind = 2;
+                        continue;
+                    }
+                    _ => {}
+                }
+                if track_kind != 0 {
+                    continue;
+                }
+                let mut remaining = source_line.trim_start();
+                let mut timestamps = Vec::new();
+                while let Some(after_open) = remaining.strip_prefix('[') {
+                    let Some(end) = after_open.find(']') else {
+                        break;
+                    };
+                    let tag = &after_open[..end];
+                    remaining = &after_open[end + 1..];
+                    if let Some(time_ms) = timestamp_ms(tag) {
+                        timestamps.push(time_ms);
+                    }
+                }
+                if remaining.contains('<') {
+                    starts.extend(timestamps);
+                }
+            }
+        }
+        "qrc" | "yrc" | "krc" => {
+            let marker = if document.metadata.original_format == "krc" {
+                '<'
+            } else {
+                '('
+            };
+            let mut track_kind = 0_u8;
+            for source_line in document.raw.lines() {
+                match source_line.trim() {
+                    "[lyrics-plus:translation]" => {
+                        track_kind = 1;
+                        continue;
+                    }
+                    "[lyrics-plus:romanization]" => {
+                        track_kind = 2;
+                        continue;
+                    }
+                    _ => {}
+                }
+                if track_kind != 0 {
+                    continue;
+                }
+                let line = source_line.trim();
+                let Some(after_open) = line.strip_prefix('[') else {
+                    continue;
+                };
+                let Some(close) = after_open.find(']') else {
+                    continue;
+                };
+                let values = parse_integer_list(&after_open[..close]);
+                if values.len() == 2 && after_open[close + 1..].contains(marker) {
+                    starts.insert(values[0]);
+                }
+            }
+        }
+        _ => {}
+    }
+    starts
+}
+
 pub fn parse_lrc_with_options(
     raw: &str,
     source: impl Into<String>,
@@ -220,10 +418,12 @@ pub fn parse_lrc_with_options(
 ) -> Result<LyricsDocument, String> {
     let source = source.into();
     if let Some(document) = parse_lyricsfile(raw, &source, manual_selected)? {
+        let mut document = document;
+        normalize_document(&mut document);
         return Ok(document);
     }
     if let Some(tracks) = parse_ttml_lyrics(raw) {
-        return Ok(LyricsDocument {
+        let mut document = LyricsDocument {
             metadata: LyricsMetadata {
                 title: None,
                 artist: None,
@@ -235,12 +435,24 @@ pub fn parse_lrc_with_options(
             tracks,
             offset_ms: 0,
             raw: raw.to_string(),
-        });
+        };
+        normalize_document(&mut document);
+        return Ok(document);
     }
     if let Some((format, lines)) = parse_platform_word_lyrics(raw) {
         let (title, artist, album, embedded_offset) = metadata_tags(raw);
-        let (translation, romanization) = parse_auxiliary_lrc_tracks(raw);
-        return Ok(LyricsDocument {
+        let (mut translation, mut romanization) = parse_auxiliary_lrc_tracks(raw);
+        if format == "krc" && (translation.is_empty() || romanization.is_empty()) {
+            let (language_translation, language_romanization) =
+                parse_krc_language_tracks(raw);
+            if translation.is_empty() {
+                translation = language_translation;
+            }
+            if romanization.is_empty() {
+                romanization = language_romanization;
+            }
+        }
+        let mut document = LyricsDocument {
             metadata: LyricsMetadata {
                 title,
                 artist,
@@ -259,7 +471,9 @@ pub fn parse_lrc_with_options(
             },
             offset_ms: embedded_offset,
             raw: raw.to_string(),
-        });
+        };
+        normalize_document(&mut document);
+        return Ok(document);
     }
     let mut title = None;
     let mut artist = None;
@@ -272,6 +486,7 @@ pub fn parse_lrc_with_options(
     let mut explicit_romanization_seen = false;
     let mut track_kind = 0_u8;
     let mut word_timings = BTreeMap::<u64, Vec<LyricsWord>>::new();
+    let mut saw_enhanced_words = false;
 
     for source_line in raw.lines() {
         match source_line.trim() {
@@ -313,7 +528,11 @@ pub fn parse_lrc_with_options(
             }
         }
 
-        let (text, words) = parse_enhanced_words(remaining);
+        let parsed_words = parse_enhanced_words(remaining);
+        saw_enhanced_words |= parsed_words.has_word_tags;
+        let malformed_words = parsed_words.malformed;
+        let text = parsed_words.text;
+        let words = parsed_words.words;
         for time_ms in timestamps {
             let texts = match track_kind {
                 1 => explicit_translation.entry(time_ms).or_default(),
@@ -323,7 +542,7 @@ pub fn parse_lrc_with_options(
             if !texts.contains(&text) {
                 texts.push(text.clone());
             }
-            if track_kind == 0 && !words.is_empty() {
+            if track_kind == 0 && !malformed_words && !words.is_empty() {
                 word_timings.entry(time_ms).or_insert_with(|| words.clone());
             }
         }
@@ -373,13 +592,13 @@ pub fn parse_lrc_with_options(
         )
     };
 
-    Ok(LyricsDocument {
+    let mut document = LyricsDocument {
         metadata: LyricsMetadata {
             title,
             artist,
             album,
             source,
-            original_format: if original.iter().any(|line| line.words.is_some()) {
+            original_format: if saw_enhanced_words || original.iter().any(|line| line.words.is_some()) {
                 "enhanced_lrc".into()
             } else {
                 "lrc".into()
@@ -397,7 +616,9 @@ pub fn parse_lrc_with_options(
         },
         offset_ms: embedded_offset,
         raw: raw.to_string(),
-    })
+    };
+    normalize_document(&mut document);
+    Ok(document)
 }
 
 fn metadata_tags(raw: &str) -> (Option<String>, Option<String>, Option<String>, i64) {
@@ -428,16 +649,27 @@ fn metadata_tags(raw: &str) -> (Option<String>, Option<String>, Option<String>, 
     (title, artist, album, offset)
 }
 
-fn parse_enhanced_words(raw: &str) -> (String, Vec<LyricsWord>) {
+struct ParsedEnhancedWords {
+    text: String,
+    words: Vec<LyricsWord>,
+    malformed: bool,
+    has_word_tags: bool,
+}
+
+fn parse_enhanced_words(raw: &str) -> ParsedEnhancedWords {
     let mut words: Vec<LyricsWord> = Vec::new();
+    let mut malformed = false;
+    let has_word_tags = raw.contains('<');
     let mut cursor = 0;
     while let Some(relative_open) = raw[cursor..].find('<') {
         let open = cursor + relative_open;
         let Some(relative_close) = raw[open + 1..].find('>') else {
+            malformed = true;
             break;
         };
         let close = open + 1 + relative_close;
         let Some(start_ms) = timestamp_ms(&raw[open + 1..close]) else {
+            malformed = true;
             cursor = close + 1;
             continue;
         };
@@ -462,8 +694,21 @@ fn parse_enhanced_words(raw: &str) -> (String, Vec<LyricsWord>) {
             break;
         }
     }
+    if malformed {
+        return ParsedEnhancedWords {
+            text: recover_platform_text(raw),
+            words: Vec::new(),
+            malformed,
+            has_word_tags,
+        };
+    }
     if words.is_empty() {
-        return (raw.trim().to_string(), words);
+        return ParsedEnhancedWords {
+            text: raw.trim().to_string(),
+            words,
+            malformed,
+            has_word_tags,
+        };
     }
     let text = words
         .iter()
@@ -471,7 +716,12 @@ fn parse_enhanced_words(raw: &str) -> (String, Vec<LyricsWord>) {
         .collect::<String>()
         .trim()
         .to_string();
-    (text, words)
+    ParsedEnhancedWords {
+        text,
+        words,
+        malformed,
+        has_word_tags,
+    }
 }
 
 fn parse_platform_word_lyrics(raw: &str) -> Option<(&'static str, Vec<LyricsLine>)> {
@@ -493,13 +743,27 @@ fn parse_platform_word_lyrics(raw: &str) -> Option<(&'static str, Vec<LyricsLine
         let duration_ms = values[1];
         let content = &after_open[close + 1..];
         let content = content.trim_start();
-        let (detected, words) = if content.starts_with('(') {
+        let (detected, parsed_words) = if content.starts_with('(') {
             ("yrc", parse_yrc_words(content))
         } else if content.starts_with('<') {
             ("krc", parse_krc_words(content, start_ms))
         } else {
             ("qrc", parse_qrc_words(content))
         };
+        let text = recover_platform_text(content);
+        if parsed_words.malformed {
+            if !text.is_empty() {
+                format.get_or_insert(detected);
+                lines.push(LyricsLine {
+                    start_ms,
+                    end_ms: Some(start_ms.saturating_add(duration_ms)),
+                    text,
+                    words: None,
+                });
+            }
+            continue;
+        }
+        let words = parsed_words.words;
         if words.is_empty() {
             if content.trim().is_empty() {
                 lines.push(LyricsLine {
@@ -508,14 +772,28 @@ fn parse_platform_word_lyrics(raw: &str) -> Option<(&'static str, Vec<LyricsLine
                     text: String::new(),
                     words: None,
                 });
+            } else {
+                if !text.is_empty() {
+                    format.get_or_insert(detected);
+                    lines.push(LyricsLine {
+                        start_ms,
+                        end_ms: Some(start_ms.saturating_add(duration_ms)),
+                        text,
+                        words: None,
+                    });
+                }
             }
             continue;
         }
         format.get_or_insert(detected);
-        let text = words
-            .iter()
-            .map(|word| word.text.as_str())
-            .collect::<String>();
+        let text = if text.is_empty() {
+            words
+                .iter()
+                .map(|word| word.text.as_str())
+                .collect::<String>()
+        } else {
+            text
+        };
         lines.push(LyricsLine {
             start_ms,
             end_ms: Some(start_ms.saturating_add(duration_ms)),
@@ -525,6 +803,136 @@ fn parse_platform_word_lyrics(raw: &str) -> Option<(&'static str, Vec<LyricsLine
     }
     lines.sort_by_key(|line| line.start_ms);
     format.map(|format| (format, lines))
+}
+
+struct ParsedPlatformWords {
+    words: Vec<LyricsWord>,
+    malformed: bool,
+}
+
+fn recover_platform_text(raw: &str) -> String {
+    let mut text = String::new();
+    let mut cursor = 0;
+    let bytes = raw.as_bytes();
+    while cursor < bytes.len() {
+        let Some(relative_open) = raw[cursor..].find(|character| matches!(character, '(' | '<'))
+        else {
+            text.push_str(&raw[cursor..]);
+            break;
+        };
+        let open = cursor + relative_open;
+        text.push_str(&raw[cursor..open]);
+        let opener = bytes[open];
+        let closer = if opener == b'(' { b')' } else { b'>' };
+        let Some(relative_close) = raw[open + 1..].find(closer as char) else {
+            // 不完整标签后面的可见文本仍应保留，避免整行丢失。
+            let tail = &raw[open + 1..];
+            if tail
+                .chars()
+                .any(|character| !character.is_ascii_digit() && !",.-".contains(character))
+            {
+                text.push_str(tail);
+            }
+            break;
+        };
+        cursor = open + 1 + relative_close + 1;
+    }
+    text.trim().to_string()
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct KrcLanguagePayload {
+    #[serde(default)]
+    content: Vec<KrcLanguageTrack>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct KrcLanguageTrack {
+    #[serde(default)]
+    lyric_content: Vec<Vec<String>>,
+    #[serde(rename = "type", default)]
+    kind: u8,
+}
+
+fn parse_krc_language_tracks(raw: &str) -> (Vec<LyricsLine>, Vec<LyricsLine>) {
+    let Some(encoded) = raw.lines().find_map(krc_language_value) else {
+        return (Vec::new(), Vec::new());
+    };
+    let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(encoded) else {
+        return (Vec::new(), Vec::new());
+    };
+    let Ok(payload) = serde_json::from_slice::<KrcLanguagePayload>(&decoded) else {
+        return (Vec::new(), Vec::new());
+    };
+    let timings = krc_line_timings(raw);
+    let mut translation = None;
+    let mut romanization = None;
+    for track in payload.content {
+        let target = match track.kind {
+            0 if romanization.is_none() => &mut romanization,
+            1 if translation.is_none() => &mut translation,
+            _ => continue,
+        };
+        let lines = language_lines(track.lyric_content, &timings);
+        if !lines.is_empty() {
+            *target = Some(lines);
+        }
+    }
+    (
+        translation.unwrap_or_default(),
+        romanization.unwrap_or_default(),
+    )
+}
+
+fn krc_language_value(source_line: &str) -> Option<&str> {
+    let tag = source_line.trim();
+    let tag = tag.strip_prefix('[')?.strip_suffix(']')?;
+    let (key, value) = tag.split_once(':')?;
+    key.trim()
+        .eq_ignore_ascii_case("language")
+        .then_some(value.trim())
+        .filter(|value| !value.is_empty())
+}
+
+fn krc_line_timings(raw: &str) -> Vec<(u64, u64)> {
+    raw.lines()
+        .filter_map(|source_line| {
+            let line = source_line.trim();
+            let after_open = line.strip_prefix('[')?;
+            let close = after_open.find(']')?;
+            let values = parse_integer_list(&after_open[..close]);
+            if values.len() != 2 || !after_open[close + 1..].trim_start().starts_with('<') {
+                return None;
+            }
+            Some((values[0], values[1]))
+        })
+        .collect()
+}
+
+fn language_lines(content: Vec<Vec<String>>, timings: &[(u64, u64)]) -> Vec<LyricsLine> {
+    let mut lines = content
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, fragments)| {
+            let (start_ms, duration_ms) = *timings.get(index)?;
+            let text = fragments
+                .iter()
+                .map(String::as_str)
+                .collect::<String>()
+                .trim()
+                .to_string();
+            (!text.is_empty()).then_some(LyricsLine {
+                start_ms,
+                end_ms: Some(start_ms.saturating_add(duration_ms)),
+                text,
+                words: None,
+            })
+        })
+        .collect::<Vec<_>>();
+    lines.sort_by_key(|line| line.start_ms);
+    lines
 }
 
 fn parse_auxiliary_lrc_tracks(raw: &str) -> (Vec<LyricsLine>, Vec<LyricsLine>) {
@@ -603,17 +1011,20 @@ fn parse_auxiliary_lrc_tracks(raw: &str) -> (Vec<LyricsLine>, Vec<LyricsLine>) {
     (translation, romanization)
 }
 
-fn parse_yrc_words(raw: &str) -> Vec<LyricsWord> {
+fn parse_yrc_words(raw: &str) -> ParsedPlatformWords {
     let mut words: Vec<LyricsWord> = Vec::new();
+    let mut malformed = false;
     let mut cursor = 0;
     while let Some(relative_open) = raw[cursor..].find('(') {
         let open = cursor + relative_open;
         let Some(relative_close) = raw[open + 1..].find(')') else {
+            malformed = true;
             break;
         };
         let close = open + 1 + relative_close;
         let values = parse_integer_list(&raw[open + 1..close]);
         if values.len() != 3 {
+            malformed = true;
             cursor = close + 1;
             continue;
         }
@@ -635,20 +1046,23 @@ fn parse_yrc_words(raw: &str) -> Vec<LyricsWord> {
             break;
         }
     }
-    words
+    ParsedPlatformWords { words, malformed }
 }
 
-fn parse_qrc_words(raw: &str) -> Vec<LyricsWord> {
+fn parse_qrc_words(raw: &str) -> ParsedPlatformWords {
     let mut words = Vec::new();
+    let mut malformed = false;
     let mut cursor = 0;
     while let Some(relative_open) = raw[cursor..].find('(') {
         let open = cursor + relative_open;
         let Some(relative_close) = raw[open + 1..].find(')') else {
+            malformed = true;
             break;
         };
         let close = open + 1 + relative_close;
         let values = parse_integer_list(&raw[open + 1..close]);
         if values.len() != 2 {
+            malformed = true;
             cursor = close + 1;
             continue;
         }
@@ -662,20 +1076,23 @@ fn parse_qrc_words(raw: &str) -> Vec<LyricsWord> {
         }
         cursor = close + 1;
     }
-    words
+    ParsedPlatformWords { words, malformed }
 }
 
-fn parse_krc_words(raw: &str, line_start_ms: u64) -> Vec<LyricsWord> {
+fn parse_krc_words(raw: &str, line_start_ms: u64) -> ParsedPlatformWords {
     let mut words = Vec::new();
+    let mut malformed = false;
     let mut cursor = 0;
     while let Some(relative_open) = raw[cursor..].find('<') {
         let open = cursor + relative_open;
         let Some(relative_close) = raw[open + 1..].find('>') else {
+            malformed = true;
             break;
         };
         let close = open + 1 + relative_close;
         let values = parse_integer_list(&raw[open + 1..close]);
         if values.len() != 3 {
+            malformed = true;
             cursor = close + 1;
             continue;
         }
@@ -698,13 +1115,14 @@ fn parse_krc_words(raw: &str, line_start_ms: u64) -> Vec<LyricsWord> {
             break;
         }
     }
-    words
+    ParsedPlatformWords { words, malformed }
 }
 
 fn parse_integer_list(raw: &str) -> Vec<u64> {
     raw.split(',')
-        .filter_map(|value| value.trim().parse().ok())
-        .collect()
+        .map(|value| value.trim().parse::<u64>().ok())
+        .collect::<Option<Vec<_>>>()
+        .unwrap_or_default()
 }
 
 fn parse_ttml_lyrics(raw: &str) -> Option<LyricsTracks> {
