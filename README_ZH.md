@@ -81,4 +81,4 @@ pnpm tauri build
 
 - [MxIris-LyricsX-Project/LyricsX](https://github.com/MxIris-LyricsX-Project/LyricsX)
 - [ddddxxx/LyricsX](https://github.com/ddddxxx/LyricsX)
-- [ChouChiu/Lyrics-Helper](https://github.com/ChouChiu/Lyrics-Helper) —— Lyrics Plus 使用其 Apache-2.0 许可的 `lyrics-crypto` 库解密 QQMusic QRC 和酷狗 KRC 歌词。
+- [ChouChiu/Lyrics-Helper](https://github.com/ChouChiu/Lyrics-Helper)

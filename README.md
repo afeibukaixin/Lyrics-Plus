@@ -81,4 +81,4 @@ The application code is released under the [MIT License](LICENSE). The MIT Licen
 
 - [MxIris-LyricsX-Project/LyricsX](https://github.com/MxIris-LyricsX-Project/LyricsX)
 - [ddddxxx/LyricsX](https://github.com/ddddxxx/LyricsX)
-- [ChouChiu/Lyrics-Helper](https://github.com/ChouChiu/Lyrics-Helper) — Lyrics Plus uses its Apache-2.0-licensed `lyrics-crypto` library to decrypt QQMusic QRC and Kugou KRC lyrics.
+- [ChouChiu/Lyrics-Helper](https://github.com/ChouChiu/Lyrics-Helper)
