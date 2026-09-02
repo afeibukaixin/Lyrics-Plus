@@ -511,9 +511,6 @@ pub(crate) fn activate_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     apply_dock_icon_hidden(app, true)?;
     setup_tray(app).map_err(|error| error.to_string())?;
-    if !configured.app.language.uses_native_chinese() {
-        apply_native_language(app, UiLanguage::EnUs)?;
-    }
     if let Err(error) = register_global_shortcuts(app, &configured.app.shortcuts) {
         log::warn!(
             "Failed to register global shortcuts at startup; runtime will continue: {error}"

@@ -1,5 +1,8 @@
 use serde::Deserialize;
 
+#[cfg(target_os = "macos")]
+use objc2_foundation::NSLocale;
+
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 pub enum UiLanguage {
     #[serde(rename = "zh-CN")]
@@ -78,6 +81,54 @@ pub enum ConfigComment {
 }
 
 impl UiLanguage {
+    pub(crate) fn from_language_tag(language: &str) -> Option<Self> {
+        let normalized = language.trim().replace('_', "-").to_ascii_lowercase();
+        if normalized == "zh"
+            || normalized == "zh-cn"
+            || normalized.starts_with("zh-cn-")
+            || normalized == "zh-sg"
+            || normalized.starts_with("zh-sg-")
+            || normalized.starts_with("zh-hans")
+        {
+            return Some(Self::ZhCn);
+        }
+
+        if normalized == "zh-hk"
+            || normalized.starts_with("zh-hk-")
+            || normalized == "zh-hant-hk"
+            || normalized.starts_with("zh-hant-hk-")
+            || normalized == "zh-mo"
+            || normalized.starts_with("zh-mo-")
+            || normalized == "zh-hant-mo"
+            || normalized.starts_with("zh-hant-mo-")
+            || normalized == "zh-tw"
+            || normalized.starts_with("zh-tw-")
+            || normalized.starts_with("zh-hant")
+            || normalized == "en"
+            || normalized.starts_with("en-")
+        {
+            return Some(Self::EnUs);
+        }
+
+        None
+    }
+
+    pub(crate) fn system_default() -> Self {
+        #[cfg(target_os = "macos")]
+        {
+            // 系统首选语言可包含当前不支持的语言；继续查找后续可用项。
+            let preferred_languages = NSLocale::preferredLanguages();
+            for index in 0..preferred_languages.count() {
+                let language = preferred_languages.objectAtIndex(index).to_string();
+                if let Some(language) = Self::from_language_tag(&language) {
+                    return language;
+                }
+            }
+        }
+
+        Self::EnUs
+    }
+
     pub fn native_labels(self) -> NativeLabels {
         match self {
             Self::ZhCn => NativeLabels {

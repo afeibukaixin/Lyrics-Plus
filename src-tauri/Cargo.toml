@@ -47,10 +47,12 @@ tauri-plugin-process = "2"
 block2 = "0.6"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["NSAttributedString", "NSBitmapImageRep", "NSButton", "NSColor", "NSControl", "NSEvent", "NSFont", "NSFontDescriptor", "NSFontManager", "NSGraphics", "NSGraphicsContext", "NSImage", "NSImageRep", "NSMenu", "NSResponder", "NSRunningApplication", "NSScreen", "NSStatusBarButton", "NSStatusItem", "NSUserInterfaceItemIdentification", "NSView", "NSVisualEffectView", "NSWindow", "NSWorkspace", "libc", "objc2-core-graphics", "objc2-quartz-core"] }
-objc2-core-graphics = { version = "0.3", default-features = false, features = ["CGDirectDisplay"] }
+objc2-core-graphics = { version = "0.3", default-features = false, features = ["CGColor", "CGDirectDisplay"] }
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["objc2"] }
+objc2-core-video = { version = "0.3", default-features = false, features = ["CVBase", "CVDisplayLink", "CVReturn", "objc2", "objc2-core-graphics"] }
 objc2-core-services = { version = "0.3", default-features = false, features = ["AE", "AEDataModel"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["block2", "NSArray", "NSAppleEventDescriptor", "NSAttributedString", "NSBundle", "NSDictionary", "NSEnumerator", "NSError", "NSGeometry", "NSNotification", "NSObject", "NSOperation", "NSRange", "NSString", "NSURL", "NSValue"] }
-objc2-quartz-core = { version = "0.3", default-features = false, features = ["CALayer", "CATextLayer", "CATransaction", "objc2-core-foundation"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["block2", "NSArray", "NSAppleEventDescriptor", "NSAttributedString", "NSBundle", "NSDictionary", "NSEnumerator", "NSError", "NSGeometry", "NSLocale", "NSObjCRuntime", "NSNotification", "NSObject", "NSOperation", "NSRange", "NSRunLoop", "NSString", "NSURL", "NSValue"] }
+objc2-quartz-core = { version = "0.3", default-features = false, features = ["CADisplayLink", "CALayer", "CATextLayer", "CATransaction", "objc2-core-foundation", "objc2-core-graphics"] }
 unicode-segmentation = "1"
 objc2-scripting-bridge = { version = "0.3", default-features = false, features = ["std", "SBApplication", "SBObject", "libc", "objc2-core-services"] }
 objc2-service-management = { version = "0.3", default-features = false, features = ["std", "block2", "objc2", "objc2-foundation", "SMAppService"] }

@@ -79,15 +79,16 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     if app.try_state::<TrayMenuState>().is_some() {
         return Ok(());
     }
-    let labels = UiLanguage::ZhCn.native_labels();
+    let configured = app.state::<AppState>().config.snapshot();
+    let labels = configured.app.language.native_language().native_labels();
     let overlay_visible = app
         .state::<AppState>()
         .overlay_settings
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .visible;
-    let display_config = app.state::<AppState>().config.snapshot().lyrics.displays;
-    let shortcuts = app.state::<AppState>().config.snapshot().app.shortcuts;
+    let display_config = configured.lyrics.displays;
+    let shortcuts = configured.app.shortcuts;
     let accelerator = |value: &str| {
         (!value.trim().is_empty()).then(|| value.replace("CommandOrControl", "CmdOrCtrl"))
     };

@@ -135,6 +135,15 @@ pub(crate) fn normalize_registered_application(
 pub struct LanguagePreference(String);
 
 impl LanguagePreference {
+    pub fn native_language(&self) -> crate::language::UiLanguage {
+        if self.0 == "system" {
+            crate::language::UiLanguage::system_default()
+        } else {
+            crate::language::UiLanguage::from_language_tag(&self.0)
+                .unwrap_or(crate::language::UiLanguage::EnUs)
+        }
+    }
+
     pub fn uses_native_chinese(&self) -> bool {
         self.0 == "zh-CN"
     }
