@@ -147,6 +147,24 @@ fn migrate_v59_switch_lyrics_shortcut(user: &mut Value) {
     );
 }
 
+fn migrate_v62_status_bar_secondary_font_weight(user: &mut Value, version: u16) {
+    if version >= 62 {
+        return;
+    }
+    let Some(appearance) = user
+        .pointer_mut("/lyrics/displays/statusBar/appearance")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    if appearance.contains_key("secondaryFontWeight") {
+        return;
+    }
+    if let Some(font_weight) = appearance.get("fontWeight").cloned() {
+        appearance.insert("secondaryFontWeight".into(), font_weight);
+    }
+}
+
 fn migrate_legacy_overlay_layout(
     user: &mut Value,
     version: u16,

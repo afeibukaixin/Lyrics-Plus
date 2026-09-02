@@ -62,6 +62,8 @@ function materializeLyricsStyleInheritance(config: AppConfig): AppConfig {
     textColor: base.activeColor,
     inactiveColor: base.inactiveColor,
     highlightColor: base.activeColor,
+    translationColor: base.translationColor,
+    romanizationColor: base.romanizationColor,
   });
   if (inheritance.listWindow.inheritFontFamily) next.lyrics.displays.listWindow.appearance.fontFamily = base.fontFamily;
   if (inheritance.listWindow.inheritColors) Object.assign(next.lyrics.displays.listWindow.appearance, {
@@ -96,7 +98,7 @@ function applyPendingNotchPreferences(
 }
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 60,
+  schemaVersion: 62,
   app: { theme: "dark", language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, hideMenuBarIcon: false, silentStartup: false, autoCheckUpdates: true, lyricsWindowsShowOnAllSpaces: false, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     chineseConversion: "original",
@@ -122,7 +124,7 @@ const defaultConfig: AppConfig = {
       ],
     },
     displays: {
-      statusBar: { enabled: false, hideWhenNotPlaying: false, appearance: defaultStatusBarLyricsAppearance },
+      statusBar: { enabled: false, hideWhenNotPlaying: false, doubleLine: false, showTranslation: false, showRomanization: false, appearance: defaultStatusBarLyricsAppearance },
       listWindow: { enabled: false, alwaysOnTop: false, locked: false, showTranslation: true, showRomanization: false, appearance: defaultListLyricsAppearance },
       notch: {
         enabled: false,

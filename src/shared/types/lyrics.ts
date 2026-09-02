@@ -88,9 +88,12 @@ export type StatusBarLyricsAppearance = {
   fontSize: number;
   verticalOffset: number;
   fontWeight: OverlayFontWeight;
+  secondaryFontWeight: OverlayFontWeight;
   textColor: string;
   inactiveColor: string;
   highlightColor: string;
+  translationColor: string;
+  romanizationColor: string;
   karaokeStyle: CompactKaraokeStyle;
   alignment: StatusBarAlignment;
   width: number;
@@ -146,6 +149,9 @@ export type LyricsDisplayPreferences = {
   statusBar: {
     enabled: boolean;
     hideWhenNotPlaying: boolean;
+    doubleLine: boolean;
+    showTranslation: boolean;
+    showRomanization: boolean;
     appearance: StatusBarLyricsAppearance;
   };
   listWindow: {

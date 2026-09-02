@@ -94,6 +94,7 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
     migrate_v54_notch_double_line_settings(&mut user, version);
     migrate_v57_chinese_conversion(&mut user, version);
     migrate_v59_switch_lyrics_shortcut(&mut user);
+    migrate_v62_status_bar_secondary_font_weight(&mut user, version);
     remove_retired_fullscreen_space_preferences(&mut user);
     validate_known_fields(&user, raw)?;
     validate_field_types_and_options(&user, raw)?;
@@ -349,6 +350,9 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                     &[
                         "enabled",
                         "hideWhenNotPlaying",
+                        "doubleLine",
+                        "showTranslation",
+                        "showRomanization",
                         // Accepted only so older configurations can be migrated.
                         "showTrayIcon",
                         "locked",
@@ -365,9 +369,12 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                             "fontSize",
                             "verticalOffset",
                             "fontWeight",
+                            "secondaryFontWeight",
                             "textColor",
                             "inactiveColor",
                             "highlightColor",
+                            "translationColor",
+                            "romanizationColor",
                             "karaokeStyle",
                             "alignment",
                             "width",
@@ -601,6 +608,15 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             "/lyrics/displays/statusBar/hideWhenNotPlaying",
             "hideWhenNotPlaying",
         ),
+        ("/lyrics/displays/statusBar/doubleLine", "doubleLine"),
+        (
+            "/lyrics/displays/statusBar/showTranslation",
+            "showTranslation",
+        ),
+        (
+            "/lyrics/displays/statusBar/showRomanization",
+            "showRomanization",
+        ),
         ("/lyrics/displays/statusBar/showTrayIcon", "showTrayIcon"),
         ("/lyrics/displays/statusBar/locked", "locked"),
         ("/lyrics/displays/listWindow/enabled", "enabled"),
@@ -686,6 +702,10 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         (
             "/lyrics/displays/statusBar/appearance/fontWeight",
             "fontWeight",
+        ),
+        (
+            "/lyrics/displays/statusBar/appearance/secondaryFontWeight",
+            "secondaryFontWeight",
         ),
         ("/lyrics/displays/statusBar/appearance/width", "width"),
         ("/lyrics/displays/statusBar/appearance/maxWidth", "maxWidth"),

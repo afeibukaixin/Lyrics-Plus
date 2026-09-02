@@ -375,6 +375,9 @@ impl Default for LyricsDisplayPreferences {
 pub struct StatusBarLyricsPreferences {
     pub enabled: bool,
     pub hide_when_not_playing: bool,
+    pub double_line: bool,
+    pub show_translation: bool,
+    pub show_romanization: bool,
     pub appearance: StatusBarLyricsAppearance,
 }
 
@@ -383,6 +386,9 @@ impl Default for StatusBarLyricsPreferences {
         Self {
             enabled: false,
             hide_when_not_playing: false,
+            double_line: false,
+            show_translation: false,
+            show_romanization: false,
             appearance: StatusBarLyricsAppearance::default(),
         }
     }
@@ -395,9 +401,12 @@ pub struct StatusBarLyricsAppearance {
     pub font_size: u16,
     pub vertical_offset: f64,
     pub font_weight: u16,
+    pub secondary_font_weight: u16,
     pub text_color: String,
     pub inactive_color: String,
     pub highlight_color: String,
+    pub translation_color: String,
+    pub romanization_color: String,
     pub karaoke_style: CompactKaraokeStyle,
     pub alignment: StatusBarAlignment,
     #[serde(alias = "maxWidth")]
@@ -411,9 +420,12 @@ impl Default for StatusBarLyricsAppearance {
             font_size: 14,
             vertical_offset: 0.0,
             font_weight: 600,
+            secondary_font_weight: 500,
             text_color: "#a3e635".into(),
             inactive_color: "#ecfccb".into(),
             highlight_color: "#a3e635".into(),
+            translation_color: "#d9f99d".into(),
+            romanization_color: "#bef264".into(),
             karaoke_style: CompactKaraokeStyle::Sweep,
             alignment: StatusBarAlignment::Left,
             width: 220,
@@ -756,6 +768,8 @@ impl AppConfig {
             status.text_color = base.active_color.clone();
             status.inactive_color = base.inactive_color.clone();
             status.highlight_color = base.active_color.clone();
+            status.translation_color = base.translation_color.clone();
+            status.romanization_color = base.romanization_color.clone();
         }
 
         let list = &mut self.lyrics.displays.list_window.appearance;
@@ -848,6 +862,8 @@ impl AppConfig {
         };
         status_appearance.font_weight =
             normalize_display_font_weight(status_appearance.font_weight);
+        status_appearance.secondary_font_weight =
+            normalize_display_font_weight(status_appearance.secondary_font_weight);
         status_appearance.width = status_appearance.width.clamp(120, 360);
         let list_appearance = &mut self.lyrics.displays.list_window.appearance;
         list_appearance.font_size = list_appearance.font_size.clamp(12, 56);
@@ -890,6 +906,8 @@ impl AppConfig {
             ("状态栏文字颜色", status_appearance.text_color.as_str()),
             ("状态栏未唱颜色", status_appearance.inactive_color.as_str()),
             ("状态栏高亮颜色", status_appearance.highlight_color.as_str()),
+            ("状态栏翻译颜色", status_appearance.translation_color.as_str()),
+            ("状态栏音译颜色", status_appearance.romanization_color.as_str()),
             ("列表当前歌词颜色", list_appearance.active_color.as_str()),
             ("列表普通歌词颜色", list_appearance.inactive_color.as_str()),
             ("列表翻译颜色", list_appearance.translation_color.as_str()),

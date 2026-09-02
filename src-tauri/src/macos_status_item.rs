@@ -25,8 +25,8 @@ use objc2_foundation::{
 use objc2_quartz_core::{CADisplayLink, CALayer, CATextLayer, CATransaction};
 use tauri::Manager;
 
-use crate::config::{CompactKaraokeStyle, StatusBarAlignment};
-use crate::lyrics::LyricsWord;
+use crate::config::{ChineseConversion, CompactKaraokeStyle, StatusBarAlignment};
+use crate::lyrics::{LyricsLine, LyricsWord};
 use crate::AppState;
 use crate::TrayMenuState;
 
@@ -38,6 +38,9 @@ const SCROLL_START_HOLD_PROGRESS: f64 = 0.12;
 const SCROLL_END_HOLD_PROGRESS: f64 = 0.88;
 const STATUS_BAR_FONT_SIZE_MAX: f64 = 18.0;
 const TEXT_LAYER_HEIGHT_PADDING: f64 = 4.0;
+const DOUBLE_LINE_ROW_GAP: f64 = 0.0;
+const DOUBLE_LINE_TEXT_LAYER_PADDING: f64 = 1.0;
+const AUXILIARY_TIMESTAMP_TOLERANCE_MS: u64 = 500;
 
 thread_local! {
     static LAYER_CACHE: RefCell<Option<LayerCache>> = const { RefCell::new(None) };
@@ -50,12 +53,15 @@ static DISPLAY_DRIVER_READY: AtomicBool = AtomicBool::new(false);
 
 struct LayerCache {
     host_layer_id: usize,
-    content_key: String,
+    cache_key: String,
+    rows: Vec<LayerRowCache>,
+}
+
+struct LayerRowCache {
     base_layer: Retained<CATextLayer>,
     highlight_layer: Option<Retained<CATextLayer>>,
     highlight_mask: Option<Retained<CALayer>>,
     content_width: f64,
-    layer_height: f64,
 }
 
 struct DisplayLinkTargetIvars {
@@ -113,23 +119,60 @@ enum DisplayDriver {
 
 #[derive(Default)]
 struct ScrollState {
+    rows: [ScrollRowState; 2],
+}
+
+#[derive(Default)]
+struct ScrollRowState {
     content_key: String,
     changed_at: Option<Instant>,
 }
 
-struct RenderPayload {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RenderLineKind {
+    Empty,
+    Fallback,
+    Primary,
+    Next,
+    Translation,
+    Romanization,
+}
+
+struct RenderLinePayload {
     text: String,
     content_key: String,
+    kind: RenderLineKind,
+    base_color: String,
+    highlight_color: String,
+    sweep_progress: Option<f64>,
+    scroll_duration: Option<Duration>,
+}
+
+impl RenderLinePayload {
+    fn empty(content_key: String, inactive_color: String, highlight_color: String) -> Self {
+        Self {
+            text: String::new(),
+            content_key,
+            kind: RenderLineKind::Empty,
+            base_color: inactive_color,
+            highlight_color,
+            sweep_progress: None,
+            scroll_duration: None,
+        }
+    }
+}
+
+struct RenderPayload {
+    lines: [RenderLinePayload; 2],
+    double_line: bool,
+    cache_key: String,
     width: f64,
     font_family: String,
     font_size: f64,
     vertical_offset: f64,
     font_weight: u16,
+    secondary_font_weight: u16,
     alignment: StatusBarAlignment,
-    base_color: String,
-    highlight_color: String,
-    sweep_progress: Option<f64>,
-    scroll_duration: Option<Duration>,
     is_playing: bool,
 }
 
@@ -231,6 +274,59 @@ fn sweep_progress(text: &str, words: &[LyricsWord], position_ms: u64) -> Option<
     matched_word.then(|| (progress_units / total_units as f64).clamp(0.0, 1.0))
 }
 
+/// 与歌词窗口保持一致：优先使用相同时间戳，否则取 500ms 内最近的非空辅助行。
+fn find_aligned_auxiliary_line<'a>(
+    lines: &'a [LyricsLine],
+    current_line: &LyricsLine,
+) -> Option<&'a LyricsLine> {
+    if let Some(exact) = lines
+        .iter()
+        .find(|line| line.start_ms == current_line.start_ms && !line.text.trim().is_empty())
+    {
+        return Some(exact);
+    }
+    lines
+        .iter()
+        .filter(|line| !line.text.trim().is_empty())
+        .min_by_key(|line| line.start_ms.abs_diff(current_line.start_ms))
+        .filter(|line| {
+            line.start_ms.abs_diff(current_line.start_ms) <= AUXILIARY_TIMESTAMP_TOLERANCE_MS
+        })
+}
+
+fn line_scroll_duration(lines: &[LyricsLine], index: usize) -> Option<Duration> {
+    let line = lines.get(index)?;
+    lines
+        .get(index + 1)
+        .map(|next| next.start_ms)
+        .or(line.end_ms)
+        .and_then(|end_ms| end_ms.checked_sub(line.start_ms))
+        .filter(|duration_ms| *duration_ms > 0)
+        .map(Duration::from_millis)
+}
+
+fn supporting_line_payload(
+    track_key: &str,
+    raw_line: &LyricsLine,
+    conversion: ChineseConversion,
+    kind: RenderLineKind,
+    base_color: String,
+    highlight_color: String,
+    scroll_duration: Option<Duration>,
+) -> RenderLinePayload {
+    let line = raw_line.converted_for_output(conversion);
+    let text = line.text.trim().to_owned();
+    RenderLinePayload {
+        content_key: format!("{track_key}:{kind:?}:{}:{text}", line.start_ms),
+        text,
+        kind,
+        base_color,
+        highlight_color,
+        sweep_progress: None,
+        scroll_duration,
+    }
+}
+
 fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
     let state = app.try_state::<AppState>()?;
     let config = state.config.snapshot();
@@ -254,7 +350,7 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
         .read()
         .unwrap_or_else(|error| error.into_inner());
 
-    let mut text = playback
+    let fallback_text = playback
         .title
         .as_deref()
         .map(str::trim)
@@ -262,10 +358,24 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
         .map(|title| format!("♪ {title}"))
         .unwrap_or_else(|| "Lyrics Plus".into());
     let track_key = playback_key.as_deref().unwrap_or_default();
-    let mut content_key = format!("{track_key}:fallback:{text}");
-    let mut base_color = preferences.appearance.text_color.clone();
-    let mut sweep_progress_value = None;
-    let mut scroll_duration = None;
+    let inactive_color = preferences.appearance.inactive_color.clone();
+    let highlight_color = preferences.appearance.highlight_color.clone();
+    let translation_color = preferences.appearance.translation_color.clone();
+    let romanization_color = preferences.appearance.romanization_color.clone();
+    let mut primary = RenderLinePayload {
+        text: fallback_text.clone(),
+        content_key: format!("{track_key}:fallback:{fallback_text}"),
+        kind: RenderLineKind::Fallback,
+        base_color: preferences.appearance.text_color.clone(),
+        highlight_color: highlight_color.clone(),
+        sweep_progress: None,
+        scroll_duration: None,
+    };
+    let mut secondary = RenderLinePayload::empty(
+        format!("{track_key}:secondary:empty"),
+        inactive_color.clone(),
+        highlight_color.clone(),
+    );
 
     if runtime.track_key == playback_key {
         if let Some(document) = runtime.document.as_ref() {
@@ -275,59 +385,125 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
             if let Some(index) = current_index {
                 if let Some(raw_line) = lines.get(index) {
                     let line = raw_line.converted_for_output(config.lyrics.chinese_conversion);
-                    text = line.text.trim().to_owned();
-                    content_key = format!("{track_key}:line:{}:{text}", line.start_ms);
-                    scroll_duration = lines
-                        .get(index + 1)
-                        .map(|next| next.start_ms)
-                        .or(raw_line.end_ms)
-                        .and_then(|end_ms| end_ms.checked_sub(raw_line.start_ms))
-                        .filter(|duration_ms| *duration_ms > 0)
-                        .map(Duration::from_millis);
+                    primary.text = line.text.trim().to_owned();
+                    primary.kind = RenderLineKind::Primary;
+                    primary.content_key =
+                        format!("{track_key}:primary:{}:{}", line.start_ms, primary.text);
+                    primary.scroll_duration = line_scroll_duration(lines, index);
                     if let Some(words) = line.words.as_deref().filter(|words| !words.is_empty()) {
                         match preferences.appearance.karaoke_style {
                             CompactKaraokeStyle::Sweep => {
-                                base_color = preferences.appearance.inactive_color.clone();
-                                sweep_progress_value = sweep_progress(&text, words, adjusted);
+                                primary.base_color = inactive_color.clone();
+                                primary.sweep_progress =
+                                    sweep_progress(&primary.text, words, adjusted);
                             }
                             CompactKaraokeStyle::Highlight => {
-                                base_color = preferences.appearance.highlight_color.clone();
+                                primary.base_color = highlight_color.clone();
                             }
                         }
                     } else {
-                        base_color = preferences.appearance.highlight_color.clone();
+                        primary.base_color = highlight_color.clone();
                     }
+                    if preferences.double_line {
+                        let mut supporting = None;
+                        if preferences.show_translation {
+                            if let Some(track) = document.tracks.translation.as_ref() {
+                                if let Some(line) =
+                                    find_aligned_auxiliary_line(&track.lines, raw_line)
+                                {
+                                    supporting = Some((line, RenderLineKind::Translation));
+                                }
+                            }
+                        }
+                        if supporting.is_none() && preferences.show_romanization {
+                            if let Some(track) = document.tracks.romanization.as_ref() {
+                                if let Some(line) =
+                                    find_aligned_auxiliary_line(&track.lines, raw_line)
+                                {
+                                    supporting = Some((line, RenderLineKind::Romanization));
+                                }
+                            }
+                        }
+                        if let Some((raw_supporting, kind)) = supporting {
+                            let color = match kind {
+                                RenderLineKind::Translation => translation_color.clone(),
+                                RenderLineKind::Romanization => romanization_color.clone(),
+                                _ => inactive_color.clone(),
+                            };
+                            secondary = supporting_line_payload(
+                                track_key,
+                                raw_supporting,
+                                config.lyrics.chinese_conversion,
+                                kind,
+                                color,
+                                highlight_color.clone(),
+                                primary.scroll_duration,
+                            );
+                        } else if let Some(raw_next) = lines.get(index + 1) {
+                            secondary = supporting_line_payload(
+                                track_key,
+                                raw_next,
+                                config.lyrics.chinese_conversion,
+                                RenderLineKind::Next,
+                                inactive_color.clone(),
+                                highlight_color.clone(),
+                                primary.scroll_duration,
+                            );
+                        }
+                    }
+                }
+            } else if preferences.double_line {
+                if let Some(raw_next) = lines.first() {
+                    secondary = supporting_line_payload(
+                        track_key,
+                        raw_next,
+                        config.lyrics.chinese_conversion,
+                        RenderLineKind::Next,
+                        inactive_color.clone(),
+                        highlight_color.clone(),
+                        line_scroll_duration(lines, 0),
+                    );
                 }
             }
         }
     }
-    content_key.push_str(&format!(
-        ":style:{}:{}:{}:{}:{:?}:{}:{:?}:{}:{}:{}",
+
+    let style_key = format!(
+        ":style:{}:{}:{}:{}:{}:{:?}:{}:{:?}:{}:{}:{}:{}:{}:{}:{}:{}:{:?}:{:?}",
         preferences.appearance.width,
         preferences.appearance.font_family,
         preferences.appearance.font_size,
         preferences.appearance.font_weight,
+        preferences.appearance.secondary_font_weight,
         preferences.appearance.alignment,
         preferences.appearance.vertical_offset,
         preferences.appearance.karaoke_style,
-        base_color,
+        primary.base_color,
         preferences.appearance.highlight_color,
-        sweep_progress_value.is_some(),
-    ));
+        inactive_color,
+        translation_color,
+        romanization_color,
+        preferences.double_line,
+        preferences.show_translation,
+        preferences.show_romanization,
+        primary.sweep_progress.is_some(),
+        secondary.kind,
+    );
+    primary.content_key.push_str(&style_key);
+    secondary.content_key.push_str(&style_key);
+    secondary.content_key.push_str(":secondary");
 
     Some(RenderPayload {
-        text,
-        content_key,
+        cache_key: format!("{}|{}", primary.content_key, secondary.content_key),
+        lines: [primary, secondary],
+        double_line: preferences.double_line,
         width: preferences.appearance.width as f64,
         font_family: preferences.appearance.font_family,
         font_size: preferences.appearance.font_size as f64,
         vertical_offset: preferences.appearance.vertical_offset,
         font_weight: preferences.appearance.font_weight,
+        secondary_font_weight: preferences.appearance.secondary_font_weight,
         alignment: preferences.appearance.alignment,
-        base_color,
-        highlight_color: preferences.appearance.highlight_color,
-        sweep_progress: sweep_progress_value,
-        scroll_duration,
         is_playing: playback.is_playing,
     })
 }
@@ -466,17 +642,18 @@ fn native_color(value: &str, fallback: (f64, f64, f64, f64)) -> Retained<NSColor
     NSColor::colorWithSRGBRed_green_blue_alpha(red, green, blue, alpha)
 }
 
-fn scroll_elapsed(content_key: &str, is_playing: bool) -> Duration {
+fn scroll_elapsed(row_index: usize, content_key: &str, is_playing: bool) -> Duration {
     let now = Instant::now();
     let mut state = scroll_state()
         .lock()
         .unwrap_or_else(|error| error.into_inner());
-    if state.content_key != content_key || !is_playing {
-        state.content_key = content_key.to_owned();
-        state.changed_at = Some(now);
+    let row = &mut state.rows[row_index.min(1)];
+    if row.content_key != content_key || !is_playing {
+        row.content_key = content_key.to_owned();
+        row.changed_at = Some(now);
         return Duration::ZERO;
     }
-    let changed_at = *state.changed_at.get_or_insert(now);
+    let changed_at = *row.changed_at.get_or_insert(now);
     now.saturating_duration_since(changed_at)
 }
 
@@ -536,17 +713,9 @@ fn layer_id(layer: &CALayer) -> usize {
     layer as *const CALayer as usize
 }
 
-fn build_layer_cache(
-    payload: &RenderPayload,
-    host_layer: &CALayer,
-    font_size: f64,
-    layer_height: f64,
-    mtm: MainThreadMarker,
-    cache_key: String,
-) -> LayerCache {
-    let font = resolve_font(&payload.font_family, font_size, payload.font_weight, mtm);
-    let base_color = native_color(&payload.base_color, (0.96, 0.98, 1.0, 1.0));
-    let base_attributed = attributed_text(&payload.text, &font, &base_color);
+fn build_layer_row(line: &RenderLinePayload, font: &NSFont, host_layer: &CALayer) -> LayerRowCache {
+    let base_color = native_color(&line.base_color, (0.96, 0.98, 1.0, 1.0));
+    let base_attributed = attributed_text(&line.text, font, &base_color);
     let content_width = base_attributed.size().width.ceil();
 
     let base_layer = CATextLayer::layer();
@@ -558,9 +727,9 @@ fn build_layer_cache(
     }
     host_layer.addSublayer(&base_layer);
 
-    let (highlight_layer, highlight_mask) = if payload.sweep_progress.is_some() {
-        let highlight_color = native_color(&payload.highlight_color, (0.64, 0.90, 0.21, 1.0));
-        let highlight_attributed = attributed_text(&payload.text, &font, &highlight_color);
+    let (highlight_layer, highlight_mask) = if line.sweep_progress.is_some() {
+        let highlight_color = native_color(&line.highlight_color, (0.64, 0.90, 0.21, 1.0));
+        let highlight_attributed = attributed_text(&line.text, font, &highlight_color);
         let layer = CATextLayer::layer();
         layer.setWrapped(false);
         layer.setContentsScale(2.0);
@@ -581,19 +750,51 @@ fn build_layer_cache(
         (None, None)
     };
 
-    LayerCache {
-        host_layer_id: layer_id(host_layer),
-        content_key: cache_key,
+    LayerRowCache {
         base_layer,
         highlight_layer,
         highlight_mask,
         content_width,
-        layer_height,
+    }
+}
+
+fn build_layer_cache(
+    payload: &RenderPayload,
+    host_layer: &CALayer,
+    font_size: f64,
+    mtm: MainThreadMarker,
+    cache_key: String,
+) -> LayerCache {
+    let primary_font = resolve_font(&payload.font_family, font_size, payload.font_weight, mtm);
+    let secondary_font = resolve_font(
+        &payload.font_family,
+        font_size,
+        payload.secondary_font_weight,
+        mtm,
+    );
+    let line_count = if payload.double_line { 2 } else { 1 };
+    let rows = payload
+        .lines
+        .iter()
+        .take(line_count)
+        .enumerate()
+        .map(|(index, line)| {
+            let font = if index == 0 {
+                &primary_font
+            } else {
+                &secondary_font
+            };
+            build_layer_row(line, font, host_layer)
+        })
+        .collect();
+    LayerCache {
+        host_layer_id: layer_id(host_layer),
+        cache_key,
+        rows,
     }
 }
 
 fn render_on_main(payload: RenderPayload, tray: &tauri::tray::TrayIcon) {
-    let elapsed = scroll_elapsed(&payload.content_key, payload.is_playing);
     let _ = tray.with_inner_tray_icon(move |inner| {
         let Some(mtm) = MainThreadMarker::new() else {
             return;
@@ -604,11 +805,29 @@ fn render_on_main(payload: RenderPayload, tray: &tauri::tray::TrayIcon) {
         let Some(button) = status_item.button(mtm) else {
             return;
         };
-        let button_height = button.bounds().size.height;
-        let font_size = payload
-            .font_size
-            .min(STATUS_BAR_FONT_SIZE_MAX)
-            .min((button_height - TEXT_LAYER_HEIGHT_PADDING).max(10.0));
+        let button_height = button.bounds().size.height.max(1.0);
+        let line_count = if payload.double_line { 2 } else { 1 };
+        let row_gap = if payload.double_line {
+            DOUBLE_LINE_ROW_GAP
+        } else {
+            0.0
+        };
+        let (font_size, row_height, total_height) = if payload.double_line {
+            let row_height = ((button_height - row_gap).max(1.0)) / 2.0;
+            let max_font_size = (row_height - DOUBLE_LINE_TEXT_LAYER_PADDING).max(1.0);
+            let font_size = payload
+                .font_size
+                .min(STATUS_BAR_FONT_SIZE_MAX)
+                .min(max_font_size);
+            (font_size, row_height, row_height * 2.0 + row_gap)
+        } else {
+            let font_size = payload
+                .font_size
+                .min(STATUS_BAR_FONT_SIZE_MAX)
+                .min((button_height - TEXT_LAYER_HEIGHT_PADDING).max(10.0));
+            let row_height = (font_size + TEXT_LAYER_HEIGHT_PADDING).min(button_height);
+            (font_size, row_height, row_height)
+        };
 
         let host_layer = if let Some(layer) = button.layer() {
             layer
@@ -619,8 +838,11 @@ fn render_on_main(payload: RenderPayload, tray: &tauri::tray::TrayIcon) {
             };
             layer
         };
-        let layer_height = (font_size + TEXT_LAYER_HEIGHT_PADDING).min(button_height);
-        let cache_key = format!("{}:{font_size:.3}:{layer_height:.3}", payload.content_key);
+        let cache_key = format!(
+            "{}:{font_size:.3}:{row_height:.3}:{line_count}",
+            payload.cache_key
+        );
+        let geometry_flipped = host_layer.isGeometryFlipped();
 
         CATransaction::begin();
         CATransaction::setDisableActions(true);
@@ -629,7 +851,7 @@ fn render_on_main(payload: RenderPayload, tray: &tauri::tray::TrayIcon) {
             let rebuild = slot
                 .as_ref()
                 .map(|cache| {
-                    cache.host_layer_id != layer_id(&host_layer) || cache.content_key != cache_key
+                    cache.host_layer_id != layer_id(&host_layer) || cache.cache_key != cache_key
                 })
                 .unwrap_or(true);
             if rebuild {
@@ -638,16 +860,17 @@ fn render_on_main(payload: RenderPayload, tray: &tauri::tray::TrayIcon) {
                 button.setWantsLayer(true);
                 host_layer.setMasksToBounds(true);
                 if let Some(old_cache) = slot.take() {
-                    old_cache.base_layer.removeFromSuperlayer();
-                    if let Some(layer) = old_cache.highlight_layer {
-                        layer.removeFromSuperlayer();
+                    for row in old_cache.rows {
+                        row.base_layer.removeFromSuperlayer();
+                        if let Some(layer) = row.highlight_layer {
+                            layer.removeFromSuperlayer();
+                        }
                     }
                 }
                 *slot = Some(build_layer_cache(
                     &payload,
                     &host_layer,
                     font_size,
-                    layer_height,
                     mtm,
                     cache_key,
                 ));
@@ -656,50 +879,59 @@ fn render_on_main(payload: RenderPayload, tray: &tauri::tray::TrayIcon) {
             let Some(cache) = slot.as_mut() else {
                 return;
             };
-            let content_width = cache.content_width;
             let available_width = (payload.width - CONTENT_INSET * 2.0).max(1.0);
-            let overflowing = content_width > available_width;
-            let offset = scroll_offset(
-                content_width,
-                available_width,
-                elapsed,
-                payload.scroll_duration,
-            );
-            let origin_x = if overflowing {
-                CONTENT_INSET - offset
-            } else {
-                match payload.alignment {
-                    StatusBarAlignment::Left => CONTENT_INSET,
-                    StatusBarAlignment::Center => {
-                        ((payload.width - content_width) / 2.0).max(CONTENT_INSET)
+            let block_origin_y = (button_height - total_height) / 2.0
+                + if geometry_flipped {
+                    -payload.vertical_offset
+                } else {
+                    payload.vertical_offset
+                };
+            for index in 0..line_count {
+                let row = &mut cache.rows[index];
+                let line = &payload.lines[index];
+                let elapsed = scroll_elapsed(index, &line.content_key, payload.is_playing);
+                let content_width = row.content_width;
+                let overflowing = content_width > available_width;
+                let offset = scroll_offset(
+                    content_width,
+                    available_width,
+                    elapsed,
+                    line.scroll_duration,
+                );
+                let origin_x = if overflowing {
+                    CONTENT_INSET - offset
+                } else {
+                    match payload.alignment {
+                        StatusBarAlignment::Left => CONTENT_INSET,
+                        StatusBarAlignment::Center => {
+                            ((payload.width - content_width) / 2.0).max(CONTENT_INSET)
+                        }
+                        StatusBarAlignment::Right => {
+                            (payload.width - CONTENT_INSET - content_width).max(CONTENT_INSET)
+                        }
                     }
-                    StatusBarAlignment::Right => {
-                        (payload.width - CONTENT_INSET - content_width).max(CONTENT_INSET)
-                    }
+                };
+                let coordinate_index = if geometry_flipped {
+                    index
+                } else {
+                    line_count - 1 - index
+                };
+                let origin_y = block_origin_y + coordinate_index as f64 * (row_height + row_gap);
+                let frame = NSRect::new(
+                    NSPoint::new(origin_x, origin_y),
+                    NSSize::new(content_width.max(1.0), row_height),
+                );
+                row.base_layer.setFrame(frame);
+                if let (Some(layer), Some(mask)) =
+                    (row.highlight_layer.as_ref(), row.highlight_mask.as_ref())
+                {
+                    layer.setFrame(frame);
+                    let progress = line.sweep_progress.unwrap_or_default().clamp(0.0, 1.0);
+                    mask.setFrame(NSRect::new(
+                        NSPoint::new(0.0, 0.0),
+                        NSSize::new(content_width.max(1.0) * progress, row_height),
+                    ));
                 }
-            };
-            // AppKit 可能为状态栏按钮使用翻转坐标系，统一让正值表示视觉上移。
-            let vertical_offset = if host_layer.isGeometryFlipped() {
-                -payload.vertical_offset
-            } else {
-                payload.vertical_offset
-            };
-            let origin_y = (button_height - cache.layer_height) / 2.0 + vertical_offset;
-            let frame = NSRect::new(
-                NSPoint::new(origin_x, origin_y),
-                NSSize::new(content_width.max(1.0), cache.layer_height),
-            );
-            cache.base_layer.setFrame(frame);
-            if let (Some(layer), Some(mask)) = (
-                cache.highlight_layer.as_ref(),
-                cache.highlight_mask.as_ref(),
-            ) {
-                layer.setFrame(frame);
-                let progress = payload.sweep_progress.unwrap_or_default().clamp(0.0, 1.0);
-                mask.setFrame(NSRect::new(
-                    NSPoint::new(0.0, 0.0),
-                    NSSize::new(content_width.max(1.0) * progress, cache.layer_height),
-                ));
             }
         });
         CATransaction::commit();
