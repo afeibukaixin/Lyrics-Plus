@@ -37,7 +37,7 @@ type UseNotchIslandMotionOptions = {
   shellRef: RefObject<HTMLElement | null>;
   hoverAreaRef: RefObject<HTMLElement | null>;
   islandRef: RefObject<HTMLElement | null>;
-  islandSurfaceRef: RefObject<HTMLDivElement | null>;
+  islandVisualRef: RefObject<HTMLDivElement | null>;
   contentRef: RefObject<HTMLDivElement | null>;
   toolbarRevealRef: RefObject<HTMLDivElement | null>;
   islandStateRef: MutableRefObject<IslandState>;
@@ -65,7 +65,7 @@ export function useNotchIslandMotion({
   shellRef,
   hoverAreaRef,
   islandRef,
-  islandSurfaceRef,
+  islandVisualRef,
   contentRef,
   toolbarRevealRef,
   islandStateRef,
@@ -135,11 +135,11 @@ export function useNotchIslandMotion({
     widthMotionActiveRef.current = false;
     setWidthMotionActive(false);
     const island = islandRef.current;
-    const surface = islandSurfaceRef.current;
+    const visual = islandVisualRef.current;
     const content = contentRef.current;
     const toolbarReveal = toolbarRevealRef.current;
     if (island) gsap.set(island, { clearProps: "willChange" });
-    if (surface) gsap.set(surface, { clearProps: "height,willChange" });
+    if (visual) gsap.set(visual, { clearProps: "height,willChange" });
     if (content) {
       gsap.set(content, {
         autoAlpha: finalExpanded ? 0 : 1,
@@ -158,7 +158,7 @@ export function useNotchIslandMotion({
     }
     applyPendingDimensions();
     requestAnimationFrame(() => reconcileHoverStateRef.current());
-  }, [applyPendingDimensions, contentRef, islandRef, islandSurfaceRef, reconcileHoverStateRef, setIslandStateValue, setWidthMotionActive, toolbarRevealRef, widthMotionActiveRef]);
+  }, [applyPendingDimensions, contentRef, islandRef, islandVisualRef, reconcileHoverStateRef, setIslandStateValue, setWidthMotionActive, toolbarRevealRef, widthMotionActiveRef]);
 
   const cancelWidthMotion = useCallback(() => {
     islandMorphRef.current?.kill();
@@ -169,32 +169,32 @@ export function useNotchIslandMotion({
     setWidthMotionActive(false);
     flushSync(() => setIslandStateValue("collapsed"));
     const island = islandRef.current;
-    const surface = islandSurfaceRef.current;
+    const visual = islandVisualRef.current;
     const content = contentRef.current;
     const toolbarReveal = toolbarRevealRef.current;
     if (island) gsap.set(island, { clearProps: "width,height,borderRadius,borderTopLeftRadius,borderTopRightRadius,borderBottomRightRadius,borderBottomLeftRadius,willChange" });
-    if (surface) gsap.set(surface, { clearProps: "height,willChange" });
+    if (visual) gsap.set(visual, { clearProps: "height,willChange" });
     if (content) gsap.set(content, { autoAlpha: 1, y: 0, scale: 1, clearProps: "willChange" });
     if (toolbarReveal) gsap.set(toolbarReveal, { autoAlpha: 0, y: -4, scale: 1, clearProps: "willChange" });
-  }, [contentRef, islandRef, islandSurfaceRef, pendingDimensionsRef, setIslandStateValue, setWidthMotionActive, toolbarRevealRef, widthMotionActiveRef]);
+  }, [contentRef, islandRef, islandVisualRef, pendingDimensionsRef, setIslandStateValue, setWidthMotionActive, toolbarRevealRef, widthMotionActiveRef]);
 
   const finishVisibilityMotion = useCallback(() => {
     visibilityMotionActiveRef.current = false;
     setVisibilityMotionActive(false);
-    const surface = islandSurfaceRef.current;
+    const visual = islandVisualRef.current;
     const content = contentRef.current;
-    if (surface) gsap.set(surface, { clearProps: "willChange" });
+    if (visual) gsap.set(visual, { clearProps: "willChange" });
     if (content) gsap.set(content, { clearProps: "willChange" });
     if (islandVisibleRef.current && hostFitReadyRef.current && !previewActiveRef.current) {
       pendingHoverApplyRef.current = false;
       requestAnimationFrame(() => reconcileHoverStateRef.current());
     }
-  }, [contentRef, hostFitReadyRef, islandSurfaceRef, islandVisibleRef, pendingHoverApplyRef, previewActiveRef, reconcileHoverStateRef, setVisibilityMotionActive, visibilityMotionActiveRef]);
+  }, [contentRef, hostFitReadyRef, islandVisualRef, islandVisibleRef, pendingHoverApplyRef, previewActiveRef, reconcileHoverStateRef, setVisibilityMotionActive, visibilityMotionActiveRef]);
 
   const { contextSafe } = useGSAP(() => {
-    const surface = islandSurfaceRef.current;
+    const visual = islandVisualRef.current;
     const content = contentRef.current;
-    if (!surface || !content) return;
+    if (!visual || !content) return;
     const media = gsap.matchMedia();
 
     media.add({
@@ -203,7 +203,7 @@ export function useNotchIslandMotion({
     }, (context) => {
       const reduceMotion = Boolean(context.conditions?.reduceMotion);
       reducedMotionRef.current = reduceMotion;
-      gsap.set(surface, {
+      gsap.set(visual, {
         clipPath: "inset(0 46% round 999px)",
         scaleY: 0.04,
         transformOrigin: "50% 0%",
@@ -213,7 +213,7 @@ export function useNotchIslandMotion({
       if (reduceMotion) {
         presenceTimelineRef.current = null;
         if (islandVisibleRef.current) {
-          gsap.set(surface, { clipPath: "inset(0 0% round 0px)", scaleY: 1 });
+          gsap.set(visual, { clipPath: "inset(0 0% round 0px)", scaleY: 1 });
           gsap.set(content, { autoAlpha: 1, y: 0 });
         }
         finishVisibilityMotion();
@@ -226,13 +226,13 @@ export function useNotchIslandMotion({
         onReverseComplete: finishVisibilityMotion,
       });
       timeline
-        .to(surface, { scaleY: 0.18, duration: 0.08, ease: "power2.out" }, 0)
-        .to(surface, {
+        .to(visual, { scaleY: 0.18, duration: 0.08, ease: "power2.out" }, 0)
+        .to(visual, {
           clipPath: "inset(0 0% round 0px)",
           duration: 0.21,
           ease: "power3.out",
         }, 0.04)
-        .to(surface, {
+        .to(visual, {
           keyframes: [
             { scaleY: 1.06, duration: 0.18, ease: "power3.out" },
             { scaleY: 0.985, duration: 0.06, ease: "power2.inOut" },
@@ -258,12 +258,12 @@ export function useNotchIslandMotion({
   }, { scope: shellRef });
 
   const animateIslandVisibility = useMemo(() => contextSafe((visible: boolean) => {
-    const surface = islandSurfaceRef.current;
+    const visual = islandVisualRef.current;
     const content = contentRef.current;
-    if (!surface || !content) return;
+    if (!visual || !content) return;
     const timeline = presenceTimelineRef.current;
     if (reducedMotionRef.current || !timeline) {
-      gsap.set(surface, visible
+      gsap.set(visual, visible
         ? { clipPath: "inset(0 0% round 0px)", scaleY: 1 }
         : { clipPath: "inset(0 46% round 999px)", scaleY: 0.04 });
       gsap.set(content, visible ? { autoAlpha: 1, y: 0 } : { autoAlpha: 0, y: -4 });
@@ -278,11 +278,11 @@ export function useNotchIslandMotion({
     }
     visibilityMotionActiveRef.current = true;
     setVisibilityMotionActive(true);
-    gsap.set(surface, { willChange: "transform,clip-path" });
+    gsap.set(visual, { willChange: "transform,clip-path" });
     gsap.set(content, { willChange: "transform,opacity" });
     if (visible) timeline.play();
     else timeline.reverse();
-  }), [contextSafe, contentRef, finishVisibilityMotion, islandSurfaceRef, setVisibilityMotionActive, visibilityMotionActiveRef]);
+  }), [contextSafe, contentRef, finishVisibilityMotion, islandVisualRef, setVisibilityMotionActive, visibilityMotionActiveRef]);
 
   const flushHostReady = useCallback(() => {
     const pendingVisibility = pendingVisibilityRef.current;
@@ -294,10 +294,10 @@ export function useNotchIslandMotion({
 
   const performLiquidMorph = useMemo(() => contextSafe((nextExpanded: boolean) => {
     const island = islandRef.current;
-    const surface = islandSurfaceRef.current;
+    const visual = islandVisualRef.current;
     const compactContent = contentRef.current;
     const expandedContent = toolbarRevealRef.current;
-    if (!island || !surface || !compactContent || !expandedContent) {
+    if (!island || !visual || !compactContent || !expandedContent) {
       finishWidthMotion(nextExpanded);
       return;
     }
@@ -326,7 +326,7 @@ export function useNotchIslandMotion({
       return;
     }
 
-    gsap.set(surface, {
+    gsap.set(visual, {
       height: "100%",
       scaleX: 1,
       scaleY: 1,
@@ -396,7 +396,7 @@ export function useNotchIslandMotion({
     }
 
     islandMorphRef.current = timeline;
-  }), [appearance.borderRadius, contentRef, contextSafe, dimensionsRef, finishWidthMotion, islandRef, islandStateRef, islandSurfaceRef, layout.hasNotch, setIslandStateValue, toolbarRevealRef]);
+  }), [appearance.borderRadius, contentRef, contextSafe, dimensionsRef, finishWidthMotion, islandRef, islandStateRef, islandVisualRef, layout.hasNotch, setIslandStateValue, toolbarRevealRef]);
 
   const startExpansion = useMemo(() => contextSafe(() => {
     if (

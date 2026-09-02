@@ -1,6 +1,7 @@
 import type { NotchLayoutMetrics } from "../../shared/types";
 
 export const NOTCH_MAX_WIDTH = 640;
+export const NOTCH_TOP_CORNER_MAX_RADIUS = 15;
 export const COLLAPSED_HEIGHT_FALLBACK = 30;
 export const EXPANDED_HEIGHT_FALLBACK = 180;
 export const NON_NOTCH_TOP_INSET_FALLBACK = 30;
@@ -18,7 +19,7 @@ export function notchCollapsedHeightFloor(layout: NotchLayoutMetrics) {
 
 export function notchSlotPadding(borderRadius: number) {
   const radius = Number.isFinite(borderRadius)
-    ? Math.min(40, Math.max(0, borderRadius))
+    ? Math.min(20, Math.max(0, borderRadius))
     : 0;
   return 8 + radius * 0.3;
 }
@@ -63,13 +64,16 @@ export function waitForWebviewLayout() {
   });
 }
 
-export function islandRadii(hasNotch: boolean, borderRadius: number, expanded: boolean) {
+export function islandRadii(
+  hasNotch: boolean,
+  borderRadius: number,
+  expanded: boolean,
+) {
   const radius = `${borderRadius + (hasNotch && expanded ? 4 : 0)}px`;
-  const topRadius = "0px";
   // GSAP 全程使用分角属性，避免屏幕类型切换或动画往返时残留简写圆角。
   return {
-    borderTopLeftRadius: topRadius,
-    borderTopRightRadius: topRadius,
+    borderTopLeftRadius: "0px",
+    borderTopRightRadius: "0px",
     borderBottomRightRadius: radius,
     borderBottomLeftRadius: radius,
   };

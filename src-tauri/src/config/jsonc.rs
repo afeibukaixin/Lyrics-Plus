@@ -122,6 +122,12 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             line if line.starts_with("      \"lineGap\":") => {
                 Some(("      ", ConfigComment::LineGap))
             }
+            line if line.starts_with("          \"topBorderRadius\":") => {
+                Some(("          ", ConfigComment::NotchTopBorderRadius))
+            }
+            line if line.starts_with("        \"inlineLyricsOnNonNotch\":") => {
+                Some(("        ", ConfigComment::NotchInlineLyricsOnNonNotch))
+            }
             line if line.starts_with("      \"secondaryLineGap\":") => {
                 Some(("      ", ConfigComment::SecondaryLineGap))
             }

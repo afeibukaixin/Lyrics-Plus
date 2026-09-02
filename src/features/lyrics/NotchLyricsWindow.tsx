@@ -134,7 +134,7 @@ export default function NotchLyricsWindow() {
   const shellRef = useRef<HTMLElement>(null);
   const hoverAreaRef = useRef<HTMLDivElement>(null);
   const islandRef = useRef<HTMLElement>(null);
-  const islandSurfaceRef = useRef<HTMLDivElement>(null);
+  const islandVisualRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const toolbarRevealRef = useRef<HTMLDivElement>(null);
   const islandStateRef = useRef<IslandState>("collapsed");
@@ -274,6 +274,47 @@ export default function NotchLyricsWindow() {
       currentLineDisplayEndMs - lyrics.currentLine.startMs,
     )
     : null;
+  // 同行布局也决定隐藏 compact 内容的收起高度，不能跟随展开动画状态切换。
+  const inlineLyricsOnNonNotch = !layout.hasNotch
+    && notch.inlineLyricsOnNonNotch
+    && notch.showLyrics
+    && Boolean(primaryLine?.text.trim());
+  const primaryLineElement = primaryLine && (
+    <div className={styles.currentLine} key={`${primaryLine.startMs}:${primaryLine.text}`}>
+      <OverflowText
+        align="center"
+        behavior="once"
+        contentKey={`${primaryLine.startMs}:${primaryLine.text}`}
+        maxDurationMs={lyricMarqueeTimeLimitMs}
+        paused={marqueePaused}
+      >
+        <KaraokeLine line={primaryLine} positionMs={playback.positionMs + offsetMs} karaokeStyle={appearance.karaokeStyle} />
+      </OverflowText>
+    </div>
+  );
+  const supportingLine = supportingLines[0];
+  const supportingLineElement = supportingLine && (
+    <div className={styles.supportingLine} data-empty={!supportingLine.line.text.trim() || undefined} data-kind={supportingLine.kind} key={`${supportingLine.kind}:${supportingLine.line.startMs}:${supportingLine.line.text}`}>
+      <OverflowText
+        align="center"
+        behavior="once"
+        contentKey={`${supportingLine.kind}:${supportingLine.line.startMs}:${supportingLine.line.text}`}
+        maxDurationMs={lyricMarqueeTimeLimitMs}
+        paused={marqueePaused}
+      >
+        {supportingLine.line.text}
+      </OverflowText>
+    </div>
+  );
+  const inlineDoubleLine = inlineLyricsOnNonNotch
+    && notch.layout === "double"
+    && Boolean(supportingLineElement);
+  const inlineDoubleReversed = inlineDoubleLine && doubleLineOrder === "reversed";
+  const inlineTopLineElement = inlineDoubleReversed ? supportingLineElement : primaryLineElement;
+  const inlineBottomLineElement = inlineDoubleReversed ? primaryLineElement : supportingLineElement;
+  const inlineBottomLineKind = inlineDoubleLine && !inlineDoubleReversed
+    ? supportingLine?.kind
+    : undefined;
 
   const patchNotch = useCallback((patch: Partial<NotchLyricsPreferences>) => {
     const next = { ...notchRef.current, ...patch };
@@ -348,7 +389,7 @@ export default function NotchLyricsWindow() {
     hostFitReadyRef,
     islandRef,
     islandStateRef,
-    islandSurfaceRef,
+    islandVisualRef,
     islandVisibleRef,
     layout,
     pendingDimensionsRef,
@@ -520,6 +561,7 @@ export default function NotchLyricsWindow() {
         "--notch-spectrum-right-bottom-color": spectrumColors.right.bottom,
         "--notch-line-gap": `${appearance.lineGap}px`,
         "--notch-radius": `${appearance.borderRadius}px`,
+        "--notch-top-radius": `${appearance.topBorderRadius}px`,
         "--notch-slot-padding": `${slotPadding}px`,
         "--notch-max-width": `${effectiveWidth}px`,
         "--notch-collapsed-height": `${Math.max(collapsedHeightFloor, collapsedHeight)}px`,
@@ -540,68 +582,50 @@ export default function NotchLyricsWindow() {
           onPointerMove={handleIslandPointerMove}
           ref={islandRef}
         >
-          <div className={styles.islandSurface} ref={islandSurfaceRef}>
-            {layout.hasNotch && (
-              <div aria-hidden="true" className={styles.brandCapsule}>
-                <img alt="" draggable={false} src={appIconUrl} />
-                <span>Lyrics Plus</span>
-              </div>
-            )}
-            <div className={styles.content} ref={contentRef}>
-              <header className={styles.metadata}>
-                <div className={styles.slot} data-side="left" data-slot={notch.leftSlot}>{renderSlot(notch.leftSlot, "left")}</div>
-                <span className={styles.notchGap} aria-hidden="true" />
-                <div className={styles.slot} data-side="right" data-slot={notch.rightSlot}>{renderSlot(notch.rightSlot, "right")}</div>
-              </header>
-              {notch.showLyrics && (primaryLine || supportingLines.length > 0) && (
-                <div
-                  className={styles.lyricLines}
-                  data-double-line-order={doubleLineOrder}
-                  data-double-line-mode={alternatingDoubleLine ? "alternating" : undefined}
-                  data-has-supporting-line={supportingLines.length > 0 || undefined}
-                  data-supporting-line-kind={supportingLines[0]?.kind}
-                >
-                  {primaryLine && (
-                    <div className={styles.currentLine} key={`${primaryLine.startMs}:${primaryLine.text}`}>
-                      <OverflowText
-                        align="center"
-                        behavior="once"
-                        contentKey={`${primaryLine.startMs}:${primaryLine.text}`}
-                        maxDurationMs={lyricMarqueeTimeLimitMs}
-                        paused={marqueePaused}
-                      >
-                        <KaraokeLine line={primaryLine} positionMs={playback.positionMs + offsetMs} karaokeStyle={appearance.karaokeStyle} />
-                      </OverflowText>
-                    </div>
-                  )}
-                  {supportingLines.map(({ kind, line }) => (
-                    <div className={styles.supportingLine} data-empty={!line.text.trim() || undefined} data-kind={kind} key={`${kind}:${line.startMs}:${line.text}`}>
-                      <OverflowText
-                        align="center"
-                        behavior="once"
-                        contentKey={`${kind}:${line.startMs}:${line.text}`}
-                        maxDurationMs={lyricMarqueeTimeLimitMs}
-                        paused={marqueePaused}
-                      >
-                        {line.text}
-                      </OverflowText>
-                    </div>
-                  ))}
+          <div className={styles.islandVisual} ref={islandVisualRef}>
+            <div className={styles.islandSurface}>
+              {layout.hasNotch && (
+                <div aria-hidden="true" className={styles.brandCapsule}>
+                  <img alt="" draggable={false} src={appIconUrl} />
+                  <span>Lyrics Plus</span>
                 </div>
               )}
-            </div>
-            <div className={styles.toolbarReveal} ref={toolbarRevealRef}>
-              <div className={styles.toolbarRevealInner}>
-                <ExpandedPlayer
-                  karaokeStyle={appearance.karaokeStyle}
-                  marqueePaused={marqueePaused}
-                  playback={playback}
-                  previewLine={notch.showLyrics ? preview.line : null}
-                  previewMaxDurationMs={previewLyricMarqueeTimeLimitMs}
-                  previewPositionMs={previewPositionMs}
-                  quickControls={quickControls}
-                  t={t}
-                />
+              <div className={styles.content} data-inline-double-line={inlineDoubleLine || undefined} ref={contentRef}>
+                <header className={styles.metadata} data-inline-lyrics={inlineLyricsOnNonNotch || undefined}>
+                  <div className={styles.slot} data-side="left" data-slot={notch.leftSlot}>{renderSlot(notch.leftSlot, "left")}</div>
+                  {inlineLyricsOnNonNotch ? inlineTopLineElement : <span className={styles.notchGap} aria-hidden="true" />}
+                  <div className={styles.slot} data-side="right" data-slot={notch.rightSlot}>{renderSlot(notch.rightSlot, "right")}</div>
+                </header>
+                {notch.showLyrics && ((primaryLine && !inlineLyricsOnNonNotch) || supportingLines.length > 0) && (
+                  <div
+                    className={styles.lyricLines}
+                    data-double-line-order={doubleLineOrder}
+                    data-double-line-mode={alternatingDoubleLine ? "alternating" : undefined}
+                    data-has-supporting-line={(!inlineLyricsOnNonNotch && supportingLines.length > 0) || undefined}
+                    data-supporting-line-kind={inlineBottomLineKind ?? (!inlineLyricsOnNonNotch ? supportingLine?.kind : undefined)}
+                  >
+                    {inlineDoubleLine
+                      ? inlineBottomLineElement
+                      : <>
+                        {!inlineLyricsOnNonNotch && primaryLineElement}
+                        {supportingLineElement}
+                      </>}
+                  </div>
+                )}
+              </div>
+              <div className={styles.toolbarReveal} ref={toolbarRevealRef}>
+                <div className={styles.toolbarRevealInner}>
+                  <ExpandedPlayer
+                    karaokeStyle={appearance.karaokeStyle}
+                    marqueePaused={marqueePaused}
+                    playback={playback}
+                    previewLine={notch.showLyrics ? preview.line : null}
+                    previewMaxDurationMs={previewLyricMarqueeTimeLimitMs}
+                    previewPositionMs={previewPositionMs}
+                    quickControls={quickControls}
+                    t={t}
+                  />
+                </div>
               </div>
             </div>
           </div>

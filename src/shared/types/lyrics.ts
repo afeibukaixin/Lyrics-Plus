@@ -129,6 +129,7 @@ export type NotchLyricsAppearance = {
   karaokeStyle: CompactKaraokeStyle;
   lineGap: number;
   borderRadius: number;
+  topBorderRadius: number;
   maxWidth: number;
   expandedMaxWidth: number;
 };
@@ -166,6 +167,7 @@ export type LyricsDisplayPreferences = {
     doubleLineMode: "rolling" | "alternating";
     showTranslation: boolean;
     showRomanization: boolean;
+    inlineLyricsOnNonNotch: boolean;
     appearance: NotchLyricsAppearance;
   };
 };

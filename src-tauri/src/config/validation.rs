@@ -438,6 +438,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                         "doubleLineMode",
                         "showTranslation",
                         "showRomanization",
+                        "inlineLyricsOnNonNotch",
                         "appearance",
                     ],
                 )?;
@@ -457,6 +458,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                             "karaokeStyle",
                             "lineGap",
                             "borderRadius",
+                            "topBorderRadius",
                             "maxWidth",
                             "expandedMaxWidth",
                         ],
@@ -622,6 +624,10 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
         (
             "/lyrics/displays/notch/showRomanization",
             "showRomanization",
+        ),
+        (
+            "/lyrics/displays/notch/inlineLyricsOnNonNotch",
+            "inlineLyricsOnNonNotch",
         ),
         (
             "/lyrics/styleInheritance/desktop/inheritFontFamily",
@@ -1189,6 +1195,12 @@ fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftEr
             value.pointer("/lyrics/displays/notch/appearance/expandedMaxWidth"),
             440.0,
             640.0,
+        ),
+        (
+            "topBorderRadius",
+            value.pointer("/lyrics/displays/notch/appearance/topBorderRadius"),
+            0.0,
+            40.0,
         ),
         (
             "opacity",

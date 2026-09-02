@@ -506,6 +506,7 @@ pub struct NotchLyricsPreferences {
     pub double_line_mode: DoubleLineMode,
     pub show_translation: bool,
     pub show_romanization: bool,
+    pub inline_lyrics_on_non_notch: bool,
     pub appearance: NotchLyricsAppearance,
 }
 
@@ -522,6 +523,7 @@ impl Default for NotchLyricsPreferences {
             double_line_mode: DoubleLineMode::Rolling,
             show_translation: false,
             show_romanization: false,
+            inline_lyrics_on_non_notch: true,
             appearance: NotchLyricsAppearance::default(),
         }
     }
@@ -541,6 +543,7 @@ pub struct NotchLyricsAppearance {
     pub karaoke_style: CompactKaraokeStyle,
     pub line_gap: f64,
     pub border_radius: f64,
+    pub top_border_radius: f64,
     pub max_width: u16,
     pub expanded_max_width: u16,
 }
@@ -558,7 +561,8 @@ impl Default for NotchLyricsAppearance {
             romanization_color: "#bef264".into(),
             karaoke_style: CompactKaraokeStyle::Sweep,
             line_gap: 8.0,
-            border_radius: 22.0,
+            border_radius: 12.0,
+            top_border_radius: 12.0,
             max_width: 320,
             expanded_max_width: 440,
         }
@@ -875,7 +879,8 @@ impl AppConfig {
         notch_appearance.secondary_font_weight =
             normalize_display_font_weight(notch_appearance.secondary_font_weight);
         notch_appearance.line_gap = notch_appearance.line_gap.clamp(0.0, 32.0);
-        notch_appearance.border_radius = notch_appearance.border_radius.clamp(0.0, 40.0);
+        notch_appearance.border_radius = notch_appearance.border_radius.clamp(0.0, 20.0);
+        notch_appearance.top_border_radius = notch_appearance.top_border_radius.clamp(0.0, 15.0);
         notch_appearance.max_width = notch_appearance.max_width.clamp(320, 640);
         notch_appearance.expanded_max_width = notch_appearance
             .expanded_max_width

@@ -253,6 +253,7 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
         {notchMonitors.length >= 2 && selectedMonitorId && <SelectRow label={t("settings.display.notch.display")} value={selectedMonitorId} options={monitorOptions} onChange={(monitorId) => save({ ...value, monitorId })} />}
         <ToggleRow label={t("settings.display.notch.autoHide")} description={t("settings.display.notch.autoHideHint")} value={value.hideWhenNotPlaying} onChange={(hideWhenNotPlaying) => save({ ...value, hideWhenNotPlaying })} />
         <ToggleRow label={t("settings.display.notch.showLyrics")} description={t("settings.display.notch.showLyricsHint")} value={value.showLyrics} onChange={(showLyrics) => save({ ...value, showLyrics })} />
+        {value.showLyrics && <ToggleRow label={t("settings.display.notch.inlineLyricsOnNonNotch")} description={t("settings.display.notch.inlineLyricsOnNonNotchHint")} value={value.inlineLyricsOnNonNotch} onChange={(inlineLyricsOnNonNotch) => save({ ...value, inlineLyricsOnNonNotch })} />}
         <SelectRow label={t("settings.display.notch.leftSlot")} value={value.leftSlot} options={slotOptions} onChange={(leftSlot) => save({ ...value, leftSlot: leftSlot as NotchSlotContent })} />
         <SelectRow label={t("settings.display.notch.rightSlot")} value={value.rightSlot} options={slotOptions} onChange={(rightSlot) => save({ ...value, rightSlot: rightSlot as NotchSlotContent })} />
         {value.showLyrics && <>
@@ -284,7 +285,8 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
     </SettingsSection>
     </>}
     <SettingsSection id="mode-background" title={t("settings.style.modeControls.backgroundSize")}>
-      <RangeRow label={t("settings.overlay.backgroundRadius")} value={appearance.borderRadius} min={0} max={40} suffix="px" onChange={(borderRadius) => save(patchAppearance(value, { borderRadius }))} />
+      <RangeRow label={t("settings.display.notch.bottomBorderRadius")} value={appearance.borderRadius} min={0} max={20} suffix="px" onChange={(borderRadius) => save(patchAppearance(value, { borderRadius }))} />
+      <RangeRow label={t("settings.display.notch.topBorderRadius")} value={appearance.topBorderRadius} min={0} max={15} suffix="px" onChange={(topBorderRadius) => save(patchAppearance(value, { topBorderRadius }))} />
       <RangePairRow
         label={t("settings.style.modeControls.widthRange")}
         firstLabel={t("settings.style.modeControls.compactWidth")}

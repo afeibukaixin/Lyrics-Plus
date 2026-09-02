@@ -125,7 +125,8 @@ export const defaultNotchLyricsAppearance: NotchLyricsAppearance = {
   romanizationColor: defaultOverlayStyle.romanizationColor,
   karaokeStyle: "sweep",
   lineGap: 8,
-  borderRadius: 22,
+  borderRadius: 12,
+  topBorderRadius: 12,
   maxWidth: 320,
   expandedMaxWidth: 440,
 };

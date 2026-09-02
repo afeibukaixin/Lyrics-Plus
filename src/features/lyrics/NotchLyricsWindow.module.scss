@@ -25,22 +25,59 @@
   box-sizing: border-box;
   width: min(100%, var(--notch-max-width));
   height: var(--notch-collapsed-height);
-  overflow: hidden;
+  overflow: visible;
   border-radius: 0 0 var(--notch-radius) var(--notch-radius);
   transform: translateX(-50%);
   transform-origin: top center;
 }
 
+.islandVisual {
+  position: absolute;
+  inset: 0 calc(var(--notch-top-radius) * -1);
+  overflow: visible;
+  border-radius: inherit;
+  clip-path: inset(0 46% round 999px);
+  pointer-events: none;
+  transform: scaleY(.04);
+  transform-origin: top center;
+}
+
+.islandVisual::before,
+.islandVisual::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: var(--notch-top-radius);
+  height: var(--notch-top-radius);
+  pointer-events: none;
+}
+
+.islandVisual::before {
+  left: 0;
+  background: radial-gradient(
+    circle var(--notch-top-radius) at 0 100%,
+    transparent calc(100% - 0.5px),
+    #000 100%
+  );
+}
+
+.islandVisual::after {
+  right: 0;
+  background: radial-gradient(
+    circle var(--notch-top-radius) at 100% 100%,
+    transparent calc(100% - 0.5px),
+    #000 100%
+  );
+}
+
 .islandSurface {
   position: absolute;
-  inset: 0;
+  inset: 0 var(--notch-top-radius);
   overflow: hidden;
   border-radius: inherit;
   color: white;
   background: #000;
-  clip-path: inset(0 46% round 999px);
-  transform: scaleY(.04);
-  transform-origin: top center;
+  pointer-events: auto;
 }
 
 .shell:not([data-island-visible]) .hoverArea {
@@ -265,6 +302,26 @@
 .lyricLines[data-double-line-mode="alternating"] .currentLine,
 .lyricLines[data-double-line-mode="alternating"] .supportingLine {
   min-height: calc(var(--notch-font-size) + 2px);
+}
+
+.content[data-inline-double-line] {
+  display: flex;
+  flex-direction: column;
+}
+
+.content[data-inline-double-line] .lyricLines {
+  padding-top: var(--notch-line-gap);
+  padding-bottom: 12px;
+}
+
+.content[data-inline-double-line] .lyricLines[data-supporting-line-kind="translation"] {
+  padding-bottom: 8px;
+}
+
+.content[data-inline-double-line] .lyricLines .currentLine,
+.content[data-inline-double-line] .lyricLines .supportingLine {
+  min-height: calc(var(--notch-font-size) + 2px);
+  padding-bottom: 0;
 }
 
 .toolbarReveal {
@@ -644,6 +701,25 @@
   padding-inline: max(12px, calc(var(--notch-radius) - 4px));
 }
 
+.shell:not([data-has-notch]) .metadata[data-inline-lyrics="true"] {
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) minmax(0, auto);
+  column-gap: 8px;
+}
+
+.metadata[data-inline-lyrics="true"] .slot {
+  width: fit-content;
+  max-width: 96px;
+  overflow: hidden;
+}
+
+.metadata[data-inline-lyrics="true"] .currentLine,
+.metadata[data-inline-lyrics="true"] .supportingLine {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+}
+
 .shell:not([data-has-notch]) .slotArtwork {
   width: var(--notch-compact-slot-size);
   height: var(--notch-compact-slot-size);
@@ -659,7 +735,7 @@
     transition: none;
   }
 
-  .shell:not([data-island-visible]) .islandSurface {
+  .shell:not([data-island-visible]) .islandVisual {
     opacity: 0;
   }
 
