@@ -222,7 +222,9 @@ pub(super) fn normalize_collision_metadata(connection: &Connection) -> rusqlite:
         else {
             continue;
         };
-        if !base_path.is_file() || lrc_tag(&read_lyric(&path).unwrap_or_default(), "ti").is_some() {
+        if !base_path.is_file()
+            || lrc_tag(&super::read_lyric_text(&path).unwrap_or_default(), "ti").is_some()
+        {
             continue;
         }
         if title != filename_title || artist != filename_artist {
@@ -508,7 +510,7 @@ fn index_file_if_changed(
     {
         return Ok(IndexOutcome::Unchanged);
     }
-    let raw = read_lyric(path)?;
+    let raw = super::read_lyric_text(path)?;
     let metadata = lyric_metadata(path, &raw, "本地文件");
     let (indexed_title, indexed_artist) = existing
         .as_ref()
@@ -735,16 +737,6 @@ fn lrc_tag(raw: &str, key: &str) -> Option<String> {
             .filter(|value| !value.is_empty())
             .map(str::to_string)
     })
-}
-
-fn read_lyric(path: &Path) -> Result<String, String> {
-    let bytes = fs::read(path).map_err(|error| format!("读取歌词文件失败：{error}"))?;
-    if bytes.len() as u64 > MAX_LYRIC_FILE_SIZE {
-        return Err("歌词文件超过 5 MB".into());
-    }
-    Ok(String::from_utf8_lossy(&bytes)
-        .trim_start_matches('\u{feff}')
-        .to_string())
 }
 
 fn has_supported_extension(path: &Path) -> bool {

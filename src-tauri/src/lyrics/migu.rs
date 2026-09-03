@@ -1,11 +1,15 @@
 use futures::future::join_all;
 use serde::Deserialize;
 
+use super::encoding::decode_lyrics_bytes;
 use super::parse_lrc_with_options;
 use super::provider::{
-    collect_provider_results, parse_duration_text_ms, score_candidate, DurationUnit,
-    LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderError, ProviderErrorKind,
-    ProviderFuture, ProviderSearchReport, MIGU_DISPLAY_NAME,
+    collect_provider_results,
+    duration_ms_from_seconds_u64,
+    parse_duration_text_ms,
+    score_candidate,
+    DurationUnit, LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderError,
+    ProviderErrorKind, ProviderFuture, ProviderSearchReport, MIGU_DISPLAY_NAME,
 };
 
 #[derive(Debug, Deserialize)]
@@ -24,6 +28,10 @@ struct SongResultData {
 struct MiguSong {
     #[serde(default, rename = "copyrightId")]
     copyright_id: String,
+    #[serde(default, rename = "contentId")]
+    content_id: String,
+    #[serde(default, rename = "resourceType")]
+    resource_type: String,
     #[serde(default)]
     name: String,
     #[serde(default)]
@@ -42,6 +50,24 @@ struct MiguSong {
 struct NamedEntity {
     #[serde(default)]
     name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ListenEnvelope {
+    #[serde(default)]
+    data: Option<ListenData>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ListenData {
+    #[serde(default)]
+    song: Option<ListenSong>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ListenSong {
+    #[serde(default)]
+    duration: Option<u64>,
 }
 
 pub struct MiguProvider;
@@ -114,11 +140,22 @@ impl MiguProvider {
         input: &LyricsSearchInput,
         song: MiguSong,
     ) -> Result<Option<LyricsSearchResult>, ProviderError> {
-        let original_url = song.lrc_url.trim();
+        let original_url = song.lrc_url.trim().to_owned();
         if original_url.is_empty() {
             return Ok(None);
         }
-        let original = self.download_lyrics(client, original_url).await?;
+        let (duration_result, original_result) = tokio::join!(
+            self.fetch_duration(client, &song),
+            self.download_lyrics(client, &original_url),
+        );
+        let duration_ms = match duration_result {
+            Ok(duration_ms) => duration_ms,
+            Err(error) => {
+                log::debug!("咪咕歌曲时长获取失败，保留无时长候选：{error}");
+                None
+            }
+        };
+        let original = original_result?;
         let original_document = match parse_lrc_with_options(&original, self.display_name(), false)
         {
             Ok(document) if !document.tracks.original.lines.is_empty() => document,
@@ -130,7 +167,7 @@ impl MiguProvider {
         };
         let mut lyrics = original.trim().to_string();
         let translation_url = song.trc_url.trim();
-        if !translation_url.is_empty() && translation_url != original_url {
+        if !translation_url.is_empty() && translation_url != original_url.as_str() {
             match self.download_lyrics(client, translation_url).await {
                 Ok(translation) => {
                     match parse_lrc_with_options(&translation, self.display_name(), false) {
@@ -170,10 +207,7 @@ impl MiguProvider {
                 .into_iter()
                 .map(|album| album.name)
                 .find(|album| !album.is_empty()),
-            duration_ms: parse_duration_text_ms(
-                &song.duration,
-                DurationUnit::SecondsOrMilliseconds,
-            ),
+            duration_ms,
             source: self.display_name().into(),
             synced: true,
             has_translation: document.tracks.translation.is_some(),
@@ -189,6 +223,54 @@ impl MiguProvider {
         };
         result.score = score_candidate(input, &result);
         Ok(Some(result))
+    }
+
+    async fn fetch_duration(
+        &self,
+        client: &reqwest::Client,
+        song: &MiguSong,
+    ) -> Result<Option<u64>, ProviderError> {
+        let content_id = song.content_id.trim();
+        let copyright_id = song.copyright_id.trim();
+        let resource_type = song.resource_type.trim();
+        if content_id.is_empty() || copyright_id.is_empty() || resource_type.is_empty() {
+            return Ok(None);
+        }
+
+        let mut url = reqwest::Url::parse(
+            "https://app.c.nf.migu.cn/MIGUM3.0/strategy/pc/listen/v1.0",
+        )
+        .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
+        url.query_pairs_mut()
+            .append_pair("scene", "")
+            .append_pair("netType", "01")
+            .append_pair("resourceType", resource_type)
+            .append_pair("copyrightId", copyright_id)
+            .append_pair("contentId", content_id)
+            .append_pair("toneFlag", "PQ");
+        let response = client
+            .get(url)
+            .header("channel", "mx")
+            .send()
+            .await
+            .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
+        if !response.status().is_success() {
+            return Err(super::provider::response_error(
+                self.id(),
+                &response,
+                "歌曲时长请求失败",
+            ));
+        }
+        let envelope = response
+            .json::<ListenEnvelope>()
+            .await
+            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
+        Ok(envelope
+            .data
+            .and_then(|data| data.song)
+            .and_then(|song| song.duration)
+            .filter(|duration| *duration > 0)
+            .map(duration_ms_from_seconds_u64))
     }
 
     async fn download_lyrics(
@@ -210,10 +292,16 @@ impl MiguProvider {
                 "歌词请求失败",
             ));
         }
-        response
-            .text()
+        let bytes = response
+            .bytes()
             .await
-            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))
+            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
+        decode_lyrics_bytes(&bytes).map_err(|error| {
+            self.error(
+                ProviderErrorKind::InvalidResponse,
+                format!("歌词文本解码失败：{error}"),
+            )
+        })
     }
 
     fn error(&self, kind: ProviderErrorKind, message: impl Into<String>) -> ProviderError {

@@ -7,6 +7,7 @@ use std::sync::{Mutex, RwLock};
 use rusqlite::{params, Connection, OptionalExtension};
 use tauri::{AppHandle, Manager};
 
+use crate::lyrics::encoding::decode_lyrics_bytes;
 use crate::lyrics::provider::{
     score_candidate, title_matches, LyricsSearchInput, LyricsSearchResult, KUGOU_DISPLAY_NAME,
     NETEASE_DISPLAY_NAME, QQMUSIC_DISPLAY_NAME,

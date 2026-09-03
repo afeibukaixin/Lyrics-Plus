@@ -92,12 +92,12 @@ pub(super) fn available_path(
         ".lrc"
     };
     let initial = library_dir.join(format!("{stem}{extension}"));
-    if !initial.exists() || fs::read_to_string(&initial).ok().as_deref() == Some(raw) {
+    if !initial.exists() || read_lyric_text(&initial).ok().as_deref() == Some(raw) {
         return initial;
     }
     for suffix in 2..10_000 {
         let candidate = library_dir.join(format!("{stem} ({suffix}){extension}"));
-        if !candidate.exists() || fs::read_to_string(&candidate).ok().as_deref() == Some(raw) {
+        if !candidate.exists() || read_lyric_text(&candidate).ok().as_deref() == Some(raw) {
             return candidate;
         }
     }
@@ -110,14 +110,14 @@ pub(super) fn content_hash(raw: &str) -> String {
     format!("{:016x}", hasher.finish())
 }
 
-fn read_lyric_text(path: &Path) -> Result<String, String> {
+pub(super) fn read_lyric_text(path: &Path) -> Result<String, String> {
     let bytes = fs::read(path).map_err(|error| format!("读取歌词文件失败：{error}"))?;
     if bytes.len() > 5 * 1024 * 1024 {
         return Err("歌词文件超过 5 MB".into());
     }
-    Ok(String::from_utf8_lossy(&bytes)
-        .trim_start_matches('\u{feff}')
-        .to_string())
+    decode_lyrics_bytes(&bytes)
+        .map(|raw| raw.trim_start_matches('\u{feff}').to_string())
+        .map_err(|error| format!("读取歌词文件失败：{error}"))
 }
 
 pub(super) fn upsert_file_index(
@@ -182,20 +182,15 @@ fn migrate_legacy_files(
         if !old_path.exists() {
             continue;
         }
-        let raw = fs::read_to_string(&old_path)?;
+        let raw = read_lyric_text(&old_path)
+            .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
         let original_format = parse_lrc_with_options(&raw, &source, manual_selected)
             .map(|document| document.metadata.original_format)
             .unwrap_or_else(|_| "lrc".into());
         let path = if old_path.starts_with(library_dir) {
             old_path.clone()
         } else if old_path.starts_with(legacy_dir) {
-            let destination = available_path(
-                library_dir,
-                &title,
-                &artist,
-                &raw,
-                &original_format,
-            );
+            let destination = available_path(library_dir, &title, &artist, &raw, &original_format);
             if destination != old_path && !destination.exists() {
                 fs::copy(&old_path, &destination)?;
             }

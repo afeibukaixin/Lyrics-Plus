@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 pub mod amll_ttml;
+pub(crate) mod conversion;
 pub mod credentials;
+pub(crate) mod encoding;
 pub mod kugou;
 pub mod kuwo;
 pub mod lrclib;

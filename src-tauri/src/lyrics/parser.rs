@@ -48,6 +48,78 @@ fn finish_lines(entries: impl IntoIterator<Item = (u64, String)>) -> Vec<LyricsL
         .collect()
 }
 
+fn text_at_column(texts: &[String], column: usize) -> Option<String> {
+    texts
+        .iter()
+        .filter(|text| !text.trim().is_empty())
+        .nth(column)
+        .cloned()
+}
+
+/// 只有覆盖整首歌词且分布足够广的重复列，才视为普通 LRC 的隐式辅助轨。
+/// 片头制作信息即使在多个时间点重复，也不会因为局部数量形成翻译或音译。
+fn implicit_column_is_stable(timed_text: &BTreeMap<u64, Vec<String>>, column: usize) -> bool {
+    let entries = timed_text
+        .iter()
+        .filter(|(_, texts)| text_at_column(texts, 0).is_some())
+        .collect::<Vec<_>>();
+    let total = entries.len();
+    if total == 0 {
+        return false;
+    }
+
+    let candidate_times = entries
+        .iter()
+        .filter_map(|(time, texts)| text_at_column(texts, column).map(|_| **time))
+        .collect::<Vec<_>>();
+    if candidate_times.len().saturating_mul(2) <= total {
+        return false;
+    }
+
+    let Some(overall_first) = entries.first().map(|(time, _)| **time) else {
+        return false;
+    };
+    let Some(overall_last) = entries.last().map(|(time, _)| **time) else {
+        return false;
+    };
+    let Some(candidate_first) = candidate_times.first().copied() else {
+        return false;
+    };
+    let Some(candidate_last) = candidate_times.last().copied() else {
+        return false;
+    };
+
+    let overall_span = overall_last.saturating_sub(overall_first);
+    let candidate_span = candidate_last.saturating_sub(candidate_first);
+    overall_span == 0 || candidate_span.saturating_mul(2) >= overall_span
+}
+
+fn select_original_text(
+    texts: &[String],
+    word_text: Option<&str>,
+    prefer_last: bool,
+) -> Option<String> {
+    if let Some(word_text) = word_text {
+        if let Some(text) = texts.iter().find(|text| text.as_str() == word_text) {
+            return Some(text.clone());
+        }
+    }
+    if prefer_last {
+        texts
+            .iter()
+            .rev()
+            .find(|text| !text.trim().is_empty())
+            .cloned()
+            .or_else(|| texts.last().cloned())
+    } else {
+        texts
+            .iter()
+            .find(|text| !text.trim().is_empty())
+            .cloned()
+            .or_else(|| texts.first().cloned())
+    }
+}
+
 #[allow(dead_code)]
 pub fn parse_lrc(raw: &str, source: impl Into<String>) -> Result<LyricsDocument, String> {
     parse_lrc_with_options(raw, source, false)
@@ -304,6 +376,7 @@ fn normalize_document(document: &mut LyricsDocument) {
 pub(crate) fn lyrics_quality_report(
     document: &LyricsDocument,
     duration_ms: Option<u64>,
+    duration_tolerance_ms: Option<u64>,
 ) -> LyricsQualityReport {
     let original = &document.tracks.original.lines;
     let has_valid_synced_original = original.iter().any(|line| {
@@ -334,9 +407,11 @@ pub(crate) fn lyrics_quality_report(
         })
         .count();
     let auto_applicable = has_valid_synced_original
-        && duration_ms.is_none_or(|duration| {
-            last_valid_time_ms.is_none_or(|last| last <= duration.saturating_add(12_000))
-        });
+        && match (duration_ms, duration_tolerance_ms) {
+            (Some(duration), Some(tolerance)) => last_valid_time_ms
+                .is_none_or(|last| last <= duration.saturating_add(tolerance)),
+            _ => true,
+        };
     LyricsQualityReport {
         has_valid_synced_original,
         degraded_word_lines,
@@ -531,7 +606,7 @@ pub fn parse_lrc_with_options(
     let mut explicit_translation_seen = false;
     let mut explicit_romanization_seen = false;
     let mut track_kind = 0_u8;
-    let mut word_timings = BTreeMap::<u64, Vec<LyricsWord>>::new();
+    let mut word_timings = BTreeMap::<u64, (String, Vec<LyricsWord>)>::new();
     let mut saw_enhanced_words = false;
 
     for source_line in raw.lines() {
@@ -589,7 +664,9 @@ pub fn parse_lrc_with_options(
                 texts.push(text.clone());
             }
             if track_kind == 0 && !malformed_words && !words.is_empty() {
-                word_timings.entry(time_ms).or_insert_with(|| words.clone());
+                word_timings
+                    .entry(time_ms)
+                    .or_insert_with(|| (text.clone(), words.clone()));
             }
         }
     }
@@ -598,13 +675,28 @@ pub fn parse_lrc_with_options(
         return Err("没有找到带时间标签的歌词行".into());
     }
 
-    let mut original = finish_lines(
-        timed_text
-            .iter()
-            .filter_map(|(time, texts)| texts.first().map(|text| (*time, text.clone()))),
-    );
+    let implicit_translation =
+        !explicit_translation_seen && implicit_column_is_stable(&timed_text, 1);
+    let implicit_romanization = !explicit_romanization_seen
+        && (explicit_translation_seen || implicit_translation)
+        && implicit_column_is_stable(&timed_text, 2);
+    let implicit_width = if implicit_romanization {
+        3
+    } else if implicit_translation {
+        2
+    } else {
+        1
+    };
+    let prefer_last_on_collision = !explicit_translation_seen && !explicit_romanization_seen;
+
+    let mut original = finish_lines(timed_text.iter().filter_map(|(time, texts)| {
+        let word_text = word_timings.get(time).map(|(text, _)| text.as_str());
+        let has_extra_column = text_at_column(texts, implicit_width).is_some();
+        let prefer_last = prefer_last_on_collision && has_extra_column;
+        select_original_text(texts, word_text, prefer_last).map(|text| (*time, text))
+    }));
     for line in &mut original {
-        if let Some(mut words) = word_timings.remove(&line.start_ms) {
+        if let Some((_, mut words)) = word_timings.remove(&line.start_ms) {
             if let (Some(last), Some(line_end)) = (words.last_mut(), line.end_ms) {
                 last.end_ms = last.end_ms.max(line_end);
             }
@@ -617,12 +709,15 @@ pub fn parse_lrc_with_options(
                 .iter()
                 .filter_map(|(time, texts)| texts.first().map(|text| (*time, text.clone()))),
         )
+    } else if implicit_translation {
+        finish_lines(timed_text.iter().filter_map(|(time, texts)| {
+            if text_at_column(texts, implicit_width).is_some() {
+                return None;
+            }
+            text_at_column(texts, 1).map(|text| (*time, text))
+        }))
     } else {
-        finish_lines(
-            timed_text
-                .iter()
-                .filter_map(|(time, texts)| texts.get(1).map(|text| (*time, text.clone()))),
-        )
+        Vec::new()
     };
     let romanization = if explicit_romanization_seen {
         finish_lines(
@@ -630,12 +725,15 @@ pub fn parse_lrc_with_options(
                 .iter()
                 .filter_map(|(time, texts)| texts.first().map(|text| (*time, text.clone()))),
         )
+    } else if implicit_romanization {
+        finish_lines(timed_text.iter().filter_map(|(time, texts)| {
+            if text_at_column(texts, implicit_width).is_some() {
+                return None;
+            }
+            text_at_column(texts, 2).map(|text| (*time, text))
+        }))
     } else {
-        finish_lines(
-            timed_text
-                .iter()
-                .filter_map(|(time, texts)| texts.get(2).map(|text| (*time, text.clone()))),
-        )
+        Vec::new()
     };
 
     let mut document = LyricsDocument {

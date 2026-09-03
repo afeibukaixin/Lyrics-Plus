@@ -23,9 +23,12 @@ struct SearchData {
 struct NeteaseSong {
     id: i64,
     name: String,
-    #[serde(default)]
+    // 网易云搜索接口的精简响应使用 ar/al/dt，完整响应仍可能使用英文展开字段。
+    #[serde(default, alias = "ar")]
     artists: Vec<NeteaseArtist>,
+    #[serde(alias = "al")]
     album: Option<NeteaseAlbum>,
+    #[serde(alias = "dt")]
     duration: Option<u64>,
 }
 
