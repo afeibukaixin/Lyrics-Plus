@@ -5,6 +5,8 @@ export const NOTCH_TOP_CORNER_MAX_RADIUS = 15;
 export const COLLAPSED_HEIGHT_FALLBACK = 30;
 export const EXPANDED_HEIGHT_FALLBACK = 180;
 export const NON_NOTCH_TOP_INSET_FALLBACK = 30;
+// 无刘海屏菜单栏底部包含一个视觉分隔像素，补齐收起态岛体的底边。
+export const NON_NOTCH_MENU_BAR_EDGE_COMPENSATION = 1;
 
 export function resolvedNotchTopInset(layout: NotchLayoutMetrics) {
   return Number.isFinite(layout.topInset) && layout.topInset > 0
@@ -14,7 +16,9 @@ export function resolvedNotchTopInset(layout: NotchLayoutMetrics) {
 
 export function notchCollapsedHeightFloor(layout: NotchLayoutMetrics) {
   const topInset = resolvedNotchTopInset(layout);
-  return layout.hasNotch ? Math.max(COLLAPSED_HEIGHT_FALLBACK, topInset) : topInset;
+  return layout.hasNotch
+    ? Math.max(COLLAPSED_HEIGHT_FALLBACK, topInset)
+    : topInset + NON_NOTCH_MENU_BAR_EDGE_COMPENSATION;
 }
 
 export function notchSlotPadding(borderRadius: number) {

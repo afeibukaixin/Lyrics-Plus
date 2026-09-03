@@ -22,6 +22,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_macos_fps::init())
         .setup(|app| {
             let storage = storage::Storage::new(app.handle())?;
             let notice_accepted = legal_notice_accepted(&storage).unwrap_or(false);
@@ -300,6 +301,7 @@ pub fn run() {
             commands::set_list_lyrics_options,
             commands::set_list_lyrics_locked,
             commands::set_lyrics_chinese_conversion,
+            commands::set_lyrics_japanese_repair_enabled,
             commands::set_notch_lyrics_visible,
             commands::set_lyrics_display_preferences,
             commands::set_lyrics_base_appearance,

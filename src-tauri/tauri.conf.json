@@ -42,6 +42,9 @@
     }
   },
   "plugins": {
+    "macos-fps": {
+      "enabled": true
+    },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUwQUMxNjRENDc2NTU2RjQKUldUMFZtVkhUUmFzNEQ4NGFZN1N1TWEzWUw4aTRtazZtVHE2WWlwRDk2bTV2aGZtbyt5VlZnZkkK",
       "endpoints": [

@@ -824,6 +824,8 @@ fn create_notch_lyrics_window(app: &tauri::AppHandle) -> tauri::Result<()> {
     .focusable(false)
     .always_on_top(true)
     .skip_taskbar(true)
+    // 在 WebView 首次绘制前标记窗口类型，避免透明样式延迟生效造成黑色闪屏。
+    .initialization_script("document.documentElement.dataset.window = 'lyrics-notch';")
     .visible(false)
     .build()?;
     // 窗口按展开态预留尺寸，WebView 挂载前必须先让透明区域穿透鼠标事件。
@@ -901,10 +903,6 @@ fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), Stri
         destroy_surface(app, "lyrics-list")?;
     }
 
-    let has_track = playback
-        .title
-        .as_deref()
-        .is_some_and(|title| !title.trim().is_empty());
     if !displays.notch.enabled {
         {
             let mut visibility = state
@@ -919,7 +917,6 @@ fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), Stri
         return Ok(());
     }
     let show_notch = displays.notch.enabled
-        && has_track
         && (!displays.notch.hide_when_not_playing || playback.is_playing);
     let (visibility_changed, visibility_generation) = {
         let mut visibility = state
@@ -990,12 +987,7 @@ fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Result<(), Stri
                         .read()
                         .unwrap_or_else(|error| error.into_inner())
                         .clone();
-                    let has_track = playback
-                        .title
-                        .as_deref()
-                        .is_some_and(|title| !title.trim().is_empty());
                     let should_still_hide = !displays.notch.enabled
-                        || !has_track
                         || (displays.notch.hide_when_not_playing && !playback.is_playing);
                     if should_still_hide {
                         let handle_for_main = handle.clone();
