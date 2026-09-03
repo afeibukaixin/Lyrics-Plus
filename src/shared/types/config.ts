@@ -37,6 +37,7 @@ export type AppConfig = {
   };
   lyrics: {
     chineseConversion: ChineseConversion;
+    repairSimplifiedJapanese: boolean;
     providers: ProviderSettings;
     displays: LyricsDisplayPreferences;
     baseAppearance: LyricsBaseAppearance;

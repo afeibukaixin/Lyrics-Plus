@@ -38,6 +38,8 @@ export const settingsApi = {
     invoke<AppConfig>("set_list_lyrics_locked", { locked }),
   setLyricsChineseConversion: (conversion: ChineseConversion) =>
     invoke<AppConfig>("set_lyrics_chinese_conversion", { conversion }),
+  setLyricsJapaneseRepairEnabled: (enabled: boolean) =>
+    invoke<AppConfig>("set_lyrics_japanese_repair_enabled", { enabled }),
   setNotchLyricsVisible: (visible: boolean) =>
     invoke<AppConfig>("set_notch_lyrics_visible", { visible }),
   setLyricsDisplayPreferences: <Mode extends Exclude<LyricsStyleMode, "desktop">>(

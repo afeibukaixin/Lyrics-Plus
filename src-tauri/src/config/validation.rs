@@ -95,6 +95,7 @@ fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftError> {
     migrate_v57_chinese_conversion(&mut user, version);
     migrate_v59_switch_lyrics_shortcut(&mut user);
     migrate_v62_status_bar_secondary_font_weight(&mut user, version);
+    migrate_v63_simplified_japanese_repair(&mut user, version);
     remove_retired_fullscreen_space_preferences(&mut user);
     validate_known_fields(&user, raw)?;
     validate_field_types_and_options(&user, raw)?;
@@ -278,6 +279,7 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
             raw,
             &[
                 "chineseConversion",
+                "repairSimplifiedJapanese",
                 "providers",
                 "displays",
                 "baseAppearance",
@@ -319,6 +321,8 @@ fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftErro
                     "mode",
                     "providers",
                     "autoApplyThreshold",
+                    "autoApplyDurationGuardEnabled",
+                    "autoApplyDurationToleranceSeconds",
                     "autoSearchDebounceMs",
                     "preferCapabilities",
                     "capabilityPreferenceTolerance",
@@ -682,7 +686,15 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
             "autoCenterWithTranslationOrRomanization",
         ),
         ("/lyrics/providers/preferCapabilities", "preferCapabilities"),
+        (
+            "/lyrics/providers/autoApplyDurationGuardEnabled",
+            "autoApplyDurationGuardEnabled",
+        ),
         ("/lyrics/providers/normalizeChinese", "normalizeChinese"),
+        (
+            "/lyrics/repairSimplifiedJapanese",
+            "repairSimplifiedJapanese",
+        ),
     ] {
         if value
             .pointer(pointer)
@@ -694,6 +706,10 @@ fn validate_field_types_and_options(value: &Value, raw: &str) -> Result<(), Conf
     for (pointer, key) in [
         ("/schemaVersion", "schemaVersion"),
         ("/lyrics/providers/autoApplyThreshold", "autoApplyThreshold"),
+        (
+            "/lyrics/providers/autoApplyDurationToleranceSeconds",
+            "autoApplyDurationToleranceSeconds",
+        ),
         (
             "/lyrics/providers/autoSearchDebounceMs",
             "autoSearchDebounceMs",
@@ -1089,6 +1105,12 @@ fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftEr
             value.pointer("/lyrics/providers/autoApplyThreshold"),
             0.0,
             100.0,
+        ),
+        (
+            "autoApplyDurationToleranceSeconds",
+            value.pointer("/lyrics/providers/autoApplyDurationToleranceSeconds"),
+            0.0,
+            60.0,
         ),
         (
             "autoSearchDebounceMs",

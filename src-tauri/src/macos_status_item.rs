@@ -24,9 +24,11 @@ use objc2_foundation::{
 };
 use objc2_quartz_core::{CADisplayLink, CALayer, CATextLayer, CATransaction};
 use tauri::Manager;
+use zhhz::Region;
 
 use crate::config::{ChineseConversion, CompactKaraokeStyle, StatusBarAlignment};
-use crate::lyrics::{LyricsLine, LyricsWord};
+use crate::lyrics::conversion::detect_region;
+use crate::lyrics::{LyricsDocument, LyricsLine, LyricsTrack, LyricsWord};
 use crate::AppState;
 use crate::TrayMenuState;
 
@@ -46,6 +48,7 @@ thread_local! {
     static LAYER_CACHE: RefCell<Option<LayerCache>> = const { RefCell::new(None) };
     static DISPLAY_DRIVER: RefCell<Option<DisplayDriver>> = const { RefCell::new(None) };
     static DISPLAY_OBSERVERS: RefCell<Vec<Retained<ProtocolObject<dyn NSObjectProtocol>>>> = const { RefCell::new(Vec::new()) };
+    static TRACK_REGION_CACHE: RefCell<Option<TrackRegionCache>> = const { RefCell::new(None) };
 }
 
 static FALLBACK_LOOP_STARTED: AtomicBool = AtomicBool::new(false);
@@ -62,6 +65,12 @@ struct LayerRowCache {
     highlight_layer: Option<Retained<CATextLayer>>,
     highlight_mask: Option<Retained<CALayer>>,
     content_width: f64,
+}
+
+struct TrackRegionCache {
+    document_identity: (usize, usize),
+    original: Option<Region>,
+    translation: Option<Region>,
 }
 
 struct DisplayLinkTargetIvars {
@@ -305,16 +314,50 @@ fn line_scroll_duration(lines: &[LyricsLine], index: usize) -> Option<Duration> 
         .map(Duration::from_millis)
 }
 
+fn track_region(track: &LyricsTrack) -> Option<Region> {
+    let text = track
+        .lines
+        .iter()
+        .map(|line| line.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    detect_region(&text)
+}
+
+fn cached_track_regions(document: &LyricsDocument) -> (Option<Region>, Option<Region>) {
+    let document_identity = (document.raw.as_ptr() as usize, document.raw.len());
+    TRACK_REGION_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if let Some(regions) = cache
+            .as_ref()
+            .filter(|regions| regions.document_identity == document_identity)
+        {
+            return (regions.original, regions.translation);
+        }
+        let regions = TrackRegionCache {
+            document_identity,
+            original: track_region(&document.tracks.original),
+            translation: document.tracks.translation.as_ref().and_then(track_region),
+        };
+        let result = (regions.original, regions.translation);
+        *cache = Some(regions);
+        result
+    })
+}
+
 fn supporting_line_payload(
     track_key: &str,
     raw_line: &LyricsLine,
     conversion: ChineseConversion,
+    source_region: Option<Region>,
+    repair_japanese: bool,
     kind: RenderLineKind,
     base_color: String,
     highlight_color: String,
     scroll_duration: Option<Duration>,
 ) -> RenderLinePayload {
-    let line = raw_line.converted_for_output(conversion);
+    let line =
+        raw_line.converted_for_output_with_region(conversion, source_region, repair_japanese);
     let text = line.text.trim().to_owned();
     RenderLinePayload {
         content_key: format!("{track_key}:{kind:?}:{}:{text}", line.start_ms),
@@ -381,10 +424,15 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
         if let Some(document) = runtime.document.as_ref() {
             let adjusted = (position_ms as i128 + document.offset_ms as i128).max(0) as u64;
             let lines = &document.tracks.original.lines;
+            let (original_region, translation_region) = cached_track_regions(document);
             let current_index = lines.iter().rposition(|line| line.start_ms <= adjusted);
             if let Some(index) = current_index {
                 if let Some(raw_line) = lines.get(index) {
-                    let line = raw_line.converted_for_output(config.lyrics.chinese_conversion);
+                    let line = raw_line.converted_for_output_with_region(
+                        config.lyrics.chinese_conversion,
+                        original_region,
+                        config.lyrics.repair_simplified_japanese,
+                    );
                     primary.text = line.text.trim().to_owned();
                     primary.kind = RenderLineKind::Primary;
                     primary.content_key =
@@ -411,7 +459,11 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
                                 if let Some(line) =
                                     find_aligned_auxiliary_line(&track.lines, raw_line)
                                 {
-                                    supporting = Some((line, RenderLineKind::Translation));
+                                    supporting = Some((
+                                        line,
+                                        RenderLineKind::Translation,
+                                        translation_region,
+                                    ));
                                 }
                             }
                         }
@@ -420,11 +472,11 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
                                 if let Some(line) =
                                     find_aligned_auxiliary_line(&track.lines, raw_line)
                                 {
-                                    supporting = Some((line, RenderLineKind::Romanization));
+                                    supporting = Some((line, RenderLineKind::Romanization, None));
                                 }
                             }
                         }
-                        if let Some((raw_supporting, kind)) = supporting {
+                        if let Some((raw_supporting, kind, source_region)) = supporting {
                             let color = match kind {
                                 RenderLineKind::Translation => translation_color.clone(),
                                 RenderLineKind::Romanization => romanization_color.clone(),
@@ -434,6 +486,8 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
                                 track_key,
                                 raw_supporting,
                                 config.lyrics.chinese_conversion,
+                                source_region,
+                                config.lyrics.repair_simplified_japanese,
                                 kind,
                                 color,
                                 highlight_color.clone(),
@@ -444,6 +498,8 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
                                 track_key,
                                 raw_next,
                                 config.lyrics.chinese_conversion,
+                                original_region,
+                                config.lyrics.repair_simplified_japanese,
                                 RenderLineKind::Next,
                                 inactive_color.clone(),
                                 highlight_color.clone(),
@@ -458,6 +514,8 @@ fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
                         track_key,
                         raw_next,
                         config.lyrics.chinese_conversion,
+                        original_region,
+                        config.lyrics.repair_simplified_japanese,
                         RenderLineKind::Next,
                         inactive_color.clone(),
                         highlight_color.clone(),

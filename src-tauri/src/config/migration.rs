@@ -453,6 +453,17 @@ fn migrate_v57_chinese_conversion(user: &mut Value, version: u16) {
     }
 }
 
+fn migrate_v63_simplified_japanese_repair(user: &mut Value, version: u16) {
+    if version >= 63 {
+        return;
+    }
+    if let Some(lyrics) = user.pointer_mut("/lyrics").and_then(Value::as_object_mut) {
+        lyrics
+            .entry("repairSimplifiedJapanese")
+            .or_insert_with(|| Value::from(false));
+    }
+}
+
 fn remove_retired_fullscreen_space_preferences(user: &mut Value) {
     if let Some(overlay) = user.pointer_mut("/overlay").and_then(Value::as_object_mut) {
         overlay.remove("joinOtherAppsFullscreen");

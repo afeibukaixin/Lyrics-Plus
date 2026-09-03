@@ -62,6 +62,19 @@ pub fn set_lyrics_chinese_conversion(
 }
 
 #[tauri::command]
+pub fn set_lyrics_japanese_repair_enabled(
+    app: tauri::AppHandle,
+    enabled: bool,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    let config = state
+        .config
+        .update(|config| config.lyrics.repair_simplified_japanese = enabled)?;
+    republish_lyrics_runtime(&app);
+    finish_display_config_update(&app, config)
+}
+
+#[tauri::command]
 pub fn set_list_lyrics_locked(
     app: tauri::AppHandle,
     locked: bool,
@@ -272,6 +285,8 @@ fn apply_app_config(
         previous_menu_bar_icon_hidden != next.app.hide_menu_bar_icon;
     let chinese_conversion_changed =
         previous_config.lyrics.chinese_conversion != next.lyrics.chinese_conversion;
+    let japanese_repair_changed = previous_config.lyrics.repair_simplified_japanese
+        != next.lyrics.repair_simplified_japanese;
     if dock_visibility_changed {
         crate::apply_dock_icon_hidden(app, next.app.hide_dock_icon)?;
     }
@@ -339,7 +354,7 @@ fn apply_app_config(
         .providers
         .set_settings(saved.lyrics.providers.clone())?;
     invalidate_lyrics_search_session(&state);
-    if chinese_conversion_changed {
+    if chinese_conversion_changed || japanese_repair_changed {
         republish_lyrics_runtime(app);
     }
     *state
@@ -495,6 +510,7 @@ pub fn reset_settings_section(
             state.config.update(|config| {
                 config.lyrics.providers = view.settings;
                 config.lyrics.chinese_conversion = ChineseConversion::Original;
+                config.lyrics.repair_simplified_japanese = false;
             })?;
             invalidate_lyrics_search_session(&state);
         }

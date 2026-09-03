@@ -98,17 +98,20 @@ function applyPendingNotchPreferences(
 }
 
 const defaultConfig: AppConfig = {
-  schemaVersion: 62,
+  schemaVersion: 63,
   app: { theme: "dark", language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, hideMenuBarIcon: false, silentStartup: false, autoCheckUpdates: true, lyricsWindowsShowOnAllSpaces: false, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     chineseConversion: "original",
+    repairSimplifiedJapanese: false,
     providers: {
       mode: "smart",
       autoApplyThreshold: 60,
+      autoApplyDurationGuardEnabled: true,
+      autoApplyDurationToleranceSeconds: 15,
       autoSearchDebounceMs: 2000,
       preferCapabilities: true,
       capabilityPreferenceTolerance: 4,
-      matchWeights: { title: 39, artist: 36, album: 8, duration: 17 },
+      matchWeights: { title: 64, artist: 16, album: 16, duration: 4 },
       normalizeChinese: true,
       titleFilterKeywords: defaultTitleFilterKeywords,
       amllBaseUrl: "https://api.amll.dev",
@@ -172,6 +175,7 @@ type AppConfigContextValue = {
   setListLyricsOptions: (showTranslation: boolean, showRomanization: boolean) => Promise<void>;
   setListLyricsLocked: (locked: boolean) => Promise<void>;
   setLyricsChineseConversion: (conversion: ChineseConversion) => Promise<void>;
+  setLyricsJapaneseRepairEnabled: (enabled: boolean) => Promise<void>;
   setNotchLyricsVisible: (visible: boolean) => Promise<void>;
   setLyricsDisplayPreferences: <Mode extends Exclude<LyricsStyleMode, "desktop">>(mode: Mode, preferences: LyricsDisplayPreferences[Mode]) => Promise<void>;
   setLyricsBaseAppearance: (appearance: LyricsBaseAppearance) => Promise<void>;
@@ -443,6 +447,16 @@ export function AppConfigProvider({
         return;
       }
       setConfig(await api.setLyricsChineseConversion(conversion));
+    },
+    setLyricsJapaneseRepairEnabled: async (enabled) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({
+          ...current,
+          lyrics: { ...current.lyrics, repairSimplifiedJapanese: enabled },
+        }));
+        return;
+      }
+      setConfig(await api.setLyricsJapaneseRepairEnabled(enabled));
     },
     setNotchLyricsVisible: async (enabled) => {
       if (!isTauriRuntime()) {

@@ -25,8 +25,9 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input";
 
 const defaultAmllBaseUrl = "https://api.amll.dev";
-const defaultMatchWeights: MatchWeights = { title: 39, artist: 36, album: 8, duration: 17 };
+const defaultMatchWeights: MatchWeights = { title: 64, artist: 16, album: 16, duration: 4 };
 const defaultCapabilityPreferenceTolerance = 4;
+const defaultAutoApplyDurationToleranceSeconds = 15;
 const matchWeightKeys = ["title", "artist", "album", "duration"] as const;
 type MatchWeightKey = (typeof matchWeightKeys)[number];
 
@@ -41,7 +42,7 @@ function healthLabel(status: ProviderStatus | undefined, t: TFunction) {
 
 export default function LyricsSettingsPage() {
   const { t } = useTranslation();
-  const { config, setLyricsChineseConversion } = useAppConfig();
+  const { config, setLyricsChineseConversion, setLyricsJapaneseRepairEnabled } = useAppConfig();
   const [titleFilterDraft, setTitleFilterDraft] = useState("");
   const [savingTitleFilters, setSavingTitleFilters] = useState(false);
   const [libraryDir, setLibraryDir] = useState<string | null>(null);
@@ -55,6 +56,7 @@ export default function LyricsSettingsPage() {
   const [matchWeightsDraft, setMatchWeightsDraft] = useState<MatchWeights>(defaultMatchWeights);
   const [savingMatchRules, setSavingMatchRules] = useState(false);
   const [savingChineseConversion, setSavingChineseConversion] = useState(false);
+  const [savingJapaneseRepair, setSavingJapaneseRepair] = useState(false);
   const {
     playback, lyrics, fileInput, providerRows, providerView, providerCredentials, testingProvider,
     resettingSection, confirmingReset, providerDrag, savingProviderOrder,
@@ -192,6 +194,13 @@ export default function LyricsSettingsPage() {
     setSavingMatchRules(false);
   };
 
+  const updateAutoApplyDurationGuard = async (autoApplyDurationGuardEnabled: boolean) => {
+    if (!providerView || savingMatchRules) return;
+    setSavingMatchRules(true);
+    await saveProviderSettings({ ...providerView.settings, autoApplyDurationGuardEnabled });
+    setSavingMatchRules(false);
+  };
+
   const commitCapabilityPreferenceTolerance = async (capabilityPreferenceTolerance: number) => {
     if (!providerView) return;
     setSavingMatchRules(true);
@@ -210,6 +219,19 @@ export default function LyricsSettingsPage() {
       setError(messageOf(error));
     } finally {
       setSavingChineseConversion(false);
+    }
+  };
+
+  const updateJapaneseRepair = async (enabled: boolean) => {
+    if (savingJapaneseRepair) return;
+    setSavingJapaneseRepair(true);
+    setError(null);
+    try {
+      await setLyricsJapaneseRepairEnabled(enabled);
+    } catch (error) {
+      setError(messageOf(error));
+    } finally {
+      setSavingJapaneseRepair(false);
     }
   };
 
@@ -237,6 +259,13 @@ export default function LyricsSettingsPage() {
     const autoSearchDebounceMs = Math.round(seconds * 1_000 / 100) * 100;
     const saved = await saveProviderSettings({ ...providerView.settings, autoSearchDebounceMs });
     if (!saved) throw new Error("failed to save lyric search debounce");
+  };
+
+  const commitAutoApplyDurationTolerance = async (seconds: number) => {
+    if (!providerView) return;
+    const autoApplyDurationToleranceSeconds = Math.round(seconds);
+    const saved = await saveProviderSettings({ ...providerView.settings, autoApplyDurationToleranceSeconds });
+    if (!saved) throw new Error("failed to save lyric duration tolerance");
   };
 
   const matchWeightTotal = matchWeightKeys.reduce((sum, key) => sum + matchWeightsDraft[key], 0);
@@ -285,6 +314,13 @@ export default function LyricsSettingsPage() {
         disabled={savingChineseConversion}
         onChange={(value) => void updateChineseConversion(value)}
       />
+      <ToggleRow
+        label={t("settings.lyrics.repairSimplifiedJapanese")}
+        description={t("settings.lyrics.repairSimplifiedJapaneseHint")}
+        value={config.lyrics.repairSimplifiedJapanese}
+        disabled={savingJapaneseRepair}
+        onChange={updateJapaneseRepair}
+      />
     </SettingsSection>
     <SettingsSection id="lyrics-directory" title={t("settings.lyrics.directory")}>
       <p className={styles.directoryPath}>{libraryDir ?? t("library.loadingDirectory")}</p>
@@ -303,6 +339,25 @@ export default function LyricsSettingsPage() {
     <SettingsSection id="lyrics-auto-match" title={t("settings.lyrics.autoMatch")}>
       <RangeRow label={t("settings.lyrics.threshold")} value={providerView?.settings.autoApplyThreshold ?? 60} min={0} max={100} suffix="%" onChange={(autoApplyThreshold) => { if (providerView) void saveProviderSettings({ ...providerView.settings, autoApplyThreshold }); }} />
       <p className={styles.cardHint}>{t("settings.lyrics.thresholdHint")}</p>
+      <ToggleRow
+        label={t("settings.lyrics.durationGuard")}
+        description={t("settings.lyrics.durationGuardHint")}
+        value={providerView?.settings.autoApplyDurationGuardEnabled ?? true}
+        disabled={!providerView || savingMatchRules}
+        onChange={updateAutoApplyDurationGuard}
+      />
+      <RangeRow
+        label={t("settings.lyrics.durationTolerance")}
+        value={providerView?.settings.autoApplyDurationToleranceSeconds ?? defaultAutoApplyDurationToleranceSeconds}
+        min={0}
+        max={60}
+        step={1}
+        suffix="s"
+        disabled={!providerView || savingMatchRules || !providerView.settings.autoApplyDurationGuardEnabled}
+        onChange={() => undefined}
+        onValueCommitted={commitAutoApplyDurationTolerance}
+      />
+      <p className={styles.cardHint}>{t("settings.lyrics.durationToleranceHint")}</p>
       <RangeRow label={t("settings.lyrics.autoSearchDebounce")} value={(providerView?.settings.autoSearchDebounceMs ?? 2000) / 1000} min={0} max={5} step={0.1} suffix="s" disabled={!providerView} onChange={() => undefined} onValueCommitted={commitAutoSearchDebounce} />
       <p className={styles.cardHint}>{t("settings.lyrics.autoSearchDebounceHint")}</p>
     </SettingsSection>

@@ -249,6 +249,7 @@ pub enum ChineseConversion {
 #[serde(default, rename_all = "camelCase")]
 pub struct LyricsPreferences {
     pub chinese_conversion: ChineseConversion,
+    pub repair_simplified_japanese: bool,
     pub providers: ProviderSettings,
     pub displays: LyricsDisplayPreferences,
     pub base_appearance: LyricsBaseAppearance,
@@ -259,6 +260,7 @@ impl Default for LyricsPreferences {
     fn default() -> Self {
         Self {
             chinese_conversion: ChineseConversion::Original,
+            repair_simplified_japanese: false,
             providers: ProviderSettings::default(),
             displays: LyricsDisplayPreferences::default(),
             base_appearance: LyricsBaseAppearance::default(),
