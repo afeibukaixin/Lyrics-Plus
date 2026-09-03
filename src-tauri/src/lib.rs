@@ -11,6 +11,7 @@ mod player_lifecycle;
 mod runtime_model;
 mod state;
 mod storage;
+mod windows;
 
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
@@ -51,15 +52,6 @@ const LIST_LYRICS_DEFAULT_HEIGHT: f64 = 720.0;
 const NOTCH_VISIBILITY_TRANSITION_EVENT: &str = "notch://visibility-transition";
 const QUICK_LYRICS_REFRESH_EVENT: &str = "quick-lyrics://refresh";
 const NOTCH_EXIT_ANIMATION_DURATION: Duration = Duration::from_millis(400);
-const SURFACE_RUNTIME_STATE_EVENT: &str = "surface://runtime-state";
-
-#[derive(Clone, Copy, Debug, serde::Serialize)]
-#[serde(rename_all = "lowercase")]
-enum SurfaceRuntimeState {
-    Active,
-    Dormant,
-}
-
 #[derive(Default)]
 pub(crate) struct NotchVisibilityState {
     target_visible: bool,
@@ -72,7 +64,17 @@ struct NotchVisibilityTransitionPayload {
 }
 
 include!("app_runtime.rs");
-include!("windows.rs");
+pub(crate) use windows::{
+    apply_joining_other_apps_fullscreen, apply_list_lyrics_window_lock,
+    apply_lyrics_window_space_behavior, apply_lyrics_windows_space_behavior,
+    cancel_surface_destroy, configure_web_content_process_handler, create_overlay,
+    handle_surface_destroyed, hide_surface, is_managed_surface_label, notch_monitor_id,
+    notch_window_position, position_auxiliary_lyrics_window_default,
+    reconcile_auxiliary_lyrics_windows, refresh_overlay_mouse_tracking,
+    reset_list_lyrics_window_size, schedule_surface_destroy, set_surface_runtime_state,
+    set_window_frame, show_quick_lyrics_window, surface_is_destroying, sync_lyrics_surfaces,
+    toggle_quick_lyrics_window, SurfaceRuntimeState,
+};
 include!("tray.rs");
 include!("overlay_runtime.rs");
 include!("bootstrap.rs");
