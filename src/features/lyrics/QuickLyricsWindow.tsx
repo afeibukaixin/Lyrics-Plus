@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import styles from "./QuickLyricsWindow.module.scss";
 
 function formatTime(value: number | null | undefined) {
-  if (value == null) return null;
+  if (value == null || !Number.isFinite(value) || value <= 0) return "--:--";
   const seconds = Math.max(0, Math.round(value / 1000));
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
@@ -344,7 +344,7 @@ export default function QuickLyricsWindow() {
                       {candidateDetailsOpen && <div className={styles.resultMetadata}>
                         <span>{t("quickLyrics.artistField")}: {result.artist || t("quickLyrics.unknown")}</span>
                         <span>{t("quickLyrics.albumField")}: {result.album || t("quickLyrics.unknown")}</span>
-                        <span>{t("quickLyrics.durationField")}: {formatTime(result.durationMs) ?? t("quickLyrics.unknown")}</span>
+                        <span>{t("quickLyrics.durationField")}: {formatTime(result.durationMs)}</span>
                       </div>}
                       {capabilities.length > 0 && <div className={styles.capabilities}>{capabilities.map((capability) => <Badge variant="outline" key={capability}>{capability}</Badge>)}</div>}
                     </div>
@@ -376,7 +376,7 @@ export default function QuickLyricsWindow() {
                       {candidateDetailsOpen && <div className={styles.resultMetadata}>
                         <span>{t("quickLyrics.artistField")}: {result.artist || t("quickLyrics.unknown")}</span>
                         <span>{t("quickLyrics.albumField")}: {result.album || t("quickLyrics.unknown")}</span>
-                        <span>{t("quickLyrics.durationField")}: {formatTime(result.durationMs) ?? t("quickLyrics.unknown")}</span>
+                        <span>{t("quickLyrics.durationField")}: {formatTime(result.durationMs)}</span>
                       </div>}
                       {capabilities.length > 0 && <div className={styles.capabilities}>{capabilities.map((capability) => <Badge variant="outline" key={capability}>{capability}</Badge>)}</div>}
                     </div>

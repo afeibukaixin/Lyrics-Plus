@@ -220,10 +220,10 @@ impl MatchWeights {
 impl Default for MatchWeights {
     fn default() -> Self {
         Self {
-            title: 39,
-            artist: 36,
-            album: 8,
-            duration: 17,
+            title: 64,
+            artist: 16,
+            album: 16,
+            duration: 4,
         }
     }
 }
@@ -259,7 +259,9 @@ pub struct LyricsSearchInput {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LyricsSearchResult {
+    /// 来源内稳定标识，必须与 provider_id 组合使用，不能跨歌词源比较。
     pub id: String,
+    /// 产生该 ID 的歌词源标识。
     pub provider_id: String,
     pub title: String,
     pub artist: String,

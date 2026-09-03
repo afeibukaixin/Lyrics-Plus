@@ -377,7 +377,7 @@ impl MusixmatchProvider {
             title: track.track_name,
             artist: track.artist_name,
             album: track.album_name.filter(|album| !album.is_empty()),
-            duration_ms: track.track_length.map(duration_ms_from_seconds_u64),
+            duration_ms: track_duration_ms(track.track_length),
             source: self.display_name().into(),
             synced: parsed.is_some(),
             has_translation: parsed
@@ -680,6 +680,12 @@ fn stamp_seconds(seconds: f64) -> String {
     format!("{minutes:02}:{:02}.{:02}", remaining / 100, remaining % 100)
 }
 
+fn track_duration_ms(track_length: Option<u64>) -> Option<u64> {
+    track_length
+        .filter(|duration| *duration > 0)
+        .map(duration_ms_from_seconds_u64)
+}
+
 fn metadata_score(input: &LyricsSearchInput, track: &MusixmatchTrack) -> f64 {
     let result = LyricsSearchResult {
         id: track.track_id.to_string(),
@@ -687,7 +693,7 @@ fn metadata_score(input: &LyricsSearchInput, track: &MusixmatchTrack) -> f64 {
         title: track.track_name.clone(),
         artist: track.artist_name.clone(),
         album: track.album_name.clone(),
-        duration_ms: track.track_length.map(duration_ms_from_seconds_u64),
+        duration_ms: track_duration_ms(track.track_length),
         source: MUSIXMATCH_DISPLAY_NAME.into(),
         synced: true,
         has_translation: false,

@@ -4,13 +4,13 @@ use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, OnceLock, RwLock, Weak};
+use std::sync::{Arc, Mutex, RwLock, Weak};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use strsim::normalized_levenshtein;
-use zhhz::{Config, Converter};
+use zhhz::Config;
 
 use super::kugou::KugouProvider;
 use super::kuwo::KuwoProvider;
@@ -23,6 +23,7 @@ use super::{
     amll_ttml::AmllTtmlProvider,
     credentials::{MusixmatchTokenType, ProviderCredentialStore, ProviderCredentialView},
 };
+use crate::lyrics::conversion::{convert_text, is_japanese};
 
 pub const LRCLIB_DISPLAY_NAME: &str = "LRCLIB";
 pub const KUGOU_DISPLAY_NAME: &str = "Kugou";

@@ -20,6 +20,10 @@ pub struct ProviderSettings {
     pub providers: Vec<ProviderPreference>,
     #[serde(default = "default_auto_apply_threshold")]
     pub auto_apply_threshold: u8,
+    #[serde(default = "default_auto_apply_duration_guard_enabled")]
+    pub auto_apply_duration_guard_enabled: bool,
+    #[serde(default = "default_auto_apply_duration_tolerance_seconds")]
+    pub auto_apply_duration_tolerance_seconds: u8,
     #[serde(default = "default_auto_search_debounce_ms")]
     pub auto_search_debounce_ms: u64,
     #[serde(default = "default_prefer_capabilities")]
@@ -39,10 +43,24 @@ pub struct ProviderSettings {
 const MAX_TITLE_FILTER_KEYWORDS: usize = 32;
 const MAX_TITLE_FILTER_KEYWORD_LENGTH: usize = 64;
 pub(crate) const DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE: u8 = 4;
+pub(crate) const MAX_AUTO_APPLY_DURATION_TOLERANCE_SECONDS: u8 = 60;
 const MAX_CAPABILITY_PREFERENCE_TOLERANCE: u8 = 20;
+const DEFAULT_ENABLED_PROVIDER_IDS: [&str; 4] = ["lrclib", "kugou", "qqmusic", "netease"];
+
+fn default_provider_enabled(id: &str) -> bool {
+    DEFAULT_ENABLED_PROVIDER_IDS.contains(&id)
+}
 
 const fn default_auto_apply_threshold() -> u8 {
     60
+}
+
+const fn default_auto_apply_duration_guard_enabled() -> bool {
+    true
+}
+
+const fn default_auto_apply_duration_tolerance_seconds() -> u8 {
+    15
 }
 
 const fn default_auto_search_debounce_ms() -> u64 {
@@ -93,10 +111,12 @@ impl Default for ProviderSettings {
                 .into_iter()
                 .map(|(id, _)| ProviderPreference {
                     id: id.into(),
-                    enabled: true,
+                    enabled: default_provider_enabled(id),
                 })
                 .collect(),
             auto_apply_threshold: default_auto_apply_threshold(),
+            auto_apply_duration_guard_enabled: default_auto_apply_duration_guard_enabled(),
+            auto_apply_duration_tolerance_seconds: default_auto_apply_duration_tolerance_seconds(),
             auto_search_debounce_ms: default_auto_search_debounce_ms(),
             prefer_capabilities: default_prefer_capabilities(),
             capability_preference_tolerance: default_capability_preference_tolerance(),
@@ -120,6 +140,8 @@ pub struct ProviderSearchOutcome {
     pub results: Vec<LyricsSearchResult>,
     pub statuses: Vec<ProviderStatus>,
     pub auto_apply_threshold: u8,
+    pub auto_apply_duration_guard_enabled: bool,
+    pub auto_apply_duration_tolerance_seconds: u8,
     pub prefer_capabilities: bool,
     pub capability_preference_tolerance: u8,
     pub mode: ProviderOrderMode,

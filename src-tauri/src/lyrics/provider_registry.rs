@@ -270,7 +270,7 @@ impl ProviderRegistry {
     pub(crate) fn local_search_context(
         &self,
         input: &LyricsSearchInput,
-    ) -> Result<(LyricsSearchInput, u8), String> {
+    ) -> Result<(LyricsSearchInput, u8, bool, u8), String> {
         let settings = self
             .settings
             .read()
@@ -279,6 +279,8 @@ impl ProviderRegistry {
         Ok((
             with_scoring_settings(input, &settings)?,
             settings.auto_apply_threshold,
+            settings.auto_apply_duration_guard_enabled,
+            settings.auto_apply_duration_tolerance_seconds,
         ))
     }
 
@@ -351,6 +353,7 @@ impl ProviderRegistry {
             match outcome {
                 Ok(Ok(mut report)) => {
                     any_success = true;
+                    retain_valid_provider_results(provider.id(), &mut report.results);
                     let (health, message) = report_status(&report);
                     if let Some(warning) = &report.warning {
                         self.record_failure(provider, warning);
@@ -407,6 +410,8 @@ impl ProviderRegistry {
             results,
             statuses: self.statuses_for(&enabled_ids),
             auto_apply_threshold: settings.auto_apply_threshold,
+            auto_apply_duration_guard_enabled: settings.auto_apply_duration_guard_enabled,
+            auto_apply_duration_tolerance_seconds: settings.auto_apply_duration_tolerance_seconds,
             prefer_capabilities: settings.prefer_capabilities,
             capability_preference_tolerance: settings.capability_preference_tolerance,
             mode: settings.mode,
@@ -668,6 +673,31 @@ impl ProviderRegistry {
                 },
             );
     }
+}
+
+/// 只让带有来源标识和来源内歌曲标识的候选进入统一搜索结果。
+/// provider_id 与 id 共同构成可持久化的来源身份，不能只依赖其中一个字段。
+fn retain_valid_provider_results(provider_id: &str, results: &mut Vec<LyricsSearchResult>) {
+    results.retain(|result| {
+        if result.provider_id != provider_id || result.id.trim().is_empty() {
+            log::debug!(
+                "丢弃缺少有效来源 ID 的歌词候选：provider={} result_provider={} id={:?}",
+                provider_id,
+                result.provider_id,
+                result.id
+            );
+            return false;
+        }
+        if result.lyrics.contains('\u{FFFD}') {
+            log::debug!(
+                "丢弃包含替换字符的歌词候选：provider={} id={:?}",
+                provider_id,
+                result.id
+            );
+            return false;
+        }
+        true
+    });
 }
 
 fn report_status(report: &ProviderSearchReport) -> (ProviderHealth, Option<String>) {

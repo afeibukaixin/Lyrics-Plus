@@ -36,11 +36,16 @@ fn publish_lyrics_runtime(app: &tauri::AppHandle, snapshot: LyricsRuntimeSnapsho
             .write()
             .unwrap_or_else(|error| error.into_inner()) = snapshot.clone();
 
-        let conversion = state.config.snapshot().lyrics.chinese_conversion;
+        let config = state.config.snapshot();
         let mut presented = snapshot;
         presented.document = presented
             .document
-            .map(|document| document.converted_for_output(conversion));
+            .map(|document| {
+                document.converted_for_output(
+                    config.lyrics.chinese_conversion,
+                    config.lyrics.repair_simplified_japanese,
+                )
+            });
         let _ = app.emit("lyrics://runtime-changed", &presented);
     } else {
         let _ = app.emit("lyrics://runtime-changed", &snapshot);
@@ -96,7 +101,12 @@ async fn perform_lyrics_search(
             .providers
             .search_with_cache(&state.http, input, intent.is_manual()),
     );
-    let (mut local_results, auto_apply_threshold) = local_result?;
+    let (
+        mut local_results,
+        local_auto_apply_threshold,
+        local_duration_guard_enabled,
+        local_duration_tolerance_seconds,
+    ) = local_result?;
     let (
         mut outcome,
         fallback_statuses,
@@ -104,6 +114,8 @@ async fn perform_lyrics_search(
         fallback_order,
         fallback_prefer,
         fallback_tolerance,
+        fallback_duration_guard_enabled,
+        fallback_duration_tolerance_seconds,
     ) = match provider_result {
         Ok(outcome) => (
             Some(outcome),
@@ -112,6 +124,8 @@ async fn perform_lyrics_search(
             Vec::<String>::new(),
             true,
             DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
+            local_duration_guard_enabled,
+            local_duration_tolerance_seconds,
         ),
         Err(_error) if !local_results.is_empty() => {
             let view = state.providers.settings_view();
@@ -126,6 +140,8 @@ async fn perform_lyrics_search(
                     .collect(),
                 view.settings.prefer_capabilities,
                 view.settings.capability_preference_tolerance,
+                local_duration_guard_enabled,
+                local_duration_tolerance_seconds,
             )
         }
         Err(error) => return Err(error),
@@ -142,6 +158,8 @@ async fn perform_lyrics_search(
         prefer_capabilities,
         capability_preference_tolerance,
         provider_threshold,
+        duration_guard_enabled,
+        duration_tolerance_seconds,
     ) = outcome
         .as_ref()
         .map(|outcome| {
@@ -151,6 +169,8 @@ async fn perform_lyrics_search(
                 outcome.prefer_capabilities,
                 outcome.capability_preference_tolerance,
                 outcome.auto_apply_threshold,
+                outcome.auto_apply_duration_guard_enabled,
+                outcome.auto_apply_duration_tolerance_seconds,
             )
         })
         .unwrap_or((
@@ -158,7 +178,9 @@ async fn perform_lyrics_search(
             fallback_order,
             fallback_prefer,
             fallback_tolerance,
-            auto_apply_threshold,
+            local_auto_apply_threshold,
+            fallback_duration_guard_enabled,
+            fallback_duration_tolerance_seconds,
         ));
     let online_results = outcome
         .as_mut()
@@ -168,7 +190,16 @@ async fn perform_lyrics_search(
     let mut candidates = local_results
         .drain(..)
         .enumerate()
-        .map(|(index, result)| analyze_candidate(result, input.duration_ms, index, true))
+        .map(|(index, result)| {
+            analyze_candidate(
+                result,
+                input.duration_ms,
+                duration_guard_enabled,
+                duration_tolerance_seconds,
+                index,
+                true,
+            )
+        })
         .collect::<Vec<_>>();
     let local_count = candidates.len();
     candidates.extend(
@@ -176,7 +207,14 @@ async fn perform_lyrics_search(
             .into_iter()
             .enumerate()
             .map(|(index, result)| {
-                analyze_candidate(result, input.duration_ms, local_count + index, false)
+                analyze_candidate(
+                    result,
+                    input.duration_ms,
+                    duration_guard_enabled,
+                    duration_tolerance_seconds,
+                    local_count + index,
+                    false,
+                )
             }),
     );
     let analyzed_count = candidates.len();
@@ -187,6 +225,7 @@ async fn perform_lyrics_search(
         prefer_capabilities,
         capability_preference_tolerance,
         secondary_display,
+        provider_threshold,
     );
     let deduplicated_count = candidates.len();
     sort_analyzed_candidates(
@@ -196,6 +235,7 @@ async fn perform_lyrics_search(
         prefer_capabilities,
         capability_preference_tolerance,
         secondary_display,
+        provider_threshold,
     );
     let auto_apply = can_auto_apply_analyzed(&candidates, provider_threshold);
     let sorted_count = candidates.len();
@@ -211,7 +251,7 @@ async fn perform_lyrics_search(
         .map(|candidate| candidate.result.score)
         .unwrap_or_default();
     log::debug!(
-        "lyrics.rank search title={:?} artist={:?} intent={intent:?} mode={mode:?} prefer_capabilities={prefer_capabilities} capability_tolerance_percent={capability_preference_tolerance} score_band={score_band:.4} secondary_display={secondary_display:?} auto_apply_threshold_percent={provider_threshold} local_candidates={local_count} online_candidates={online_count} analyzed={analyzed_count} deduplicated={deduplicated_count} sorted={sorted_count} returned={returned_count} omitted={} auto_apply={auto_apply} provider_order={provider_order:?}",
+        "lyrics.rank search title={:?} artist={:?} intent={intent:?} mode={mode:?} prefer_capabilities={prefer_capabilities} capability_tolerance_percent={capability_preference_tolerance} score_band={score_band:.4} secondary_display={secondary_display:?} auto_apply_threshold_percent={provider_threshold} duration_guard_enabled={duration_guard_enabled} duration_tolerance_seconds={duration_tolerance_seconds} local_candidates={local_count} online_candidates={online_count} analyzed={analyzed_count} deduplicated={deduplicated_count} sorted={sorted_count} returned={returned_count} omitted={} auto_apply={auto_apply} provider_order={provider_order:?}",
         input.title,
         input.artist,
         sorted_count.saturating_sub(returned_count),
@@ -255,13 +295,23 @@ struct AnalyzedCandidate {
 fn analyze_candidate(
     result: LyricsSearchResult,
     duration_ms: Option<u64>,
+    duration_guard_enabled: bool,
+    duration_tolerance_seconds: u8,
     stable_index: usize,
     is_local: bool,
 ) -> AnalyzedCandidate {
     let document = parse_lrc_with_options(&result.lyrics, &result.source, false).ok();
+    let duration_tolerance_ms = duration_guard_enabled
+        .then(|| u64::from(duration_tolerance_seconds).saturating_mul(1_000));
     let mut quality = document
         .as_ref()
-        .map(|document| lyrics_quality_report(document, duration_ms.or(result.duration_ms)))
+        .map(|document| {
+            lyrics_quality_report(
+                document,
+                duration_ms.or(result.duration_ms),
+                duration_tolerance_ms,
+            )
+        })
         .unwrap_or(LyricsQualityReport {
             has_valid_synced_original: false,
             degraded_word_lines: 0,
@@ -488,7 +538,33 @@ fn smart_order_with_score_band(
                 .total_cmp(&left.result.score)
                 .then_with(|| left.stable_index.cmp(&right.stable_index))
         }
-    })
+        })
+}
+
+fn smart_order_with_threshold(
+    left: &AnalyzedCandidate,
+    right: &AnalyzedCandidate,
+    prefer_capabilities: bool,
+    secondary_display: SecondaryDisplayMode,
+    top_score: f64,
+    score_band: f64,
+    auto_apply_threshold: u8,
+) -> std::cmp::Ordering {
+    let left_meets_threshold =
+        left.result.score * 100.0 >= f64::from(auto_apply_threshold);
+    let right_meets_threshold =
+        right.result.score * 100.0 >= f64::from(auto_apply_threshold);
+    if left_meets_threshold != right_meets_threshold {
+        return right_meets_threshold.cmp(&left_meets_threshold);
+    }
+    smart_order_with_score_band(
+        left,
+        right,
+        prefer_capabilities,
+        secondary_display,
+        top_score,
+        score_band,
+    )
 }
 
 fn deduplicate_analyzed_candidates(
@@ -498,6 +574,7 @@ fn deduplicate_analyzed_candidates(
     prefer_capabilities: bool,
     capability_preference_tolerance: u8,
     secondary_display: SecondaryDisplayMode,
+    auto_apply_threshold: u8,
 ) {
     let top_score = candidates
         .iter()
@@ -525,13 +602,14 @@ fn deduplicate_analyzed_candidates(
         let existing = &deduplicated[existing_index];
         let (replace, reason) = match (existing.is_local, candidate.is_local) {
             (true, true) => {
-                let quality = smart_order_with_score_band(
+                let quality = smart_order_with_threshold(
                     &candidate,
                     existing,
                     prefer_capabilities,
                     secondary_display,
                     top_score,
                     score_band,
+                    auto_apply_threshold,
                 );
                 (
                     matches!(mode, ProviderOrderMode::Smart) && quality == std::cmp::Ordering::Less,
@@ -560,13 +638,14 @@ fn deduplicate_analyzed_candidates(
                     )
                 } else {
                     (
-                        smart_order_with_score_band(
+                        smart_order_with_threshold(
                             &candidate,
                             existing,
                             prefer_capabilities,
                             secondary_display,
                             top_score,
                             score_band,
+                            auto_apply_threshold,
                         ) == std::cmp::Ordering::Less,
                         smart_ranking_reason(
                             &candidate,
@@ -610,6 +689,7 @@ fn sort_analyzed_candidates(
     prefer_capabilities: bool,
     capability_preference_tolerance: u8,
     secondary_display: SecondaryDisplayMode,
+    auto_apply_threshold: u8,
 ) {
     match mode {
         ProviderOrderMode::Strict => candidates.sort_by(|left, right| {
@@ -636,6 +716,8 @@ fn sort_analyzed_candidates(
                     .iter()
                     .take_while(|candidate| {
                         smart_score_band_contains(candidate.result.score, top_score, score_band)
+                            && candidate.result.score * 100.0
+                                >= f64::from(auto_apply_threshold)
                     })
                     .count();
                 candidates[..band_len].sort_by(|left, right| {
@@ -670,13 +752,19 @@ fn can_auto_apply_analyzed(candidates: &[AnalyzedCandidate], threshold_percent: 
 async fn search_local_lyrics(
     state: &AppState,
     input: &LyricsSearchInput,
-) -> Result<(Vec<LyricsSearchResult>, u8), String> {
-    let (input, threshold) = state.providers.local_search_context(input)?;
+) -> Result<(Vec<LyricsSearchResult>, u8, bool, u8), String> {
+    let (input, threshold, duration_guard_enabled, duration_tolerance_seconds) =
+        state.providers.local_search_context(input)?;
     let storage = state.storage.clone();
     let results = tauri::async_runtime::spawn_blocking(move || storage.search_local_lyrics(&input))
         .await
         .map_err(|error| format!("本地歌词搜索任务失败：{error}"))??;
-    Ok((results, threshold))
+    Ok((
+        results,
+        threshold,
+        duration_guard_enabled,
+        duration_tolerance_seconds,
+    ))
 }
 
 fn save_automatic_search_result(

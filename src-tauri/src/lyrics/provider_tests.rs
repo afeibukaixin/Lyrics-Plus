@@ -4,9 +4,25 @@ mod tests {
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
     #[test]
-    fn defaults_to_all_providers_enabled() {
+    fn defaults_to_first_four_providers_enabled() {
         let settings = ProviderSettings::default();
-        assert!(settings.providers.iter().all(|provider| provider.enabled));
+        assert_eq!(
+            settings
+                .providers
+                .iter()
+                .map(|provider| (provider.id.as_str(), provider.enabled))
+                .collect::<Vec<_>>(),
+            vec![
+                ("lrclib", true),
+                ("kugou", true),
+                ("qqmusic", true),
+                ("netease", true),
+                ("kuwo", false),
+                ("amll_ttml", false),
+                ("migu", false),
+                ("musixmatch", false),
+            ]
+        );
     }
 
     struct MockProvider {
@@ -314,6 +330,8 @@ mod tests {
         let settings = ProviderSettings {
             mode: ProviderOrderMode::Smart,
             auto_apply_threshold: 60,
+            auto_apply_duration_guard_enabled: true,
+            auto_apply_duration_tolerance_seconds: 15,
             auto_search_debounce_ms: 2_000,
             prefer_capabilities: false,
             capability_preference_tolerance: DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
@@ -355,6 +373,8 @@ mod tests {
         let settings = ProviderSettings {
             mode,
             auto_apply_threshold: 60,
+            auto_apply_duration_guard_enabled: true,
+            auto_apply_duration_tolerance_seconds: 15,
             auto_search_debounce_ms: 2_000,
             prefer_capabilities: false,
             capability_preference_tolerance: DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
@@ -437,6 +457,8 @@ mod tests {
             settings: Arc::new(RwLock::new(ProviderSettings {
                 mode: ProviderOrderMode::Smart,
                 auto_apply_threshold: 60,
+                auto_apply_duration_guard_enabled: true,
+                auto_apply_duration_tolerance_seconds: 15,
                 auto_search_debounce_ms: 2_000,
                 prefer_capabilities: false,
                 capability_preference_tolerance: DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
@@ -667,6 +689,8 @@ mod tests {
                 let settings = ProviderSettings {
                     mode: ProviderOrderMode::Smart,
                     auto_apply_threshold: 60,
+                    auto_apply_duration_guard_enabled: true,
+                    auto_apply_duration_tolerance_seconds: 15,
                     auto_search_debounce_ms: 2_000,
                     prefer_capabilities: false,
                     capability_preference_tolerance: DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,

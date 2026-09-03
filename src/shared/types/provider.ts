@@ -39,6 +39,8 @@ export type ProviderSettings = {
   mode: ProviderOrderMode;
   providers: ProviderPreference[];
   autoApplyThreshold: number;
+  autoApplyDurationGuardEnabled: boolean;
+  autoApplyDurationToleranceSeconds: number;
   autoSearchDebounceMs: number;
   preferCapabilities: boolean;
   capabilityPreferenceTolerance: number;

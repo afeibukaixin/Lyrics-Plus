@@ -2,6 +2,9 @@ pub(crate) fn validate_settings(settings: &ProviderSettings) -> Result<(), Strin
     if settings.auto_apply_threshold > 100 {
         return Err("自动匹配相似度必须在 0–100 之间".into());
     }
+    if settings.auto_apply_duration_tolerance_seconds > MAX_AUTO_APPLY_DURATION_TOLERANCE_SECONDS {
+        return Err("自动匹配歌词时长容差必须在 0–60 秒之间".into());
+    }
     if settings.auto_search_debounce_ms > 5_000 {
         return Err("自动匹配防抖时间必须在 0–5000 毫秒之间".into());
     }
@@ -110,7 +113,7 @@ fn complete_settings(settings: &mut ProviderSettings) {
         if !settings.providers.iter().any(|provider| provider.id == id) {
             settings.providers.push(ProviderPreference {
                 id: id.into(),
-                enabled: true,
+                enabled: default_provider_enabled(id),
             });
         }
     }
@@ -137,15 +140,7 @@ fn now_ms() -> u64 {
 }
 
 fn simplify(value: &str) -> String {
-    // ponytail: small candidate batches share one lock; use thread-local converters if scoring becomes hot.
-    static CONVERTER: OnceLock<Mutex<Converter>> = OnceLock::new();
-
-    CONVERTER
-        .get_or_init(|| Mutex::new(Converter::new(Config::T2s)))
-        .lock()
-        .unwrap_or_else(|error| error.into_inner())
-        .convert(value)
-        .to_lowercase()
+    convert_text(value, Config::T2s).to_lowercase()
 }
 
 fn normalize_case(value: &str, normalize_chinese: bool) -> String {
@@ -168,15 +163,70 @@ fn normalise_with_options(value: &str, normalize_chinese: bool) -> String {
         .collect()
 }
 
-fn normalized_title(value: &str, scoring: &ScoringSettings) -> String {
-    normalise_with_options(
-        &filter_title_with_options(
-            value,
-            &scoring.title_filter_keywords,
-            scoring.normalize_chinese,
-        ),
-        scoring.normalize_chinese,
-    )
+fn metadata_is_japanese(title: &str, artist: &str, album: Option<&str>) -> bool {
+    let text = [Some(title), Some(artist), album]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join("\n");
+    is_japanese(&text)
+}
+
+fn canonical_metadata_aliases(value: &str) -> String {
+    value
+        .chars()
+        .map(|character| match character {
+            // These characters are context-dependent in Chinese and are not
+            // always covered by a generic OpenCC character mapping.
+            '著' => '着',
+            '裏' | '裡' => '里',
+            '臺' => '台',
+            character => character,
+        })
+        .collect()
+}
+
+fn metadata_variants(value: &str, normalize_chinese: bool, japanese: bool) -> Vec<String> {
+    let mut variants = Vec::new();
+    let mut add = |candidate: String| {
+        if !variants.contains(&candidate) {
+            variants.push(candidate);
+        }
+    };
+
+    add(normalise_with_options(value, false));
+    if normalize_chinese && !japanese {
+        for config in [Config::T2s, Config::Tw2sp, Config::Hk2sp] {
+            add(normalise_with_options(&convert_text(value, config), false));
+        }
+        add(normalise_with_options(
+            &canonical_metadata_aliases(value),
+            false,
+        ));
+    }
+    variants
+}
+
+fn normalized_title_variants(
+    value: &str,
+    scoring: &ScoringSettings,
+    japanese: bool,
+) -> Vec<String> {
+    let filtered = filter_title_with_options(
+        value,
+        &scoring.title_filter_keywords,
+        scoring.normalize_chinese && !japanese,
+    );
+    metadata_variants(&filtered, scoring.normalize_chinese, japanese)
+}
+
+fn best_similarity(expected: &[String], actual: &[String]) -> f64 {
+    expected
+        .iter()
+        .flat_map(|left| actual.iter().map(move |right| (left, right)))
+        .map(|(left, right)| similarity_with_containment(left, right))
+        .max_by(|left, right| left.total_cmp(right))
+        .unwrap_or(0.0)
 }
 
 const MIN_CONTAINMENT_LENGTH: usize = 3;
@@ -195,16 +245,21 @@ fn similarity_with_containment(expected: &str, actual: &str) -> f64 {
 }
 
 pub(crate) fn title_matches(input: &LyricsSearchInput, result: &LyricsSearchResult) -> bool {
-    let expected = normalized_title(&input.title, &input.scoring);
-    let actual = normalized_title(&result.title, &input.scoring);
-    if expected.is_empty() || actual.is_empty() {
+    let japanese = metadata_is_japanese(&input.title, &input.artist, input.album.as_deref())
+        || metadata_is_japanese(&result.title, &result.artist, result.album.as_deref());
+    let expected = normalized_title_variants(&input.title, &input.scoring, japanese);
+    let actual = normalized_title_variants(&result.title, &input.scoring, japanese);
+    if expected.iter().all(String::is_empty) || actual.iter().all(String::is_empty) {
         return false;
     }
 
-    let similarity = normalized_levenshtein(&expected, &actual);
-    similarity >= MIN_LOCAL_TITLE_SIMILARITY
-        || (expected.chars().count().min(actual.chars().count()) >= 2
-            && (expected.contains(&actual) || actual.contains(&expected)))
+    expected.iter().any(|left| {
+        actual.iter().any(|right| {
+            normalized_levenshtein(left, right) >= MIN_LOCAL_TITLE_SIMILARITY
+                || (left.chars().count().min(right.chars().count()) >= 2
+                    && (left.contains(right) || right.contains(left)))
+        })
+    })
 }
 
 fn keyword_position(title: &str, keyword: &str) -> Option<(usize, usize)> {
@@ -353,18 +408,20 @@ pub(crate) fn duration_score(expected: Option<u64>, actual: Option<u64>) -> f64 
 
 pub fn score_candidate(input: &LyricsSearchInput, result: &LyricsSearchResult) -> f64 {
     let scoring = &input.scoring;
-    let title = similarity_with_containment(
-        &normalized_title(&input.title, scoring),
-        &normalized_title(&result.title, scoring),
+    let japanese = metadata_is_japanese(&input.title, &input.artist, input.album.as_deref())
+        || metadata_is_japanese(&result.title, &result.artist, result.album.as_deref());
+    let title = best_similarity(
+        &normalized_title_variants(&input.title, scoring, japanese),
+        &normalized_title_variants(&result.title, scoring, japanese),
     );
-    let artist = similarity_with_containment(
-        &normalise_with_options(&input.artist, scoring.normalize_chinese),
-        &normalise_with_options(&result.artist, scoring.normalize_chinese),
+    let artist = best_similarity(
+        &metadata_variants(&input.artist, scoring.normalize_chinese, japanese),
+        &metadata_variants(&result.artist, scoring.normalize_chinese, japanese),
     );
     let album = match (&input.album, &result.album) {
-        (Some(expected), Some(actual)) => normalized_levenshtein(
-            &normalise_with_options(expected, scoring.normalize_chinese),
-            &normalise_with_options(actual, scoring.normalize_chinese),
+        (Some(expected), Some(actual)) => best_similarity(
+            &metadata_variants(expected, scoring.normalize_chinese, japanese),
+            &metadata_variants(actual, scoring.normalize_chinese, japanese),
         ),
         _ => 0.6,
     };
