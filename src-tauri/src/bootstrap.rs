@@ -1,6 +1,6 @@
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let app = tauri::Builder::default()
+    let app = configure_web_content_process_handler(tauri::Builder::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -86,6 +86,7 @@ pub fn run() {
                 lyrics_search_session: Arc::new(Mutex::new(lyrics::LyricsSearchSession::default())),
                 notch_layout_metrics: Arc::new(RwLock::new(NotchLayoutMetrics::default())),
                 notch_visibility: Arc::new(Mutex::new(NotchVisibilityState::default())),
+                webview_surface_lifecycle: Arc::new(Mutex::new(Default::default())),
                 storage: Arc::new(storage),
                 config,
                 providers: Arc::new(
@@ -124,6 +125,9 @@ pub fn run() {
                 if let Some(state) = window.app_handle().try_state::<AppState>() {
                     state.spectrum.unsubscribe(&window.app_handle(), window.label());
                 }
+                if is_managed_surface_label(window.label()) {
+                    handle_surface_destroyed(window.app_handle(), window.label());
+                }
                 if window.label() == "lyrics-overlay" {
                     set_overlay_drag_active(window.app_handle(), false);
                 }
@@ -148,9 +152,10 @@ pub fn run() {
                         return;
                     }
                     api.prevent_close();
-                    if let Err(error) = destroy_surface(window.app_handle(), "main") {
-                        log::warn!("关闭主窗口时销毁 WebView 失败：{error}");
+                    if let Err(error) = hide_surface(window.app_handle(), "main") {
+                        log::warn!("关闭主窗口时隐藏 WebView 失败：{error}");
                     }
+                    schedule_surface_destroy(window.app_handle(), "main");
                     #[cfg(target_os = "macos")]
                     if window
                         .app_handle()
@@ -170,6 +175,15 @@ pub fn run() {
                     }
                 }
             }
+            if window.label() == "quick-lyrics" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    if let Err(error) = hide_surface(window.app_handle(), "quick-lyrics") {
+                        log::warn!("关闭快速歌词窗口时隐藏 WebView 失败：{error}");
+                    }
+                    schedule_surface_destroy(window.app_handle(), "quick-lyrics");
+                }
+            }
             if window.label() == "lyrics-list" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
@@ -180,12 +194,18 @@ pub fn run() {
                             let _ = window.app_handle().emit("config://changed", &config);
                         }
                     }
-                    if let Err(error) = destroy_surface(window.app_handle(), "lyrics-list") {
-                        log::warn!("关闭列表歌词窗口时销毁 WebView 失败：{error}");
+                    if let Err(error) = hide_surface(window.app_handle(), "lyrics-list") {
+                        log::warn!("关闭列表歌词窗口时隐藏 WebView 失败：{error}");
                     }
-                    if let Err(error) = destroy_surface(window.app_handle(), "lyrics-list-unlock-handle") {
-                        log::warn!("关闭列表歌词解锁按钮时销毁 WebView 失败：{error}");
+                    if let Err(error) = hide_surface(
+                        window.app_handle(),
+                        "lyrics-list-unlock-handle",
+                    ) {
+                        log::warn!("关闭列表歌词解锁按钮失败：{error}");
                     }
+                    schedule_surface_destroy(window.app_handle(), "lyrics-list");
+                    schedule_surface_destroy(window.app_handle(), "lyrics-list-unlock-handle");
+                    sync_list_unlock_handle(window.app_handle());
                     sync_lyrics_surfaces(window.app_handle());
                 }
             }
@@ -320,6 +340,15 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building Lyrics Plus");
     app.run(|app, event| {
+        if let tauri::RunEvent::ExitRequested { code: Some(_), .. } = &event {
+            if let Some(state) = app.try_state::<AppState>() {
+                state
+                    .webview_surface_lifecycle
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner())
+                    .shutdown_requested = true;
+            }
+        }
         if let tauri::RunEvent::ExitRequested {
             code: None, api, ..
         } = &event

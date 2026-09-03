@@ -6,8 +6,10 @@ pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<boo
     let state = app.state::<AppState>();
     let configured = state.config.snapshot();
     if !configured.overlay.visible {
-        destroy_surface(app, "lyrics-unlock-handle")?;
-        destroy_surface(app, "lyrics-overlay")?;
+        hide_surface(app, "lyrics-overlay")?;
+        hide_surface(app, "lyrics-unlock-handle")?;
+        schedule_surface_destroy(app, "lyrics-overlay");
+        schedule_surface_destroy(app, "lyrics-unlock-handle");
         return Ok(false);
     }
     let is_playing = state
@@ -20,6 +22,11 @@ pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<boo
         configured.overlay.hide_when_not_playing,
         is_playing,
     );
+    cancel_surface_destroy(app, "lyrics-overlay");
+    if surface_is_destroying(app, "lyrics-overlay") {
+        hide_surface(app, "lyrics-unlock-handle")?;
+        return Ok(false);
+    }
     create_overlay(app).map_err(|error| error.to_string())?;
     let window = app
         .get_webview_window("lyrics-overlay")
@@ -53,8 +60,7 @@ pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<boo
         }
     } else {
         if is_visible {
-            set_surface_runtime_state(app, &window, SurfaceRuntimeState::Dormant);
-            window.hide().map_err(|error| error.to_string())?;
+            hide_surface(app, "lyrics-overlay")?;
         }
         crate::apply_lyrics_window_space_behavior(
             &window,

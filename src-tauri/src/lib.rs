@@ -24,7 +24,7 @@ pub(crate) use overlay_model::{
 };
 use player::{query_selected_player, PlayerSelection, SystemMediaService};
 use runtime_model::{NotchLayoutMetrics, OverlaySettings};
-pub(crate) use state::AppState;
+pub(crate) use state::{AppState, SurfaceReopenRequest};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};

@@ -246,6 +246,16 @@ pub(crate) fn show_main_window_at(
         sync_app_menu_bar_icon_visibility(app)?;
     }
 
+    if prepare_surface_show(
+        app,
+        "main",
+        SurfaceReopenRequest::Main {
+            route: route.map(str::to_owned),
+        },
+    ) {
+        return Ok(());
+    }
+
     let existing = app.get_webview_window("main");
     let window = if let Some(window) = existing.as_ref() {
         window.clone()

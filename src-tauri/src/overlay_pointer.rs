@@ -146,13 +146,23 @@ pub(crate) fn sync_unlock_handle(app: &tauri::AppHandle) {
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .clone();
+    if settings.visible && !surface_is_destroying(app, "lyrics-overlay") {
+        cancel_surface_destroy(app, "lyrics-unlock-handle");
+    }
+    if surface_is_destroying(app, "lyrics-overlay") {
+        let _ = hide_surface(app, "lyrics-unlock-handle");
+        return;
+    }
     let Some(overlay) = app.get_webview_window("lyrics-overlay") else {
-        let _ = destroy_surface(app, "lyrics-unlock-handle");
+        let _ = hide_surface(app, "lyrics-unlock-handle");
         return;
     };
     let should_show = settings.visible && settings.locked && overlay.is_visible().unwrap_or(false);
     if !should_show {
-        let _ = destroy_surface(app, "lyrics-unlock-handle");
+        let _ = hide_surface(app, "lyrics-unlock-handle");
+        return;
+    }
+    if surface_is_destroying(app, "lyrics-unlock-handle") {
         return;
     }
     if app.get_webview_window("lyrics-unlock-handle").is_none() {
@@ -202,14 +212,24 @@ pub(crate) fn sync_list_unlock_handle(app: &tauri::AppHandle) {
         return;
     };
     let preferences = state.config.snapshot().lyrics.displays.list_window;
+    if preferences.enabled && !surface_is_destroying(app, "lyrics-list") {
+        cancel_surface_destroy(app, "lyrics-list-unlock-handle");
+    }
+    if surface_is_destroying(app, "lyrics-list") {
+        let _ = hide_surface(app, "lyrics-list-unlock-handle");
+        return;
+    }
     let Some(list) = app.get_webview_window("lyrics-list") else {
-        let _ = destroy_surface(app, "lyrics-list-unlock-handle");
+        let _ = hide_surface(app, "lyrics-list-unlock-handle");
         return;
     };
     let should_show =
         preferences.enabled && preferences.locked && list.is_visible().unwrap_or(false);
     if !should_show {
-        let _ = destroy_surface(app, "lyrics-list-unlock-handle");
+        let _ = hide_surface(app, "lyrics-list-unlock-handle");
+        return;
+    }
+    if surface_is_destroying(app, "lyrics-list-unlock-handle") {
         return;
     }
     if app
