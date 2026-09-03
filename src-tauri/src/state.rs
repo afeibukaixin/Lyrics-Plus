@@ -9,7 +9,13 @@ use crate::player::{
 };
 use crate::runtime_model::{NotchLayoutMetrics, OverlaySettings};
 use crate::storage::Storage;
-use crate::{NotchVisibilityState, OverlayPlacementState};
+use crate::OverlayPlacementState;
+
+#[derive(Default)]
+pub(crate) struct NotchVisibilityState {
+    pub(crate) target_visible: bool,
+    pub(crate) generation: u64,
+}
 
 /// WebView 正在销毁时收到的重新打开请求，等原生 `Destroyed` 到达后只执行最后一次。
 #[derive(Clone, Debug)]

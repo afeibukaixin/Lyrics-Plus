@@ -1,10 +1,3 @@
-fn initial_overlay_dimensions(style: &OverlayStyleSettings) -> (f64, f64) {
-    match style.orientation {
-        OverlayOrientation::Horizontal => (style.horizontal_max_width.unwrap_or(760.0), 156.0),
-        OverlayOrientation::Vertical => (190.0, style.vertical_max_height.unwrap_or(620.0)),
-    }
-}
-
 fn create_unlock_handle(app: &tauri::AppHandle) -> tauri::Result<()> {
     if app.get_webview_window("lyrics-unlock-handle").is_some() {
         return Ok(());

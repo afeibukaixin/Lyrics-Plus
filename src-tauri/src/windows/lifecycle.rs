@@ -209,7 +209,7 @@ pub(crate) fn cancel_surface_destroy(app: &tauri::AppHandle, label: &str) {
     }
 }
 
-pub(super) fn prepare_surface_show(
+pub(crate) fn prepare_surface_show(
     app: &tauri::AppHandle,
     label: &str,
     reopen_request: SurfaceReopenRequest,
