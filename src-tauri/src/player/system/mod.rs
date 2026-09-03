@@ -275,13 +275,30 @@ impl SystemMediaService {
             .read()
             .unwrap_or_else(|error| error.into_inner())
             .clone();
-        let snapshot = info.as_ref().map(snapshot_from_info).unwrap_or_else(|| {
-            PlaybackSnapshot::unavailable_with_code(
+        let Some(info) = info.as_ref() else {
+            let snapshot = PlaybackSnapshot::unavailable_with_code(
                 Some(PlayerKind::System),
                 PlaybackErrorCode::Waiting,
                 "未检测到系统正在播放的媒体".into(),
-            )
-        });
+            );
+            self.invalidate_artwork_cache(&snapshot);
+            return snapshot;
+        };
+        if info
+            .info
+            .bundle_id
+            .as_deref()
+            .is_some_and(|bundle_id| !super::automation::is_application_running(bundle_id))
+        {
+            let snapshot = PlaybackSnapshot::unavailable_with_code(
+                Some(PlayerKind::System),
+                PlaybackErrorCode::Waiting,
+                "未检测到系统正在播放的媒体".into(),
+            );
+            self.invalidate_artwork_cache(&snapshot);
+            return snapshot;
+        }
+        let snapshot = snapshot_from_info(info);
         self.invalidate_artwork_cache(&snapshot);
         snapshot
     }
@@ -744,6 +761,11 @@ fn valid_elapsed_time(info: &NowPlayingInfo) -> bool {
 }
 
 fn timed_info(mut info: NowPlayingInfo) -> Option<TimedInfo> {
+    // 播放器退出时，系统适配器会发送 null；media-remote 会把它映射为全字段为空的结构体。
+    // 这类事件表示媒体已清空，不能作为仍在运行的系统播放器缓存下来。
+    if !has_media_identity(&info) {
+        return None;
+    }
     if !valid_elapsed_time(&info) {
         return None;
     }
@@ -758,6 +780,30 @@ fn timed_info(mut info: NowPlayingInfo) -> Option<TimedInfo> {
         info,
         received_at: Instant::now(),
     })
+}
+
+fn has_media_identity(info: &NowPlayingInfo) -> bool {
+    info.title
+        .as_deref()
+        .is_some_and(|value| !value.trim().is_empty())
+        || info
+            .artist
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty())
+        || info
+            .album
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty())
+        || info.album_cover.is_some()
+        || info
+            .bundle_id
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty())
+        || info
+            .bundle_name
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty())
+        || info.bundle_icon.is_some()
 }
 
 fn normalized_system_metadata(info: &NowPlayingInfo) -> compat::TrackMetadata {

@@ -223,11 +223,7 @@ pub(super) fn with_application<T>(
     operation: impl FnOnce(&AutomationSession<'_>) -> Result<T, AutomationError>,
 ) -> Result<T, AutomationError> {
     autoreleasepool(|_| {
-        let applications = NSRunningApplication::runningApplicationsWithBundleIdentifier(
-            &NSString::from_str(bundle_id),
-        );
-        let running = applications
-            .firstObject()
+        let running = running_application(bundle_id)
             .filter(|application| !application.isTerminated())
             .ok_or_else(|| AutomationError::unavailable("播放器未运行"))?;
         let pid = running.processIdentifier();
@@ -246,6 +242,19 @@ pub(super) fn with_application<T>(
             app: &app,
             delegate: &delegate,
         })
+    })
+}
+
+pub(crate) fn is_application_running(bundle_id: &str) -> bool {
+    running_application(bundle_id).is_some_and(|application| !application.isTerminated())
+}
+
+fn running_application(bundle_id: &str) -> Option<Retained<NSRunningApplication>> {
+    autoreleasepool(|_| {
+        NSRunningApplication::runningApplicationsWithBundleIdentifier(&NSString::from_str(
+            bundle_id,
+        ))
+        .firstObject()
     })
 }
 
