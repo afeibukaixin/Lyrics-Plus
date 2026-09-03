@@ -74,13 +74,30 @@ resources_dir="$contents_dir/Resources"
 display_binary="$macos_dir/Lyrics Plus"
 entitlements="$project_root/src-tauri/Entitlements.plist"
 
+# 稳定的开发签名让 macOS 能在重新编译后继续识别同一个权限主体。
+# 多证书环境可通过 APPLE_SIGNING_IDENTITY 显式指定，其余情况优先使用首张有效的开发证书。
+signing_identity="${APPLE_SIGNING_IDENTITY:-}"
+if [[ -z "$signing_identity" ]]; then
+  signing_identity="$(
+    /usr/bin/security find-identity -v -p codesigning 2>/dev/null \
+      | /usr/bin/awk '/"Apple Development:/ { print $2; exit }'
+  )"
+fi
+
+if [[ -n "$signing_identity" && "$signing_identity" != "-" ]]; then
+  print -u2 "使用稳定的开发签名：$signing_identity"
+else
+  signing_identity="-"
+  print -u2 "未找到 Apple Development 签名证书，退回临时签名；重新编译后 macOS 可能再次申请系统音频录制权限。"
+fi
+
 mkdir -p "$macos_dir" "$resources_dir"
 cp -f "$source_binary" "$display_binary"
 cp -f "$project_root/src-tauri/icons/icon.icns" "$resources_dir/icon.icns"
 cp -f "$script_dir/dev-Info.plist" "$contents_dir/Info.plist"
 
 # Cargo 只为独立 Mach-O 写入链接器临时签名；放入 .app 后需要重新签署整个 bundle。
-codesign --force --deep --sign - --entitlements "$entitlements" "$app_bundle"
+codesign --force --deep --sign "$signing_identity" --entitlements "$entitlements" "$app_bundle"
 codesign --verify --deep --strict "$app_bundle"
 
 # Tauri 热重载可能直接终止旧 runner，导致由 LaunchServices 启动的应用成为残留进程。
