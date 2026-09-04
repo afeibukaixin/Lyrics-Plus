@@ -16,7 +16,6 @@ import {
   SquareDashed,
 } from "lucide-react";
 import { IconButton } from "@/components/ui/icon-button";
-import { api } from "../../shared/api";
 import type { OverlayStyle } from "../../shared/types";
 import { formatOffsetMs, nextValue } from "./OverlayLayout";
 import styles from "./Overlay.module.scss";
@@ -43,6 +42,9 @@ type OverlayToolbarProps = {
   updateStyle: (patch: Partial<OverlayStyle>) => Promise<void>;
   changeLyricsOffset: (deltaMs: number) => void;
   setLyricsOffset: (nextOffsetMs: number) => void;
+  lockOverlay: () => void;
+  hideOverlay: () => void;
+  openSettings: () => void;
   toggleSupportingTrack: (kind: "translation" | "romanization") => void;
   supportingToggleTitle: (track: string, enabled: boolean, available: boolean) => string;
 };
@@ -64,12 +66,15 @@ export function OverlayToolbar({
   updateStyle,
   changeLyricsOffset,
   setLyricsOffset,
+  lockOverlay,
+  hideOverlay,
+  openSettings,
   toggleSupportingTrack,
   supportingToggleTitle,
 }: OverlayToolbarProps) {
   return (
     <div className={styles.toolbar} data-tauri-drag-region="false" role="toolbar" aria-label={t("overlay.toolbar.label")} ref={toolbarRef}>
-      <IconButton label={t("overlay.toolbar.lock")} variant="ghost" size="icon-sm" onClick={() => void api.setOverlayLocked(true)}><Lock /></IconButton>
+      <IconButton label={t("overlay.toolbar.lock")} variant="ghost" size="icon-sm" onClick={lockOverlay}><Lock /></IconButton>
       <IconButton label={t("overlay.toolbar.decreaseFont")} variant="ghost" size="icon-sm" onClick={() => void updateStyle({ fontSize: style.fontSize - 2 })}><Minus /></IconButton>
       <IconButton label={t("overlay.toolbar.increaseFont")} variant="ghost" size="icon-sm" onClick={() => void updateStyle({ fontSize: style.fontSize + 2 })}><Plus /></IconButton>
       <div className={styles.offsetControl} role="group" aria-label={t("overlay.toolbar.offsetGroup", { value: offsetAvailable ? formatOffsetMs(offsetMs) : t("overlay.toolbar.unavailable") })}>
@@ -145,8 +150,8 @@ export function OverlayToolbar({
         aria-pressed={secondaryFlags.romanization}
         onClick={() => toggleSupportingTrack("romanization")}
       >{t("overlay.toolbar.romanizationGlyph")}</IconButton>
-      <IconButton label={t("overlay.toolbar.hide")} variant="ghost" size="icon-sm" onClick={() => void api.setOverlayVisible(false)}><EyeOff /></IconButton>
-      <IconButton label={t("overlay.toolbar.openSettings")} variant="ghost" size="icon-sm" onClick={() => void api.showLyricsStyleSettings("desktop")}><Settings /></IconButton>
+      <IconButton label={t("overlay.toolbar.hide")} variant="ghost" size="icon-sm" onClick={hideOverlay}><EyeOff /></IconButton>
+      <IconButton label={t("overlay.toolbar.openSettings")} variant="ghost" size="icon-sm" onClick={openSettings}><Settings /></IconButton>
     </div>
   );
 }

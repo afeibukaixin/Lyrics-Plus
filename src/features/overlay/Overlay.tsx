@@ -1,20 +1,11 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { useTranslation } from "react-i18next";
-import { api, isTauriRuntime } from "../../shared/api";
-import { reportFrontendError } from "../../shared/debugLog";
+import { useRef, useState } from "react";
+import { isTauriRuntime } from "../../shared/api";
 import {
-  defaultOverlayStyle,
   secondaryDisplayFlags,
-  secondaryDisplayFromFlags,
-  type OverlaySettings,
-  type OverlayStyle,
   type ToolbarPlacement,
 } from "../../shared/types";
-import { useLyricsPresentation } from "../lyrics/useLyricsPresentation";
-import { usePlayback } from "../player/usePlayback";
 import styles from "./Overlay.module.scss";
 import { OverlayKaraokeLine } from "./OverlayKaraokeLine";
-import { useOverlayLyricsOffset } from "./useOverlayLyricsOffset";
 import { useOverlayContentFit } from "./useOverlayContentFit";
 import {
   formatOffset,
@@ -25,6 +16,7 @@ import {
 import { OverlayToolbar } from "./OverlayToolbar";
 import { useOverlayResize } from "./useOverlayResize";
 import { useOverlayWindowLayout } from "./useOverlayWindowLayout";
+import { useOverlayController } from "./useOverlayController";
 
 const HORIZONTAL_SURFACE_TOOLBAR_INSET = 46;
 const VERTICAL_SURFACE_TOOLBAR_INSET = 48;
@@ -42,11 +34,24 @@ function wrapLineHeight(fontSize: number, lineHeight: number, textStrokeWidth: n
 }
 
 export default function Overlay() {
-  const { t } = useTranslation();
-  const playback = usePlayback();
-  const lyrics = useLyricsPresentation(playback.snapshot, playback.positionMs, playback.active);
-  const [style, setStyle] = useState<OverlayStyle>(defaultOverlayStyle);
-  const [settings, setSettings] = useState<OverlaySettings>({ visible: true, locked: false });
+  const {
+    changeLyricsOffset,
+    hideOverlay,
+    lockOverlay,
+    lyrics,
+    openSettings,
+    playback,
+    setLyricsOffset,
+    setSettings,
+    setStyle,
+    settings,
+    startWindowDrag,
+    style,
+    styleRef,
+    t,
+    toggleSupportingTrack,
+    updateStyle,
+  } = useOverlayController();
   const linesRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLDivElement>(null);
@@ -55,7 +60,6 @@ export default function Overlay() {
   const fitRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shrinkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unlockFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const styleRef = useRef(style);
   const lastRequestedSize = useRef<{ width: number; height: number } | null>(null);
   const lastMeasuredLayoutKey = useRef<string | null>(null);
   const [fitLimits, setFitLimits] = useState(() => ({
@@ -98,15 +102,6 @@ export default function Overlay() {
     setStyle,
     styleRef,
   });
-
-  const updateStyle = async (patch: Partial<OverlayStyle>) => {
-    const next = { ...styleRef.current, ...patch };
-    styleRef.current = next;
-    setStyle(next);
-    const saved = await api.setOverlayStyle(next);
-    styleRef.current = saved;
-    setStyle(saved);
-  };
 
   const primaryText = lyrics.currentLine
     ? lyrics.currentLine.text
@@ -167,7 +162,6 @@ export default function Overlay() {
   const supportingKey = supportingLines.map((line) => `${line.kind}:${line.text}`).join("|");
   const offsetAvailable = Boolean(lyrics.document);
   const offsetMs = lyrics.document?.offsetMs ?? 0;
-  const { setLyricsOffset, changeLyricsOffset } = useOverlayLyricsOffset(lyrics.trackKey, offsetMs);
   const offsetLabel = offsetAvailable ? formatOffset(offsetMs) : "—";
   const offsetValueTitle = offsetAvailable
     ? offsetMs === 0
@@ -255,29 +249,11 @@ export default function Overlay() {
     wrapped,
   });
 
-  const toggleSupportingTrack = (kind: "translation" | "romanization") => {
-    const translation = kind === "translation" ? !secondaryFlags.translation : secondaryFlags.translation;
-    const romanization = kind === "romanization" ? !secondaryFlags.romanization : secondaryFlags.romanization;
-    void updateStyle({ secondaryDisplay: secondaryDisplayFromFlags(translation, romanization) });
-  };
-
   const supportingToggleTitle = (track: string, enabled: boolean, available: boolean) => {
     const action = enabled ? t("overlay.toolbar.hideTrack", { track }) : t("overlay.toolbar.showTrack", { track });
     if (!supportsSecondary) return t("overlay.toolbar.unsupportedLayout", { action });
     if (!available) return t("overlay.toolbar.unavailableTrack", { action, track });
     return action;
-  };
-
-  const startWindowDrag = (event: ReactPointerEvent<HTMLElement>) => {
-    if (!isTauriRuntime() || settings.locked || event.button !== 0 || event.detail > 1) return;
-    const target = event.target as HTMLElement;
-    if (target.closest(
-      "button, input, select, textarea, [role='slider'], [data-no-window-drag], [data-tauri-drag-region='false']",
-    )) return;
-    event.preventDefault();
-    void api.startOverlayDrag().catch((error) => {
-      reportFrontendError("Failed to drag the desktop lyrics window", error);
-    });
   };
 
   return (
@@ -389,6 +365,9 @@ export default function Overlay() {
             romanizationAvailable={romanizationAvailable}
             secondaryFlags={secondaryFlags}
             setLyricsOffset={setLyricsOffset}
+            lockOverlay={lockOverlay}
+            hideOverlay={hideOverlay}
+            openSettings={openSettings}
             style={style}
             supportingToggleTitle={supportingToggleTitle}
             t={t}
