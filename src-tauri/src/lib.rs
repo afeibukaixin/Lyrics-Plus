@@ -47,7 +47,12 @@ struct TrayMenuState {
 
 pub(crate) const LEGAL_NOTICE_VERSION: u16 = 1;
 pub(crate) const LEGAL_NOTICE_PREFERENCE: &str = "legal.notice.acceptedVersion";
-include!("app_runtime.rs");
+mod app_runtime;
+pub(crate) use app_runtime::{
+    apply_dock_icon_hidden, apply_global_shortcuts, apply_menu_bar_icon_hidden,
+    apply_native_language, legal_notice_accepted, register_global_shortcuts,
+    sync_app_menu_bar_icon_visibility, sync_tray_lyrics_display_checked, sync_tray_overlay_checked,
+};
 #[cfg(test)]
 pub(crate) use windows::initial_overlay_dimensions;
 pub(crate) use windows::{
