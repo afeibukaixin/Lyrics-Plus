@@ -149,31 +149,6 @@ pub struct ProviderSearchOutcome {
     pub error: Option<String>,
 }
 
-type SearchFlight = tokio::sync::OnceCell<Result<ProviderSearchOutcome, String>>;
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-struct SearchKey {
-    title: String,
-    artist: String,
-    album: Option<String>,
-    duration_ms: Option<u64>,
-    settings: ProviderSettings,
-    revision: u64,
-}
-
-impl SearchKey {
-    fn new(input: &LyricsSearchInput, settings: ProviderSettings, revision: u64) -> Self {
-        Self {
-            title: input.title.trim().into(),
-            artist: input.artist.trim().into(),
-            album: input.album.as_deref().map(str::trim).map(str::to_owned),
-            duration_ms: input.duration_ms,
-            settings,
-            revision,
-        }
-    }
-}
-
 pub trait LyricsProvider: Send + Sync {
     fn id(&self) -> &'static str;
     fn display_name(&self) -> &'static str;

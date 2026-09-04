@@ -1,29 +1,22 @@
-use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
+use std::collections::HashSet;
 use std::future::Future;
-use std::hash::{Hash, Hasher};
-use std::path::Path;
+use std::hash::Hash;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, RwLock, Weak};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::sync::Arc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use strsim::normalized_levenshtein;
 use zhhz::Config;
 
-use super::kugou::KugouProvider;
-use super::kuwo::KuwoProvider;
-use super::lrclib::LrcLibProvider;
-use super::migu::MiguProvider;
-use super::musixmatch::MusixmatchProvider;
-use super::netease::NeteaseProvider;
-use super::qqmusic::QqMusicProvider;
-use super::{
-    amll_ttml::AmllTtmlProvider,
-    credentials::{MusixmatchTokenType, ProviderCredentialStore, ProviderCredentialView},
-};
 use crate::lyrics::conversion::{convert_text, is_japanese};
+
+#[cfg(test)]
+use super::credentials::ProviderCredentialStore;
+#[cfg(test)]
+use std::collections::HashMap;
+#[cfg(test)]
+use std::sync::{Mutex, RwLock};
 
 pub const LRCLIB_DISPLAY_NAME: &str = "LRCLIB";
 pub const KUGOU_DISPLAY_NAME: &str = "Kugou";
@@ -43,7 +36,10 @@ const LEGACY_AMLL_BASE_URLS: [&str; 3] = [
 
 include!("provider_types.rs");
 include!("provider_settings.rs");
-include!("provider_registry.rs");
+#[path = "provider_registry/mod.rs"]
+mod provider_registry;
+use provider_registry::provider_definitions;
+pub use provider_registry::ProviderRegistry;
 include!("provider_matching.rs");
 
 #[cfg(test)]

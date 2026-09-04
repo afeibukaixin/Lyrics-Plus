@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
+
 use crate::lyrics::provider::{LyricsSearchInput, LyricsSearchResult, ProviderStatus};
+use crate::lyrics::LyricsDocument;
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
