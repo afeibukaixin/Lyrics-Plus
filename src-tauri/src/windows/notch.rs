@@ -1,4 +1,4 @@
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, WebviewWindowBuilder};
 
 use super::platform::{
     apply_lyrics_window_space_behavior, enable_notch_window_behavior,
@@ -268,7 +268,7 @@ pub(super) fn create_notch_lyrics_window(app: &tauri::AppHandle) -> tauri::Resul
     let window = WebviewWindowBuilder::new(
         app,
         "lyrics-notch",
-        WebviewUrl::App("index.html?view=lyrics-notch".into()),
+        crate::webview_url(app, "index.html?view=lyrics-notch"),
     )
     .title(UiLanguage::ZhCn.native_labels().notch_title)
     .inner_size(width, 220.0)

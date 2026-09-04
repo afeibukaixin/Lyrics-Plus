@@ -1,6 +1,6 @@
 #![cfg(not(target_os = "macos"))]
 
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, WebviewWindowBuilder};
 
 use super::notch::notch_monitor_id;
 use super::platform::apply_joining_other_apps_fullscreen;
@@ -91,7 +91,7 @@ pub(super) fn create_status_bar_lyrics_window(app: &tauri::AppHandle) -> tauri::
     let window = WebviewWindowBuilder::new(
         app,
         "lyrics-status-bar",
-        WebviewUrl::App("index.html?view=lyrics-status-bar".into()),
+        crate::webview_url(app, "index.html?view=lyrics-status-bar"),
     )
     .title("Lyrics Plus 菜单栏歌词")
     .inner_size(appearance.width as f64, height.max(26.0))

@@ -1,4 +1,4 @@
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, WebviewWindowBuilder};
 
 use super::platform::{
     apply_joining_other_apps_fullscreen, apply_lyrics_window_space_behavior,
@@ -41,7 +41,7 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
     let window = WebviewWindowBuilder::new(
         app,
         "lyrics-overlay",
-        WebviewUrl::App("index.html?view=overlay".into()),
+        crate::webview_url(app, "index.html?view=overlay"),
     )
     .title(UiLanguage::ZhCn.native_labels().overlay_title)
     .inner_size(initial_width, initial_height)

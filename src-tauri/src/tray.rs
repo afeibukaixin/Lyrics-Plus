@@ -5,7 +5,7 @@ fn create_unlock_handle(app: &tauri::AppHandle) -> tauri::Result<()> {
     let builder = WebviewWindowBuilder::new(
         app,
         "lyrics-unlock-handle",
-        WebviewUrl::App("index.html?view=unlock-handle".into()),
+        crate::webview_url(app, "index.html?view=unlock-handle"),
     )
     .title(UiLanguage::ZhCn.native_labels().unlock_title)
     .inner_size(28.0, 28.0)
@@ -43,7 +43,7 @@ fn create_list_unlock_handle(app: &tauri::AppHandle) -> tauri::Result<()> {
     let builder = WebviewWindowBuilder::new(
         app,
         "lyrics-list-unlock-handle",
-        WebviewUrl::App("index.html?view=lyrics-list-unlock-handle".into()),
+        crate::webview_url(app, "index.html?view=lyrics-list-unlock-handle"),
     )
     .title(UiLanguage::ZhCn.native_labels().unlock_title)
     .inner_size(28.0, 28.0)

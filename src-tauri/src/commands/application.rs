@@ -234,6 +234,35 @@ pub fn set_auto_check_updates(
 }
 
 #[tauri::command]
+pub fn get_ui_update_state(state: State<'_, AppState>) -> UiUpdateStateView {
+    state.ui_update.state_view()
+}
+
+#[tauri::command]
+pub async fn check_and_prepare_ui_update(
+    state: State<'_, AppState>,
+) -> Result<UiUpdateStateView, String> {
+    state.ui_update.check_and_prepare().await
+}
+
+#[tauri::command]
+pub fn apply_prepared_ui_update(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    state.ui_update.apply_prepared(&app)
+}
+
+#[tauri::command]
+pub fn report_ui_ready(
+    window: tauri::WebviewWindow,
+    ui_version: String,
+    state: State<'_, AppState>,
+) -> Result<UiUpdateStateView, String> {
+    state.ui_update.report_ready(window.label(), &ui_version)
+}
+
+#[tauri::command]
 pub fn set_overlay_hide_when_not_playing(
     app: tauri::AppHandle,
     hidden: bool,

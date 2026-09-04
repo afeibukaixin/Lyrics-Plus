@@ -1,4 +1,4 @@
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, WebviewWindowBuilder};
 
 use super::lifecycle::{
     hide_surface, prepare_surface_show, schedule_surface_destroy, set_surface_runtime_state,
@@ -34,7 +34,7 @@ pub(crate) fn show_quick_lyrics_window(app: &tauri::AppHandle) -> Result<(), Str
     let window = WebviewWindowBuilder::new(
         app,
         "quick-lyrics",
-        WebviewUrl::App("index.html?view=quick-lyrics".into()),
+        crate::webview_url(app, "index.html?view=quick-lyrics"),
     )
     .title(UiLanguage::ZhCn.native_labels().quick_title)
     .inner_size(900.0, 620.0)

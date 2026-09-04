@@ -13,6 +13,7 @@ mod player_lifecycle;
 mod runtime_model;
 mod state;
 mod storage;
+mod ui_update;
 mod windows;
 
 use std::sync::{Arc, Mutex, RwLock};
@@ -55,8 +56,9 @@ use runtime_model::{NotchLayoutMetrics, OverlaySettings};
 pub(crate) use state::{AppState, NotchVisibilityState, SurfaceReopenRequest};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::{TrayIcon, TrayIconBuilder};
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, WebviewWindowBuilder};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
+pub(crate) use ui_update::webview_url;
 
 struct TrayMenuState {
     icon: TrayIcon<tauri::Wry>,

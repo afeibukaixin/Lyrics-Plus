@@ -15,7 +15,7 @@
     "macOSPrivateApi": true,
     "security": {
       "csp": {
-        "default-src": "'self' customprotocol: asset:",
+        "default-src": "'self' lyrics-plus-ui: customprotocol: asset:",
         "connect-src": "ipc: http://ipc.localhost https://raw.githubusercontent.com",
         "img-src": "'self' data: blob:",
         "style-src": "'self' 'unsafe-inline'"

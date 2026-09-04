@@ -1,6 +1,6 @@
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let app = configure_web_content_process_handler(tauri::Builder::default())
+    let app = ui_update::configure_protocol(configure_web_content_process_handler(tauri::Builder::default()))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -27,6 +27,10 @@ pub fn run() {
             let storage = storage::Storage::new(app.handle())?;
             let notice_accepted = legal_notice_accepted(&storage).unwrap_or(false);
             let app_dir = app.path().app_data_dir()?;
+            let ui_update = Arc::new(
+                ui_update::UiUpdateManager::load(&app_dir)
+                    .map_err(std::io::Error::other)?,
+            );
             let (config, migrated) = ConfigStore::load(&app_dir, &storage)
                 .map_err(|error| std::io::Error::other(error))?;
             let config = Arc::new(config);
@@ -106,6 +110,7 @@ pub fn run() {
                     .timeout(Duration::from_secs(8))
                     .build()
                     .map_err(|error| error.to_string())?,
+                ui_update,
             });
 
             if let Err(error) = player_lifecycle::sync_service(app.handle(), &configured.app) {
@@ -126,6 +131,21 @@ pub fn run() {
                     state.spectrum.unsubscribe(&window.app_handle(), window.label());
                 }
                 if is_managed_surface_label(window.label()) {
+                    if let Some(state) = window.app_handle().try_state::<AppState>() {
+                        let shutting_down = state
+                            .webview_surface_lifecycle
+                            .lock()
+                            .unwrap_or_else(|error| error.into_inner())
+                            .shutdown_requested;
+                        if !shutting_down {
+                            if let Err(error) = state.ui_update.surface_destroyed(window.label()) {
+                                log::warn!(
+                                    "更新界面窗口销毁状态失败：label={}, error={error}",
+                                    window.label()
+                                );
+                            }
+                        }
+                    }
                     handle_surface_destroyed(window.app_handle(), window.label());
                 }
                 if window.label() == "lyrics-overlay" {
@@ -336,6 +356,10 @@ pub fn run() {
             commands::validate_app_config_draft,
             commands::save_app_config_draft,
             commands::reset_settings_section,
+            commands::get_ui_update_state,
+            commands::check_and_prepare_ui_update,
+            commands::apply_prepared_ui_update,
+            commands::report_ui_ready,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Lyrics Plus");
