@@ -37,7 +37,12 @@ const APP_CONFIG_KEYS: &[&str] = &[
 include!("jsonc.rs");
 include!("model.rs");
 include!("migration.rs");
-include!("validation.rs");
+mod validation;
+pub(crate) use validation::validate_config_draft;
+use validation::{
+    color_fields, error_at_key, is_supported_color, is_valid_language_preference,
+    normalize_display_font_weight, parse_config_draft,
+};
 include!("store.rs");
 
 #[cfg(test)]

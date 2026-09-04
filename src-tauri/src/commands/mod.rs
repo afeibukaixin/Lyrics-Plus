@@ -1,8 +1,5 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -20,26 +17,48 @@ use crate::config::{
 use crate::language::UiLanguage;
 use crate::lyrics::credentials::{MusixmatchTokenType, ProviderCredentialView};
 use crate::lyrics::provider::{
-    LyricsSearchInput, LyricsSearchResult, ProviderOrderMode, ProviderSettings,
-    ProviderSettingsView, ProviderStatus, DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
+    LyricsSearchInput, ProviderSettings, ProviderSettingsView, ProviderStatus,
 };
-use crate::lyrics::{
-    lyrics_quality_report, parse_lrc_with_options, semantic_fingerprint, LyricsDocument,
-    LyricsQualityReport,
-};
+use crate::lyrics::LyricsDocument;
 use crate::player::{
-    control_playback as control_player, run_with_timeout, seek_playback as seek_player,
-    PlaybackAction, PlaybackArtwork, PlaybackSnapshot, PlaybackSpectrumState, PlayerKind,
-    PlayerSelection,
+    control_playback as control_player, seek_playback as seek_player, PlaybackAction,
+    PlaybackArtwork, PlaybackSnapshot, PlaybackSpectrumState, PlayerSelection,
 };
 use crate::storage::library::LibraryScanStatus;
 use crate::storage::{SaveKind, SaveRequest, LOCAL_PROVIDER_ID};
 
+mod application_discovery;
+mod config_runtime;
+mod overlay_geometry;
+mod overlay_persistence;
+
+#[cfg(all(test, target_os = "macos"))]
+use application_discovery::application_icon_at_path;
+#[cfg(test)]
+use application_discovery::resolve_registered_application;
+use application_discovery::{collect_application_icons, resolve_application_bundle_id};
+use config_runtime::{
+    apply_app_config, finish_display_config_update, update_dock_icon_hidden,
+    update_global_shortcuts, update_menu_bar_icon_hidden,
+};
+#[cfg(test)]
+use overlay_geometry::fit_overlay_bounds;
+use overlay_geometry::{
+    clear_manual_overlay_bounds, fit_overlay_content_bounds, fixed_axis_content_size,
+    reset_overlay_dimensions, resize_overlay_edge_bounds, MIN_HORIZONTAL_WINDOW_WIDTH,
+    MIN_VERTICAL_HOST_WIDTH,
+};
+use overlay_persistence::persist_overlay_style_for_current_monitor;
+
+#[cfg(test)]
+use crate::lyrics::provider::LyricsSearchResult;
+#[cfg(test)]
+use crate::overlay_model::SecondaryDisplayMode;
 #[cfg(test)]
 use crate::overlay_model::{
     KaraokeStyle, OverlayAlignment, OverlayBackground, OverlayBackgroundMode, OverlayLayout,
 };
-pub use crate::overlay_model::{OverlayOrientation, OverlayStyleSettings, SecondaryDisplayMode};
+pub use crate::overlay_model::{OverlayOrientation, OverlayStyleSettings};
 pub use crate::state::AppState;
 
 include!("models.rs");
