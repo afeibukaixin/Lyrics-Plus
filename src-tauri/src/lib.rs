@@ -6,6 +6,8 @@ mod lyrics;
 mod macos_status_item;
 mod overlay_effect;
 mod overlay_model;
+mod overlay_placement;
+mod overlay_pointer;
 mod player;
 mod player_lifecycle;
 mod runtime_model;
@@ -16,12 +18,37 @@ mod windows;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
-use config::{ConfigStore, GlobalShortcutSettings};
+use config::ConfigStore;
 use language::UiLanguage;
 pub(crate) use overlay_effect::sync_overlay_vibrancy;
-use overlay_effect::{HORIZONTAL_OVERLAY_SURFACE_INSET, VERTICAL_OVERLAY_SURFACE_INSET};
 pub(crate) use overlay_model::{
     OverlayBackground, OverlayBackgroundMode, OverlayOrientation, OverlayStyleSettings,
+};
+pub use overlay_placement::ToolbarPlacement;
+#[cfg(test)]
+use overlay_placement::{
+    centered_position, toolbar_placement_after_move, MonitorTopologyEntry,
+    PROGRAMMATIC_MOVE_SUPPRESSION,
+};
+pub(crate) use overlay_placement::{
+    mark_overlay_programmatic_position, move_overlay_to_primary, primary_mouse_button_pressed,
+    reset_overlay_toolbar_placement, set_overlay_drag_active, settle_overlay_position_at,
+    show_main_window_at, show_main_window_centered, update_overlay_toolbar_placement_during_drag,
+    OverlayPlacementState, StoredOverlayGeometry,
+};
+use overlay_placement::{
+    monitor_topology, overlay_drag_active, overlay_geometry, set_overlay_position,
+    set_overlay_toolbar_placement, should_show_main_window, StoredBounds,
+    UNLOCK_HANDLE_HOVER_EVENT,
+};
+use overlay_pointer::position_unlock_handle;
+pub(crate) use overlay_pointer::{
+    activate_runtime, sync_list_unlock_handle, sync_unlock_handle, wake_overlay_pointer_monitor,
+    LIST_UNLOCK_HANDLE_HOVER_EVENT,
+};
+#[cfg(test)]
+use overlay_pointer::{
+    point_in_window_bounds, should_hover_overlay, stable_overlay_hover, unlock_handle_position,
 };
 use player::{query_selected_player, PlayerSelection, SystemMediaService};
 use runtime_model::{NotchLayoutMetrics, OverlaySettings};
@@ -29,7 +56,6 @@ pub(crate) use state::{AppState, NotchVisibilityState, SurfaceReopenRequest};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
 
 struct TrayMenuState {
