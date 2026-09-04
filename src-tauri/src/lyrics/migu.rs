@@ -4,12 +4,9 @@ use serde::Deserialize;
 use super::encoding::decode_lyrics_bytes;
 use super::parse_lrc_with_options;
 use super::provider::{
-    collect_provider_results,
-    duration_ms_from_seconds_u64,
-    parse_duration_text_ms,
-    score_candidate,
-    DurationUnit, LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderError,
-    ProviderErrorKind, ProviderFuture, ProviderSearchReport, MIGU_DISPLAY_NAME,
+    collect_provider_results, duration_ms_from_seconds_u64, parse_duration_text_ms,
+    score_candidate, DurationUnit, LyricsProvider, LyricsSearchInput, LyricsSearchResult,
+    ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport, MIGU_DISPLAY_NAME,
 };
 
 #[derive(Debug, Deserialize)]
@@ -237,10 +234,11 @@ impl MiguProvider {
             return Ok(None);
         }
 
-        let mut url = reqwest::Url::parse(
-            "https://app.c.nf.migu.cn/MIGUM3.0/strategy/pc/listen/v1.0",
-        )
-        .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
+        let mut url =
+            reqwest::Url::parse("https://app.c.nf.migu.cn/MIGUM3.0/strategy/pc/listen/v1.0")
+                .map_err(|error| {
+                    self.error(ProviderErrorKind::InvalidResponse, error.to_string())
+                })?;
         url.query_pairs_mut()
             .append_pair("scene", "")
             .append_pair("netType", "01")

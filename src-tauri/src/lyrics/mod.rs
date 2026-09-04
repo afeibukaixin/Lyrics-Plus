@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
 pub mod amll_ttml;
 pub(crate) mod conversion;
