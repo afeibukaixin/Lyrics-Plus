@@ -23,6 +23,7 @@ export function UpdateDialog({
   totalBytes,
   error,
   status,
+  updateKind,
   progressPercentage,
   language,
   t,
@@ -32,24 +33,29 @@ export function UpdateDialog({
   restartToUpdate,
   retryUpdate,
 }: UpdateDialogProps) {
+  const interfaceReady = status === "ready" && updateKind === "interface";
   const title = status === "downloading"
     ? t("settings.about.downloadingTitle")
     : status === "installing"
       ? t("settings.about.installingTitle")
-      : status === "ready"
-        ? t("settings.about.restartTitle")
-        : status === "error"
-          ? t("settings.about.updateFailed")
-          : t("settings.about.updateAvailable");
+      : interfaceReady
+        ? t("settings.about.interfaceReadyTitle")
+        : status === "ready"
+          ? t("settings.about.restartTitle")
+          : status === "error"
+            ? t("settings.about.updateFailed")
+            : t("settings.about.updateAvailable");
   const description = status === "downloading"
     ? t("settings.about.downloadingHint")
     : status === "installing"
       ? t("settings.about.installingHint")
-      : status === "ready"
-        ? t("settings.about.restartHint", { version: availableVersion ?? "" })
-        : status === "error"
-          ? t("settings.about.updateError")
-          : t("settings.about.updateHint", { version: availableVersion ?? "" });
+      : interfaceReady
+        ? t("settings.about.interfaceReadyHint", { version: availableVersion ?? "" })
+        : status === "ready"
+          ? t("settings.about.restartHint", { version: availableVersion ?? "" })
+          : status === "error"
+            ? t("settings.about.updateError")
+            : t("settings.about.updateHint", { version: availableVersion ?? "" });
   const active = status === "downloading" || status === "installing";
 
   return (
@@ -109,7 +115,7 @@ export function UpdateDialog({
           {status === "ready" && (
             <>
               <Button className="min-w-28" variant="secondary" type="button" onClick={dismissDialog}>{t("settings.about.restartLater")}</Button>
-              <Button className="min-w-28" type="button" onClick={() => void restartToUpdate()}>{t("settings.about.restartNow")}</Button>
+              <Button className="min-w-28" type="button" onClick={() => void restartToUpdate()}>{t(interfaceReady ? "settings.about.refreshNow" : "settings.about.restartNow")}</Button>
             </>
           )}
           {status === "error" && (

@@ -28,7 +28,7 @@ export type { ProviderDragState, SettingsOutletContext } from "./shared/Settings
 export default function Settings() {
   const { t } = useTranslation();
   const location = useLocation();
-  const { openUpdateDialog, progressPercentage, status: updateStatus } = useUpdates();
+  const { openUpdateDialog, progressPercentage, status: updateStatus, updateKind } = useUpdates();
   const {
     config,
     setTheme,
@@ -212,7 +212,7 @@ export default function Settings() {
       && !["waiting", "no_unique_player", "source_not_allowed"].includes(playback.snapshot.errorCode ?? ""));
   const { primaryNavigation, advancedNavigation } = buildSettingsNavigation(t, playerHasWarning);
   const themeToggle = getThemeToggle(t, config.app.theme);
-  const updateIndicator = getUpdateIndicator(t, updateStatus, progressPercentage);
+  const updateIndicator = getUpdateIndicator(t, updateStatus, progressPercentage, updateKind);
 
   return (
     <SettingsShell

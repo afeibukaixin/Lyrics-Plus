@@ -3,7 +3,7 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import type { Update } from "@tauri-apps/plugin-updater";
 import { toast } from "sonner";
-import { isTauriRuntime } from "../../shared/api";
+import { api, isTauriRuntime } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
 import { useAppConfig } from "../config/AppConfigProvider";
 import { useAppLanguage } from "../i18n/I18nProvider";
@@ -13,6 +13,7 @@ import {
   downloadAndInstall,
   relaunchApplication,
   readCurrentVersion,
+  uiUpdatePreviewReleaseNotes,
   updatePreview,
   updatePreviewMode,
   updatePreviewReleaseNotes,
@@ -20,12 +21,14 @@ import {
 } from "./updateService";
 
 export type UpdateStatus = "idle" | "checking" | "available" | "downloading" | "installing" | "ready" | "latest" | "error";
+export type UpdateKind = "application" | "interface" | null;
 
 export type UpdateContextValue = {
   currentVersion: string;
   availableVersion: string | null;
   error: string | null;
   status: UpdateStatus;
+  updateKind: UpdateKind;
   progressPercentage: number | null;
   checkForUpdates: () => Promise<void>;
   openUpdateDialog: () => void;
@@ -41,6 +44,7 @@ export type UpdateDialogProps = {
   totalBytes: number | null;
   error: string | null;
   status: UpdateStatus;
+  updateKind: UpdateKind;
   progressPercentage: number | null;
   language: string;
   t: TFunction;
@@ -73,10 +77,11 @@ export function useUpdateController(): UpdateController {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<UpdateStatus>("idle");
+  const [updateKind, setUpdateKind] = useState<UpdateKind>(null);
   const canUpdate = import.meta.env.PROD && isTauriRuntime();
 
   useEffect(() => {
-    if (!isTauriRuntime()) return;
+    if (updatePreview || !isTauriRuntime()) return;
     void readCurrentVersion().then(setCurrentVersion).catch((value) => {
       reportFrontendError("Failed to read app version", value);
     });
@@ -84,9 +89,11 @@ export function useUpdateController(): UpdateController {
 
   useEffect(() => {
     if (!updatePreview) return;
-    setCurrentVersion("2.0.0");
-    setAvailableVersion("2.1.0");
-    setReleaseNotes(updatePreviewReleaseNotes);
+    const isUiPreview = updatePreviewMode === "ui-ready";
+    setCurrentVersion(isUiPreview ? "2.2.10" : "2.0.0");
+    setAvailableVersion(isUiPreview ? "2.2.10-ui.1" : "2.1.0");
+    setUpdateKind(isUiPreview ? "interface" : "application");
+    setReleaseNotes(isUiPreview ? uiUpdatePreviewReleaseNotes : updatePreviewReleaseNotes);
     setError(null);
     setDownloadedBytes(0);
     setTotalBytes(null);
@@ -102,7 +109,7 @@ export function useUpdateController(): UpdateController {
       setTotalBytes(100 * 1024 * 1024);
       setDownloadedBytes(100 * 1024 * 1024);
       setStatus("installing");
-    } else if (updatePreviewMode === "ready") {
+    } else if (updatePreviewMode === "ready" || isUiPreview) {
       setStatus("ready");
     } else if (updatePreviewMode === "error") {
       setError(t("settings.about.updateError"));
@@ -146,24 +153,58 @@ export function useUpdateController(): UpdateController {
     }
 
     busy.current = true;
+    await releasePendingUpdate();
     setError(null);
     setAvailableVersion(null);
+    setReleaseNotes("");
+    setUpdateKind(null);
     setStatus("checking");
+    let applicationError: unknown = null;
+    let interfaceError: unknown = null;
     try {
-      const update = await checkForUpdate();
-      if (!update) {
-        setStatus("latest");
-        return;
+      try {
+        const update = await checkForUpdate();
+        if (update) {
+          updateRef.current = update;
+          setUpdateKind("application");
+          setAvailableVersion(update.version);
+          setReleaseNotes(update.body?.trim() ?? "");
+          setDownloadedBytes(0);
+          setTotalBytes(null);
+          setStatus("available");
+          dialogOpenRef.current = true;
+          setDialogOpen(true);
+          return;
+        }
+      } catch (value) {
+        applicationError = value;
+        reportFrontendError("Application update check failed", value);
       }
 
-      updateRef.current = update;
-      setAvailableVersion(update.version);
-      setReleaseNotes(update.body?.trim() ?? "");
-      setDownloadedBytes(0);
-      setTotalBytes(null);
-      setStatus("available");
-      dialogOpenRef.current = true;
-      setDialogOpen(true);
+      try {
+        const uiState = await api.checkAndPrepareUiUpdate();
+        if (uiState.preparedVersion) {
+          setUpdateKind("interface");
+          setAvailableVersion(uiState.preparedVersion);
+          setReleaseNotes(uiState.preparedReleaseNotes ?? "");
+          setDownloadedBytes(0);
+          setTotalBytes(null);
+          setStatus("ready");
+          dialogOpenRef.current = true;
+          setDialogOpen(true);
+          return;
+        }
+      } catch (value) {
+        reportFrontendError("Interface update check failed", value);
+        interfaceError = value;
+      }
+
+      if (manual && (applicationError || interfaceError)) {
+        setStatus("error");
+        setError(t("settings.about.updateError"));
+      } else {
+        setStatus(manual ? "latest" : "idle");
+      }
     } catch (value) {
       reportFrontendError("Update check failed", value);
       setStatus(manual ? "error" : "idle");
@@ -171,7 +212,7 @@ export function useUpdateController(): UpdateController {
     } finally {
       busy.current = false;
     }
-  }, [canUpdate, t]);
+  }, [canUpdate, releasePendingUpdate, t]);
 
   const installUpdate = useCallback(async () => {
     const update = updateRef.current;
@@ -222,13 +263,26 @@ export function useUpdateController(): UpdateController {
 
   const restartToUpdate = useCallback(async () => {
     setError(null);
+    // 预览复用真实弹窗，但不能触发原生刷新或应用重启。
+    if (updatePreview) {
+      dialogOpenRef.current = false;
+      setDialogOpen(false);
+      return;
+    }
     try {
+      if (updateKind === "interface") {
+        await api.applyPreparedUiUpdate();
+        return;
+      }
       await relaunchApplication();
     } catch (value) {
-      reportFrontendError("Failed to relaunch after update", value);
-      setError(t("settings.about.restartError"));
+      reportFrontendError(
+        updateKind === "interface" ? "Failed to apply interface update" : "Failed to relaunch after update",
+        value,
+      );
+      setError(t(updateKind === "interface" ? "settings.about.interfaceApplyError" : "settings.about.restartError"));
     }
-  }, [t]);
+  }, [t, updateKind]);
 
   const dismissDialog = useCallback(() => {
     dialogOpenRef.current = false;
@@ -248,7 +302,7 @@ export function useUpdateController(): UpdateController {
   }, [releasePendingUpdate, runCheck]);
 
   useEffect(() => {
-    if (!loaded || autoChecked.current || !config.app.autoCheckUpdates) return;
+    if (updatePreview || !loaded || autoChecked.current || !config.app.autoCheckUpdates) return;
     autoChecked.current = true;
     void runCheck(false);
   }, [config.app.autoCheckUpdates, loaded, runCheck]);
@@ -261,11 +315,12 @@ export function useUpdateController(): UpdateController {
     availableVersion,
     error,
     status,
+    updateKind,
     progressPercentage: percentage,
     checkForUpdates: () => runCheck(true),
     openUpdateDialog,
     restartToUpdate,
-  }), [availableVersion, currentVersion, error, openUpdateDialog, percentage, restartToUpdate, runCheck, status]);
+  }), [availableVersion, currentVersion, error, openUpdateDialog, percentage, restartToUpdate, runCheck, status, updateKind]);
 
   return {
     value,
@@ -278,6 +333,7 @@ export function useUpdateController(): UpdateController {
       totalBytes,
       error,
       status,
+      updateKind,
       progressPercentage: percentage,
       language,
       t,

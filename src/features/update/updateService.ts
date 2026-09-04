@@ -6,6 +6,15 @@ export const updatePreviewMode = import.meta.env.DEV
   ? new URLSearchParams(window.location.search).get("update-preview")
   : null;
 export const updatePreview = updatePreviewMode !== null;
+export const uiUpdatePreviewReleaseNotes = `界面热更新预览 · 2.2.10-ui.1
+
+以下为示例更新说明，不代表实际发布内容。
+
+- 优化歌词界面的布局与文字间距。
+- 调整设置页面的样式与交互细节。
+- 刷新界面即可生效，无需重启应用。
+
+此页面仅用于预览弹窗。点击“刷新界面”只会关闭弹窗，不会下载或应用更新。`;
 export const updatePreviewReleaseNotes = `Lyrics Plus v2.1.0
 
 中文

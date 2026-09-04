@@ -47,7 +47,7 @@ function parseQqGroupConfig(value: unknown): QqGroupConfig | null {
 export default function AboutSettingsPage() {
   const { config, setAutoCheckUpdates } = useAppConfig();
   const { setError, resettingSection, confirmingReset, resetSection } = useSettingsContext();
-  const { availableVersion, checkForUpdates, currentVersion, error, restartToUpdate, status } = useUpdates();
+  const { availableVersion, checkForUpdates, currentVersion, error, restartToUpdate, status, updateKind } = useUpdates();
   const { t } = useTranslation();
   const busy = status === "checking" || status === "downloading" || status === "installing";
   const [qqGroup, setQqGroup] = useState<QqGroupConfig | null>(null);
@@ -94,7 +94,7 @@ export default function AboutSettingsPage() {
         />
         <div className={styles.buttonRow}>
           {status === "ready" ? (
-            <Button size="sm" onClick={() => void restartToUpdate()}>{t("settings.about.restartNow")}</Button>
+            <Button size="sm" onClick={() => void restartToUpdate()}>{t(updateKind === "interface" ? "settings.about.refreshNow" : "settings.about.restartNow")}</Button>
           ) : (
             <Button variant="secondary" size="sm" disabled={busy} onClick={() => void checkForUpdates()}>
               {status === "checking" ? t("settings.about.checking") : t("settings.about.checkNow")}
@@ -103,7 +103,9 @@ export default function AboutSettingsPage() {
         </div>
         {status !== "idle" && (
           <p className={styles.cardHint} data-error={Boolean(error) || status === "error"} role={error || status === "error" ? "alert" : undefined}>
-            {error ?? t(`settings.about.status.${status}`, { version: availableVersion ?? "" })}
+            {error ?? (status === "ready" && updateKind === "interface"
+              ? t("settings.about.interfaceReadyHint", { version: availableVersion ?? "" })
+              : t(`settings.about.status.${status}`, { version: availableVersion ?? "" }))}
           </p>
         )}
       </SettingsSection>

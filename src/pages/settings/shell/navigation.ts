@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import type { UpdateStatus } from "../../../features/update/UpdateProvider";
+import type { UpdateKind, UpdateStatus } from "../../../features/update/UpdateProvider";
 import type { ThemePreference } from "../../../shared/types";
 
 import type { SettingsNavigationItem } from "./SettingsSidebar";
@@ -64,6 +64,7 @@ export function getUpdateIndicator(
   t: TFunction,
   status: UpdateStatus,
   progressPercentage: number | null,
+  updateKind: UpdateKind,
 ): SettingsUpdateIndicator | null {
   const indicator = status === "downloading"
     ? { icon: Download, label: t("settings.about.updateCard.downloading") }
@@ -74,7 +75,13 @@ export function getUpdateIndicator(
         : status === "error"
           ? { icon: CircleAlert, label: t("settings.about.updateCard.error") }
           : null;
-  const action = t(status === "ready" ? "settings.about.updateCard.restart" : "settings.about.updateCard.open");
+  const action = t(
+    status === "ready"
+      ? updateKind === "interface"
+        ? "settings.about.updateCard.refresh"
+        : "settings.about.updateCard.restart"
+      : "settings.about.updateCard.open",
+  );
   if (!indicator) return null;
   const text = [
     indicator.label,

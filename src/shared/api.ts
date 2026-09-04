@@ -9,6 +9,7 @@ import { lyricsApi } from "./api/lyrics";
 import { overlayApi } from "./api/overlay";
 import { playbackApi } from "./api/playback";
 import { settingsApi } from "./api/settings";
+import { updateApi } from "./api/update";
 import type { PlaybackSnapshot } from "./types";
 
 export { isTauriRuntime } from "./tauriEvent";
@@ -22,6 +23,7 @@ export const api = {
   ...overlayApi,
   ...applicationApi,
   ...settingsApi,
+  ...updateApi,
 };
 
 export function messageOf(error: unknown): string {

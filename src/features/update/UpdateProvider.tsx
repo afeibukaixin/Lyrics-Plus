@@ -2,7 +2,7 @@ import { createContext, useContext } from "react";
 import { UpdateDialog } from "./UpdateDialog";
 import { useUpdateController, type UpdateContextValue } from "./useUpdateController";
 
-export type { UpdateStatus } from "./useUpdateController";
+export type { UpdateKind, UpdateStatus } from "./useUpdateController";
 
 const UpdateContext = createContext<UpdateContextValue | null>(null);
 

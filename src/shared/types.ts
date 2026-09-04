@@ -5,3 +5,4 @@ export * from "./types/provider";
 export * from "./types/overlay";
 export * from "./types/config";
 export * from "./types/defaults";
+export * from "./types/update";
