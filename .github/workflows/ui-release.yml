@@ -1,0 +1,230 @@
+name: Release macOS UI update
+
+on:
+  push:
+    tags:
+      - "ui-v*-r*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ui-updates
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish UI ${{ github.ref_name }}
+    runs-on: macos-latest
+    env:
+      CORE_API_VERSION: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - name: Validate tag, versions, and release notes
+        id: metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          if [[ "$(git cat-file -t "refs/tags/${tag}")" != "tag" ]]; then
+            echo "UI release tags must be annotated." >&2
+            exit 1
+          fi
+
+          tag_value="${tag#ui-v}"
+          app_version="${tag_value%-r*}"
+          revision="${tag_value##*-r}"
+          if [[ "${app_version}" == "${tag_value}" || ! "${app_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid UI release tag: ${tag}. Expected ui-v<app-version>-r<revision>." >&2
+            exit 1
+          fi
+          if [[ ! "${revision}" =~ ^[1-9][0-9]*$ ]]; then
+            echo "UI release revision must be a positive integer." >&2
+            exit 1
+          fi
+
+          package_version="$(node -e 'const fs=require("node:fs"); process.stdout.write(JSON.parse(fs.readFileSync("package.json","utf8")).version)')"
+          cargo_version="$(node -e 'const fs=require("node:fs"); const m=fs.readFileSync("src-tauri/Cargo.toml","utf8").match(/^version = "([^"]+)"/m); process.stdout.write(m?.[1] ?? "")')"
+          tauri_version="$(node -e 'const fs=require("node:fs"); process.stdout.write(JSON.parse(fs.readFileSync("src-tauri/tauri.conf.json","utf8")).version)')"
+          for version in "${package_version}" "${cargo_version}" "${tauri_version}"; do
+            if [[ "${version}" != "${app_version}" ]]; then
+              echo "UI tag version ${app_version} does not match project version ${version}." >&2
+              exit 1
+            fi
+          done
+
+          notes_file="${RUNNER_TEMP}/lyrics-plus-ui-release-notes.md"
+          git tag -l --format='%(contents)' "${tag}" > "${notes_file}"
+          if [[ ! -s "${notes_file}" || -z "$(tr -d '[:space:]' < "${notes_file}")" ]]; then
+            echo "Annotated UI release tags must include release notes." >&2
+            exit 1
+          fi
+
+          ui_version="${app_version}-ui.${revision}"
+          artifact="lyrics-plus-ui-${ui_version}.zip"
+          {
+            echo "app_version=${app_version}"
+            echo "revision=${revision}"
+            echo "ui_version=${ui_version}"
+            echo "artifact=${artifact}"
+            echo "notes_file=${notes_file}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend bundle
+        run: pnpm build
+
+      - name: Package, hash, and sign UI bundle
+        id: bundle
+        shell: bash
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          test -f dist/index.html
+          archive="${RUNNER_TEMP}/${{ steps.metadata.outputs.artifact }}"
+          (
+            cd dist
+            # 运行时只启用 ZIP 的基础读取能力，因此发布包使用 stored 条目，
+            # 避免把额外的本地解压后端带进应用。
+            zip -q -0 -r "${archive}" .
+          )
+          pnpm tauri signer sign "${archive}"
+          signature_file="${archive}.sig"
+          test -s "${signature_file}"
+
+          size="$(wc -c < "${archive}" | tr -d '[:space:]')"
+          if (( size == 0 || size > 67108864 )); then
+            echo "UI archive must be between 1 byte and 64 MiB." >&2
+            exit 1
+          fi
+          sha256="$(shasum -a 256 "${archive}" | awk '{print $1}')"
+          # tauri signer 已将 .sig 内容编码为 Base64；清单直接复用该值，
+          # 客户端下载后只需解码一次即可交给 minisign 校验。
+          signature="$(tr -d '[:space:]' < "${signature_file}")"
+          artifact_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${{ steps.metadata.outputs.artifact }}"
+
+          mkdir -p ui-release
+          RELEASE_NOTES_FILE="${{ steps.metadata.outputs.notes_file }}" \
+          APP_VERSION="${{ steps.metadata.outputs.app_version }}" \
+          REVISION="${{ steps.metadata.outputs.revision }}" \
+          UI_VERSION="${{ steps.metadata.outputs.ui_version }}" \
+          ARTIFACT_URL="${artifact_url}" \
+          ARTIFACT_SIZE="${size}" \
+          ARTIFACT_SHA256="${sha256}" \
+          ARTIFACT_SIGNATURE="${signature}" \
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const releaseNotes = fs.readFileSync(process.env.RELEASE_NOTES_FILE, "utf8").trim();
+          const manifest = {
+            schemaVersion: 1,
+            appVersion: process.env.APP_VERSION,
+            coreApiVersion: Number(process.env.CORE_API_VERSION),
+            revision: Number(process.env.REVISION),
+            uiVersion: process.env.UI_VERSION,
+            releaseNotes,
+            publishedAt: new Date().toISOString(),
+            url: process.env.ARTIFACT_URL,
+            size: Number(process.env.ARTIFACT_SIZE),
+            sha256: process.env.ARTIFACT_SHA256,
+            signature: process.env.ARTIFACT_SIGNATURE,
+          };
+          fs.writeFileSync("ui-release/entry.json", `${JSON.stringify(manifest, null, 2)}\n`);
+          NODE
+
+          echo "archive=${archive}" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish GitHub Release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # UI 资源发布标记为预发布，避免 GitHub latest 被热更新 Release 抢占，
+          # 从而保持现有 Tauri 应用更新端点只指向正式应用 Release。
+          gh release create "${GITHUB_REF_NAME}" "${{ steps.bundle.outputs.archive }}" \
+            --verify-tag \
+            --prerelease \
+            --title "Lyrics Plus UI ${{ steps.metadata.outputs.ui_version }}" \
+            --notes-file "${{ steps.metadata.outputs.notes_file }}"
+
+      - name: Update ui-updates branch manifest
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("node:fs");
+            const entry = JSON.parse(fs.readFileSync("ui-release/entry.json", "utf8"));
+            const { owner, repo } = context.repo;
+            const branch = "ui-updates";
+
+            let branchExists = true;
+            try {
+              await github.rest.git.getRef({ owner, repo, ref: `heads/${branch}` });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              branchExists = false;
+            }
+
+            if (!branchExists) {
+              const repository = await github.rest.repos.get({ owner, repo });
+              const defaultRef = await github.rest.git.getRef({
+                owner,
+                repo,
+                ref: `heads/${repository.data.default_branch}`,
+              });
+              await github.rest.git.createRef({
+                owner,
+                repo,
+                ref: `refs/heads/${branch}`,
+                sha: defaultRef.data.object.sha,
+              });
+            }
+
+            let releases = [];
+            let fileSha;
+            try {
+              const current = await github.rest.repos.getContent({ owner, repo, path: "latest.json", ref: branch });
+              if (Array.isArray(current.data)) throw new Error("latest.json resolved to a directory");
+              fileSha = current.data.sha;
+              const decoded = Buffer.from(current.data.content, "base64").toString("utf8");
+              const parsed = JSON.parse(decoded);
+              releases = Array.isArray(parsed.releases) ? parsed.releases : [];
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+
+            releases = releases.filter((release) => release?.appVersion !== entry.appVersion);
+            releases.push(entry);
+            releases.sort((left, right) => left.appVersion.localeCompare(right.appVersion));
+            const content = `${JSON.stringify({ releases }, null, 2)}\n`;
+            await github.rest.repos.createOrUpdateFileContents({
+              owner,
+              repo,
+              path: "latest.json",
+              branch,
+              sha: fileSha,
+              message: `ci: publish UI ${entry.uiVersion}`,
+              content: Buffer.from(content, "utf8").toString("base64"),
+            });
