@@ -1,13 +1,13 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useAppConfig } from "../../features/config/AppConfigProvider";
-import { useUpdates } from "../../features/update/UpdateProvider";
-import { messageOf } from "../../shared/api";
-import { useSettingsContext } from "../settings";
+import { useAppConfig } from "../../../features/config/AppConfigProvider";
+import { useUpdates } from "../../../features/update/UpdateProvider";
+import { messageOf } from "../../../shared/api";
+import { useSettingsContext } from "../shared/SettingsContext";
 import styles from "../settings.module.scss";
-import { PageHeader, SettingsSection, ToggleRow } from "./components";
-import appIcon from "../../../src-tauri/icons/128x128.png";
+import { PageHeader, SettingsSection, ToggleRow } from "../shared/components";
+import appIcon from "../../../../src-tauri/icons/128x128.png";
 import { Button } from "@/components/ui/button";
 
 const links = [

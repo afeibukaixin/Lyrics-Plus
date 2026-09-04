@@ -1,12 +1,13 @@
 import { createHashRouter, Navigate } from "react-router";
 import IndexLayout from "../layout";
 import Settings from "../pages/settings";
-import StyleSettingsPage from "../pages/settings/StyleSettingsPage";
-import LyricsSettingsPage from "../pages/settings/LyricsSettingsPage";
-import AppSettingsPage from "../pages/settings/AppSettingsPage";
-import DebugSettingsPage from "../pages/settings/DebugSettingsPage";
-import ConfigSettingsPage from "../pages/settings/ConfigSettingsPage";
-import AboutSettingsPage from "../pages/settings/AboutSettingsPage";
+import StyleSettingsPage from "../pages/settings/style/StyleSettingsPage";
+import LyricsSettingsPage from "../pages/settings/lyrics/LyricsSettingsPage";
+import PlayerSettingsPage from "../pages/settings/player/PlayerSettingsPage";
+import ApplicationSettingsPage from "../pages/settings/application/ApplicationSettingsPage";
+import DebugSettingsPage from "../pages/settings/debug/DebugSettingsPage";
+import ConfigSettingsPage from "../pages/settings/config/ConfigSettingsPage";
+import AboutSettingsPage from "../pages/settings/about/AboutSettingsPage";
 import { lastSettingsSection } from "./settingsRoute";
 
 function SettingsIndexRedirect() {
@@ -30,8 +31,8 @@ const router = createHashRouter([
           { path: "style", element: <StyleSettingsPage /> },
           { path: "display", element: <Navigate to="/settings/style" replace /> },
           { path: "lyrics", element: <LyricsSettingsPage /> },
-          { path: "player", element: <AppSettingsPage scope="player" /> },
-          { path: "application", element: <AppSettingsPage scope="application" /> },
+          { path: "player", element: <PlayerSettingsPage /> },
+          { path: "application", element: <ApplicationSettingsPage /> },
           { path: "debug", element: <DebugSettingsPage /> },
           { path: "config", element: <ConfigSettingsPage /> },
           { path: "about", element: <AboutSettingsPage /> },

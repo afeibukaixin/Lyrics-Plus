@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
-import { api, isTauriRuntime, messageOf } from "../../shared/api";
-import { createTauriListenerCleanup } from "../../shared/tauriEvent";
+import { api, isTauriRuntime, messageOf } from "../../../shared/api";
+import { createTauriListenerCleanup } from "../../../shared/tauriEvent";
 import type {
   OverlaySettings,
   OverlayStyle,
@@ -11,9 +11,9 @@ import type {
   ProviderSettingsView,
   ProviderStatus,
   SettingsSection,
-} from "../../shared/types";
-import { defaultOverlayStyle } from "../../shared/types";
-import { rememberSettingsPath } from "../../router/settingsRoute";
+} from "../../../shared/types";
+import { defaultOverlayStyle } from "../../../shared/types";
+import { rememberSettingsPath } from "../../../router/settingsRoute";
 import type { ProviderDragState } from "./SettingsContext";
 
 type UseSettingsDataOptions = {

@@ -1,8 +1,8 @@
 import { useOutletContext } from "react-router";
 import type { Dispatch, PointerEvent as ReactPointerEvent, RefObject, SetStateAction } from "react";
-import { useAppConfig } from "../../features/config/AppConfigProvider";
-import { useLyrics } from "../../features/lyrics/useLyrics";
-import { usePlayback } from "../../features/player/usePlayback";
+import { useAppConfig } from "../../../features/config/AppConfigProvider";
+import { useLyrics } from "../../../features/lyrics/useLyrics";
+import { usePlayback } from "../../../features/player/usePlayback";
 import type {
   OverlaySettings,
   OverlayStyle,
@@ -11,7 +11,7 @@ import type {
   ProviderSettingsView,
   MusixmatchTokenType,
   SettingsSection,
-} from "../../shared/types";
+} from "../../../shared/types";
 
 export type ProviderDragState = {
   providerId: string;

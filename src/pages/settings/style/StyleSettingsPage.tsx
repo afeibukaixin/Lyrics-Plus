@@ -1,12 +1,12 @@
-import { defaultOverlayStyle, secondaryDisplayFlags, secondaryDisplayFromFlags, type LyricsBaseAppearance, type LyricsStyleMode, type OverlayStyle } from "../../shared/types";
+import { defaultOverlayStyle, secondaryDisplayFlags, secondaryDisplayFromFlags, type LyricsBaseAppearance, type LyricsStyleMode, type OverlayStyle } from "../../../shared/types";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ListMusic, Monitor, Palette, PanelTop, PanelTopDashed } from "lucide-react";
-import { api, messageOf } from "../../shared/api";
-import { useSettingsContext } from "../settings";
+import { api, messageOf } from "../../../shared/api";
+import { useSettingsContext } from "../shared/SettingsContext";
 import styles from "../settings.module.scss";
-import { ColorRow, PageHeader, RangeRow, SelectRow, SettingsPage, SettingsSection, TextRow, ToggleRow } from "./components";
+import { ColorRow, PageHeader, RangeRow, SelectRow, SettingsPage, SettingsSection, TextRow, ToggleRow } from "../shared/components";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";

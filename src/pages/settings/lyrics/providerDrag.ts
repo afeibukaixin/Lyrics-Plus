@@ -1,4 +1,4 @@
-import type { ProviderDragState } from "./SettingsContext";
+import type { ProviderDragState } from "../shared/SettingsContext";
 
 const PROVIDER_DRAG_HYSTERESIS_PX = 6;
 

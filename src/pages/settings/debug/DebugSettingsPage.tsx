@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { debugLogLevels, useDebugLogs, type DebugLogLevel } from "../../features/debug/DebugLogProvider";
-import { useAppLanguage } from "../../features/i18n/I18nProvider";
+import { debugLogLevels, useDebugLogs, type DebugLogLevel } from "../../../features/debug/DebugLogProvider";
+import { useAppLanguage } from "../../../features/i18n/I18nProvider";
 import styles from "../settings.module.scss";
-import { PageHeader, SettingsSection, ToggleRow } from "./components";
+import { PageHeader, SettingsSection, ToggleRow } from "../shared/components";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";

@@ -10,15 +10,15 @@ import type {
   NotchLyricsPreferences,
   OverlayFontWeight,
   StatusBarLyricsPreferences,
-} from "../../shared/types";
-import { ColorRow, RangePairRow, RangeRow, SelectRow, SettingsSection, TextRow, ToggleRow } from "./components";
+} from "../../../shared/types";
+import { ColorRow, RangePairRow, RangeRow, SelectRow, SettingsSection, TextRow, ToggleRow } from "../shared/components";
 import { Button } from "@/components/ui/button";
 import styles from "../settings.module.scss";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { reportFrontendError } from "../../shared/debugLog";
-import { emitNotchWidthPreview } from "../../shared/tauriEvent";
-import { api, isTauriRuntime } from "../../shared/api";
+import { reportFrontendError } from "../../../shared/debugLog";
+import { emitNotchWidthPreview } from "../../../shared/tauriEvent";
+import { api, isTauriRuntime } from "../../../shared/api";
 
 type AuxiliaryMode = Exclude<LyricsStyleMode, "desktop">;
 
