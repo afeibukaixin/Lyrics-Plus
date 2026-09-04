@@ -81,26 +81,3 @@ pub async fn search_lyrics(
 ) -> Result<SearchResponse, String> {
     search_lyrics_for_session(&state, &track_key, input, intent).await
 }
-
-fn candidate_capability_rank(
-    result: &LyricsSearchResult,
-    secondary_display: SecondaryDisplayMode,
-) -> (u8, u8) {
-    let secondary_rank = match secondary_display {
-        SecondaryDisplayMode::Translation => u8::from(!result.has_translation),
-        SecondaryDisplayMode::Romanization => u8::from(!result.has_romanization),
-        SecondaryDisplayMode::TranslationRomanization => {
-            if result.has_translation && result.has_romanization {
-                0
-            } else if result.has_translation {
-                1
-            } else if result.has_romanization {
-                2
-            } else {
-                3
-            }
-        }
-        SecondaryDisplayMode::Legacy | SecondaryDisplayMode::Next => 0,
-    };
-    (u8::from(!result.has_word_timing), secondary_rank)
-}
