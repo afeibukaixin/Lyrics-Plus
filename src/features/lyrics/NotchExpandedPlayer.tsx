@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { TFunction } from "i18next";
 import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import appIconUrl from "../../../src-tauri/icons/128x128@2x.png";
@@ -22,11 +22,18 @@ function formatPlaybackTime(valueMs: number | null) {
 }
 
 type PlaybackController = ReturnType<typeof usePlayback>;
+type ExpandedPreviewSupportingLine = {
+  kind: "translation" | "romanization" | "next";
+  line: LyricsLine;
+};
 
 export function ExpandedPlayer({
   karaokeStyle,
   playback,
   previewLine,
+  previewSupportingLine,
+  previewDoubleLine,
+  previewDoubleLineReversed,
   previewMaxDurationMs,
   previewPositionMs,
   quickControls,
@@ -36,6 +43,9 @@ export function ExpandedPlayer({
   karaokeStyle: CompactKaraokeStyle;
   playback: PlaybackController;
   previewLine: LyricsLine | null;
+  previewSupportingLine: ExpandedPreviewSupportingLine | null;
+  previewDoubleLine: boolean;
+  previewDoubleLineReversed: boolean;
   previewMaxDurationMs: number | null;
   previewPositionMs: number;
   quickControls: ReactNode;
@@ -49,6 +59,7 @@ export function ExpandedPlayer({
   const canSeek = durationMs > 0 && Boolean(playback.snapshot.player);
   const [draftPositionMs, setDraftPositionMs] = useState<number | null>(null);
   const [pendingSeek, setPendingSeek] = useState<{ trackKey: string; positionMs: number } | null>(null);
+  const playerProgressRef = useRef<HTMLDivElement>(null);
   const pendingPositionMs = pendingSeek?.trackKey === trackKey ? pendingSeek.positionMs : null;
   const positionMs = durationMs > 0
     ? Math.min(durationMs, Math.max(0, draftPositionMs ?? pendingPositionMs ?? playback.positionMs))
@@ -125,37 +136,72 @@ export function ExpandedPlayer({
         {quickControls}
       </div>
       {previewLine && (
-        <div className={styles.playerLyricsPreview}>
-          <OverflowText
-            align="center"
-            behavior="once"
-            contentKey={`${trackKey}:preview:${previewLine.startMs}:${previewLine.text}`}
-            maxDurationMs={previewMaxDurationMs}
-            paused={marqueePaused}
-          >
-            <KaraokeLine line={previewLine} positionMs={previewPositionMs} karaokeStyle={karaokeStyle} />
-          </OverflowText>
+        <div
+          className={styles.playerLyricsPreview}
+          data-line-order={previewDoubleLineReversed ? "reversed" : "normal"}
+        >
+          <div className={styles.playerLyricsCurrent}>
+            <OverflowText
+              align="center"
+              behavior="once"
+              contentKey={`${trackKey}:preview:${previewLine.startMs}:${previewLine.text}`}
+              maxDurationMs={previewMaxDurationMs}
+              paused={marqueePaused}
+            >
+              <KaraokeLine line={previewLine} positionMs={previewPositionMs} karaokeStyle={karaokeStyle} />
+            </OverflowText>
+          </div>
+          {previewDoubleLine && (
+            <div
+              className={styles.playerLyricsSupportingPreview}
+              data-empty={!previewSupportingLine || undefined}
+              data-kind={previewSupportingLine?.kind}
+            >
+              {previewSupportingLine && (
+                <OverflowText
+                  align="center"
+                  behavior="once"
+                  contentKey={`${trackKey}:preview:${previewSupportingLine.kind}:${previewSupportingLine.line.startMs}:${previewSupportingLine.line.text}`}
+                  maxDurationMs={previewMaxDurationMs}
+                  paused={marqueePaused}
+                >
+                  {previewSupportingLine.line.text}
+                </OverflowText>
+              )}
+            </div>
+          )}
         </div>
       )}
-      <div className={styles.playerProgress}>
-        <span className={styles.playerTime}>{formatPlaybackTime(positionMs)}</span>
-        <Slider
-          aria-label={t("notchLyrics.player.seek")}
-          className={styles.playerSlider}
-          disabled={!canSeek || playback.isControlling}
-          max={Math.max(1, durationMs)}
-          min={0}
-          onValueChange={(value) => setDraftPositionMs(Number(value))}
-          onValueCommitted={(value) => commitPosition(Number(value))}
-          step={1_000}
-          value={positionMs}
-        />
-        <span className={styles.playerTime}>−{formatPlaybackTime(Math.max(0, durationMs - positionMs))}</span>
-      </div>
-      <div className={styles.playerControls} role="group" aria-label={t("notchLyrics.player.label")}>
-        <ToolbarIconButton interactionMode="native" className={styles.playerControl} label={t("notchLyrics.player.previous")} variant="ghost" size="icon" onClick={() => void playback.previousTrack().catch(() => undefined)}><SkipBack fill="currentColor" strokeWidth={1.75} /></ToolbarIconButton>
-        <ToolbarIconButton interactionMode="native" className={styles.playerPrimaryControl} label={playback.snapshot.isPlaying ? t("notchLyrics.player.pause") : t("notchLyrics.player.play")} variant="ghost" size="icon" onClick={() => void playback.togglePlayPause().catch(() => undefined)}>{playback.snapshot.isPlaying ? <Pause fill="currentColor" strokeWidth={1.5} /> : <Play fill="currentColor" strokeWidth={1.5} />}</ToolbarIconButton>
-        <ToolbarIconButton interactionMode="native" className={styles.playerControl} label={t("notchLyrics.player.next")} variant="ghost" size="icon" onClick={() => void playback.nextTrack().catch(() => undefined)}><SkipForward fill="currentColor" strokeWidth={1.75} /></ToolbarIconButton>
+      <div className={styles.playerTransport}>
+        <div className={styles.playerControls} role="group" aria-label={t("notchLyrics.player.label")}>
+          <ToolbarIconButton interactionMode="native" className={styles.playerControl} label={t("notchLyrics.player.previous")} variant="ghost" size="icon" onClick={() => void playback.previousTrack().catch(() => undefined)}><SkipBack fill="currentColor" strokeWidth={1.75} /></ToolbarIconButton>
+          <ToolbarIconButton interactionMode="native" className={styles.playerPrimaryControl} label={playback.snapshot.isPlaying ? t("notchLyrics.player.pause") : t("notchLyrics.player.play")} variant="ghost" size="icon" onClick={() => void playback.togglePlayPause().catch(() => undefined)}>{playback.snapshot.isPlaying ? <Pause fill="currentColor" strokeWidth={1.5} /> : <Play fill="currentColor" strokeWidth={1.5} />}</ToolbarIconButton>
+          <ToolbarIconButton interactionMode="native" className={styles.playerControl} label={t("notchLyrics.player.next")} variant="ghost" size="icon" onClick={() => void playback.nextTrack().catch(() => undefined)}><SkipForward fill="currentColor" strokeWidth={1.75} /></ToolbarIconButton>
+        </div>
+        <div ref={playerProgressRef} className={styles.playerProgress}>
+          <span className={styles.playerTime}>{formatPlaybackTime(positionMs)}</span>
+          <Slider
+            aria-label={t("notchLyrics.player.seek")}
+            className={styles.playerSlider}
+            disabled={!canSeek || playback.isControlling}
+            max={Math.max(1, durationMs)}
+            min={0}
+            onValueChange={(value) => setDraftPositionMs(Number(value))}
+            onValueCommitted={(value, eventDetails) => {
+              commitPosition(Number(value));
+              if (eventDetails.reason !== "drag" && eventDetails.reason !== "track-press") return;
+              requestAnimationFrame(() => {
+                const activeElement = document.activeElement;
+                if (activeElement instanceof HTMLElement && playerProgressRef.current?.contains(activeElement)) {
+                  activeElement.blur();
+                }
+              });
+            }}
+            step={1_000}
+            value={positionMs}
+          />
+          <span className={styles.playerTime}>−{formatPlaybackTime(Math.max(0, durationMs - positionMs))}</span>
+        </div>
       </div>
     </div>
   );

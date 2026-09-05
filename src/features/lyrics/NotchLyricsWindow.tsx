@@ -16,6 +16,7 @@ import { useNotchSpectrum } from "./useNotchSpectrum";
 import { useNotchWindowGeometry } from "./useNotchWindowGeometry";
 import { useNotchWindowEvents } from "./useNotchWindowEvents";
 import { useNotchWindowState } from "./useNotchWindowState";
+import { findAlignedAuxiliaryLine } from "./useLyrics";
 import type {
   LyricsLine,
   NotchLyricsPreferences,
@@ -48,7 +49,7 @@ function previewLineAtPosition(lines: LyricsLine[], positionMs: number) {
 
   const line = lines[activeIndex] ?? lines[0] ?? null;
   const nextLine = activeIndex < 0 ? lines[1] ?? null : lines[activeIndex + 1] ?? null;
-  return { line, nextLine };
+  return { activeIndex, line, nextLine };
 }
 
 export default function NotchLyricsWindow() {
@@ -144,6 +145,31 @@ export default function NotchLyricsWindow() {
       previewLineDisplayEndMs - preview.line.startMs,
     )
     : null;
+  const previewNextLine = preview.nextLine;
+  const previewSupportingLine = (() => {
+    if (notch.layout !== "double" || !preview.line) return null;
+    if (notch.showTranslation && lyrics.document?.tracks.translation) {
+      const translation = findAlignedAuxiliaryLine(
+        lyrics.document.tracks.translation.lines,
+        preview.line,
+      );
+      if (translation) return { kind: "translation" as const, line: translation };
+    }
+    if (notch.showRomanization && lyrics.document?.tracks.romanization) {
+      const romanization = findAlignedAuxiliaryLine(
+        lyrics.document.tracks.romanization.lines,
+        preview.line,
+      );
+      if (romanization) return { kind: "romanization" as const, line: romanization };
+    }
+    return previewNextLine?.text.trim()
+      ? { kind: "next" as const, line: previewNextLine }
+      : null;
+  })();
+  const previewDoubleLineReversed = notch.layout === "double"
+    && notch.doubleLineMode === "alternating"
+    && preview.activeIndex >= 0
+    && !previewSupportingLine;
   const beforeFirstLine = lyrics.activeIndex < 0;
   const primaryLine = lyrics.currentLine ?? (beforeFirstLine ? originalLines[0] : null);
   const secondaryLine = beforeFirstLine ? originalLines[1] ?? null : lyrics.nextLine;
@@ -455,6 +481,9 @@ export default function NotchLyricsWindow() {
                     marqueePaused={marqueePaused}
                     playback={playback}
                     previewLine={notch.showLyrics ? preview.line : null}
+                    previewSupportingLine={notch.showLyrics ? previewSupportingLine : null}
+                    previewDoubleLine={notch.showLyrics && notch.layout === "double" && Boolean(preview.line)}
+                    previewDoubleLineReversed={previewDoubleLineReversed}
                     previewMaxDurationMs={previewLyricMarqueeTimeLimitMs}
                     previewPositionMs={previewPositionMs}
                     quickControls={quickControls}
