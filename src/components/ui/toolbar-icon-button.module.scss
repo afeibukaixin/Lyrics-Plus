@@ -1,0 +1,49 @@
+.button {
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out,
+    opacity 120ms ease-out,
+    transform 120ms ease-out;
+}
+
+.button:not(:disabled):is([data-native-hover], :hover:not([data-interaction-mode="native"])),
+.button:not(:disabled):focus-visible {
+  background: var(--toolbar-button-hover-background, var(--accent)) !important;
+  color: var(--toolbar-button-hover-foreground, var(--accent-foreground)) !important;
+}
+
+.button:not(:disabled):is([data-native-hover], :hover:not([data-interaction-mode="native"])) {
+  transform: scale(1.03);
+}
+
+.button[aria-pressed="true"] {
+  background: var(--toolbar-button-selected-background, var(--accent)) !important;
+  color: var(--toolbar-button-hover-foreground, var(--accent-foreground)) !important;
+}
+
+.button[aria-pressed="true"]:is([data-native-hover], :hover:not([data-interaction-mode="native"])) {
+  background: var(--toolbar-button-selected-hover-background, color-mix(in srgb, var(--accent) 82%, var(--foreground) 18%)) !important;
+}
+
+.button:not(:disabled):is(:active:not([data-interaction-mode="native"]), [data-native-pressed]) {
+  background: var(--toolbar-button-active-background, color-mix(in srgb, var(--accent) 68%, var(--foreground) 32%)) !important;
+  transform: scale(.96);
+}
+
+.button[data-interaction-mode="native"]:not(:disabled):not([aria-pressed="true"]):not([data-native-hover]):not([data-native-pressed]):not(:focus-visible) {
+  background: var(--toolbar-button-idle-background, transparent) !important;
+  color: var(--toolbar-button-idle-foreground, inherit) !important;
+  transform: none;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: .45 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button:not(:disabled):is([data-native-hover], :hover:not([data-interaction-mode="native"])),
+  .button:not(:disabled):is(:active:not([data-interaction-mode="native"]), [data-native-pressed]) {
+    transform: none;
+  }
+}

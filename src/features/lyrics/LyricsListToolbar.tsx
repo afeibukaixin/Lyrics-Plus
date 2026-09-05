@@ -13,7 +13,7 @@ import {
   SquareDashed,
 } from "lucide-react";
 import type { ListLyricsPreferences } from "../../shared/types";
-import { IconButton } from "@/components/ui/icon-button";
+import { ToolbarIconButton } from "@/components/ui/toolbar-icon-button";
 import styles from "./LyricsListWindow.module.scss";
 
 type LyricsListToolbarProps = {
@@ -80,24 +80,23 @@ export function LyricsListToolbar({
       onFocusCapture={onFocusCapture}
       onBlurCapture={onBlurCapture}
     >
-      <IconButton label={t("lyricsList.toolbar.lock")} variant="ghost" size="icon-sm" onClick={() => void updateLocked(true)}><Lock /></IconButton>
-      <IconButton label={t("lyricsList.toolbar.decreaseFont")} variant="ghost" size="icon-sm" disabled={appearance.fontSize <= 12} onClick={() => void updateAppearance({ fontSize: Math.max(12, appearance.fontSize - 2) })}><Minus /></IconButton>
-      <IconButton label={t("lyricsList.toolbar.increaseFont")} variant="ghost" size="icon-sm" disabled={appearance.fontSize >= 56} onClick={() => void updateAppearance({ fontSize: Math.min(56, appearance.fontSize + 2) })}><Plus /></IconButton>
+      <ToolbarIconButton label={t("lyricsList.toolbar.lock")} variant="ghost" size="icon-sm" onClick={() => void updateLocked(true)}><Lock /></ToolbarIconButton>
+      <ToolbarIconButton label={t("lyricsList.toolbar.decreaseFont")} variant="ghost" size="icon-sm" disabled={appearance.fontSize <= 12} onClick={() => void updateAppearance({ fontSize: Math.max(12, appearance.fontSize - 2) })}><Minus /></ToolbarIconButton>
+      <ToolbarIconButton label={t("lyricsList.toolbar.increaseFont")} variant="ghost" size="icon-sm" disabled={appearance.fontSize >= 56} onClick={() => void updateAppearance({ fontSize: Math.min(56, appearance.fontSize + 2) })}><Plus /></ToolbarIconButton>
       <div className={styles.offsetControl} role="group" aria-label={t("lyricsList.toolbar.offsetGroup", { value: formatOffset(offsetMs) })}>
-        <IconButton label={t("lyricsList.toolbar.delay")} variant="ghost" size="icon-sm" disabled={!offsetAvailable} onClick={(event) => changeLyricsOffset(event.shiftKey ? -500 : -100)}><ClockArrowLeft /></IconButton>
-        <IconButton className={styles.offsetValue} label={t("lyricsList.toolbar.resetOffset", { value: formatOffset(offsetMs) })} variant="ghost" size="icon-sm" disabled={!offsetAvailable || offsetMs === 0} onClick={() => setLyricsOffset(0)}>{offsetAvailable ? formatOffset(offsetMs) : "—"}</IconButton>
-        <IconButton label={t("lyricsList.toolbar.advance")} variant="ghost" size="icon-sm" disabled={!offsetAvailable} onClick={(event) => changeLyricsOffset(event.shiftKey ? 500 : 100)}><ClockArrowRight /></IconButton>
+        <ToolbarIconButton label={t("lyricsList.toolbar.delay")} variant="ghost" size="icon-sm" disabled={!offsetAvailable} onClick={(event) => changeLyricsOffset(event.shiftKey ? -500 : -100)}><ClockArrowLeft /></ToolbarIconButton>
+        <ToolbarIconButton className={styles.offsetValue} label={t("lyricsList.toolbar.resetOffset", { value: formatOffset(offsetMs) })} variant="ghost" size="icon-sm" disabled={!offsetAvailable || offsetMs === 0} onClick={() => setLyricsOffset(0)}>{offsetAvailable ? formatOffset(offsetMs) : "—"}</ToolbarIconButton>
+        <ToolbarIconButton label={t("lyricsList.toolbar.advance")} variant="ghost" size="icon-sm" disabled={!offsetAvailable} onClick={(event) => changeLyricsOffset(event.shiftKey ? 500 : 100)}><ClockArrowRight /></ToolbarIconButton>
       </div>
-      <IconButton
+      <ToolbarIconButton
         label={t("overlay.toolbar.toggleBackground", { value: backgroundLabel })}
         tooltip={t("overlay.toolbar.toggleBackgroundTitle", { value: backgroundLabel })}
         variant="ghost"
         size="icon-sm"
         aria-pressed={!transparentBackground}
-        data-on={!transparentBackground}
         onClick={() => void updateAppearance({ backgroundMode: transparentBackground ? "solid" : "transparent" })}
-      >{transparentBackground ? <SquareDashed /> : <Square />}</IconButton>
-      <IconButton
+      >{transparentBackground ? <SquareDashed /> : <Square />}</ToolbarIconButton>
+      <ToolbarIconButton
         className={styles.trackToggle}
         label={supportingToggleTitle(t("common.feature.translation"), options.showTranslation, translationAvailable)}
         tooltip={supportingToggleTitle(t("common.feature.translation"), options.showTranslation, translationAvailable)}
@@ -105,10 +104,9 @@ export function LyricsListToolbar({
         size="icon-sm"
         aria-pressed={options.showTranslation}
         data-available={translationAvailable}
-        data-on={options.showTranslation}
         onClick={() => void updatePreferences({ ...options, showTranslation: !options.showTranslation })}
-      >{t("overlay.toolbar.translationGlyph")}</IconButton>
-      <IconButton
+      >{t("overlay.toolbar.translationGlyph")}</ToolbarIconButton>
+      <ToolbarIconButton
         className={styles.trackToggle}
         label={supportingToggleTitle(t("common.feature.romanization"), options.showRomanization, romanizationAvailable)}
         tooltip={supportingToggleTitle(t("common.feature.romanization"), options.showRomanization, romanizationAvailable)}
@@ -116,19 +114,18 @@ export function LyricsListToolbar({
         size="icon-sm"
         aria-pressed={options.showRomanization}
         data-available={romanizationAvailable}
-        data-on={options.showRomanization}
         onClick={() => void updatePreferences({ ...options, showRomanization: !options.showRomanization })}
-      >{t("overlay.toolbar.romanizationGlyph")}</IconButton>
-      <IconButton label={t("lyricsList.toolbar.openSettings")} variant="ghost" size="icon-sm" onClick={openStyleSettings}><Settings /></IconButton>
-      <IconButton
+      >{t("overlay.toolbar.romanizationGlyph")}</ToolbarIconButton>
+      <ToolbarIconButton label={t("lyricsList.toolbar.openSettings")} variant="ghost" size="icon-sm" onClick={openStyleSettings}><Settings /></ToolbarIconButton>
+      <ToolbarIconButton
         label={options.alwaysOnTop ? t("lyricsList.toolbar.unpin") : t("lyricsList.toolbar.pin")}
         variant="ghost"
         size="icon-sm"
         aria-pressed={options.alwaysOnTop}
         onClick={() => void updatePreferences({ ...options, alwaysOnTop: !options.alwaysOnTop })}
-      ><Pin /></IconButton>
-      <IconButton label={t("lyricsList.toolbar.resetSize")} variant="ghost" size="icon-sm" onClick={resetWindowSize}><RotateCcw /></IconButton>
-      <IconButton label={t("lyricsList.toolbar.hide")} variant="ghost" size="icon-sm" onClick={() => void updatePreferences({ ...options, enabled: false })}><EyeOff /></IconButton>
+      ><Pin /></ToolbarIconButton>
+      <ToolbarIconButton label={t("lyricsList.toolbar.resetSize")} variant="ghost" size="icon-sm" onClick={resetWindowSize}><RotateCcw /></ToolbarIconButton>
+      <ToolbarIconButton label={t("lyricsList.toolbar.hide")} variant="ghost" size="icon-sm" onClick={() => void updatePreferences({ ...options, enabled: false })}><EyeOff /></ToolbarIconButton>
     </div>
   );
 }

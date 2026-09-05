@@ -26,4 +26,6 @@ export const overlayApi = {
     invoke<boolean>("fit_overlay_content", { width, height }),
   fitNotchLyricsContent: (width: number, height: number) =>
     invoke<NotchWindowFitResponse>("fit_notch_lyrics_content", { width, height }),
+  setNotchPointerInteractive: (interactive: boolean) =>
+    invoke<void>("set_notch_pointer_interactive", { interactive }),
 };

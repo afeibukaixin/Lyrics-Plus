@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { TFunction } from "i18next";
 import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import appIconUrl from "../../../src-tauri/icons/128x128@2x.png";
-import { IconButton } from "@/components/ui/icon-button";
+import { ToolbarIconButton } from "@/components/ui/toolbar-icon-button";
 import { Slider } from "@/components/ui/slider";
 import { usePlayback } from "../player/usePlayback";
 import type { CompactKaraokeStyle, LyricsLine } from "../../shared/types";
@@ -153,9 +153,9 @@ export function ExpandedPlayer({
         <span className={styles.playerTime}>−{formatPlaybackTime(Math.max(0, durationMs - positionMs))}</span>
       </div>
       <div className={styles.playerControls} role="group" aria-label={t("notchLyrics.player.label")}>
-        <IconButton className={styles.playerControl} label={t("notchLyrics.player.previous")} variant="ghost" size="icon" onClick={() => void playback.previousTrack().catch(() => undefined)}><SkipBack fill="currentColor" strokeWidth={1.75} /></IconButton>
-        <IconButton className={styles.playerPrimaryControl} label={playback.snapshot.isPlaying ? t("notchLyrics.player.pause") : t("notchLyrics.player.play")} variant="ghost" size="icon" onClick={() => void playback.togglePlayPause().catch(() => undefined)}>{playback.snapshot.isPlaying ? <Pause fill="currentColor" strokeWidth={1.5} /> : <Play fill="currentColor" strokeWidth={1.5} />}</IconButton>
-        <IconButton className={styles.playerControl} label={t("notchLyrics.player.next")} variant="ghost" size="icon" onClick={() => void playback.nextTrack().catch(() => undefined)}><SkipForward fill="currentColor" strokeWidth={1.75} /></IconButton>
+        <ToolbarIconButton interactionMode="native" className={styles.playerControl} label={t("notchLyrics.player.previous")} variant="ghost" size="icon" onClick={() => void playback.previousTrack().catch(() => undefined)}><SkipBack fill="currentColor" strokeWidth={1.75} /></ToolbarIconButton>
+        <ToolbarIconButton interactionMode="native" className={styles.playerPrimaryControl} label={playback.snapshot.isPlaying ? t("notchLyrics.player.pause") : t("notchLyrics.player.play")} variant="ghost" size="icon" onClick={() => void playback.togglePlayPause().catch(() => undefined)}>{playback.snapshot.isPlaying ? <Pause fill="currentColor" strokeWidth={1.5} /> : <Play fill="currentColor" strokeWidth={1.5} />}</ToolbarIconButton>
+        <ToolbarIconButton interactionMode="native" className={styles.playerControl} label={t("notchLyrics.player.next")} variant="ghost" size="icon" onClick={() => void playback.nextTrack().catch(() => undefined)}><SkipForward fill="currentColor" strokeWidth={1.75} /></ToolbarIconButton>
       </div>
     </div>
   );

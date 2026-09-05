@@ -10,10 +10,9 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { useGSAP } from "@gsap/react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { gsap } from "gsap";
 import { CustomEase } from "gsap/CustomEase";
-import { isTauriRuntime } from "../../shared/api";
+import { api, isTauriRuntime } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
 import type { NotchLayoutMetrics, NotchLyricsPreferences } from "../../shared/types";
 import {
@@ -94,6 +93,42 @@ export function useNotchIslandMotion({
   const requestedPointerInteractiveRef = useRef<boolean | null>(null);
   const appliedPointerInteractiveRef = useRef<boolean | null>(null);
   const pointerInteractionQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const nativeHoveredButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  const syncNativeButtonHover = useCallback((x: number, y: number, enabled: boolean) => {
+    const hitElement = enabled ? document.elementFromPoint(x, y) : null;
+    const candidate = hitElement instanceof Element ? hitElement.closest("button") : null;
+    const island = islandRef.current;
+    const nextButton = candidate instanceof HTMLButtonElement
+      && !candidate.disabled
+      && Boolean(island?.contains(candidate))
+      ? candidate
+      : null;
+    const previousButton = nativeHoveredButtonRef.current;
+    if (previousButton === nextButton) return;
+
+    nativeHoveredButtonRef.current = nextButton;
+    if (previousButton) {
+      previousButton.removeAttribute("data-native-hover");
+      previousButton.removeAttribute("data-native-pressed");
+      previousButton.dispatchEvent(new MouseEvent("mouseleave", {
+        clientX: x,
+        clientY: y,
+        relatedTarget: nextButton,
+        view: window,
+      }));
+    }
+    if (nextButton) {
+      nextButton.setAttribute("data-native-hover", "");
+      // 非聚焦 WKWebView 可能不派发 mouseenter；补发事件供 Tooltip 的原生监听器使用。
+      nextButton.dispatchEvent(new MouseEvent("mouseenter", {
+        clientX: x,
+        clientY: y,
+        relatedTarget: previousButton,
+        view: window,
+      }));
+    }
+  }, [islandRef]);
 
   const setNotchPointerInteractive = useCallback((interactive: boolean) => {
     if (!isTauriRuntime()) return;
@@ -105,7 +140,7 @@ export function useNotchIslandMotion({
         const desired = requestedPointerInteractiveRef.current;
         if (desired === null || appliedPointerInteractiveRef.current === desired) return;
         try {
-          await getCurrentWindow().setIgnoreCursorEvents(!desired);
+          await api.setNotchPointerInteractive(desired);
           appliedPointerInteractiveRef.current = desired;
         } catch (error) {
           if (requestedPointerInteractiveRef.current === desired) {
@@ -118,8 +153,11 @@ export function useNotchIslandMotion({
 
   useEffect(() => {
     setNotchPointerInteractive(false);
-    return () => setNotchPointerInteractive(false);
-  }, [setNotchPointerInteractive]);
+    return () => {
+      syncNativeButtonHover(0, 0, false);
+      setNotchPointerInteractive(false);
+    };
+  }, [setNotchPointerInteractive, syncNativeButtonHover]);
 
   const setIslandStateValue = useCallback((next: IslandState) => {
     if (import.meta.env.DEV && islandStateRef.current !== next) {
@@ -491,6 +529,9 @@ export function useNotchIslandMotion({
         && y <= hoverBounds.bottom + HOVER_PADDING,
       );
     setNotchPointerInteractive(isInsideInteractiveIsland);
+    if (source === "native") {
+      syncNativeButtonHover(x, y, isInsideInteractiveIsland);
+    }
     const changed = pointerInsideRef.current !== isInsideHoverArea;
     pointerInsideRef.current = isInsideHoverArea;
     if (import.meta.env.DEV && (changed || source === "pointerenter" || source === "pointerleave")) {
@@ -506,7 +547,7 @@ export function useNotchIslandMotion({
       });
     }
     processPointerState();
-  }, [hoverAreaRef, islandRef, islandStateRef, islandVisibleRef, processPointerState, setNotchPointerInteractive]);
+  }, [hoverAreaRef, islandRef, islandStateRef, islandVisibleRef, processPointerState, setNotchPointerInteractive, syncNativeButtonHover]);
 
   const handleIslandPointerEnter = useCallback((event: React.PointerEvent<HTMLElement>) => {
     updateHoverFromPoint(event.clientX, event.clientY, "pointerenter");
@@ -526,6 +567,7 @@ export function useNotchIslandMotion({
     islandVisibleRef.current = visible;
     setIslandVisible(visible);
     if (!visible) {
+      syncNativeButtonHover(0, 0, false);
       setNotchPointerInteractive(false);
       pendingVisibilityRef.current = null;
       pointerInsideRef.current = false;
@@ -537,7 +579,7 @@ export function useNotchIslandMotion({
       return;
     }
     animateIslandVisibility(visible);
-  }, [animateIslandVisibility, cancelWidthMotion, hostFitReadyRef, islandStateRef, islandVisibleRef, pendingVisibilityRef, setIslandVisible, setNotchPointerInteractive, setVisibilityMotionActive, visibilityMotionActiveRef, widthMotionActiveRef]);
+  }, [animateIslandVisibility, cancelWidthMotion, hostFitReadyRef, islandStateRef, islandVisibleRef, pendingVisibilityRef, setIslandVisible, setNotchPointerInteractive, setVisibilityMotionActive, syncNativeButtonHover, visibilityMotionActiveRef, widthMotionActiveRef]);
 
   return {
     applyIslandVisibility,

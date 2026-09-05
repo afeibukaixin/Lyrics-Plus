@@ -311,6 +311,7 @@ pub fn run() {
             commands::resize_overlay_edge,
             commands::fit_overlay_content,
             commands::fit_notch_lyrics_content,
+            commands::set_notch_pointer_interactive,
             commands::show_main_window,
             commands::show_lyrics_style_settings,
             commands::show_quick_lyrics_window,

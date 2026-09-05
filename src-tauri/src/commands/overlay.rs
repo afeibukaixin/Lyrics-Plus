@@ -3,6 +3,23 @@ pub fn get_overlay_settings(state: State<'_, AppState>) -> OverlaySettings {
     get_overlay_settings_inner(&state)
 }
 
+#[tauri::command]
+pub fn set_notch_pointer_interactive(
+    app: tauri::AppHandle,
+    interactive: bool,
+) -> Result<(), String> {
+    let window = app
+        .get_webview_window("lyrics-notch")
+        .ok_or_else(|| "灵动岛歌词窗口不存在".to_string())?;
+    window
+        .set_ignore_cursor_events(!interactive)
+        .map_err(|error| error.to_string())?;
+    if interactive {
+        crate::refresh_overlay_mouse_tracking(&window);
+    }
+    Ok(())
+}
+
 pub fn update_overlay_locked(app: &tauri::AppHandle, locked: bool) -> Result<(), String> {
     let window = app.get_webview_window("lyrics-overlay");
     let state = app.state::<AppState>();

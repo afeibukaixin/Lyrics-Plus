@@ -7,7 +7,7 @@ import {
   PanelsTopBottom,
   Settings,
 } from "lucide-react";
-import { IconButton } from "@/components/ui/icon-button";
+import { ToolbarIconButton } from "@/components/ui/toolbar-icon-button";
 import type { NotchLyricsPreferences } from "../../shared/types";
 import styles from "./NotchLyricsWindow.module.scss";
 
@@ -79,65 +79,67 @@ export function NotchLyricsQuickControls({
     <div className={styles.lyricsQuickControls} role="group" aria-label={t("notchLyrics.toolbar.label")}>
       {!notch.showLyrics ? (
         <div className={styles.lyricsQuickControlsOff}>
-          <IconButton
+          <ToolbarIconButton
             className={styles.quickToggle}
+            interactionMode="native"
             label={t("notchLyrics.toolbar.showLyrics")}
             variant="ghost"
             size="icon-sm"
             aria-pressed={false}
             onClick={() => onPatchNotch({ showLyrics: true })}
-          ><Captions aria-hidden="true" /></IconButton>
-          <IconButton
+          ><Captions aria-hidden="true" /></ToolbarIconButton>
+          <ToolbarIconButton
+            interactionMode="native"
             label={t("notchLyrics.toolbar.openSettings")}
             variant="ghost"
             size="icon-sm"
             onClick={onOpenSettings}
-          ><Settings aria-hidden="true" /></IconButton>
+          ><Settings aria-hidden="true" /></ToolbarIconButton>
         </div>
       ) : (
         <>
           <div className={styles.lyricsQuickControlRow}>
-            <IconButton
+            <ToolbarIconButton
               className={styles.quickToggle}
+              interactionMode="native"
               label={t("notchLyrics.toolbar.hideLyrics")}
               variant="ghost"
               size="icon-sm"
               aria-pressed
-              data-on="true"
               onClick={() => onPatchNotch({ showLyrics: false })}
-            ><Captions aria-hidden="true" /></IconButton>
-            <IconButton
+            ><Captions aria-hidden="true" /></ToolbarIconButton>
+            <ToolbarIconButton
               className={styles.quickToggle}
+              interactionMode="native"
               label={t("overlay.toolbar.toggleLayout", { value: layoutValue })}
               tooltip={t("overlay.toolbar.toggleLayoutTitle", { value: layoutValue })}
               variant="ghost"
               size="icon-sm"
               aria-pressed={notch.layout === "double"}
-              data-on={notch.layout === "double"}
               onClick={() => onPatchNotch({ layout: notch.layout === "double" ? "single" : "double" })}
-            >{notch.layout === "double" ? <PanelsTopBottom aria-hidden="true" /> : <PanelTop aria-hidden="true" />}</IconButton>
-            <IconButton
+            >{notch.layout === "double" ? <PanelsTopBottom aria-hidden="true" /> : <PanelTop aria-hidden="true" />}</ToolbarIconButton>
+            <ToolbarIconButton
               className={styles.trackToggle}
+              interactionMode="native"
               label={translationLabel}
               tooltip={translationLabel}
               variant="ghost"
               size="icon-sm"
               aria-pressed={notch.showTranslation}
               data-available={translationAvailable}
-              data-on={notch.showTranslation}
               onClick={() => onPatchNotch({ showTranslation: !notch.showTranslation })}
-            >{t("overlay.toolbar.translationGlyph")}</IconButton>
-            <IconButton
+            >{t("overlay.toolbar.translationGlyph")}</ToolbarIconButton>
+            <ToolbarIconButton
               className={styles.trackToggle}
+              interactionMode="native"
               label={romanizationLabel}
               tooltip={romanizationLabel}
               variant="ghost"
               size="icon-sm"
               aria-pressed={notch.showRomanization}
               data-available={romanizationAvailable}
-              data-on={notch.showRomanization}
               onClick={() => onPatchNotch({ showRomanization: !notch.showRomanization })}
-            >{t("overlay.toolbar.romanizationGlyph")}</IconButton>
+            >{t("overlay.toolbar.romanizationGlyph")}</ToolbarIconButton>
           </div>
           <div className={styles.lyricsQuickControlRow}>
             <div
@@ -145,38 +147,42 @@ export function NotchLyricsQuickControls({
               role="group"
               aria-label={t("overlay.toolbar.offsetGroup", { value: offsetAriaLabel })}
             >
-              <IconButton
+              <ToolbarIconButton
+                interactionMode="native"
                 label={t("overlay.toolbar.delay")}
                 tooltip={t("overlay.toolbar.delayTitle")}
                 variant="ghost"
                 size="icon-sm"
                 disabled={!offsetAvailable}
                 onClick={(event) => onChangeOffset(event.shiftKey ? -500 : -100)}
-              ><ClockArrowLeft aria-hidden="true" /></IconButton>
-              <IconButton
+              ><ClockArrowLeft aria-hidden="true" /></ToolbarIconButton>
+              <ToolbarIconButton
                 className={styles.offsetValue}
+                interactionMode="native"
                 label={offsetValueLabel}
                 tooltip={offsetValueTooltip}
                 variant="ghost"
                 size="icon-sm"
                 disabled={!offsetAvailable || offsetMs === 0}
                 onClick={onResetOffset}
-              >{offsetDisplayLabel}</IconButton>
-              <IconButton
+              >{offsetDisplayLabel}</ToolbarIconButton>
+              <ToolbarIconButton
+                interactionMode="native"
                 label={t("overlay.toolbar.advance")}
                 tooltip={t("overlay.toolbar.advanceTitle")}
                 variant="ghost"
                 size="icon-sm"
                 disabled={!offsetAvailable}
                 onClick={(event) => onChangeOffset(event.shiftKey ? 500 : 100)}
-              ><ClockArrowRight aria-hidden="true" /></IconButton>
+              ><ClockArrowRight aria-hidden="true" /></ToolbarIconButton>
             </div>
-            <IconButton
+            <ToolbarIconButton
+              interactionMode="native"
               label={t("notchLyrics.toolbar.openSettings")}
               variant="ghost"
               size="icon-sm"
               onClick={onOpenSettings}
-            ><Settings aria-hidden="true" /></IconButton>
+            ><Settings aria-hidden="true" /></ToolbarIconButton>
           </div>
         </>
       )}

@@ -193,14 +193,7 @@
   content: "";
 }
 
-.toolbar .trackToggle[data-available="false"][data-on="true"] {
-  background: var(--accent);
-  color: var(--accent-foreground);
-}
-
-.toolbar button:not(:disabled):hover,
-.toolbar button:not(:disabled):focus-visible,
-.toolbar button[aria-pressed="true"] {
+.toolbar .trackToggle[data-available="false"][aria-pressed="true"] {
   background: var(--accent);
   color: var(--accent-foreground);
 }

@@ -329,6 +329,13 @@
   top: 0;
   left: 50%;
   width: var(--notch-expanded-width);
+  --toolbar-button-idle-background: transparent;
+  --toolbar-button-idle-foreground: rgb(255 255 255 / 74%);
+  --toolbar-button-hover-background: rgb(255 255 255 / 20%);
+  --toolbar-button-hover-foreground: white;
+  --toolbar-button-selected-background: rgb(255 255 255 / 18%);
+  --toolbar-button-selected-hover-background: rgb(255 255 255 / 30%);
+  --toolbar-button-active-background: rgb(255 255 255 / 28%);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -445,41 +452,6 @@
   border: 0;
   color: rgb(255 255 255 / 74%);
   background: transparent !important;
-  transition:
-    opacity 110ms ease,
-    color 110ms ease,
-    background-color 110ms ease,
-    transform 110ms ease;
-}
-
-.quickToggle[data-on="true"],
-.trackToggle[data-on="true"] {
-  color: white;
-  background: rgb(255 255 255 / 18%) !important;
-}
-
-.lyricsQuickControls :global(button:hover:not(:disabled)) {
-  color: white;
-  transform: translateY(-1px) scale(1.05);
-}
-
-.lyricsQuickControls :global(button:hover:not(:disabled):not([aria-pressed])) {
-  background: rgb(255 255 255 / 20%) !important;
-}
-
-.quickToggle[data-on="true"]:hover:not(:disabled),
-.trackToggle[data-on="true"]:hover:not(:disabled) {
-  background: rgb(255 255 255 / 30%) !important;
-}
-
-.lyricsQuickControls :global(button:active:not(:disabled)) {
-  background: rgb(255 255 255 / 28%) !important;
-  transform: translateY(0) scale(.94);
-}
-
-.lyricsQuickControls :global(button:disabled) {
-  opacity: .45;
-  cursor: not-allowed;
 }
 
 .lyricsQuickControls .trackToggle {
@@ -493,6 +465,7 @@
   border-color: rgb(255 255 255 / 28%);
   border-style: dashed;
   color: rgb(255 255 255 / 62%);
+  --toolbar-button-idle-foreground: rgb(255 255 255 / 62%);
 }
 
 .lyricsQuickControls .trackToggle[data-available="false"]::after {
@@ -504,11 +477,6 @@
   border-radius: 50%;
   background: currentColor;
   content: "";
-}
-
-.lyricsQuickControls .trackToggle[data-available="false"][data-on="true"] {
-  color: white;
-  background: rgb(255 255 255 / 18%) !important;
 }
 
 .playerLyricsPreview {
@@ -574,6 +542,7 @@
   justify-content: center;
   gap: 44px;
   margin-top: 16px;
+  --toolbar-button-idle-foreground: white;
 }
 
 .playerControl,
@@ -583,9 +552,6 @@
   border: 0;
   color: white !important;
   background-color: transparent !important;
-  transition:
-    opacity 110ms ease,
-    transform 110ms ease;
 }
 
 .playerControl {
@@ -606,20 +572,6 @@
 .playerPrimaryControl :global(svg) {
   width: 32px;
   height: 32px;
-}
-
-.playerControl:hover,
-.playerPrimaryControl:hover {
-  opacity: .78;
-  background-color: transparent !important;
-  transform: scale(1.06);
-}
-
-.playerControl:active,
-.playerPrimaryControl:active {
-  opacity: .92;
-  background-color: transparent !important;
-  transform: scale(.92);
 }
 
 .shell[data-expanded] .toolbarReveal {
@@ -730,18 +682,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .karaokeWordFill,
-  .lyricsQuickControls :global(button) {
+  .karaokeWordFill {
     transition: none;
   }
 
   .shell:not([data-island-visible]) .islandVisual {
     opacity: 0;
-  }
-
-  .lyricsQuickControls :global(button:hover:not(:disabled)),
-  .lyricsQuickControls :global(button:active:not(:disabled)) {
-    transform: none;
   }
 
   .overflowContent {
