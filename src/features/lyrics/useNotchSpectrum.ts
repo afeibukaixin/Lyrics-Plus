@@ -4,8 +4,8 @@ import type { PlaybackSpectrumBands } from "../../shared/types";
 
 // 静止时频谱柱收缩到圆点中心，圆点本身由 SVG 底图稳定绘制。
 const SPECTRUM_IDLE_SCALE = 0;
-// 视觉包络塑造为“鱼尾→鱼身→鱼头”，不改变后端返回的原始频段值。
-const SPECTRUM_BAR_MAX_SCALES = [1.00, 0.58, 0.68, 0.78, 0.90, 1.00] as const;
+// 分散强低频，形成固定的非对称错序；第一项 bands[5] 保持第一柱的特殊增强。
+const SPECTRUM_DISPLAY_ORDER = [5, 0, 2, 4, 1, 3] as const;
 const SPECTRUM_BEZIER_X1 = 0.42;
 const SPECTRUM_BEZIER_Y1 = 0;
 const SPECTRUM_BEZIER_X2 = 1;
@@ -63,17 +63,17 @@ export function useNotchSpectrum(enabled: boolean) {
   }, []);
 
   const paintSpectrum = useCallback((bands: PlaybackSpectrumBands) => {
-    // 后端已经完成频段合并与响应处理，前端只把 0..1 映射为柱高。
+    // 后端已经完成频段合并与响应处理，前端把 0..1 统一映射为柱高。
     for (const motion of spectrumNodesRef.current.values()) {
       motion.lines.forEach((line, index) => {
-        const value = bands[index];
-        const maximumScale = SPECTRUM_BAR_MAX_SCALES[index] ?? 1;
+        const bandIndex = SPECTRUM_DISPLAY_ORDER[index] ?? index;
+        const value = bands[bandIndex];
         const normalizedValue = Number.isFinite(value)
           ? Math.max(0, Math.min(1, value))
           : 0;
         const curvedValue = spectrumHeightProgress(normalizedValue);
         const level = SPECTRUM_IDLE_SCALE
-          + (maximumScale - SPECTRUM_IDLE_SCALE) * curvedValue;
+          + (1 - SPECTRUM_IDLE_SCALE) * curvedValue;
         line.style.transform = `scaleY(${level})`;
       });
     }

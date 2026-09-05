@@ -11,7 +11,10 @@ const INTERNAL_BAND_COUNT: usize = 16;
 const MIN_FREQUENCY: f32 = 40.0;
 const MAX_FREQUENCY: f32 = 10_000.0;
 const NOISE_FLOOR_DB: f32 = -72.0;
-const CEILING_DB: f32 = -12.0;
+// 启动时保留原有参考值，避免频谱服务刚开始工作时柱子响应过慢。
+const INITIAL_CEILING_DB: f32 = -12.0;
+// 动态上限只限制异常值；放宽到 0dB 才能让峰值加余量真正生效。
+const MAX_DYNAMIC_CEILING_DB: f32 = 0.0;
 const MIN_DYNAMIC_CEILING_DB: f32 = -36.0;
 const CEILING_HEADROOM_DB: f32 = 6.0;
 const NORMALIZATION_CURVE: f32 = 0.78;
@@ -23,7 +26,9 @@ const RELEASE_SMOOTHING: f32 = 0.18;
 const VISUAL_RELEASE_SMOOTHING: f32 = 0.28;
 // 瞬态增强只放大 FFT 中实际出现的正向变化，不生成固定轮廓。
 const SPECTRAL_FLUX_BOOST: f32 = 0.18;
-const KICK_TRANSIENT_BOOST: f32 = 0.30;
+// 与前端显示顺序的首项保持一致，让第一显示柱拥有额外的瞬态灵敏度。
+const FIRST_DISPLAY_BAND_INDEX: usize = 5;
+const FIRST_BAR_TRANSIENT_BOOST: f32 = 0.30;
 const MAX_TRANSIENT_BOOST: f32 = 0.24;
 // 衰减到该阈值后直接归零，保证暂停时对外最终是严格的全零。
 const SILENCE_EPSILON: f32 = 0.001;
@@ -63,7 +68,7 @@ impl AudioVisualizerProcessor {
             scratch: vec![Complex32::new(0.0, 0.0); FFT_SIZE],
             previous_visual_levels: [0.0; VISUAL_BAR_COUNT],
             previous_normalized_levels: [0.0; VISUAL_BAR_COUNT],
-            adaptive_ceiling_db: CEILING_DB,
+            adaptive_ceiling_db: INITIAL_CEILING_DB,
         }
     }
 
@@ -196,7 +201,8 @@ impl AudioVisualizerProcessor {
         }
 
         let target_ceiling =
-            (peak_db + CEILING_HEADROOM_DB).clamp(MIN_DYNAMIC_CEILING_DB, CEILING_DB);
+            (peak_db + CEILING_HEADROOM_DB)
+                .clamp(MIN_DYNAMIC_CEILING_DB, MAX_DYNAMIC_CEILING_DB);
         let ceiling_smoothing = if target_ceiling > self.adaptive_ceiling_db {
             ATTACK_SMOOTHING
         } else {
@@ -212,16 +218,18 @@ impl AudioVisualizerProcessor {
                 0.0
             }
         });
-        let kick_flux = (normalized[0] - self.previous_normalized_levels[0]).max(0.0);
+        let first_bar_flux = (normalized[FIRST_DISPLAY_BAND_INDEX]
+            - self.previous_normalized_levels[FIRST_DISPLAY_BAND_INDEX])
+            .max(0.0);
         let levels = std::array::from_fn(|index| {
             let flux = (normalized[index] - self.previous_normalized_levels[index]).max(0.0);
             let local_boost = (flux * SPECTRAL_FLUX_BOOST).min(MAX_TRANSIENT_BOOST);
-            let kick_boost = if index == 0 {
-                (kick_flux * KICK_TRANSIENT_BOOST).min(MAX_TRANSIENT_BOOST)
+            let first_bar_boost = if index == FIRST_DISPLAY_BAND_INDEX {
+                (first_bar_flux * FIRST_BAR_TRANSIENT_BOOST).min(MAX_TRANSIENT_BOOST)
             } else {
                 0.0
             };
-            (normalized[index].powf(NORMALIZATION_CURVE) + local_boost + kick_boost).min(1.0)
+            (normalized[index].powf(NORMALIZATION_CURVE) + local_boost + first_bar_boost).min(1.0)
         });
         self.previous_normalized_levels = normalized;
         self.process_visual_levels(levels)
