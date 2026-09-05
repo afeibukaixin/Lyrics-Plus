@@ -4,7 +4,6 @@ pub struct AppConfig {
     pub schema_version: u16,
     pub app: AppPreferences,
     pub lyrics: LyricsPreferences,
-    pub overlay: OverlayPreferences,
 }
 
 impl Default for AppConfig {
@@ -13,7 +12,6 @@ impl Default for AppConfig {
             schema_version: CONFIG_SCHEMA_VERSION,
             app: AppPreferences::default(),
             lyrics: LyricsPreferences::default(),
-            overlay: OverlayPreferences::default(),
         }
     }
 }
@@ -338,6 +336,69 @@ pub enum StatusBarAlignment {
     Right,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SupportingLyricsPriority {
+    #[default]
+    Translation,
+    Romanization,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CompactLyricsPresentation {
+    pub layout: OverlayLayout,
+    pub double_line_mode: DoubleLineMode,
+    pub show_translation: bool,
+    pub show_romanization: bool,
+    pub supporting_priority: SupportingLyricsPriority,
+}
+
+impl Default for CompactLyricsPresentation {
+    fn default() -> Self {
+        Self {
+            layout: OverlayLayout::Single,
+            double_line_mode: DoubleLineMode::Rolling,
+            show_translation: false,
+            show_romanization: false,
+            supporting_priority: SupportingLyricsPriority::Translation,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DesktopLyricsPresentation {
+    #[serde(flatten)]
+    pub compact: CompactLyricsPresentation,
+    pub orientation: OverlayOrientation,
+    pub alignment: OverlayAlignment,
+    pub primary_line_position: crate::overlay_model::PrimaryLinePosition,
+    pub long_text: LongTextMode,
+    pub auto_center_with_translation_or_romanization: bool,
+}
+
+impl Default for DesktopLyricsPresentation {
+    fn default() -> Self {
+        let style = OverlayStyleSettings::default();
+        Self {
+            compact: CompactLyricsPresentation {
+                layout: style.layout,
+                double_line_mode: style.double_line_mode,
+                show_translation: true,
+                show_romanization: true,
+                supporting_priority: SupportingLyricsPriority::Translation,
+            },
+            orientation: style.orientation,
+            alignment: style.alignment,
+            primary_line_position: style.primary_line_position,
+            long_text: style.long_text,
+            auto_center_with_translation_or_romanization: style
+                .auto_center_with_translation_or_romanization,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum NotchSlotContent {
@@ -357,6 +418,7 @@ impl Default for NotchSlotContent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct LyricsDisplayPreferences {
+    pub desktop: DesktopLyricsPreferences,
     pub status_bar: StatusBarLyricsPreferences,
     pub list_window: ListLyricsPreferences,
     pub notch: NotchLyricsPreferences,
@@ -365,6 +427,7 @@ pub struct LyricsDisplayPreferences {
 impl Default for LyricsDisplayPreferences {
     fn default() -> Self {
         Self {
+            desktop: DesktopLyricsPreferences::default(),
             status_bar: StatusBarLyricsPreferences::default(),
             list_window: ListLyricsPreferences::default(),
             notch: NotchLyricsPreferences::default(),
@@ -374,12 +437,32 @@ impl Default for LyricsDisplayPreferences {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+pub struct DesktopLyricsPreferences {
+    pub enabled: bool,
+    pub locked: bool,
+    pub hide_when_not_playing: bool,
+    pub presentation: DesktopLyricsPresentation,
+    pub appearance: OverlayAppearance,
+}
+
+impl Default for DesktopLyricsPreferences {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            locked: false,
+            hide_when_not_playing: false,
+            presentation: DesktopLyricsPresentation::default(),
+            appearance: OverlayAppearance::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct StatusBarLyricsPreferences {
     pub enabled: bool,
     pub hide_when_not_playing: bool,
-    pub double_line: bool,
-    pub show_translation: bool,
-    pub show_romanization: bool,
+    pub presentation: StatusBarLyricsPresentation,
     pub appearance: StatusBarLyricsAppearance,
 }
 
@@ -388,10 +471,25 @@ impl Default for StatusBarLyricsPreferences {
         Self {
             enabled: false,
             hide_when_not_playing: false,
-            double_line: false,
-            show_translation: false,
-            show_romanization: false,
+            presentation: StatusBarLyricsPresentation::default(),
             appearance: StatusBarLyricsAppearance::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct StatusBarLyricsPresentation {
+    #[serde(flatten)]
+    pub compact: CompactLyricsPresentation,
+    pub alignment: StatusBarAlignment,
+}
+
+impl Default for StatusBarLyricsPresentation {
+    fn default() -> Self {
+        Self {
+            compact: CompactLyricsPresentation::default(),
+            alignment: StatusBarAlignment::Left,
         }
     }
 }
@@ -410,7 +508,6 @@ pub struct StatusBarLyricsAppearance {
     pub translation_color: String,
     pub romanization_color: String,
     pub karaoke_style: CompactKaraokeStyle,
-    pub alignment: StatusBarAlignment,
     #[serde(alias = "maxWidth")]
     pub width: u16,
 }
@@ -429,7 +526,6 @@ impl Default for StatusBarLyricsAppearance {
             translation_color: "#d9f99d".into(),
             romanization_color: "#bef264".into(),
             karaoke_style: CompactKaraokeStyle::Sweep,
-            alignment: StatusBarAlignment::Left,
             width: 220,
         }
     }
@@ -516,10 +612,7 @@ pub struct NotchLyricsPreferences {
     pub show_lyrics: bool,
     pub left_slot: NotchSlotContent,
     pub right_slot: NotchSlotContent,
-    pub layout: OverlayLayout,
-    pub double_line_mode: DoubleLineMode,
-    pub show_translation: bool,
-    pub show_romanization: bool,
+    pub presentation: CompactLyricsPresentation,
     pub inline_lyrics_on_non_notch: bool,
     pub appearance: NotchLyricsAppearance,
 }
@@ -533,10 +626,7 @@ impl Default for NotchLyricsPreferences {
             show_lyrics: false,
             left_slot: NotchSlotContent::Artwork,
             right_slot: NotchSlotContent::Spectrum,
-            layout: OverlayLayout::Single,
-            double_line_mode: DoubleLineMode::Rolling,
-            show_translation: false,
-            show_romanization: false,
+            presentation: CompactLyricsPresentation::default(),
             inline_lyrics_on_non_notch: true,
             appearance: NotchLyricsAppearance::default(),
         }
@@ -585,26 +675,6 @@ impl Default for NotchLyricsAppearance {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
-pub struct OverlayPreferences {
-    pub visible: bool,
-    pub locked: bool,
-    pub hide_when_not_playing: bool,
-    pub appearance: OverlayAppearance,
-}
-
-impl Default for OverlayPreferences {
-    fn default() -> Self {
-        Self {
-            visible: true,
-            locked: false,
-            hide_when_not_playing: false,
-            appearance: OverlayAppearance::default(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
 pub struct OverlayAppearance {
     pub font_family: String,
     pub font_size: u16,
@@ -622,15 +692,7 @@ pub struct OverlayAppearance {
     pub background_mode: OverlayBackgroundMode,
     pub background: OverlayBackground,
     pub solid_color: String,
-    pub layout: OverlayLayout,
-    pub double_line_mode: DoubleLineMode,
-    pub orientation: OverlayOrientation,
-    pub alignment: OverlayAlignment,
-    pub primary_line_position: crate::overlay_model::PrimaryLinePosition,
     pub line_gap: f64,
-    pub long_text: LongTextMode,
-    pub secondary_display: SecondaryDisplayMode,
-    pub auto_center_with_translation_or_romanization: bool,
     pub karaoke_style: KaraokeStyle,
     pub secondary_font_scale: f64,
     pub translation_font_scale: f64,
@@ -670,16 +732,7 @@ impl From<&OverlayStyleSettings> for OverlayAppearance {
             background_mode: style.background_mode,
             background: style.background,
             solid_color: style.solid_color.clone(),
-            layout: style.layout,
-            double_line_mode: style.double_line_mode,
-            orientation: style.orientation,
-            alignment: style.alignment,
-            primary_line_position: style.primary_line_position,
             line_gap: style.line_gap,
-            long_text: style.long_text,
-            secondary_display: style.secondary_display,
-            auto_center_with_translation_or_romanization: style
-                .auto_center_with_translation_or_romanization,
             karaoke_style: style.karaoke_style,
             secondary_font_scale: style.secondary_font_scale,
             translation_font_scale: style.translation_font_scale,
@@ -698,51 +751,93 @@ impl From<&OverlayStyleSettings> for OverlayAppearance {
 
 impl OverlayAppearance {
     pub fn into_style(self) -> OverlayStyleSettings {
-        OverlayStyleSettings {
-            font_family: self.font_family,
-            font_size: self.font_size,
-            font_weight: self.font_weight,
-            secondary_font_weight: self.secondary_font_weight,
-            line_height: self.line_height,
-            active_color: self.active_color,
-            inactive_color: self.inactive_color,
-            opacity: self.opacity,
-            background_opacity: self.background_opacity,
-            background_blur: self.background_blur,
-            background_radius: self.background_radius,
-            background_padding_x: self.background_padding_x,
-            background_padding_y: self.background_padding_y,
-            background_mode: self.background_mode,
-            background: self.background,
-            solid_color: self.solid_color,
-            layout: self.layout,
-            double_line_mode: self.double_line_mode,
-            orientation: self.orientation,
-            alignment: self.alignment,
-            primary_line_position: self.primary_line_position,
-            line_gap: self.line_gap,
-            long_text: self.long_text,
-            secondary_display: self.secondary_display,
-            auto_center_with_translation_or_romanization: self
-                .auto_center_with_translation_or_romanization,
-            translation_enabled: false,
-            romanization_enabled: false,
-            karaoke_style: self.karaoke_style,
-            secondary_font_scale: self.secondary_font_scale,
-            translation_font_scale: self.translation_font_scale,
-            romanization_font_scale: self.romanization_font_scale,
-            translation_color: self.translation_color,
-            romanization_color: self.romanization_color,
-            text_shadow_offset_x: self.text_shadow_offset_x,
-            text_shadow_offset_y: self.text_shadow_offset_y,
-            text_shadow_blur: self.text_shadow_blur,
-            text_shadow_color: self.text_shadow_color,
-            text_stroke_width: self.text_stroke_width,
-            text_stroke_color: self.text_stroke_color,
-            horizontal_max_width: None,
-            vertical_max_height: None,
-        }
-        .normalized()
+        let mut style = OverlayStyleSettings::default();
+        style.font_family = self.font_family;
+        style.font_size = self.font_size;
+        style.font_weight = self.font_weight;
+        style.secondary_font_weight = self.secondary_font_weight;
+        style.line_height = self.line_height;
+        style.active_color = self.active_color;
+        style.inactive_color = self.inactive_color;
+        style.opacity = self.opacity;
+        style.background_opacity = self.background_opacity;
+        style.background_blur = self.background_blur;
+        style.background_radius = self.background_radius;
+        style.background_padding_x = self.background_padding_x;
+        style.background_padding_y = self.background_padding_y;
+        style.background_mode = self.background_mode;
+        style.background = self.background;
+        style.solid_color = self.solid_color;
+        style.line_gap = self.line_gap;
+        style.karaoke_style = self.karaoke_style;
+        style.secondary_font_scale = self.secondary_font_scale;
+        style.translation_font_scale = self.translation_font_scale;
+        style.romanization_font_scale = self.romanization_font_scale;
+        style.translation_color = self.translation_color;
+        style.romanization_color = self.romanization_color;
+        style.text_shadow_offset_x = self.text_shadow_offset_x;
+        style.text_shadow_offset_y = self.text_shadow_offset_y;
+        style.text_shadow_blur = self.text_shadow_blur;
+        style.text_shadow_color = self.text_shadow_color;
+        style.text_stroke_width = self.text_stroke_width;
+        style.text_stroke_color = self.text_stroke_color;
+        style.translation_enabled = false;
+        style.romanization_enabled = false;
+        style.normalized()
+    }
+}
+
+impl DesktopLyricsPreferences {
+    pub fn into_style(&self) -> OverlayStyleSettings {
+        let mut style = self.appearance.clone().into_style();
+        style.layout = self.presentation.compact.layout;
+        style.double_line_mode = self.presentation.compact.double_line_mode;
+        style.orientation = self.presentation.orientation;
+        style.alignment = self.presentation.alignment;
+        style.primary_line_position = self.presentation.primary_line_position;
+        style.long_text = self.presentation.long_text;
+        style.auto_center_with_translation_or_romanization = self
+            .presentation
+            .auto_center_with_translation_or_romanization;
+        style.secondary_display = secondary_display_from_flags(
+            self.presentation.compact.show_translation,
+            self.presentation.compact.show_romanization,
+        );
+        style
+    }
+
+    pub fn apply_style(&mut self, style: &OverlayStyleSettings) {
+        self.appearance = OverlayAppearance::from(style);
+        self.presentation.compact.layout = style.layout;
+        self.presentation.compact.double_line_mode = style.double_line_mode;
+        self.presentation.orientation = style.orientation;
+        self.presentation.alignment = style.alignment;
+        self.presentation.primary_line_position = style.primary_line_position;
+        self.presentation.long_text = style.long_text;
+        self.presentation
+            .auto_center_with_translation_or_romanization = style
+            .auto_center_with_translation_or_romanization;
+        let (show_translation, show_romanization) = secondary_display_flags(style.secondary_display);
+        self.presentation.compact.show_translation = show_translation;
+        self.presentation.compact.show_romanization = show_romanization;
+    }
+}
+
+fn secondary_display_flags(mode: SecondaryDisplayMode) -> (bool, bool) {
+    match mode {
+        SecondaryDisplayMode::Translation => (true, false),
+        SecondaryDisplayMode::Romanization => (false, true),
+        SecondaryDisplayMode::TranslationRomanization => (true, true),
+        SecondaryDisplayMode::Legacy | SecondaryDisplayMode::Next => (false, false),
+    }
+}
+
+fn secondary_display_from_flags(translation: bool, romanization: bool) -> SecondaryDisplayMode {
+    match (translation, romanization) {
+        (true, true) => SecondaryDisplayMode::TranslationRomanization,
+        (true, false) => SecondaryDisplayMode::Translation,
+        (false, true) => SecondaryDisplayMode::Romanization,
+        (false, false) => SecondaryDisplayMode::Next,
     }
 }
 
@@ -752,14 +847,14 @@ impl AppConfig {
         let inheritance = self.lyrics.style_inheritance.clone();
 
         if inheritance.desktop.inherit_font_family {
-            self.overlay.appearance.font_family = base.font_family.clone();
+            self.lyrics.displays.desktop.appearance.font_family = base.font_family.clone();
         }
         if inheritance.desktop.inherit_colors {
-            self.overlay.appearance.active_color = base.active_color.clone();
-            self.overlay.appearance.inactive_color = base.inactive_color.clone();
-            self.overlay.appearance.translation_color = base.translation_color.clone();
-            self.overlay.appearance.romanization_color = base.romanization_color.clone();
-            self.overlay.appearance.solid_color = base.background_color.clone();
+            self.lyrics.displays.desktop.appearance.active_color = base.active_color.clone();
+            self.lyrics.displays.desktop.appearance.inactive_color = base.inactive_color.clone();
+            self.lyrics.displays.desktop.appearance.translation_color = base.translation_color.clone();
+            self.lyrics.displays.desktop.appearance.romanization_color = base.romanization_color.clone();
+            self.lyrics.displays.desktop.appearance.solid_color = base.background_color.clone();
         }
 
         let status = &mut self.lyrics.displays.status_bar.appearance;
@@ -928,14 +1023,14 @@ impl AppConfig {
                 return Err(format!("{name}不是有效的颜色值"));
             }
         }
-        let normalized_style = self.overlay.appearance.clone().into_style();
+        let normalized_style = self.lyrics.displays.desktop.into_style();
         for (name, color) in color_fields(&normalized_style) {
             if !is_supported_color(color) {
                 return Err(format!("{name}不是有效的颜色值"));
             }
         }
         normalize_settings(&mut self.lyrics.providers)?;
-        self.overlay.appearance = OverlayAppearance::from(&normalized_style);
+        self.lyrics.displays.desktop.apply_style(&normalized_style);
         Ok(self)
     }
 }

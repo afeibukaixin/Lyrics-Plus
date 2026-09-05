@@ -17,8 +17,6 @@ export type SettingsResetResponse = {
   playerSelection: PlayerSelection;
 };
 
-export type OverlayAppearance = Omit<OverlayStyle, "horizontalMaxWidth" | "verticalMaxHeight">;
-
 export type AppConfig = {
   schemaVersion: number;
   app: {
@@ -42,12 +40,6 @@ export type AppConfig = {
     displays: LyricsDisplayPreferences;
     baseAppearance: LyricsBaseAppearance;
     styleInheritance: LyricsStyleInheritance;
-  };
-  overlay: {
-    visible: boolean;
-    locked: boolean;
-    hideWhenNotPlaying: boolean;
-    appearance: OverlayAppearance;
   };
 };
 

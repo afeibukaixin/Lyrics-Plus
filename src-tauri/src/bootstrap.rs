@@ -37,9 +37,9 @@ pub fn run() {
             let configured = config.snapshot();
             let provider_settings = configured.lyrics.providers.clone();
             let selection = configured.app.player_selection;
-            let locked = configured.overlay.locked;
+            let locked = configured.lyrics.displays.desktop.locked;
             let overlay_settings = OverlaySettings {
-                visible: configured.overlay.visible,
+                visible: configured.lyrics.displays.desktop.enabled,
                 locked,
             };
             let last_overlay_monitor = storage
@@ -64,7 +64,7 @@ pub fn run() {
                 }
                 storage.remove_preferences_with_prefix("overlay.style.")?;
             }
-            let mut overlay_style = configured.overlay.appearance.clone().into_style();
+            let mut overlay_style = configured.lyrics.displays.desktop.into_style();
             overlay_style.horizontal_max_width = geometry.horizontal_max_width;
             overlay_style.vertical_max_height = geometry.vertical_max_height;
             let initial_toolbar_placement =

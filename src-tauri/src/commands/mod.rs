@@ -10,9 +10,9 @@ use tauri_plugin_opener::OpenerExt;
 use crate::config::{
     normalize_player_follower_application, normalize_system_media_applications,
     validate_config_draft, AppConfig, ChineseConversion, ConfigDraftValidation, ConfigEditorData,
-    GlobalShortcutSettings, LanguagePreference, ListLyricsPreferences, LyricsBaseAppearance,
-    LyricsModeStyleInheritance, NotchLyricsPreferences, OverlayAppearance, RegisteredApplication,
-    StatusBarLyricsPreferences, SystemMediaFilterMode, ThemePreference,
+    DesktopLyricsPreferences, GlobalShortcutSettings, LanguagePreference, ListLyricsPreferences,
+    LyricsBaseAppearance, LyricsModeStyleInheritance, NotchLyricsPreferences,
+    RegisteredApplication, StatusBarLyricsPreferences, SystemMediaFilterMode, ThemePreference,
 };
 use crate::language::UiLanguage;
 use crate::lyrics::credentials::{MusixmatchTokenType, ProviderCredentialView};

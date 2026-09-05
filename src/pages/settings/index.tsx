@@ -79,7 +79,7 @@ export default function Settings() {
     style,
     testingProvider,
   } = useSettingsData({
-    appearance: config.overlay.appearance,
+    appearance: config.lyrics.displays.desktop.appearance,
     locationPathname: location.pathname,
     providerStatuses: lyrics.providerStatuses,
   });

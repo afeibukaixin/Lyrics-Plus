@@ -4,7 +4,7 @@ use super::error_at_key;
 use crate::config::{ConfigDraftError, APP_CONFIG_KEYS};
 
 pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), ConfigDraftError> {
-    check_keys(value, raw, &["schemaVersion", "app", "lyrics", "overlay"])?;
+    check_keys(value, raw, &["schemaVersion", "app", "lyrics"])?;
     if let Some(app) = value.get("app") {
         check_keys(app, raw, APP_CONFIG_KEYS)?;
         if let Some(shortcuts) = app.get("shortcuts") {
@@ -101,7 +101,79 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
             }
         }
         if let Some(displays) = lyrics.get("displays") {
-            check_keys(displays, raw, &["statusBar", "listWindow", "notch"])?;
+            check_keys(
+                displays,
+                raw,
+                &["desktop", "statusBar", "listWindow", "notch"],
+            )?;
+            if let Some(desktop) = displays.get("desktop") {
+                check_keys(
+                    desktop,
+                    raw,
+                    &[
+                        "enabled",
+                        "locked",
+                        "hideWhenNotPlaying",
+                        "presentation",
+                        "appearance",
+                    ],
+                )?;
+                if let Some(presentation) = desktop.get("presentation") {
+                    check_keys(
+                        presentation,
+                        raw,
+                        &[
+                            "layout",
+                            "doubleLineMode",
+                            "showTranslation",
+                            "showRomanization",
+                            "supportingPriority",
+                            "orientation",
+                            "alignment",
+                            "primaryLinePosition",
+                            "longText",
+                            "autoCenterWithTranslationOrRomanization",
+                        ],
+                    )?;
+                }
+                if let Some(appearance) = desktop.get("appearance") {
+                    check_keys(
+                        appearance,
+                        raw,
+                        &[
+                            "fontFamily",
+                            "fontSize",
+                            "fontWeight",
+                            "secondaryFontWeight",
+                            "lineHeight",
+                            "activeColor",
+                            "inactiveColor",
+                            "opacity",
+                            "backgroundOpacity",
+                            "backgroundBlur",
+                            "backgroundRadius",
+                            "backgroundPaddingX",
+                            "backgroundPaddingY",
+                            "backgroundMode",
+                            "background",
+                            "solidColor",
+                            "lineGap",
+                            "karaokeStyle",
+                            "secondaryFontScale",
+                            "translationFontScale",
+                            "romanizationFontScale",
+                            "translationColor",
+                            "romanizationColor",
+                            "textShadowOffsetX",
+                            "textShadowOffsetY",
+                            "textShadowBlur",
+                            "textShadowColor",
+                            "textStrokeWidth",
+                            "textStrokeColor",
+                        ],
+                    )?;
+                }
+            }
             if let Some(status_bar) = displays.get("statusBar") {
                 check_keys(
                     status_bar,
@@ -109,16 +181,31 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
                     &[
                         "enabled",
                         "hideWhenNotPlaying",
+                        "presentation",
+                        // Accepted only so older configurations can be migrated.
                         "doubleLine",
                         "showTranslation",
                         "showRomanization",
-                        // Accepted only so older configurations can be migrated.
                         "showTrayIcon",
                         "locked",
                         "maxCharacters",
                         "appearance",
                     ],
                 )?;
+                if let Some(presentation) = status_bar.get("presentation") {
+                    check_keys(
+                        presentation,
+                        raw,
+                        &[
+                            "layout",
+                            "doubleLineMode",
+                            "showTranslation",
+                            "showRomanization",
+                            "supportingPriority",
+                            "alignment",
+                        ],
+                    )?;
+                }
                 if let Some(appearance) = status_bar.get("appearance") {
                     check_keys(
                         appearance,
@@ -135,6 +222,7 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
                             "translationColor",
                             "romanizationColor",
                             "karaokeStyle",
+                            // Legacy floating-window field; moved to presentation during migration.
                             "alignment",
                             "width",
                             // Legacy floating-window fields remain valid input.
@@ -200,14 +288,24 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
                         "showLyrics",
                         "leftSlot",
                         "rightSlot",
-                        "layout",
-                        "doubleLineMode",
-                        "showTranslation",
-                        "showRomanization",
+                        "presentation",
                         "inlineLyricsOnNonNotch",
                         "appearance",
                     ],
                 )?;
+                if let Some(presentation) = notch.get("presentation") {
+                    check_keys(
+                        presentation,
+                        raw,
+                        &[
+                            "layout",
+                            "doubleLineMode",
+                            "showTranslation",
+                            "showRomanization",
+                            "supportingPriority",
+                        ],
+                    )?;
+                }
                 if let Some(appearance) = notch.get("appearance") {
                     check_keys(
                         appearance,
@@ -231,58 +329,6 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
                     )?;
                 }
             }
-        }
-    }
-    if let Some(overlay) = value.get("overlay") {
-        check_keys(
-            overlay,
-            raw,
-            &["visible", "locked", "hideWhenNotPlaying", "appearance"],
-        )?;
-        if let Some(appearance) = overlay.get("appearance") {
-            check_keys(
-                appearance,
-                raw,
-                &[
-                    "fontFamily",
-                    "fontSize",
-                    "fontWeight",
-                    "secondaryFontWeight",
-                    "lineHeight",
-                    "activeColor",
-                    "inactiveColor",
-                    "opacity",
-                    "backgroundOpacity",
-                    "backgroundBlur",
-                    "backgroundRadius",
-                    "backgroundPaddingX",
-                    "backgroundPaddingY",
-                    "backgroundMode",
-                    "background",
-                    "solidColor",
-                    "layout",
-                    "doubleLineMode",
-                    "orientation",
-                    "alignment",
-                    "primaryLinePosition",
-                    "lineGap",
-                    "longText",
-                    "secondaryDisplay",
-                    "autoCenterWithTranslationOrRomanization",
-                    "karaokeStyle",
-                    "secondaryFontScale",
-                    "translationFontScale",
-                    "romanizationFontScale",
-                    "translationColor",
-                    "romanizationColor",
-                    "textShadowOffsetX",
-                    "textShadowOffsetY",
-                    "textShadowBlur",
-                    "textShadowColor",
-                    "textStrokeWidth",
-                    "textStrokeColor",
-                ],
-            )?;
         }
     }
     Ok(())

@@ -1,8 +1,9 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { api, isTauriRuntime } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
+import { useAppConfig } from "../config/AppConfigProvider";
 import {
   defaultOverlayStyle,
   secondaryDisplayFlags,
@@ -11,19 +12,35 @@ import {
   type OverlayStyle,
 } from "../../shared/types";
 
-import { useLyricsPresentation } from "../lyrics/useLyricsPresentation";
+import { useCompactLyricsPresentation } from "../lyrics/compactPresentation";
 import { usePlayback } from "../player/usePlayback";
-import { useOverlayLyricsOffset } from "./useOverlayLyricsOffset";
 
 export function useOverlayController() {
   const { t } = useTranslation();
+  const { config } = useAppConfig();
   const playback = usePlayback();
-  const lyrics = useLyricsPresentation(playback.snapshot, playback.positionMs, playback.active);
   const [style, setStyle] = useState<OverlayStyle>(defaultOverlayStyle);
   const [settings, setSettings] = useState<OverlaySettings>({ visible: true, locked: false });
+  const presentation = useMemo(() => {
+    const flags = secondaryDisplayFlags(style.secondaryDisplay);
+    return {
+      layout: style.layout,
+      doubleLineMode: style.doubleLineMode,
+      showTranslation: flags.translation,
+      showRomanization: flags.romanization,
+      supportingPriority: config.lyrics.displays.desktop.presentation.supportingPriority,
+    };
+  }, [config.lyrics.displays.desktop.presentation.supportingPriority, style.doubleLineMode, style.layout, style.secondaryDisplay]);
+  const lyrics = useCompactLyricsPresentation({
+    snapshot: playback.snapshot,
+    positionMs: playback.positionMs,
+    active: playback.active,
+    presentation,
+    primaryLinePosition: style.primaryLinePosition,
+    offsetErrorMessage: "Failed to update the desktop lyrics offset",
+  });
   const styleRef = useRef(style);
-  const offsetMs = lyrics.document?.offsetMs ?? 0;
-  const { setLyricsOffset, changeLyricsOffset } = useOverlayLyricsOffset(lyrics.trackKey, offsetMs);
+  const { setLyricsOffset, changeLyricsOffset } = lyrics;
 
   const updateStyle = async (patch: Partial<OverlayStyle>) => {
     const next = { ...styleRef.current, ...patch };

@@ -18,12 +18,12 @@ mod tests {
               // only override two fields
               "app": { "theme": "light", },
               /* keep everything else default */
-              "overlay": { "appearance": { "activeColor": "#ff0000", }, },
+              "lyrics": { "displays": { "desktop": { "appearance": { "activeColor": "#ff0000", }, }, }, },
             }"##,
         )
         .unwrap();
         assert_eq!(parsed.config.app.theme, ThemePreference::Light);
-        assert_eq!(parsed.config.overlay.appearance.active_color, "#ff0000");
+        assert_eq!(parsed.config.lyrics.displays.desktop.appearance.active_color, "#ff0000");
         assert_eq!(parsed.config.app.player_selection, PlayerSelection::Auto);
     }
 
@@ -161,9 +161,9 @@ mod tests {
             parsed.config.app.shortcuts,
             GlobalShortcutSettings::default()
         );
-        assert_eq!(parsed.config.overlay.appearance.secondary_font_scale, 1.0);
-        assert_eq!(parsed.config.overlay.appearance.background_opacity, 0.6);
-        assert_eq!(parsed.config.overlay.appearance.background_blur, 18.0);
+        assert_eq!(parsed.config.lyrics.displays.desktop.appearance.secondary_font_scale, 1.0);
+        assert_eq!(parsed.config.lyrics.displays.desktop.appearance.background_opacity, 0.6);
+        assert_eq!(parsed.config.lyrics.displays.desktop.appearance.background_blur, 18.0);
     }
 
     #[test]
@@ -171,7 +171,7 @@ mod tests {
         let parsed = parse_config_draft(r#"{"schemaVersion":9}"#).unwrap();
         assert!(parsed.migrated);
         assert_eq!(parsed.config.schema_version, CONFIG_SCHEMA_VERSION);
-        assert_eq!(parsed.config.overlay.appearance.background_blur, 18.0);
+        assert_eq!(parsed.config.lyrics.displays.desktop.appearance.background_blur, 18.0);
     }
 
     #[test]
@@ -182,14 +182,14 @@ mod tests {
         .unwrap();
         assert!(parsed.migrated);
         assert_eq!(
-            parsed.config.overlay.appearance.background,
+            parsed.config.lyrics.displays.desktop.appearance.background,
             OverlayBackground::Solid
         );
         assert_eq!(
-            parsed.config.overlay.appearance.background_mode,
+            parsed.config.lyrics.displays.desktop.appearance.background_mode,
             OverlayBackgroundMode::Transparent
         );
-        assert_eq!(parsed.config.overlay.appearance.background_opacity, 0.75);
+        assert_eq!(parsed.config.lyrics.displays.desktop.appearance.background_opacity, 0.75);
     }
 
     #[test]
@@ -201,11 +201,11 @@ mod tests {
             let parsed = parse_config_draft(&raw).unwrap();
             assert!(parsed.migrated);
             assert_eq!(
-                parsed.config.overlay.appearance.background_mode,
+                parsed.config.lyrics.displays.desktop.appearance.background_mode,
                 OverlayBackgroundMode::Solid
             );
-            assert_eq!(parsed.config.overlay.appearance.background_opacity, 0.35);
-            assert_eq!(parsed.config.overlay.appearance.background_blur, 26.0);
+            assert_eq!(parsed.config.lyrics.displays.desktop.appearance.background_opacity, 0.35);
+            assert_eq!(parsed.config.lyrics.displays.desktop.appearance.background_blur, 26.0);
         }
     }
 
@@ -215,7 +215,7 @@ mod tests {
             r#"{"schemaVersion":14,"overlay":{"appearance":{"backgroundOpacity":0.85}}}"#,
         )
         .unwrap();
-        assert_eq!(parsed.config.overlay.appearance.background_opacity, 0.85);
+        assert_eq!(parsed.config.lyrics.displays.desktop.appearance.background_opacity, 0.85);
     }
 
     #[test]
@@ -223,7 +223,7 @@ mod tests {
         let parsed = parse_config_draft(r#"{"schemaVersion":11}"#).unwrap();
         assert!(parsed.migrated);
         assert_eq!(parsed.config.schema_version, CONFIG_SCHEMA_VERSION);
-        assert!(!parsed.config.overlay.hide_when_not_playing);
+        assert!(!parsed.config.lyrics.displays.desktop.hide_when_not_playing);
     }
 
     #[test]
@@ -385,7 +385,7 @@ mod tests {
 
     #[test]
     fn hide_when_not_playing_requires_boolean_value() {
-        let validation = validate_config_draft(r#"{"overlay":{"hideWhenNotPlaying":"yes"}}"#);
+        let validation = validate_config_draft(r#"{"lyrics":{"displays":{"desktop":{"hideWhenNotPlaying":"yes"}}}}"#);
         assert!(!validation.valid);
         assert!(validation
             .error
@@ -442,8 +442,8 @@ mod tests {
             );
             let parsed = parse_config_draft(&raw).unwrap();
             assert!(parsed.migrated);
-            assert_eq!(parsed.config.overlay.appearance.layout, layout);
-            assert_eq!(parsed.config.overlay.appearance.orientation, orientation);
+            assert_eq!(parsed.config.lyrics.displays.desktop.presentation.layout, layout);
+            assert_eq!(parsed.config.lyrics.displays.desktop.presentation.orientation, orientation);
             assert!(parsed
                 .normalized_json
                 .contains(&format!("\"schemaVersion\": {CONFIG_SCHEMA_VERSION}")));
@@ -459,14 +459,14 @@ mod tests {
             "vertical_double",
         ] {
             let raw = format!(
-                r#"{{"schemaVersion":{CONFIG_SCHEMA_VERSION},"overlay":{{"appearance":{{"layout":"{layout}"}}}}}}"#
+                r#"{{"schemaVersion":{CONFIG_SCHEMA_VERSION},"lyrics":{{"displays":{{"desktop":{{"presentation":{{"layout":"{layout}"}}}}}}}}}}"#
             );
             let validation = validate_config_draft(&raw);
             assert!(
                 !validation.valid,
                 "{layout} should be invalid in the current schema"
             );
-            assert!(validation.error.unwrap().message.contains("orientation"));
+            assert!(validation.error.unwrap().message.contains("layout"));
         }
     }
 
@@ -559,15 +559,15 @@ mod tests {
                 "autoApplyThreshold",
             ),
             (
-                r#"{"overlay":{"appearance":{"layout":"triple"}}}"#,
+                r#"{"lyrics":{"displays":{"desktop":{"presentation":{"layout":"triple"}}}}}"#,
                 "layout",
             ),
             (
-                r#"{"overlay":{"appearance":{"orientation":"diagonal"}}}"#,
+                r#"{"lyrics":{"displays":{"desktop":{"presentation":{"orientation":"diagonal"}}}}}"#,
                 "orientation",
             ),
             (
-                r#"{"overlay":{"appearance":{"activeColor":"not a color"}}}"#,
+                r#"{"lyrics":{"displays":{"desktop":{"appearance":{"activeColor":"not a color"}}}}}"#,
                 "activeColor",
             ),
         ] {
@@ -604,10 +604,12 @@ mod tests {
         let parsed = parse_config_draft(r#"{"schemaVersion":6}"#).unwrap();
         assert!(parsed.migrated);
         assert!(
-            !parsed
+                !parsed
                 .config
-                .overlay
-                .appearance
+                .lyrics
+                .displays
+                .desktop
+                .presentation
                 .auto_center_with_translation_or_romanization
         );
         assert!(parsed
@@ -641,14 +643,16 @@ mod tests {
     #[test]
     fn auto_center_preference_round_trips() {
         let parsed = parse_config_draft(
-            r#"{"overlay":{"appearance":{"autoCenterWithTranslationOrRomanization":true}}}"#,
+            r#"{"schemaVersion":63,"overlay":{"appearance":{"autoCenterWithTranslationOrRomanization":true}}}"#,
         )
         .unwrap();
         assert!(
-            parsed
+                parsed
                 .config
-                .overlay
-                .appearance
+                .lyrics
+                .displays
+                .desktop
+                .presentation
                 .auto_center_with_translation_or_romanization
         );
         assert!(parsed

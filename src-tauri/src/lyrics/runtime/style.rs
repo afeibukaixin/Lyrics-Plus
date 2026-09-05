@@ -37,7 +37,7 @@ pub(crate) fn sync_desktop_style_from_config(
             .unwrap_or_else(|error| error.into_inner());
         (current.horizontal_max_width, current.vertical_max_height)
     };
-    let mut style = config.overlay.appearance.clone().into_style();
+    let mut style = config.lyrics.displays.desktop.into_style();
     style.horizontal_max_width = geometry.0;
     style.vertical_max_height = geometry.1;
     *state

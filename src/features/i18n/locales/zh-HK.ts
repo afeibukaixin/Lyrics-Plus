@@ -201,6 +201,7 @@ export const zhHK = {
       noResults: "已啟用的歌詞來源目前找不到同步歌詞",
     },
     overlay: {
+      supportingPriority: "輔助歌詞優先級", supportingTranslation: "翻譯優先", supportingRomanization: "音譯優先",
       title: "桌面歌詞", description: "拖曳邊緣以設定橫向寬度或直向高度；解鎖後拖曳空白區域即可移動浮動視窗。",
       state: "浮動視窗狀態", show: "顯示桌面歌詞", showHint: "在所有桌面空間最上層顯示", autoHide: "未播放時自動隱藏",
       autoHideHint: "暫停、停止或播放器無法使用時隱藏，恢復播放後自動顯示",

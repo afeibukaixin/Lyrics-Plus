@@ -53,8 +53,8 @@ export function ExpandedPlayer({
   t: TFunction;
 }) {
   const trackKey = playback.snapshot.trackId ?? "fallback";
-  const title = playback.snapshot.title ?? "Lyrics Plus";
-  const artist = playback.snapshot.artist ?? "";
+  const title = playback.snapshot.title?.trim() || "Lyrics Plus";
+  const artist = playback.snapshot.artist?.trim() || "";
   const durationMs = playback.snapshot.durationMs ?? 0;
   const canSeek = durationMs > 0 && Boolean(playback.snapshot.player);
   const [draftPositionMs, setDraftPositionMs] = useState<number | null>(null);

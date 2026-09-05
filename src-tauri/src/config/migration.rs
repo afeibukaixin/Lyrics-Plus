@@ -464,6 +464,162 @@ fn migrate_v63_simplified_japanese_repair(user: &mut Value, version: u16) {
     }
 }
 
+fn migrate_v64_compact_display_preferences(user: &mut Value, version: u16) {
+    if version >= 64 {
+        return;
+    }
+
+    let root = user.as_object_mut().expect("config root must be an object");
+    // 先从根节点取出旧的 overlay，避免后续借用 lyrics/displays 时发生可变借用冲突。
+    let legacy_overlay = root
+        .remove("overlay")
+        .and_then(|value| value.as_object().cloned());
+    let Some(lyrics) = root
+        .entry("lyrics")
+        .or_insert_with(|| Value::Object(Default::default()))
+        .as_object_mut()
+    else {
+        // 保留错误类型交给后续结构/字段校验处理，迁移阶段不应因坏配置崩溃。
+        return;
+    };
+    let Some(displays) = lyrics
+        .entry("displays")
+        .or_insert_with(|| Value::Object(Default::default()))
+        .as_object_mut()
+    else {
+        return;
+    };
+
+    let mut desktop = displays
+        .remove("desktop")
+        .and_then(|value| value.as_object().cloned())
+        .unwrap_or_default();
+    if let Some(overlay) = legacy_overlay {
+        if let Some(value) = overlay.get("visible") {
+            desktop.insert("enabled".into(), value.clone());
+        }
+        for key in ["locked", "hideWhenNotPlaying"] {
+            if let Some(value) = overlay.get(key) {
+                desktop.insert(key.into(), value.clone());
+            }
+        }
+        if let Some(mut appearance) = overlay
+            .get("appearance")
+            .and_then(Value::as_object)
+            .cloned()
+        {
+            let mut presentation = desktop
+                .remove("presentation")
+                .and_then(|value| value.as_object().cloned())
+                .unwrap_or_default();
+            for key in [
+                "layout",
+                "doubleLineMode",
+                "orientation",
+                "alignment",
+                "primaryLinePosition",
+                "longText",
+                "autoCenterWithTranslationOrRomanization",
+            ] {
+                if let Some(value) = appearance.remove(key) {
+                    presentation.insert(key.into(), value);
+                }
+            }
+            if let Some(value) = appearance.get("secondaryDisplay").and_then(Value::as_str) {
+                let flags = match value {
+                    "translation" => Some((true, false)),
+                    "romanization" => Some((false, true)),
+                    "translation_romanization" => Some((true, true)),
+                    "next" | "legacy" => Some((false, false)),
+                    _ => None,
+                };
+                if let Some((translation, romanization)) = flags {
+                    appearance.remove("secondaryDisplay");
+                    presentation.insert("showTranslation".into(), Value::from(translation));
+                    presentation.insert("showRomanization".into(), Value::from(romanization));
+                }
+            }
+            presentation
+                .entry("supportingPriority")
+                .or_insert_with(|| Value::from("translation"));
+            desktop.insert("presentation".into(), Value::Object(presentation));
+            desktop.insert("appearance".into(), Value::Object(appearance));
+        }
+    }
+    desktop
+        .entry("presentation")
+        .or_insert_with(|| Value::Object(Default::default()));
+    displays.insert("desktop".into(), Value::Object(desktop));
+
+    if let Some(status_bar) = displays
+        .get_mut("statusBar")
+        .and_then(Value::as_object_mut)
+    {
+        let mut presentation = status_bar
+            .remove("presentation")
+            .and_then(|value| value.as_object().cloned())
+            .unwrap_or_default();
+        if let Some(double_line) = status_bar
+            .get("doubleLine")
+            .and_then(Value::as_bool)
+        {
+            status_bar.remove("doubleLine");
+            presentation.insert(
+                "layout".into(),
+                Value::from(if double_line { "double" } else { "single" }),
+            );
+        }
+        for key in ["showTranslation", "showRomanization"] {
+            if let Some(value) = status_bar
+                .get(key)
+                .filter(|value| value.is_boolean())
+                .cloned()
+            {
+                status_bar.remove(key);
+                presentation.insert(key.into(), value);
+            }
+        }
+        if let Some(appearance) = status_bar
+            .get_mut("appearance")
+            .and_then(Value::as_object_mut)
+        {
+            if let Some(value) = appearance.remove("alignment") {
+                presentation.insert("alignment".into(), value);
+            }
+        }
+        presentation
+            .entry("supportingPriority")
+            .or_insert_with(|| Value::from("translation"));
+        status_bar.insert("presentation".into(), Value::Object(presentation));
+    }
+
+    if let Some(notch) = displays
+        .get_mut("notch")
+        .and_then(Value::as_object_mut)
+    {
+        let mut presentation = notch
+            .remove("presentation")
+            .and_then(|value| value.as_object().cloned())
+            .unwrap_or_default();
+        for key in ["layout", "doubleLineMode", "showTranslation", "showRomanization"] {
+            let valid = match key {
+                "showTranslation" | "showRomanization" => {
+                    notch.get(key).is_some_and(Value::is_boolean)
+                }
+                _ => notch.get(key).is_some_and(Value::is_string),
+            };
+            if valid {
+                let value = notch.remove(key).expect("checked above");
+                presentation.insert(key.into(), value);
+            }
+        }
+        presentation
+            .entry("supportingPriority")
+            .or_insert_with(|| Value::from("translation"));
+        notch.insert("presentation".into(), Value::Object(presentation));
+    }
+}
+
 fn remove_retired_fullscreen_space_preferences(user: &mut Value) {
     if let Some(overlay) = user.pointer_mut("/overlay").and_then(Value::as_object_mut) {
         overlay.remove("joinOtherAppsFullscreen");

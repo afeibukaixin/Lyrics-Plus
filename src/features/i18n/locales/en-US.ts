@@ -209,6 +209,7 @@ export const enUS = {
       noResults: "Enabled providers did not find synchronized lyrics",
     },
     overlay: {
+      supportingPriority: "Supporting lyric priority", supportingTranslation: "Translation first", supportingRomanization: "Romanization first",
       title: "Desktop Lyrics", description: "Drag an edge to set horizontal width or vertical height. Unlock the window and drag empty space to move it.",
       state: "Window State", show: "Show desktop lyrics", showHint: "Keep lyrics above other windows on every desktop", autoHide: "Hide when nothing is playing",
       autoHideHint: "Hide while paused, stopped, or unavailable, then show again when playback resumes",

@@ -4,7 +4,10 @@ import type {
   LyricsStyleInheritance,
   NotchLyricsAppearance,
   StatusBarLyricsAppearance,
- } from "./lyrics";
+  CompactLyricsPresentation,
+  DesktopLyricsAppearance,
+  DesktopLyricsPresentation,
+} from "./lyrics";
 import type { OverlayStyle } from "./overlay";
 
 export function secondaryDisplayFlags(mode: OverlayStyle["secondaryDisplay"]) {
@@ -73,6 +76,39 @@ export const defaultLyricsBaseAppearance: LyricsBaseAppearance = {
   backgroundColor: "#171821",
 };
 
+export const defaultCompactLyricsPresentation: CompactLyricsPresentation = {
+  layout: "single",
+  doubleLineMode: "rolling",
+  showTranslation: false,
+  showRomanization: false,
+  supportingPriority: "translation",
+};
+
+export const defaultDesktopLyricsPresentation: DesktopLyricsPresentation = {
+  ...defaultCompactLyricsPresentation,
+  showTranslation: true,
+  showRomanization: true,
+  orientation: defaultOverlayStyle.orientation,
+  alignment: defaultOverlayStyle.alignment,
+  primaryLinePosition: defaultOverlayStyle.primaryLinePosition,
+  longText: defaultOverlayStyle.longText,
+  autoCenterWithTranslationOrRomanization: defaultOverlayStyle.autoCenterWithTranslationOrRomanization,
+};
+
+export const defaultDesktopLyricsAppearance: DesktopLyricsAppearance = (({
+  layout: _layout,
+  doubleLineMode: _doubleLineMode,
+  orientation: _orientation,
+  alignment: _alignment,
+  primaryLinePosition: _primaryLinePosition,
+  longText: _longText,
+  secondaryDisplay: _secondaryDisplay,
+  autoCenterWithTranslationOrRomanization: _autoCenterWithTranslationOrRomanization,
+  horizontalMaxWidth: _horizontalMaxWidth,
+  verticalMaxHeight: _verticalMaxHeight,
+  ...appearance
+}) => appearance)(defaultOverlayStyle);
+
 export const defaultLyricsStyleInheritance: LyricsStyleInheritance = {
   desktop: { inheritFontFamily: true, inheritColors: true },
   statusBar: { inheritFontFamily: true, inheritColors: true },
@@ -92,8 +128,12 @@ export const defaultStatusBarLyricsAppearance: StatusBarLyricsAppearance = {
   translationColor: "#d9f99d",
   romanizationColor: "#bef264",
   karaokeStyle: "sweep",
-  alignment: "left",
   width: 220,
+};
+
+export const defaultStatusBarLyricsPresentation = {
+  ...defaultCompactLyricsPresentation,
+  alignment: "left" as const,
 };
 
 export const defaultListLyricsAppearance: ListLyricsAppearance = {
@@ -132,4 +172,8 @@ export const defaultNotchLyricsAppearance: NotchLyricsAppearance = {
   topBorderRadius: 12,
   maxWidth: 320,
   expandedMaxWidth: 440,
+};
+
+export const defaultNotchLyricsPresentation: CompactLyricsPresentation = {
+  ...defaultCompactLyricsPresentation,
 };

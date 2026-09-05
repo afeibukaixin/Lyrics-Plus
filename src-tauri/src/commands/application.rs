@@ -279,7 +279,7 @@ pub fn set_overlay_hide_when_not_playing(
 ) -> Result<AppConfig, String> {
     let config = state
         .config
-        .update(|config| config.overlay.hide_when_not_playing = hidden)?;
+        .update(|config| config.lyrics.displays.desktop.hide_when_not_playing = hidden)?;
     crate::reconcile_overlay_visibility(&app)?;
     app.emit("config://changed", &config)
         .map_err(|error| error.to_string())?;

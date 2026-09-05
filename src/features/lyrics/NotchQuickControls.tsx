@@ -47,12 +47,15 @@ export function NotchLyricsQuickControls({
   onResetOffset,
   t,
 }: NotchLyricsQuickControlsProps) {
+  const patchPresentation = (patch: Partial<NotchLyricsPreferences["presentation"]>) => ({
+    presentation: { ...notch.presentation, ...patch },
+  });
   const translation = t("common.feature.translation");
   const romanization = t("common.feature.romanization");
-  const translationAction = notch.showTranslation
+  const translationAction = notch.presentation.showTranslation
     ? t("overlay.toolbar.hideTrack", { track: translation })
     : t("overlay.toolbar.showTrack", { track: translation });
-  const romanizationAction = notch.showRomanization
+  const romanizationAction = notch.presentation.showRomanization
     ? t("overlay.toolbar.hideTrack", { track: romanization })
     : t("overlay.toolbar.showTrack", { track: romanization });
   const translationLabel = translationAvailable
@@ -61,7 +64,7 @@ export function NotchLyricsQuickControls({
   const romanizationLabel = romanizationAvailable
     ? romanizationAction
     : t("notchLyrics.toolbar.unavailableTrack", { action: romanizationAction, track: romanization });
-  const layoutValue = t(`overlay.layout.${notch.layout}`);
+  const layoutValue = t(`overlay.layout.${notch.presentation.layout}`);
   const offsetDisplayLabel = offsetAvailable ? formatCompactLyricsOffset(offsetMs) : "—";
   const offsetAriaLabel = offsetAvailable ? formatLyricsOffset(offsetMs) : "—";
   const offsetValueLabel = !offsetAvailable
@@ -115,9 +118,9 @@ export function NotchLyricsQuickControls({
               tooltip={t("overlay.toolbar.toggleLayoutTitle", { value: layoutValue })}
               variant="ghost"
               size="icon-sm"
-              aria-pressed={notch.layout === "double"}
-              onClick={() => onPatchNotch({ layout: notch.layout === "double" ? "single" : "double" })}
-            >{notch.layout === "double" ? <PanelsTopBottom aria-hidden="true" /> : <PanelTop aria-hidden="true" />}</ToolbarIconButton>
+              aria-pressed={notch.presentation.layout === "double"}
+              onClick={() => onPatchNotch(patchPresentation({ layout: notch.presentation.layout === "double" ? "single" : "double" }))}
+            >{notch.presentation.layout === "double" ? <PanelsTopBottom aria-hidden="true" /> : <PanelTop aria-hidden="true" />}</ToolbarIconButton>
             <ToolbarIconButton
               className={styles.trackToggle}
               interactionMode="native"
@@ -125,9 +128,9 @@ export function NotchLyricsQuickControls({
               tooltip={translationLabel}
               variant="ghost"
               size="icon-sm"
-              aria-pressed={notch.showTranslation}
+              aria-pressed={notch.presentation.showTranslation}
               data-available={translationAvailable}
-              onClick={() => onPatchNotch({ showTranslation: !notch.showTranslation })}
+              onClick={() => onPatchNotch(patchPresentation({ showTranslation: !notch.presentation.showTranslation }))}
             >{t("overlay.toolbar.translationGlyph")}</ToolbarIconButton>
             <ToolbarIconButton
               className={styles.trackToggle}
@@ -136,9 +139,9 @@ export function NotchLyricsQuickControls({
               tooltip={romanizationLabel}
               variant="ghost"
               size="icon-sm"
-              aria-pressed={notch.showRomanization}
+              aria-pressed={notch.presentation.showRomanization}
               data-available={romanizationAvailable}
-              onClick={() => onPatchNotch({ showRomanization: !notch.showRomanization })}
+              onClick={() => onPatchNotch(patchPresentation({ showRomanization: !notch.presentation.showRomanization }))}
             >{t("overlay.toolbar.romanizationGlyph")}</ToolbarIconButton>
           </div>
           <div className={styles.lyricsQuickControlRow}>

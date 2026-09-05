@@ -75,7 +75,7 @@ pub fn update_overlay_locked(app: &tauri::AppHandle, locked: bool) -> Result<(),
         }
         state
             .config
-            .update(|config| config.overlay.locked = locked)?;
+            .update(|config| config.lyrics.displays.desktop.locked = locked)?;
         crate::sync_unlock_handle(app);
         app.emit("overlay://settings", get_overlay_settings_inner(&state))
             .map_err(|error| error.to_string())
@@ -290,7 +290,7 @@ pub fn reset_overlay_bounds(app: tauri::AppHandle) -> Result<OverlayStyleSetting
         .visible = true;
     state
         .config
-        .update(|config| config.overlay.visible = true)?;
+        .update(|config| config.lyrics.displays.desktop.enabled = true)?;
     crate::sync_tray_overlay_checked(&app, true);
     crate::reconcile_overlay_visibility(&app)?;
     app.emit("overlay://settings", get_overlay_settings_inner(&state))

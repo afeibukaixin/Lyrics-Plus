@@ -45,7 +45,7 @@ export type ConfigActions = {
   setLyricsChineseConversion: (conversion: ChineseConversion) => Promise<void>;
   setLyricsJapaneseRepairEnabled: (enabled: boolean) => Promise<void>;
   setNotchLyricsVisible: (visible: boolean) => Promise<void>;
-  setLyricsDisplayPreferences: <Mode extends Exclude<LyricsStyleMode, "desktop">>(
+  setLyricsDisplayPreferences: <Mode extends LyricsStyleMode>(
     mode: Mode,
     preferences: LyricsDisplayPreferences[Mode],
   ) => Promise<void>;
@@ -214,7 +214,13 @@ export function useConfigActions(
       if (!isTauriRuntime()) {
         setConfig((current) => ({
           ...current,
-          overlay: { ...current.overlay, hideWhenNotPlaying: hidden },
+          lyrics: {
+            ...current.lyrics,
+            displays: {
+              ...current.lyrics.displays,
+              desktop: { ...current.lyrics.displays.desktop, hideWhenNotPlaying: hidden },
+            },
+          },
         }));
         return;
       }

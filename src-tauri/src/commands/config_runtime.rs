@@ -150,7 +150,7 @@ pub(super) fn apply_app_config(
             .unwrap_or_else(|error| error.into_inner());
         (style.horizontal_max_width, style.vertical_max_height)
     };
-    let mut style = saved.overlay.appearance.clone().into_style();
+    let mut style = saved.lyrics.displays.desktop.into_style();
     style.horizontal_max_width = geometry.0;
     style.vertical_max_height = geometry.1;
     *state
@@ -180,18 +180,18 @@ pub(super) fn apply_app_config(
         .overlay_settings
         .write()
         .unwrap_or_else(|error| error.into_inner()) = OverlaySettings {
-        visible: saved.overlay.visible,
-        locked: saved.overlay.locked,
+        visible: saved.lyrics.displays.desktop.enabled,
+        locked: saved.lyrics.displays.desktop.locked,
     };
     if let Some(window) = app.get_webview_window("lyrics-overlay") {
-        let _ = window.set_ignore_cursor_events(saved.overlay.locked);
-        let _ = window.set_focusable(!saved.overlay.locked);
-        if !saved.overlay.locked {
+        let _ = window.set_ignore_cursor_events(saved.lyrics.displays.desktop.locked);
+        let _ = window.set_focusable(!saved.lyrics.displays.desktop.locked);
+        if !saved.lyrics.displays.desktop.locked {
             crate::refresh_overlay_mouse_tracking(&window);
         }
     }
     crate::reconcile_overlay_visibility(app)?;
-    crate::sync_tray_overlay_checked(app, saved.overlay.visible);
+    crate::sync_tray_overlay_checked(app, saved.lyrics.displays.desktop.enabled);
     crate::sync_lyrics_surfaces(app);
     let _ = app.emit("player://selection", saved.app.player_selection);
     let _ = app.emit(

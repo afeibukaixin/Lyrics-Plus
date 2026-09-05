@@ -12,15 +12,15 @@ export function materializeLyricsStyleInheritance(config: AppConfig): AppConfig 
     lyrics: {
       ...config.lyrics,
       displays: {
+        desktop: { ...config.lyrics.displays.desktop, presentation: { ...config.lyrics.displays.desktop.presentation }, appearance: { ...config.lyrics.displays.desktop.appearance } },
         statusBar: { ...config.lyrics.displays.statusBar, appearance: { ...config.lyrics.displays.statusBar.appearance } },
         listWindow: { ...config.lyrics.displays.listWindow, appearance: { ...config.lyrics.displays.listWindow.appearance } },
         notch: { ...config.lyrics.displays.notch, appearance: { ...config.lyrics.displays.notch.appearance } },
       },
     },
-    overlay: { ...config.overlay, appearance: { ...config.overlay.appearance } },
   };
-  if (inheritance.desktop.inheritFontFamily) next.overlay.appearance.fontFamily = base.fontFamily;
-  if (inheritance.desktop.inheritColors) Object.assign(next.overlay.appearance, {
+  if (inheritance.desktop.inheritFontFamily) next.lyrics.displays.desktop.appearance.fontFamily = base.fontFamily;
+  if (inheritance.desktop.inheritColors) Object.assign(next.lyrics.displays.desktop.appearance, {
     activeColor: base.activeColor,
     inactiveColor: base.inactiveColor,
     translationColor: base.translationColor,

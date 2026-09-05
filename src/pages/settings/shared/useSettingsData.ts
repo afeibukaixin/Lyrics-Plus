@@ -6,7 +6,7 @@ import { createTauriListenerCleanup } from "../../../shared/tauriEvent";
 import type {
   OverlaySettings,
   OverlayStyle,
-  OverlayAppearance,
+  DesktopLyricsAppearance,
   ProviderCredentialView,
   ProviderSettingsView,
   ProviderStatus,
@@ -18,7 +18,7 @@ import type { ProviderDragState } from "./SettingsContext";
 
 type UseSettingsDataOptions = {
   locationPathname: string;
-  appearance: OverlayAppearance;
+  appearance: DesktopLyricsAppearance;
   providerStatuses: ProviderStatus[];
 };
 

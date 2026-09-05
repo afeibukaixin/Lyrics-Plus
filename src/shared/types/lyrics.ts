@@ -1,4 +1,5 @@
 import type { OverlayFontWeight } from "./base";
+import type { OverlayStyle } from "./overlay";
 
 export type LyricsLine = {
   startMs: number;
@@ -64,6 +65,38 @@ export type CompactKaraokeStyle = "sweep" | "highlight";
 
 export type StatusBarAlignment = "left" | "center" | "right";
 
+export type SupportingLyricsPriority = "translation" | "romanization";
+
+export type CompactLyricsPresentation = {
+  layout: "single" | "double";
+  doubleLineMode: "rolling" | "alternating";
+  showTranslation: boolean;
+  showRomanization: boolean;
+  supportingPriority: SupportingLyricsPriority;
+};
+
+export type DesktopLyricsPresentation = CompactLyricsPresentation & {
+  orientation: OverlayStyle["orientation"];
+  alignment: OverlayStyle["alignment"];
+  primaryLinePosition: OverlayStyle["primaryLinePosition"];
+  longText: OverlayStyle["longText"];
+  autoCenterWithTranslationOrRomanization: boolean;
+};
+
+export type DesktopLyricsAppearance = Omit<
+  OverlayStyle,
+  | "layout"
+  | "doubleLineMode"
+  | "orientation"
+  | "alignment"
+  | "primaryLinePosition"
+  | "longText"
+  | "secondaryDisplay"
+  | "autoCenterWithTranslationOrRomanization"
+  | "horizontalMaxWidth"
+  | "verticalMaxHeight"
+>;
+
 export type NotchSlotContent = "empty" | "title" | "artist" | "artwork" | "spectrum";
 
 export type LyricsBaseAppearance = {
@@ -95,7 +128,6 @@ export type StatusBarLyricsAppearance = {
   translationColor: string;
   romanizationColor: string;
   karaokeStyle: CompactKaraokeStyle;
-  alignment: StatusBarAlignment;
   width: number;
 };
 
@@ -146,12 +178,17 @@ export type LyricsMonitor = {
 };
 
 export type LyricsDisplayPreferences = {
+  desktop: {
+    enabled: boolean;
+    locked: boolean;
+    hideWhenNotPlaying: boolean;
+    presentation: DesktopLyricsPresentation;
+    appearance: DesktopLyricsAppearance;
+  };
   statusBar: {
     enabled: boolean;
     hideWhenNotPlaying: boolean;
-    doubleLine: boolean;
-    showTranslation: boolean;
-    showRomanization: boolean;
+    presentation: CompactLyricsPresentation & { alignment: StatusBarAlignment };
     appearance: StatusBarLyricsAppearance;
   };
   listWindow: {
@@ -169,15 +206,13 @@ export type LyricsDisplayPreferences = {
     showLyrics: boolean;
     leftSlot: NotchSlotContent;
     rightSlot: NotchSlotContent;
-    layout: "single" | "double";
-    doubleLineMode: "rolling" | "alternating";
-    showTranslation: boolean;
-    showRomanization: boolean;
+    presentation: CompactLyricsPresentation;
     inlineLyricsOnNonNotch: boolean;
     appearance: NotchLyricsAppearance;
   };
 };
 
+export type DesktopLyricsPreferences = LyricsDisplayPreferences["desktop"];
 export type StatusBarLyricsPreferences = LyricsDisplayPreferences["statusBar"];
 export type ListLyricsPreferences = LyricsDisplayPreferences["listWindow"];
 export type NotchLyricsPreferences = LyricsDisplayPreferences["notch"];

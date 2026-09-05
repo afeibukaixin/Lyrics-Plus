@@ -40,7 +40,6 @@ export default function Overlay() {
     lockOverlay,
     lyrics,
     openSettings,
-    playback,
     setLyricsOffset,
     setSettings,
     setStyle,
@@ -103,11 +102,9 @@ export default function Overlay() {
     styleRef,
   });
 
-  const primaryText = lyrics.currentLine
-    ? lyrics.currentLine.text
-    : playback.snapshot.title || "Lyrics Plus";
-  const activeLineEmpty = Boolean(lyrics.currentLine && !lyrics.currentLine.text.trim());
-  const primaryLineKey = `${lyrics.currentLine?.startMs ?? "fallback"}:${primaryText}`;
+  const primaryText = lyrics.primaryLine.text;
+  const activeLineEmpty = Boolean(lyrics.primaryLine.line && !lyrics.primaryLine.text.trim());
+  const primaryLineKey = `${lyrics.primaryLine.line?.startMs ?? "fallback"}:${primaryText}`;
   const currentLineDisplayEndMs = lyrics.nextLine?.startMs ?? lyrics.currentLine?.endMs;
   const marqueeTimeLimit = lyrics.currentLine && currentLineDisplayEndMs != null
     ? Math.max(
@@ -123,45 +120,39 @@ export default function Overlay() {
 
   const supportsSecondary = style.layout === "double";
   const secondaryFlags = secondaryDisplayFlags(style.secondaryDisplay);
-  const translationAvailable = Boolean(lyrics.document?.tracks.translation);
-  const romanizationAvailable = Boolean(lyrics.document?.tracks.romanization);
-  const selectedSupportingLines: SupportingLine[] = [
-    ...(secondaryFlags.translation && lyrics.currentTranslation
-      ? [{ kind: "translation" as const, text: lyrics.currentTranslation.text, baseSize: style.fontSize * style.translationFontScale, color: style.translationColor }]
-      : []),
-    ...(secondaryFlags.romanization && lyrics.currentRomanization
-      ? [{ kind: "romanization" as const, text: lyrics.currentRomanization.text, baseSize: style.fontSize * style.romanizationFontScale, color: style.romanizationColor }]
-      : []),
-  ];
-  const fallbackSupportingLine: SupportingLine = {
-    kind: "next",
-    text: !lyrics.document
-      ? playback.snapshot.artist || t("overlay.fallback")
-      : lyrics.nextLine?.text || "\u00a0",
-    baseSize: style.fontSize * style.secondaryFontScale,
-    color: style.inactiveColor,
-  };
+  const translationAvailable = lyrics.translationAvailable;
+  const romanizationAvailable = lyrics.romanizationAvailable;
+  const resolvedSupportingLine = lyrics.supportingLine;
   const supportingLines: SupportingLine[] = !supportsSecondary
     ? []
-    : [selectedSupportingLines[0] ?? fallbackSupportingLine];
-  const alternatingDoubleLine = supportsSecondary
-    && style.doubleLineMode === "alternating"
-    && lyrics.activeIndex >= 0
-    && supportingLines[0]?.kind === "next";
+    : [{
+      kind: resolvedSupportingLine?.kind === "translation" || resolvedSupportingLine?.kind === "romanization"
+        ? resolvedSupportingLine.kind
+        : "next",
+      text: resolvedSupportingLine?.text || "\u00a0",
+      baseSize: resolvedSupportingLine?.kind === "translation"
+        ? style.fontSize * style.translationFontScale
+        : resolvedSupportingLine?.kind === "romanization"
+          ? style.fontSize * style.romanizationFontScale
+          : style.fontSize * style.secondaryFontScale,
+      color: resolvedSupportingLine?.kind === "translation"
+        ? style.translationColor
+        : resolvedSupportingLine?.kind === "romanization"
+          ? style.romanizationColor
+          : style.inactiveColor,
+    }];
   const showingTranslationOrRomanization = supportingLines.some(
     (line) => line.kind === "translation" || line.kind === "romanization",
   );
   // 固定主副顺序与交替高亮分别表示一次反转，叠加时使用异或避免重复反转。
-  const primaryLineReversed = style.primaryLinePosition === "second";
-  const alternatingLineReversed = alternatingDoubleLine && lyrics.activeIndex % 2 === 1;
-  const doubleLineOrder = primaryLineReversed !== alternatingLineReversed ? "reversed" : "normal";
+  const doubleLineOrder = lyrics.doubleLineOrder;
   const effectiveAlignment = !supportsSecondary
     || (style.autoCenterWithTranslationOrRomanization && showingTranslationOrRomanization)
     ? "center"
     : style.alignment;
   const supportingKey = supportingLines.map((line) => `${line.kind}:${line.text}`).join("|");
   const offsetAvailable = Boolean(lyrics.document);
-  const offsetMs = lyrics.document?.offsetMs ?? 0;
+  const offsetMs = lyrics.offsetMs;
   const offsetLabel = offsetAvailable ? formatOffset(offsetMs) : "—";
   const offsetValueTitle = offsetAvailable
     ? offsetMs === 0

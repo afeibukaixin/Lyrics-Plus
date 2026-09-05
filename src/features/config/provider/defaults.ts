@@ -3,17 +3,14 @@ import {
   defaultLyricsBaseAppearance,
   defaultLyricsStyleInheritance,
   defaultListLyricsAppearance,
+  defaultDesktopLyricsAppearance,
+  defaultDesktopLyricsPresentation,
   defaultNotchLyricsAppearance,
-  defaultOverlayStyle,
+  defaultNotchLyricsPresentation,
   defaultStatusBarLyricsAppearance,
+  defaultStatusBarLyricsPresentation,
   type AppConfig,
 } from "../../../shared/types";
-
-const defaultOverlayAppearance = (({
-  horizontalMaxWidth: _horizontalMaxWidth,
-  verticalMaxHeight: _verticalMaxHeight,
-  ...appearance
-}: typeof defaultOverlayStyle) => appearance)(defaultOverlayStyle);
 
 const defaultTitleFilterKeywords = [
   "feat", "ft", "featuring", "主题曲", "片头曲", "片尾曲",
@@ -21,7 +18,7 @@ const defaultTitleFilterKeywords = [
 ];
 
 export const defaultConfig: AppConfig = {
-  schemaVersion: 63,
+  schemaVersion: 64,
   app: { theme: "dark", language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, hideMenuBarIcon: false, silentStartup: false, autoCheckUpdates: true, lyricsWindowsShowOnAllSpaces: false, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     chineseConversion: "original",
@@ -50,7 +47,14 @@ export const defaultConfig: AppConfig = {
       ],
     },
     displays: {
-      statusBar: { enabled: false, hideWhenNotPlaying: false, doubleLine: false, showTranslation: false, showRomanization: false, appearance: defaultStatusBarLyricsAppearance },
+      desktop: {
+        enabled: true,
+        locked: false,
+        hideWhenNotPlaying: false,
+        presentation: defaultDesktopLyricsPresentation,
+        appearance: defaultDesktopLyricsAppearance,
+      },
+      statusBar: { enabled: false, hideWhenNotPlaying: false, presentation: defaultStatusBarLyricsPresentation, appearance: defaultStatusBarLyricsAppearance },
       listWindow: { enabled: false, alwaysOnTop: false, locked: false, showTranslation: true, showRomanization: false, appearance: defaultListLyricsAppearance },
       notch: {
         enabled: false,
@@ -59,21 +63,12 @@ export const defaultConfig: AppConfig = {
         showLyrics: false,
         leftSlot: "artwork",
         rightSlot: "spectrum",
-        layout: "single",
-        doubleLineMode: "rolling",
-        showTranslation: false,
-        showRomanization: false,
+        presentation: defaultNotchLyricsPresentation,
         inlineLyricsOnNonNotch: true,
         appearance: defaultNotchLyricsAppearance,
       },
     },
     baseAppearance: defaultLyricsBaseAppearance,
     styleInheritance: defaultLyricsStyleInheritance,
-  },
-  overlay: {
-    visible: true,
-    locked: false,
-    hideWhenNotPlaying: false,
-    appearance: defaultOverlayAppearance,
   },
 };

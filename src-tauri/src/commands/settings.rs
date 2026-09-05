@@ -113,7 +113,36 @@ pub fn set_lyrics_display_preferences(
     state: State<'_, AppState>,
 ) -> Result<AppConfig, String> {
     let config = match mode {
-        LyricsStyleMode::Desktop => return Err("桌面歌词样式请使用桌面样式接口".into()),
+        LyricsStyleMode::Desktop => {
+            let value = serde_json::from_value::<DesktopLyricsPreferences>(preferences)
+                .map_err(|error| format!("桌面歌词配置无效：{error}"))?;
+            let config = state
+                .config
+                .update(|config| config.lyrics.displays.desktop = value.clone())?;
+            let style = sync_desktop_style_from_config(&app, &state, &config)?;
+            *state
+                .overlay_settings
+                .write()
+                .unwrap_or_else(|error| error.into_inner()) = OverlaySettings {
+                visible: config.lyrics.displays.desktop.enabled,
+                locked: config.lyrics.displays.desktop.locked,
+            };
+            if let Some(window) = app.get_webview_window("lyrics-overlay") {
+                let locked = config.lyrics.displays.desktop.locked;
+                let _ = window.set_ignore_cursor_events(locked);
+                let _ = window.set_focusable(!locked);
+                if !locked {
+                    crate::refresh_overlay_mouse_tracking(&window);
+                }
+            }
+            crate::reconcile_overlay_visibility(&app)?;
+            crate::sync_tray_overlay_checked(&app, config.lyrics.displays.desktop.enabled);
+            app.emit("overlay://settings", get_overlay_settings_inner(&state))
+                .map_err(|error| error.to_string())?;
+            app.emit("overlay://style", &style)
+                .map_err(|error| error.to_string())?;
+            config
+        }
         LyricsStyleMode::StatusBar => {
             let value = serde_json::from_value::<StatusBarLyricsPreferences>(preferences)
                 .map_err(|error| format!("菜单栏歌词配置无效：{error}"))?;
@@ -295,13 +324,10 @@ pub fn reset_settings_section(
                 .write()
                 .unwrap_or_else(|error| error.into_inner()) = OverlaySettings::default();
             let configured = state.config.update(|config| {
-                config.overlay.appearance = OverlayAppearance::default();
-                config.overlay.visible = true;
-                config.overlay.locked = false;
-                config.overlay.hide_when_not_playing = false;
+                config.lyrics.displays.desktop = DesktopLyricsPreferences::default();
                 config.lyrics.style_inheritance.desktop = Default::default();
             })?;
-            let mut style = configured.overlay.appearance.into_style();
+            let mut style = sync_desktop_style_from_config(&app, &state, &configured)?;
             style.horizontal_max_width = geometry.0;
             style.vertical_max_height = geometry.1;
             *state
@@ -360,10 +386,10 @@ pub fn reset_settings_section(
                 .write()
                 .unwrap_or_else(|error| error.into_inner()) = OverlaySettings::default();
             state.config.update(|config| {
-                config.overlay.visible = true;
-                config.overlay.locked = false;
-                config.overlay.hide_when_not_playing = false;
-                config.lyrics.displays = Default::default();
+                let desktop = &mut config.lyrics.displays.desktop;
+                desktop.enabled = true;
+                desktop.locked = false;
+                desktop.hide_when_not_playing = false;
             })?;
 
             let window = app

@@ -42,7 +42,7 @@ export const settingsApi = {
     invoke<AppConfig>("set_lyrics_japanese_repair_enabled", { enabled }),
   setNotchLyricsVisible: (visible: boolean) =>
     invoke<AppConfig>("set_notch_lyrics_visible", { visible }),
-  setLyricsDisplayPreferences: <Mode extends Exclude<LyricsStyleMode, "desktop">>(
+  setLyricsDisplayPreferences: <Mode extends LyricsStyleMode>(
     mode: Mode,
     preferences: LyricsDisplayPreferences[Mode],
   ) => invoke<AppConfig>("set_lyrics_display_preferences", { mode, preferences }),

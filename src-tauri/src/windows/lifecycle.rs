@@ -73,7 +73,7 @@ fn is_runtime_surface_label(label: &str) -> bool {
 fn surface_should_be_destroyed(app: &tauri::AppHandle, label: &str) -> bool {
     let configured = app.state::<AppState>().config.snapshot();
     match label {
-        "lyrics-overlay" | "lyrics-unlock-handle" => !configured.overlay.visible,
+        "lyrics-overlay" | "lyrics-unlock-handle" => !configured.lyrics.displays.desktop.enabled,
         "lyrics-list" | "lyrics-list-unlock-handle" => {
             !configured.lyrics.displays.list_window.enabled
         }

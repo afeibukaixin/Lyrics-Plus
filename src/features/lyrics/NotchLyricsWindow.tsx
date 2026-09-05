@@ -9,16 +9,13 @@ import { api } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
 import { useAppConfig } from "../config/AppConfigProvider";
 import { usePlayback } from "../player/usePlayback";
-import { useLyricsPresentation } from "./useLyricsPresentation";
-import { useNotchLyricsOffset } from "./useNotchLyricsOffset";
+import { useCompactLyricsPresentation } from "./compactPresentation";
 import { useNotchIslandMotion } from "./useNotchIslandMotion";
 import { useNotchSpectrum } from "./useNotchSpectrum";
 import { useNotchWindowGeometry } from "./useNotchWindowGeometry";
 import { useNotchWindowEvents } from "./useNotchWindowEvents";
 import { useNotchWindowState } from "./useNotchWindowState";
-import { findAlignedAuxiliaryLine } from "./useLyrics";
 import type {
-  LyricsLine,
   NotchLyricsPreferences,
   NotchSlotContent,
 } from "../../shared/types";
@@ -40,24 +37,18 @@ import {
 } from "./NotchLyricsLayout";
 import styles from "./NotchLyricsWindow.module.scss";
 
-function previewLineAtPosition(lines: LyricsLine[], positionMs: number) {
-  let activeIndex = -1;
-  for (let index = 0; index < lines.length; index += 1) {
-    if (lines[index].startMs > positionMs) break;
-    activeIndex = index;
-  }
-
-  const line = lines[activeIndex] ?? lines[0] ?? null;
-  const nextLine = activeIndex < 0 ? lines[1] ?? null : lines[activeIndex + 1] ?? null;
-  return { activeIndex, line, nextLine };
-}
-
 export default function NotchLyricsWindow() {
   const { t } = useTranslation();
   const { config, setLyricsDisplayPreferences } = useAppConfig();
   const playback = usePlayback({ loadArtwork: true });
-  const lyrics = useLyricsPresentation(playback.snapshot, playback.positionMs, playback.active);
   const notch = config.lyrics.displays.notch;
+  const lyrics = useCompactLyricsPresentation({
+    snapshot: playback.snapshot,
+    positionMs: playback.positionMs,
+    active: playback.active,
+    presentation: notch.presentation,
+    offsetErrorMessage: "Failed to update the Dynamic Island lyrics offset",
+  });
   const appearance = notch.appearance;
   const notchRef = useRef(notch);
   notchRef.current = notch;
@@ -124,88 +115,32 @@ export default function NotchLyricsWindow() {
   const compactSlotSize = Math.max(0, Math.min(30, resolvedTopInset - 8));
   const slotPadding = notchSlotPadding(appearance.borderRadius);
   const marqueePaused = previewActive || widthMotionActive || visibilityMotionActive;
-  const runtimeOffsetMs = lyrics.document?.offsetMs ?? 0;
   const {
     changeLyricsOffset,
     offsetAvailable,
     offsetMs,
     resetLyricsOffset,
-  } = useNotchLyricsOffset({
-    hasDocument: Boolean(lyrics.document),
-    runtimeOffsetMs,
-    trackKey: lyrics.trackKey,
-  });
-  const originalLines = lyrics.document?.tracks.original.lines ?? [];
+  } = lyrics;
   const previewPositionMs = playback.positionMs + offsetMs;
-  const preview = previewLineAtPosition(originalLines, previewPositionMs);
-  const previewLineDisplayEndMs = preview.nextLine?.startMs ?? preview.line?.endMs;
-  const previewLyricMarqueeTimeLimitMs = preview.line && previewLineDisplayEndMs != null
-    ? Math.max(
-      MIN_LYRIC_MARQUEE_DURATION_MS,
-      previewLineDisplayEndMs - preview.line.startMs,
-    )
+  const previewLine = lyrics.currentLine;
+  const previewNextLine = lyrics.nextLine;
+  const previewLineDisplayEndMs = previewNextLine?.startMs ?? previewLine?.endMs;
+  const previewLyricMarqueeTimeLimitMs = previewLine && previewLineDisplayEndMs != null
+    ? Math.max(MIN_LYRIC_MARQUEE_DURATION_MS, previewLineDisplayEndMs - previewLine.startMs)
     : null;
-  const previewNextLine = preview.nextLine;
-  const previewSupportingLine = (() => {
-    if (notch.layout !== "double" || !preview.line) return null;
-    if (notch.showTranslation && lyrics.document?.tracks.translation) {
-      const translation = findAlignedAuxiliaryLine(
-        lyrics.document.tracks.translation.lines,
-        preview.line,
-      );
-      if (translation) return { kind: "translation" as const, line: translation };
-    }
-    if (notch.showRomanization && lyrics.document?.tracks.romanization) {
-      const romanization = findAlignedAuxiliaryLine(
-        lyrics.document.tracks.romanization.lines,
-        preview.line,
-      );
-      if (romanization) return { kind: "romanization" as const, line: romanization };
-    }
-    return previewNextLine?.text.trim()
-      ? { kind: "next" as const, line: previewNextLine }
-      : null;
-  })();
-  const previewDoubleLineReversed = notch.layout === "double"
-    && notch.doubleLineMode === "alternating"
-    && preview.activeIndex >= 0
-    && !previewSupportingLine;
-  const beforeFirstLine = lyrics.activeIndex < 0;
-  const primaryLine = lyrics.currentLine ?? (beforeFirstLine ? originalLines[0] : null);
-  const secondaryLine = beforeFirstLine ? originalLines[1] ?? null : lyrics.nextLine;
-  const selectedSupportingLines = [
-    ...(notch.showTranslation && lyrics.currentTranslation?.text.trim()
-      ? [{ kind: "translation" as const, line: lyrics.currentTranslation }]
-      : []),
-    ...(notch.showRomanization && lyrics.currentRomanization?.text.trim()
-      ? [{ kind: "romanization" as const, line: lyrics.currentRomanization }]
-      : []),
-  ];
-  const selectedSupportingLine = selectedSupportingLines[0];
-  const alternatingDoubleLine = notch.layout === "double"
-    && notch.doubleLineMode === "alternating"
-    && lyrics.activeIndex >= 0
-    && !selectedSupportingLine;
-  const supportingLines = notch.layout !== "double"
+  const previewSupportingLine = lyrics.supportingLine?.line
+    ? { kind: lyrics.supportingLine.kind === "translation" || lyrics.supportingLine.kind === "romanization" ? lyrics.supportingLine.kind : "next" as const, line: lyrics.supportingLine.line }
+    : null;
+  const primaryLine = lyrics.primaryLine.line;
+  const primaryText = lyrics.primaryLine.text;
+  const supportingResolvedLine = lyrics.supportingLine;
+  const supportingLines = notch.presentation.layout !== "double"
     ? []
-    : selectedSupportingLine
-      ? [selectedSupportingLine]
-      : secondaryLine?.text.trim()
-        ? [{ kind: "next" as const, line: secondaryLine }]
-        : alternatingDoubleLine
-          ? [{
-            kind: "next" as const,
-            line: {
-              startMs: primaryLine?.startMs ?? -1,
-              endMs: null,
-              text: "",
-              words: null,
-            },
-          }]
-          : [];
-  const doubleLineOrder = alternatingDoubleLine && supportingLines[0]?.kind === "next" && lyrics.activeIndex % 2 === 1
-    ? "reversed"
-    : "normal";
+    : [{
+      kind: supportingResolvedLine?.kind === "translation" || supportingResolvedLine?.kind === "romanization" ? supportingResolvedLine.kind : "next" as const,
+      line: supportingResolvedLine?.line ?? { startMs: primaryLine?.startMs ?? -1, endMs: null, text: supportingResolvedLine?.text ?? "", words: null },
+    }];
+  const doubleLineOrder = lyrics.doubleLineOrder;
   const currentLineDisplayEndMs = lyrics.nextLine?.startMs ?? lyrics.currentLine?.endMs;
   const lyricMarqueeTimeLimitMs = lyrics.currentLine && currentLineDisplayEndMs != null
     ? Math.max(
@@ -214,24 +149,29 @@ export default function NotchLyricsWindow() {
     )
     : null;
   // 同行布局也决定隐藏 compact 内容的收起高度，不能跟随展开动画状态切换。
+  const hasPrimaryLine = Boolean(primaryLine || primaryText.trim());
   const inlineLyricsOnNonNotch = !layout.hasNotch
     && notch.inlineLyricsOnNonNotch
     && notch.showLyrics
-    && Boolean(primaryLine?.text.trim());
-  const primaryLineElement = primaryLine && (
-    <div className={styles.currentLine} key={`${primaryLine.startMs}:${primaryLine.text}`}>
+    && hasPrimaryLine;
+  // 空白歌词行也要保留容器，避免把时间轴上的停顿压掉。
+  const primaryLineElement = hasPrimaryLine && (
+    <div className={styles.currentLine} key={`${primaryLine?.startMs ?? "fallback"}:${primaryText}`}>
       <OverflowText
         align="center"
         behavior="once"
-        contentKey={`${primaryLine.startMs}:${primaryLine.text}`}
+        contentKey={`${primaryLine?.startMs ?? "fallback"}:${primaryText}`}
         maxDurationMs={lyricMarqueeTimeLimitMs}
         paused={marqueePaused}
       >
-        <KaraokeLine line={primaryLine} positionMs={playback.positionMs + offsetMs} karaokeStyle={appearance.karaokeStyle} />
+        {primaryLine
+          ? <KaraokeLine line={primaryLine} positionMs={playback.positionMs + offsetMs} karaokeStyle={appearance.karaokeStyle} />
+          : primaryText}
       </OverflowText>
     </div>
   );
   const supportingLine = supportingLines[0];
+  const supportingIsNext = supportingResolvedLine?.kind === "next";
   const supportingLineElement = supportingLine && (
     <div className={styles.supportingLine} data-empty={!supportingLine.line.text.trim() || undefined} data-kind={supportingLine.kind} key={`${supportingLine.kind}:${supportingLine.line.startMs}:${supportingLine.line.text}`}>
       <OverflowText
@@ -246,7 +186,7 @@ export default function NotchLyricsWindow() {
     </div>
   );
   const inlineDoubleLine = inlineLyricsOnNonNotch
-    && notch.layout === "double"
+    && notch.presentation.layout === "double"
     && Boolean(supportingLineElement);
   const inlineDoubleReversed = inlineDoubleLine && doubleLineOrder === "reversed";
   const inlineTopLineElement = inlineDoubleReversed ? supportingLineElement : primaryLineElement;
@@ -274,8 +214,8 @@ export default function NotchLyricsWindow() {
       notch={notch}
       offsetAvailable={offsetAvailable}
       offsetMs={offsetMs}
-      romanizationAvailable={Boolean(lyrics.document?.tracks.romanization)}
-      translationAvailable={Boolean(lyrics.document?.tracks.translation)}
+      romanizationAvailable={lyrics.romanizationAvailable}
+      translationAvailable={lyrics.translationAvailable}
       onChangeOffset={changeLyricsOffset}
       onOpenSettings={openLyricsSettings}
       onPatchNotch={patchNotch}
@@ -380,7 +320,9 @@ export default function NotchLyricsWindow() {
     if (slot === "spectrum") {
       return <SpectrumBars active={usesSpectrum && playback.active} register={registerSpectrumNode} />;
     }
-    const value = slot === "title" ? playback.snapshot.title ?? "Lyrics Plus" : playback.snapshot.artist ?? "";
+    const value = slot === "title"
+      ? playback.snapshot.title?.trim() || "Lyrics Plus"
+      : playback.snapshot.artist?.trim() || "";
     return (
       <OverflowText
         align={align}
@@ -457,11 +399,11 @@ export default function NotchLyricsWindow() {
                   {inlineLyricsOnNonNotch ? inlineTopLineElement : <span className={styles.notchGap} aria-hidden="true" />}
                   <div className={styles.slot} data-side="right" data-slot={notch.rightSlot}>{renderSlot(notch.rightSlot, "right")}</div>
                 </header>
-                {notch.showLyrics && ((primaryLine && !inlineLyricsOnNonNotch) || supportingLines.length > 0) && (
+                {notch.showLyrics && ((hasPrimaryLine && !inlineLyricsOnNonNotch) || supportingLines.length > 0) && (
                   <div
                     className={styles.lyricLines}
                     data-double-line-order={doubleLineOrder}
-                    data-double-line-mode={alternatingDoubleLine ? "alternating" : undefined}
+                    data-double-line-mode={notch.presentation.doubleLineMode === "alternating" && supportingIsNext ? "alternating" : undefined}
                     data-has-supporting-line={(!inlineLyricsOnNonNotch && supportingLines.length > 0) || undefined}
                     data-supporting-line-kind={inlineBottomLineKind ?? (!inlineLyricsOnNonNotch ? supportingLine?.kind : undefined)}
                   >
@@ -480,10 +422,10 @@ export default function NotchLyricsWindow() {
                     karaokeStyle={appearance.karaokeStyle}
                     marqueePaused={marqueePaused}
                     playback={playback}
-                    previewLine={notch.showLyrics ? preview.line : null}
+                    previewLine={notch.showLyrics ? previewLine : null}
                     previewSupportingLine={notch.showLyrics ? previewSupportingLine : null}
-                    previewDoubleLine={notch.showLyrics && notch.layout === "double" && Boolean(preview.line)}
-                    previewDoubleLineReversed={previewDoubleLineReversed}
+                    previewDoubleLine={notch.showLyrics && notch.presentation.layout === "double" && Boolean(previewLine)}
+                    previewDoubleLineReversed={notch.showLyrics && notch.presentation.layout === "double" && doubleLineOrder === "reversed"}
                     previewMaxDurationMs={previewLyricMarqueeTimeLimitMs}
                     previewPositionMs={previewPositionMs}
                     quickControls={quickControls}

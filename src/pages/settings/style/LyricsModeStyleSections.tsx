@@ -19,6 +19,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { reportFrontendError } from "../../../shared/debugLog";
 import { emitNotchWidthPreview } from "../../../shared/tauriEvent";
 import { api, isTauriRuntime } from "../../../shared/api";
+import CompactLyricsPresentationSettings from "./CompactLyricsPresentationSettings";
 
 type AuxiliaryMode = Exclude<LyricsStyleMode, "desktop">;
 
@@ -34,6 +35,10 @@ type Props = {
 
 function patchAppearance<T extends { appearance: object }>(preferences: T, patch: Partial<T["appearance"]>): T {
   return { ...preferences, appearance: { ...preferences.appearance, ...patch } };
+}
+
+function patchPresentation<T extends { presentation: object }>(preferences: T, patch: Partial<T["presentation"]>): T {
+  return { ...preferences, presentation: { ...preferences.presentation, ...patch } };
 }
 
 type AuxiliarySectionLabels = {
@@ -133,11 +138,7 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
       <SettingsSection id="mode-state" title={t("settings.style.modeControls.displayInteraction")}>
         <ToggleRow label={t("settings.display.statusBar.show")} value={value.enabled} onChange={(enabled) => save({ ...value, enabled })} />
         <ToggleRow label={t("settings.display.statusBar.autoHide")} description={t("settings.display.statusBar.autoHideHint")} value={value.hideWhenNotPlaying} onChange={(hideWhenNotPlaying) => save({ ...value, hideWhenNotPlaying })} />
-        <ToggleRow label={t("settings.display.statusBar.doubleLine")} description={t("settings.display.statusBar.doubleLineHint")} value={value.doubleLine} onChange={(doubleLine) => save({ ...value, doubleLine })} />
-        {value.doubleLine && <>
-          <ToggleRow label={t("settings.display.statusBar.translation")} value={value.showTranslation} onChange={(showTranslation) => save({ ...value, showTranslation })} />
-          <ToggleRow label={t("settings.display.statusBar.romanization")} value={value.showRomanization} onChange={(showRomanization) => save({ ...value, showRomanization })} />
-        </>}
+        <CompactLyricsPresentationSettings value={value.presentation} onChange={(patch) => save(patchPresentation(value, patch))} />
       </SettingsSection>
       {inheritanceSection}
       <SettingsSection id="mode-text" title={t("settings.style.modeControls.textLayout")}>
@@ -145,8 +146,8 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
         <RangeRow label={t("settings.overlay.fontSize")} value={appearance.fontSize} min={10} max={18} suffix=" pt" onChange={(fontSize) => save(patchAppearance(value, { fontSize }))} />
         <RangeRow label={t("settings.display.statusBar.verticalOffset")} description={t("settings.display.statusBar.verticalOffsetHint")} value={appearance.verticalOffset} min={-6} max={6} step={0.1} suffix=" pt" displayValue={Number(appearance.verticalOffset.toFixed(1))} onChange={(verticalOffset) => save(patchAppearance(value, { verticalOffset }))} />
         <SelectRow label={t("settings.overlay.fontWeight")} value={String(appearance.fontWeight)} options={fontWeights} onChange={(fontWeight) => save(patchAppearance(value, { fontWeight: Number(fontWeight) as OverlayFontWeight }))} />
-        {value.doubleLine && <SelectRow label={t("settings.display.statusBar.secondaryFontWeight")} value={String(appearance.secondaryFontWeight)} options={fontWeights} onChange={(secondaryFontWeight) => save(patchAppearance(value, { secondaryFontWeight: Number(secondaryFontWeight) as OverlayFontWeight }))} />}
-        <SelectRow label={t("settings.display.statusBar.alignment")} value={appearance.alignment} options={[["left", t("settings.display.statusBar.alignmentLeft")], ["center", t("settings.display.statusBar.alignmentCenter")], ["right", t("settings.display.statusBar.alignmentRight")]]} onChange={(alignment) => save(patchAppearance(value, { alignment: alignment as StatusBarLyricsPreferences["appearance"]["alignment"] }))} />
+        {value.presentation.layout === "double" && <SelectRow label={t("settings.display.statusBar.secondaryFontWeight")} value={String(appearance.secondaryFontWeight)} options={fontWeights} onChange={(secondaryFontWeight) => save(patchAppearance(value, { secondaryFontWeight: Number(secondaryFontWeight) as OverlayFontWeight }))} />}
+        <SelectRow label={t("settings.display.statusBar.alignment")} value={value.presentation.alignment} options={[["left", t("settings.display.statusBar.alignmentLeft")], ["center", t("settings.display.statusBar.alignmentCenter")], ["right", t("settings.display.statusBar.alignmentRight")]]} onChange={(alignment) => save(patchPresentation(value, { alignment: alignment as StatusBarLyricsPreferences["presentation"]["alignment"] }))} />
       </SettingsSection>
       <SettingsSection id="mode-colors" title={t("settings.style.modeControls.colorEffects")}>
         <SelectRow label={t("settings.overlay.karaoke")} value={appearance.karaokeStyle} options={[["sweep", t("settings.overlay.karaokeSweep")], ["highlight", t("settings.overlay.karaokeHighlight")]]} onChange={(karaokeStyle) => save(patchAppearance(value, { karaokeStyle: karaokeStyle as CompactKaraokeStyle }))} />
@@ -265,8 +266,7 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
         <SelectRow label={t("settings.display.notch.leftSlot")} value={value.leftSlot} options={slotOptions} onChange={(leftSlot) => save({ ...value, leftSlot: leftSlot as NotchSlotContent })} />
         <SelectRow label={t("settings.display.notch.rightSlot")} value={value.rightSlot} options={slotOptions} onChange={(rightSlot) => save({ ...value, rightSlot: rightSlot as NotchSlotContent })} />
         {value.showLyrics && <>
-          <ToggleRow label={t("settings.display.notch.translation")} value={value.showTranslation} onChange={(showTranslation) => save({ ...value, showTranslation })} />
-          <ToggleRow label={t("settings.display.notch.romanization")} value={value.showRomanization} onChange={(showRomanization) => save({ ...value, showRomanization })} />
+          <CompactLyricsPresentationSettings value={value.presentation} onChange={(patch) => save(patchPresentation(value, patch))} />
         </>}
       </>}
       <div className={styles.buttonRow}><Button variant="secondary" size="sm" onClick={() => void resetPosition("notch")}>{t("settings.style.modeControls.resetPosition")}</Button></div>
@@ -274,13 +274,11 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
     {value.showLyrics && <>
     {inheritanceSection}
     <SettingsSection id="mode-text" title={t("settings.style.modeControls.textLayout")}>
-      <SelectRow label={t("settings.overlay.lyricLayout")} value={value.layout} options={[["single", t("overlay.layout.single")], ["double", t("overlay.layout.double")]]} onChange={(layout) => save({ ...value, layout: layout as NotchLyricsPreferences["layout"] })} />
-      <SelectRow label={t("settings.overlay.doubleLineMode")} description={t("settings.overlay.doubleLineModeHint")} disabled={value.layout !== "double"} value={value.doubleLineMode} options={[["rolling", t("settings.overlay.doubleLineRolling")], ["alternating", t("settings.overlay.doubleLineAlternating")]]} onChange={(doubleLineMode) => save({ ...value, doubleLineMode: doubleLineMode as NotchLyricsPreferences["doubleLineMode"] })} />
       {!modeInheritance.inheritFontFamily && <TextRow label={t("settings.overlay.fontFamily")} value={appearance.fontFamily} emptyValue={appearance.fontFamily} onChange={(fontFamily) => save(patchAppearance(value, { fontFamily }))} />}
       <RangeRow label={t("settings.overlay.fontSize")} value={appearance.fontSize} min={12} max={32} suffix="px" onChange={(fontSize) => save(patchAppearance(value, { fontSize }))} />
       <SelectRow label={t("settings.overlay.fontWeight")} value={String(appearance.fontWeight)} options={fontWeights} onChange={(fontWeight) => save(patchAppearance(value, { fontWeight: Number(fontWeight) as OverlayFontWeight }))} />
       <SelectRow label={t("settings.overlay.secondaryFontWeight")} value={String(appearance.secondaryFontWeight)} options={fontWeights} onChange={(secondaryFontWeight) => save(patchAppearance(value, { secondaryFontWeight: Number(secondaryFontWeight) as OverlayFontWeight }))} />
-      <RangeRow label={t("settings.style.modeControls.lineGap")} disabled={value.layout !== "double"} value={appearance.lineGap} min={0} max={32} suffix="px" onChange={(lineGap) => save(patchAppearance(value, { lineGap }))} />
+      <RangeRow label={t("settings.style.modeControls.lineGap")} disabled={value.presentation.layout !== "double"} value={appearance.lineGap} min={0} max={32} suffix="px" onChange={(lineGap) => save(patchAppearance(value, { lineGap }))} />
     </SettingsSection>
     <SettingsSection id="mode-colors" title={t("settings.style.modeControls.colorEffects")}>
       <SelectRow label={t("settings.overlay.karaoke")} value={appearance.karaokeStyle} options={[["sweep", t("settings.overlay.karaokeSweep")], ["highlight", t("settings.overlay.karaokeHighlight")]]} onChange={(karaokeStyle) => save(patchAppearance(value, { karaokeStyle: karaokeStyle as CompactKaraokeStyle }))} />

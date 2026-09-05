@@ -4,9 +4,12 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::Manager;
 use zhhz::Region;
 
-use crate::config::{ChineseConversion, CompactKaraokeStyle, StatusBarAlignment};
+use crate::config::{
+    ChineseConversion, CompactKaraokeStyle, StatusBarAlignment, SupportingLyricsPriority,
+};
 use crate::lyrics::conversion::detect_region;
 use crate::lyrics::{LyricsDocument, LyricsLine, LyricsTrack, LyricsWord};
+use crate::overlay_model::{DoubleLineMode, OverlayLayout};
 use crate::AppState;
 
 const AUXILIARY_TIMESTAMP_TOLERANCE_MS: u64 = 500;
@@ -226,6 +229,9 @@ pub(super) fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
     if preferences.hide_when_not_playing && !playback.is_playing {
         return None;
     }
+    let presentation = &preferences.presentation;
+    let compact = &presentation.compact;
+    let double_line = compact.layout == OverlayLayout::Double;
     let playback_key = crate::commands::playback_track_key(&playback);
     let position_ms = current_position_ms(&playback);
     let runtime = state
@@ -238,8 +244,15 @@ pub(super) fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
         .as_deref()
         .map(str::trim)
         .filter(|title| !title.is_empty())
-        .map(|title| format!("♪ {title}"))
+        .map(str::to_owned)
         .unwrap_or_else(|| "Lyrics Plus".into());
+    let fallback_artist = playback
+        .artist
+        .as_deref()
+        .map(str::trim)
+        .filter(|artist| !artist.is_empty())
+        .unwrap_or_default()
+        .to_owned();
     let track_key = playback_key.as_deref().unwrap_or_default();
     let inactive_color = preferences.appearance.inactive_color.clone();
     let highlight_color = preferences.appearance.highlight_color.clone();
@@ -254,20 +267,36 @@ pub(super) fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
         sweep_progress: None,
         scroll_duration: None,
     };
-    let mut secondary = RenderLinePayload::empty(
-        format!("{track_key}:secondary:empty"),
-        inactive_color.clone(),
-        highlight_color.clone(),
-    );
+    let mut secondary = if double_line && !fallback_artist.is_empty() {
+        RenderLinePayload {
+            text: fallback_artist.clone(),
+            content_key: format!("{track_key}:artist:{fallback_artist}"),
+            kind: RenderLineKind::Fallback,
+            base_color: inactive_color.clone(),
+            highlight_color: highlight_color.clone(),
+            sweep_progress: None,
+            scroll_duration: None,
+        }
+    } else {
+        RenderLinePayload::empty(
+            format!("{track_key}:secondary:empty"),
+            inactive_color.clone(),
+            highlight_color.clone(),
+        )
+    };
+    let mut current_line_index = None;
 
     if runtime.track_key == playback_key {
         if let Some(document) = runtime.document.as_ref() {
-            let adjusted = (position_ms as i128 + document.offset_ms as i128).max(0) as u64;
+            let adjusted = position_ms as i128 + document.offset_ms as i128;
             let lines = &document.tracks.original.lines;
             let (original_region, translation_region) = cached_track_regions(document);
-            let current_index = lines.iter().rposition(|line| line.start_ms <= adjusted);
+            let current_index = lines
+                .iter()
+                .rposition(|line| line.start_ms as i128 <= adjusted);
             if let Some(index) = current_index {
                 if let Some(raw_line) = lines.get(index) {
+                    current_line_index = Some(index);
                     let line = raw_line.converted_for_output_with_region(
                         config.lyrics.chinese_conversion,
                         original_region,
@@ -283,7 +312,7 @@ pub(super) fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
                             CompactKaraokeStyle::Sweep => {
                                 primary.base_color = inactive_color.clone();
                                 primary.sweep_progress =
-                                    sweep_progress(&primary.text, words, adjusted);
+                                    sweep_progress(&primary.text, words, adjusted.max(0) as u64);
                             }
                             CompactKaraokeStyle::Highlight => {
                                 primary.base_color = highlight_color.clone();
@@ -292,30 +321,47 @@ pub(super) fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
                     } else {
                         primary.base_color = highlight_color.clone();
                     }
-                    if preferences.double_line {
+                    if double_line {
+                        secondary = RenderLinePayload::empty(
+                            format!("{track_key}:secondary:empty:{}", raw_line.start_ms),
+                            inactive_color.clone(),
+                            highlight_color.clone(),
+                        );
                         let mut supporting = None;
-                        if preferences.show_translation {
-                            if let Some(track) = document.tracks.translation.as_ref() {
-                                if let Some(line) =
-                                    find_aligned_auxiliary_line(&track.lines, raw_line)
-                                {
-                                    supporting = Some((
-                                        line,
-                                        RenderLineKind::Translation,
-                                        translation_region,
-                                    ));
-                                }
+                        let mut try_translation = || {
+                            if !compact.show_translation {
+                                return None;
                             }
-                        }
-                        if supporting.is_none() && preferences.show_romanization {
-                            if let Some(track) = document.tracks.romanization.as_ref() {
-                                if let Some(line) =
+                            document
+                                .tracks
+                                .translation
+                                .as_ref()
+                                .and_then(|track| {
                                     find_aligned_auxiliary_line(&track.lines, raw_line)
-                                {
-                                    supporting = Some((line, RenderLineKind::Romanization, None));
-                                }
+                                })
+                                .map(|line| (line, RenderLineKind::Translation, translation_region))
+                        };
+                        let mut try_romanization = || {
+                            if !compact.show_romanization {
+                                return None;
                             }
-                        }
+                            document
+                                .tracks
+                                .romanization
+                                .as_ref()
+                                .and_then(|track| {
+                                    find_aligned_auxiliary_line(&track.lines, raw_line)
+                                })
+                                .map(|line| (line, RenderLineKind::Romanization, None))
+                        };
+                        supporting = match compact.supporting_priority {
+                            SupportingLyricsPriority::Translation => {
+                                try_translation().or_else(try_romanization)
+                            }
+                            SupportingLyricsPriority::Romanization => {
+                                try_romanization().or_else(try_translation)
+                            }
+                        };
                         if let Some((raw_supporting, kind, source_region)) = supporting {
                             let color = match kind {
                                 RenderLineKind::Translation => translation_color.clone(),
@@ -348,42 +394,38 @@ pub(super) fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
                         }
                     }
                 }
-            } else if preferences.double_line {
-                if let Some(raw_next) = lines.first() {
-                    secondary = supporting_line_payload(
-                        track_key,
-                        raw_next,
-                        config.lyrics.chinese_conversion,
-                        original_region,
-                        config.lyrics.repair_simplified_japanese,
-                        RenderLineKind::Next,
-                        inactive_color.clone(),
-                        highlight_color.clone(),
-                        line_scroll_duration(lines, 0),
-                    );
-                }
             }
         }
     }
 
+    if double_line
+        && compact.double_line_mode == DoubleLineMode::Alternating
+        && current_line_index.is_some_and(|index| index % 2 == 1)
+        && secondary.kind == RenderLineKind::Next
+    {
+        std::mem::swap(&mut primary, &mut secondary);
+    }
+
     let style_key = format!(
-        ":style:{}:{}:{}:{}:{}:{:?}:{}:{:?}:{}:{}:{}:{}:{}:{}:{}:{}:{:?}:{:?}",
+        ":style:{}:{}:{}:{}:{}:{:?}:{}:{:?}:{}:{}:{}:{}:{}:{}:{}:{}:{:?}:{:?}:{:?}:{:?}",
         preferences.appearance.width,
-        preferences.appearance.font_family,
+        &preferences.appearance.font_family,
         preferences.appearance.font_size,
         preferences.appearance.font_weight,
         preferences.appearance.secondary_font_weight,
-        preferences.appearance.alignment,
+        presentation.alignment,
         preferences.appearance.vertical_offset,
         preferences.appearance.karaoke_style,
-        primary.base_color,
-        preferences.appearance.highlight_color,
-        inactive_color,
-        translation_color,
-        romanization_color,
-        preferences.double_line,
-        preferences.show_translation,
-        preferences.show_romanization,
+        &primary.base_color,
+        &preferences.appearance.highlight_color,
+        &inactive_color,
+        &translation_color,
+        &romanization_color,
+        double_line,
+        compact.show_translation,
+        compact.show_romanization,
+        compact.double_line_mode,
+        compact.supporting_priority,
         primary.sweep_progress.is_some(),
         secondary.kind,
     );
@@ -394,14 +436,14 @@ pub(super) fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
     Some(RenderPayload {
         cache_key: format!("{}|{}", primary.content_key, secondary.content_key),
         lines: [primary, secondary],
-        double_line: preferences.double_line,
+        double_line,
         width: preferences.appearance.width as f64,
         font_family: preferences.appearance.font_family,
         font_size: preferences.appearance.font_size as f64,
         vertical_offset: preferences.appearance.vertical_offset,
         font_weight: preferences.appearance.font_weight,
         secondary_font_weight: preferences.appearance.secondary_font_weight,
-        alignment: preferences.appearance.alignment,
+        alignment: presentation.alignment,
         is_playing: playback.is_playing,
     })
 }

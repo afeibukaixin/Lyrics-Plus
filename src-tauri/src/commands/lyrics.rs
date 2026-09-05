@@ -341,7 +341,7 @@ pub fn update_overlay_visible(app: &tauri::AppHandle, visible: bool) -> Result<(
     let state = app.state::<AppState>();
     let config = state
         .config
-        .update(|config| config.overlay.visible = visible)?;
+        .update(|config| config.lyrics.displays.desktop.enabled = visible)?;
     state
         .overlay_settings
         .write()

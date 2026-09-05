@@ -57,9 +57,9 @@ impl ConfigStore {
         let bool_preference =
             |key: &str| storage.get_preference(key).unwrap_or(None).as_deref() == Some("true");
         if let Some(visible) = storage.get_preference("overlay.visible").unwrap_or(None) {
-            value.overlay.visible = visible == "true";
+            value.lyrics.displays.desktop.enabled = visible == "true";
         }
-        value.overlay.locked =
+        value.lyrics.displays.desktop.locked =
             bool_preference("overlay.locked") || bool_preference("overlay.passthrough");
         let last_monitor = storage
             .get_preference("overlay.last_monitor")
@@ -81,7 +81,7 @@ impl ConfigStore {
             .and_then(|raw| serde_json::from_str::<OverlayStyleSettings>(&raw).ok())
             .map(OverlayStyleSettings::normalized);
         if let Some(style) = legacy_style {
-            value.overlay.appearance = OverlayAppearance::from(&style);
+            value.lyrics.displays.desktop.apply_style(&style);
         }
         let value = value.normalized()?;
         let comment_language = configured_comment_language(&value.app.language);

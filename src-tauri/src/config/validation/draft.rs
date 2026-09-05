@@ -85,12 +85,13 @@ pub(super) fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftEr
     config::migrate_v59_switch_lyrics_shortcut(&mut user);
     config::migrate_v62_status_bar_secondary_font_weight(&mut user, version);
     config::migrate_v63_simplified_japanese_repair(&mut user, version);
+    let migrated_layout = config::migrate_legacy_overlay_layout(&mut user, version, raw)?;
+    config::migrate_v64_compact_display_preferences(&mut user, version);
     config::remove_retired_fullscreen_space_preferences(&mut user);
     super::structure::validate_known_fields(&user, raw)?;
     super::fields::validate_field_types_and_options(&user, raw)?;
     config::migrate_status_bar_status_item_fields(&mut user);
 
-    let migrated_layout = config::migrate_legacy_overlay_layout(&mut user, version, raw)?;
     #[cfg(test)]
     let migrated = version < CONFIG_SCHEMA_VERSION || migrated_layout;
     #[cfg(not(test))]

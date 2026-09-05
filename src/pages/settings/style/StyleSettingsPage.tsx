@@ -1,4 +1,4 @@
-import { defaultOverlayStyle, secondaryDisplayFlags, secondaryDisplayFromFlags, type LyricsBaseAppearance, type LyricsStyleMode, type OverlayStyle } from "../../../shared/types";
+import { defaultOverlayStyle, type LyricsBaseAppearance, type LyricsStyleMode, type OverlayStyle } from "../../../shared/types";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import LyricsModeStyleSections, { auxiliarySections } from "./LyricsModeStyleSections";
+import CompactLyricsPresentationSettings from "./CompactLyricsPresentationSettings";
 
 type OverlayColorValues = Pick<
   OverlayStyle,
@@ -109,8 +110,12 @@ export default function StyleSettingsPage() {
     setSearchParams(next === "base" ? {} : { mode: next }, { replace: true });
   };
 
-  const secondaryFlags = secondaryDisplayFlags(style.secondaryDisplay);
-  const alignmentAvailable = style.layout === "double";
+  const desktopPresentation = config.lyrics.displays.desktop.presentation;
+  const secondaryFlags = {
+    translation: desktopPresentation.showTranslation,
+    romanization: desktopPresentation.showRomanization,
+  };
+  const alignmentAvailable = desktopPresentation.layout === "double";
   const baseAppearance = config.lyrics.baseAppearance;
   const desktopInheritance = config.lyrics.styleInheritance.desktop;
   const activeColorPreset = overlayColorPresets.find((preset) => matchesColorPreset(baseAppearance, preset));
@@ -160,6 +165,13 @@ export default function StyleSettingsPage() {
     } catch (error) {
       setError(messageOf(error));
     }
+  };
+
+  const updateDesktopPresentation = (patch: Partial<typeof desktopPresentation>) => {
+    void setLyricsDisplayPreferences("desktop", {
+      ...config.lyrics.displays.desktop,
+      presentation: { ...desktopPresentation, ...patch },
+    }).catch((error) => setError(messageOf(error)));
   };
 
   const resetCurrentMode = async () => {
@@ -242,9 +254,8 @@ export default function StyleSettingsPage() {
       </> : mode === "desktop" ? <>
       <SettingsSection id="mode-state" title={t("settings.style.modeControls.displayInteraction")}>
         <ToggleRow label={t("settings.overlay.show")} description={t("settings.overlay.showHint")} value={overlaySettings.visible} onChange={setVisible} />
-        <ToggleRow label={t("settings.overlay.autoHide")} description={t("settings.overlay.autoHideHint")} value={config.overlay.hideWhenNotPlaying} onChange={(hidden) => setOverlayHideWhenNotPlaying(hidden).catch((error) => setError(messageOf(error)))} />
-        <ToggleRow label={t("settings.overlay.showTranslation")} value={secondaryFlags.translation} onChange={(translation) => updateStyle({ secondaryDisplay: secondaryDisplayFromFlags(translation, secondaryFlags.romanization) })} />
-        <ToggleRow label={t("settings.overlay.showRomanization")} value={secondaryFlags.romanization} onChange={(romanization) => updateStyle({ secondaryDisplay: secondaryDisplayFromFlags(secondaryFlags.translation, romanization) })} />
+        <ToggleRow label={t("settings.overlay.autoHide")} description={t("settings.overlay.autoHideHint")} value={config.lyrics.displays.desktop.hideWhenNotPlaying} onChange={(hidden) => setOverlayHideWhenNotPlaying(hidden).catch((error) => setError(messageOf(error)))} />
+        <CompactLyricsPresentationSettings value={desktopPresentation} onChange={updateDesktopPresentation} />
         <ToggleRow label={t("settings.overlay.lock")} description={t("settings.overlay.lockHint")} value={overlaySettings.locked} onChange={setLocked} />
         <div className={styles.buttonRow}><Button variant="secondary" size="sm" onClick={() => void resetOverlayBounds()}>{t("settings.overlay.resetPosition")}</Button></div>
       </SettingsSection>
@@ -258,8 +269,6 @@ export default function StyleSettingsPage() {
         <SelectRow label={t("settings.overlay.fontWeight")} value={String(style.fontWeight)} onChange={(fontWeight) => void updateStyle({ fontWeight: Number(fontWeight) as OverlayStyle["fontWeight"] })} options={fontWeightOptions} />
         <SelectRow label={t("settings.overlay.secondaryFontWeight")} value={String(style.secondaryFontWeight)} onChange={(secondaryFontWeight) => void updateStyle({ secondaryFontWeight: Number(secondaryFontWeight) as OverlayStyle["secondaryFontWeight"] })} options={fontWeightOptions} />
         <RangeRow label={t("settings.overlay.lineHeight")} value={style.lineHeight} min={0.8} max={2} step={0.05} suffix="×" onChange={(lineHeight) => void updateStyle({ lineHeight })} />
-        <SelectRow label={t("settings.overlay.lyricLayout")} value={style.layout} onChange={(layout) => void updateStyle({ layout: layout as OverlayStyle["layout"] })} options={[["single", t("overlay.layout.single")], ["double", t("overlay.layout.double")]]} />
-        <SelectRow label={t("settings.overlay.doubleLineMode")} description={t("settings.overlay.doubleLineModeHint")} disabled={!alignmentAvailable} value={style.doubleLineMode} onChange={(doubleLineMode) => void updateStyle({ doubleLineMode: doubleLineMode as OverlayStyle["doubleLineMode"] })} options={[["rolling", t("settings.overlay.doubleLineRolling")], ["alternating", t("settings.overlay.doubleLineAlternating")]]} />
         <SelectRow label={t("settings.overlay.textDirection")} value={style.orientation} onChange={(orientation) => void updateStyle({ orientation: orientation as OverlayStyle["orientation"] })} options={[["horizontal", t("overlay.orientation.horizontal")], ["vertical", t("overlay.orientation.vertical")]]} />
         <SelectRow label={t("settings.overlay.primaryLinePosition")} description={t("settings.overlay.primaryLinePositionHint")} disabled={!alignmentAvailable} value={alignmentAvailable ? style.primaryLinePosition : "first"} onChange={(primaryLinePosition) => void updateStyle({ primaryLinePosition: primaryLinePosition as OverlayStyle["primaryLinePosition"] })} options={[["first", t("settings.overlay.primaryLineFirst")], ["second", t("settings.overlay.primaryLineSecond")]]} />
         <SelectRow label={t("settings.overlay.longLyrics")} value={style.longText} onChange={(longText) => void updateStyle({ longText: longText as OverlayStyle["longText"] })} options={[["shrink", t("settings.overlay.shrink")], ["wrap", t("settings.overlay.wrap")], ["marquee", t("settings.overlay.marquee")]]} />

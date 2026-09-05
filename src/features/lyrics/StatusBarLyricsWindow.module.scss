@@ -26,8 +26,27 @@
   justify-content: flex-end;
 }
 
+.lines {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.shell[data-layout="double"] .lines {
+  gap: 1px;
+}
+
 .shell span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.secondary {
+  color: var(--status-text-color);
+  font-size: 0.86em;
+  font-weight: 500;
+  opacity: 0.78;
 }

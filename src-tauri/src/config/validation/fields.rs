@@ -13,14 +13,17 @@ pub(super) fn validate_field_types_and_options(
         ("/lyrics", "lyrics"),
         ("/lyrics/providers", "providers"),
         ("/lyrics/displays", "displays"),
+        ("/lyrics/displays/desktop", "desktop"),
+        ("/lyrics/displays/desktop/presentation", "presentation"),
+        ("/lyrics/displays/desktop/appearance", "appearance"),
         ("/lyrics/displays/statusBar", "statusBar"),
+        ("/lyrics/displays/statusBar/presentation", "presentation"),
         ("/lyrics/displays/statusBar/appearance", "appearance"),
         ("/lyrics/displays/listWindow", "listWindow"),
         ("/lyrics/displays/listWindow/appearance", "appearance"),
         ("/lyrics/displays/notch", "notch"),
+        ("/lyrics/displays/notch/presentation", "presentation"),
         ("/lyrics/displays/notch/appearance", "appearance"),
-        ("/overlay", "overlay"),
-        ("/overlay/appearance", "appearance"),
     ] {
         if value
             .pointer(pointer)
@@ -77,9 +80,20 @@ pub(super) fn validate_field_types_and_options(
             "/app/lyricsWindowsShowOnAllSpaces",
             "lyricsWindowsShowOnAllSpaces",
         ),
-        ("/overlay/visible", "visible"),
-        ("/overlay/locked", "locked"),
-        ("/overlay/hideWhenNotPlaying", "hideWhenNotPlaying"),
+        ("/lyrics/displays/desktop/enabled", "enabled"),
+        ("/lyrics/displays/desktop/locked", "locked"),
+        (
+            "/lyrics/displays/desktop/hideWhenNotPlaying",
+            "hideWhenNotPlaying",
+        ),
+        (
+            "/lyrics/displays/desktop/presentation/showTranslation",
+            "showTranslation",
+        ),
+        (
+            "/lyrics/displays/desktop/presentation/showRomanization",
+            "showRomanization",
+        ),
         ("/lyrics/displays/statusBar/enabled", "enabled"),
         (
             "/lyrics/displays/statusBar/hideWhenNotPlaying",
@@ -96,6 +110,14 @@ pub(super) fn validate_field_types_and_options(
         ),
         ("/lyrics/displays/statusBar/showTrayIcon", "showTrayIcon"),
         ("/lyrics/displays/statusBar/locked", "locked"),
+        (
+            "/lyrics/displays/statusBar/presentation/showTranslation",
+            "showTranslation",
+        ),
+        (
+            "/lyrics/displays/statusBar/presentation/showRomanization",
+            "showRomanization",
+        ),
         ("/lyrics/displays/listWindow/enabled", "enabled"),
         ("/lyrics/displays/listWindow/alwaysOnTop", "alwaysOnTop"),
         ("/lyrics/displays/listWindow/locked", "locked"),
@@ -113,9 +135,12 @@ pub(super) fn validate_field_types_and_options(
             "hideWhenNotPlaying",
         ),
         ("/lyrics/displays/notch/showLyrics", "showLyrics"),
-        ("/lyrics/displays/notch/showTranslation", "showTranslation"),
         (
-            "/lyrics/displays/notch/showRomanization",
+            "/lyrics/displays/notch/presentation/showTranslation",
+            "showTranslation",
+        ),
+        (
+            "/lyrics/displays/notch/presentation/showRomanization",
             "showRomanization",
         ),
         (
@@ -155,7 +180,7 @@ pub(super) fn validate_field_types_and_options(
             "inheritColors",
         ),
         (
-            "/overlay/appearance/autoCenterWithTranslationOrRomanization",
+            "/lyrics/displays/desktop/presentation/autoCenterWithTranslationOrRomanization",
             "autoCenterWithTranslationOrRomanization",
         ),
         ("/lyrics/providers/preferCapabilities", "preferCapabilities"),
@@ -217,10 +242,13 @@ pub(super) fn validate_field_types_and_options(
             "/lyrics/displays/notch/appearance/expandedMaxWidth",
             "expandedMaxWidth",
         ),
-        ("/overlay/appearance/fontSize", "fontSize"),
-        ("/overlay/appearance/fontWeight", "fontWeight"),
+        ("/lyrics/displays/desktop/appearance/fontSize", "fontSize"),
         (
-            "/overlay/appearance/secondaryFontWeight",
+            "/lyrics/displays/desktop/appearance/fontWeight",
+            "fontWeight",
+        ),
+        (
+            "/lyrics/displays/desktop/appearance/secondaryFontWeight",
             "secondaryFontWeight",
         ),
         (
@@ -311,7 +339,22 @@ pub(super) fn validate_field_types_and_options(
             &["sweep", "highlight"] as &[&str],
         ),
         (
-            "/lyrics/displays/statusBar/appearance/alignment",
+            "/lyrics/displays/statusBar/presentation/layout",
+            "layout",
+            &["single", "double"] as &[&str],
+        ),
+        (
+            "/lyrics/displays/statusBar/presentation/doubleLineMode",
+            "doubleLineMode",
+            &["rolling", "alternating"] as &[&str],
+        ),
+        (
+            "/lyrics/displays/statusBar/presentation/supportingPriority",
+            "supportingPriority",
+            &["translation", "romanization"] as &[&str],
+        ),
+        (
+            "/lyrics/displays/statusBar/presentation/alignment",
             "alignment",
             &["left", "center", "right"] as &[&str],
         ),
@@ -331,74 +374,67 @@ pub(super) fn validate_field_types_and_options(
             &["empty", "title", "artist", "artwork", "spectrum"] as &[&str],
         ),
         (
-            "/lyrics/displays/notch/layout",
+            "/lyrics/displays/notch/presentation/layout",
             "layout",
             &["single", "double"] as &[&str],
         ),
         (
-            "/lyrics/displays/notch/doubleLineMode",
+            "/lyrics/displays/notch/presentation/doubleLineMode",
             "doubleLineMode",
             &["rolling", "alternating"] as &[&str],
         ),
         (
-            "/overlay/appearance/backgroundMode",
+            "/lyrics/displays/notch/presentation/supportingPriority",
+            "supportingPriority",
+            &["translation", "romanization"] as &[&str],
+        ),
+        (
+            "/lyrics/displays/desktop/appearance/backgroundMode",
             "backgroundMode",
             &["solid", "transparent"] as &[&str],
         ),
         (
-            "/overlay/appearance/background",
+            "/lyrics/displays/desktop/appearance/background",
             "background",
             &["glass", "transparent", "solid"] as &[&str],
         ),
         (
-            "/overlay/appearance/layout",
+            "/lyrics/displays/desktop/presentation/layout",
             "layout",
-            &[
-                "single",
-                "double",
-                "stacked",
-                "side_by_side",
-                "vertical_single",
-                "vertical_double",
-            ],
+            &["single", "double"],
         ),
         (
-            "/overlay/appearance/doubleLineMode",
+            "/lyrics/displays/desktop/presentation/doubleLineMode",
             "doubleLineMode",
             &["rolling", "alternating"],
         ),
         (
-            "/overlay/appearance/orientation",
+            "/lyrics/displays/desktop/presentation/orientation",
             "orientation",
             &["horizontal", "vertical"],
         ),
         (
-            "/overlay/appearance/alignment",
+            "/lyrics/displays/desktop/presentation/alignment",
             "alignment",
             &["start", "center", "end", "distributed"],
         ),
         (
-            "/overlay/appearance/primaryLinePosition",
+            "/lyrics/displays/desktop/presentation/primaryLinePosition",
             "primaryLinePosition",
             &["first", "second"],
         ),
         (
-            "/overlay/appearance/longText",
+            "/lyrics/displays/desktop/presentation/longText",
             "longText",
             &["shrink", "wrap", "marquee"],
         ),
         (
-            "/overlay/appearance/secondaryDisplay",
-            "secondaryDisplay",
-            &[
-                "next",
-                "translation",
-                "romanization",
-                "translation_romanization",
-            ],
+            "/lyrics/displays/desktop/presentation/supportingPriority",
+            "supportingPriority",
+            &["translation", "romanization"],
         ),
         (
-            "/overlay/appearance/karaokeStyle",
+            "/lyrics/displays/desktop/appearance/karaokeStyle",
             "karaokeStyle",
             &["sweep", "bounce", "highlight"],
         ),
@@ -438,7 +474,7 @@ pub(super) fn validate_field_types_and_options(
             }
         }
     }
-    if let Some(candidate) = value.pointer("/overlay/appearance/fontFamily") {
+    if let Some(candidate) = value.pointer("/lyrics/displays/desktop/appearance/fontFamily") {
         let font_family = candidate
             .as_str()
             .ok_or_else(|| error_at_key(raw, "fontFamily", "fontFamily 必须是字符串"))?;
@@ -463,7 +499,7 @@ pub(super) fn validate_field_types_and_options(
         "textShadowColor",
         "textStrokeColor",
     ] {
-        let pointer = format!("/overlay/appearance/{key}");
+        let pointer = format!("/lyrics/displays/desktop/appearance/{key}");
         if let Some(candidate) = value.pointer(&pointer) {
             let color = candidate
                 .as_str()

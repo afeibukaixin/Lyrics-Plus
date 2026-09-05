@@ -207,6 +207,7 @@ export const zhCN = {
       noResults: "已启用的歌词源暂时没有找到同步歌词",
     },
     overlay: {
+      supportingPriority: "辅助歌词优先级", supportingTranslation: "翻译优先", supportingRomanization: "音译优先",
       title: "桌面歌词", description: "横排宽度、竖排高度由边缘拖动设定；解锁后拖动空白区域可移动浮窗。",
       state: "浮窗状态", show: "显示桌面歌词", showHint: "在所有桌面空间置顶显示", autoHide: "未播放时自动隐藏",
       autoHideHint: "暂停、停止或播放器不可用时隐藏，恢复播放后自动显示",

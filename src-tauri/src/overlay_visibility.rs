@@ -5,7 +5,7 @@ fn should_show_overlay(visible: bool, hide_when_not_playing: bool, is_playing: b
 pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<bool, String> {
     let state = app.state::<AppState>();
     let configured = state.config.snapshot();
-    if !configured.overlay.visible {
+    if !configured.lyrics.displays.desktop.enabled {
         hide_surface(app, "lyrics-overlay")?;
         hide_surface(app, "lyrics-unlock-handle")?;
         schedule_surface_destroy(app, "lyrics-overlay");
@@ -18,8 +18,8 @@ pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<boo
         .unwrap_or_else(|error| error.into_inner())
         .is_playing;
     let should_show = should_show_overlay(
-        configured.overlay.visible,
-        configured.overlay.hide_when_not_playing,
+        configured.lyrics.displays.desktop.enabled,
+        configured.lyrics.displays.desktop.hide_when_not_playing,
         is_playing,
     );
     cancel_surface_destroy(app, "lyrics-overlay");
@@ -31,7 +31,7 @@ pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<boo
     let window = app
         .get_webview_window("lyrics-overlay")
         .ok_or_else(|| "歌词浮窗创建失败".to_string())?;
-    let locked = configured.overlay.locked;
+    let locked = configured.lyrics.displays.desktop.locked;
     let _ = window.set_resizable(false);
     window
         .set_ignore_cursor_events(locked)
