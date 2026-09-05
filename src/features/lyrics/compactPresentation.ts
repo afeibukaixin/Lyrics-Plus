@@ -89,7 +89,7 @@ export function resolveCompactLyricsPresentation({
 }: ResolveOptions): CompactLyricsPresentationResult {
   const effectiveOffsetMs = offsetMs ?? document?.offsetMs ?? 0;
   const adjustedPositionMs = positionMs + effectiveOffsetMs;
-  const originalLines = document?.tracks.original.lines ?? [];
+  const originalLines = document?.tracks.original.lines.filter((line) => line.text.trim()) ?? [];
   const translationAvailable = Boolean(document?.tracks.translation);
   const romanizationAvailable = Boolean(document?.tracks.romanization);
   const activeIndex = findActiveIndex(originalLines, adjustedPositionMs);

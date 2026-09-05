@@ -76,6 +76,7 @@ export default function LyricsListWindow() {
       style={{
         "--list-font-family": appearance.fontFamily,
         "--list-font-size": `${appearance.fontSize}px`,
+        "--list-section-break-height": `${appearance.fontSize * appearance.lineHeight}px`,
         "--list-font-weight": appearance.fontWeight,
         "--list-secondary-scale": appearance.secondaryFontScale,
         "--list-line-height": appearance.lineHeight,

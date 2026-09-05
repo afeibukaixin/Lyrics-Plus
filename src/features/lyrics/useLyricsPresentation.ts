@@ -42,7 +42,9 @@ export function useLyricsPresentation(snapshot: PlaybackSnapshot, positionMs: nu
     const adjusted = positionMs + document.offsetMs;
     let found = -1;
     for (let index = 0; index < document.tracks.original.lines.length; index += 1) {
-      if (document.tracks.original.lines[index].startMs > adjusted) break;
+      const line = document.tracks.original.lines[index];
+      if (line.startMs > adjusted) break;
+      if (!line.text.trim()) continue;
       found = index;
     }
     return found;

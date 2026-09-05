@@ -146,7 +146,7 @@ fn find_aligned_auxiliary_line<'a>(
         })
 }
 
-fn line_scroll_duration(lines: &[LyricsLine], index: usize) -> Option<Duration> {
+fn line_scroll_duration(lines: &[&LyricsLine], index: usize) -> Option<Duration> {
     let line = lines.get(index)?;
     lines
         .get(index + 1)
@@ -289,13 +289,20 @@ pub(super) fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
     if runtime.track_key == playback_key {
         if let Some(document) = runtime.document.as_ref() {
             let adjusted = position_ms as i128 + document.offset_ms as i128;
-            let lines = &document.tracks.original.lines;
+            // 菜单栏与其他紧凑歌词展示一致：空原文仅作为歌词列表的分段标记。
+            let lines = document
+                .tracks
+                .original
+                .lines
+                .iter()
+                .filter(|line| !line.text.trim().is_empty())
+                .collect::<Vec<_>>();
             let (original_region, translation_region) = cached_track_regions(document);
             let current_index = lines
                 .iter()
                 .rposition(|line| line.start_ms as i128 <= adjusted);
             if let Some(index) = current_index {
-                if let Some(raw_line) = lines.get(index) {
+                if let Some(raw_line) = lines.get(index).copied() {
                     current_line_index = Some(index);
                     let line = raw_line.converted_for_output_with_region(
                         config.lyrics.chinese_conversion,
@@ -306,7 +313,7 @@ pub(super) fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
                     primary.kind = RenderLineKind::Primary;
                     primary.content_key =
                         format!("{track_key}:primary:{}:{}", line.start_ms, primary.text);
-                    primary.scroll_duration = line_scroll_duration(lines, index);
+                    primary.scroll_duration = line_scroll_duration(&lines, index);
                     if let Some(words) = line.words.as_deref().filter(|words| !words.is_empty()) {
                         match preferences.appearance.karaoke_style {
                             CompactKaraokeStyle::Sweep => {
@@ -379,7 +386,7 @@ pub(super) fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
                                 highlight_color.clone(),
                                 primary.scroll_duration,
                             );
-                        } else if let Some(raw_next) = lines.get(index + 1) {
+                        } else if let Some(raw_next) = lines.get(index + 1).copied() {
                             secondary = supporting_line_payload(
                                 track_key,
                                 raw_next,

@@ -8,6 +8,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import styles from "./LyricsListWindow.module.scss";
 
+const SHORT_SECTION_BREAK_MAX_DURATION_MS = 2_000;
+const SHORT_SECTION_BREAK_SCALE = 0.2;
+
 export type LyricsListAuxiliaryLine = {
   translation: LyricsLine | null;
   romanization: LyricsLine | null;
@@ -29,6 +32,18 @@ type LyricsListContentProps = {
   canChooseLyrics: boolean;
   onChooseLyrics: () => void;
 };
+
+/** Returns the visual scale for an empty segment, or null when it is not between lyrics. */
+function sectionBreakScale(lines: LyricsLine[], index: number): number | null {
+  const line = lines[index];
+  if (!line?.text.trim() || index === 0 || !lines[index - 1]?.text.trim()) return null;
+  const nextLine = lines.slice(index + 1).find((candidate) => candidate.text.trim());
+  if (!nextLine) return null;
+  const durationMs = nextLine.startMs - line.startMs;
+  return durationMs >= 0 && durationMs <= SHORT_SECTION_BREAK_MAX_DURATION_MS
+    ? SHORT_SECTION_BREAK_SCALE
+    : 1;
+}
 
 export function LyricsListContent({
   t,
@@ -52,6 +67,19 @@ export function LyricsListContent({
         <ScrollArea className={styles.scroller} onWheel={onPauseFollowing} onPointerDown={onPauseFollowing}>
           <div className={styles.lines} role="list" aria-label={t("lyricsList.lyrics")}>
             {lines.map((line, index) => {
+              if (!line.text.trim()) {
+                const scale = sectionBreakScale(lines, index);
+                return scale === null
+                  ? null
+                  : (
+                    <div
+                      className={styles.sectionBreak}
+                      data-compact={scale === SHORT_SECTION_BREAK_SCALE || undefined}
+                      aria-hidden="true"
+                      key={`${line.startMs}:${index}`}
+                    />
+                  );
+              }
               const active = index === activeIndex;
               const supporting = auxiliary[index];
               return (
