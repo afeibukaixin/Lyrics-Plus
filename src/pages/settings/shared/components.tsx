@@ -411,6 +411,8 @@ export function ColorRow({ label, description, value, disabled = false, onChange
     setOpen(false);
   };
 
+  const displayedValue = open ? draft : value;
+
   return (
     <Field orientation="horizontal" className={cn(styles.settingRow, styles.colorSettingRow)} data-disabled={disabled || undefined} data-invalid={invalid || undefined}>
       <FieldContent>
@@ -419,11 +421,11 @@ export function ColorRow({ label, description, value, disabled = false, onChange
       </FieldContent>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger render={<Button type="button" variant="outline" className={styles.colorTrigger} disabled={disabled} />}>
-          <span style={{ background: value }} /><code>{value}</code>
+          <span style={{ background: displayedValue }} /><code>{displayedValue}</code>
         </PopoverTrigger>
         <PopoverContent align="end" className={styles.colorPopover}>
           <div className={styles.colorPalette} aria-label={t("settings.common.presetColors", { label })}>
-            {colorChoices.map((color) => <Button type="button" variant="ghost" size="icon-sm" aria-label={color} aria-pressed={color.toLowerCase() === value.toLowerCase()} disabled={disabled} key={color} onClick={() => { onChange(color); setOpen(false); }} style={{ background: color }} />)}
+            {colorChoices.map((color) => <Button type="button" variant="ghost" size="icon-sm" aria-label={color} aria-pressed={color.toLowerCase() === draft.toLowerCase()} disabled={disabled} key={color} onClick={() => { setDraft(color); setInvalid(false); onChange(color); }} style={{ background: color }} />)}
           </div>
           <form onSubmit={(event) => { event.preventDefault(); applyDraft(); }}>
             <InputGroup>
@@ -433,8 +435,8 @@ export function ColorRow({ label, description, value, disabled = false, onChange
                   className={styles.systemColorPicker}
                   aria-label={t("settings.common.systemColorPicker", { label })}
                   disabled={disabled}
-                  value={nativeColorValue(value)}
-                  onChange={(event) => { onChange(event.target.value); setOpen(false); }}
+                  value={nativeColorValue(draft)}
+                  onChange={(event) => { setDraft(event.target.value); setInvalid(false); onChange(event.target.value); }}
                 />
               </InputGroupAddon>
               <InputGroupInput aria-invalid={invalid} aria-label={t("settings.common.colorValue", { label })} disabled={disabled} placeholder={t("settings.common.colorPlaceholder")} spellCheck={false} value={draft} onChange={(event) => { setDraft(event.target.value); setInvalid(false); }} />
