@@ -104,6 +104,15 @@ pub fn get_player_follower_service_status() -> crate::player_lifecycle::PlayerFo
 }
 
 #[tauri::command]
+pub fn force_reregister_player_follower_service(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<crate::player_lifecycle::PlayerFollowerServiceState, String> {
+    let config = state.config.snapshot();
+    crate::player_lifecycle::force_reregister_service(&app, &config.app)
+}
+
+#[tauri::command]
 pub fn open_player_follower_system_settings() -> Result<(), String> {
     crate::player_lifecycle::open_system_settings()
 }

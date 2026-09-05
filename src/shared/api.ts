@@ -36,6 +36,7 @@ export function messageOf(error: unknown): string {
       "resolve_system_media_applications",
       "resolve_player_follower_application",
       "set_player_follower_application",
+      "force_reregister_player_follower_service",
       "resolve_application_by_bundle_id",
       "control_playback",
       "seek_playback",

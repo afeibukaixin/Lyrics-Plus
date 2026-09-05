@@ -106,6 +106,83 @@ mod macos {
         atomic_write(&version_path, SERVICE_VERSION)
     }
 
+    pub(crate) fn force_reregister_service(
+        app: &tauri::AppHandle,
+        preferences: &AppPreferences,
+    ) -> Result<PlayerFollowerServiceState, String> {
+        log::info!("Player follower service re-registration started");
+        let result = force_reregister_service_inner(app, preferences);
+        match &result {
+            Ok(state) => {
+                log::info!("Player follower service re-registration succeeded: state={state:?}")
+            }
+            Err(error) => log::warn!("Player follower service re-registration failed: {error}"),
+        }
+        result
+    }
+
+    fn force_reregister_service_inner(
+        app: &tauri::AppHandle,
+        preferences: &AppPreferences,
+    ) -> Result<PlayerFollowerServiceState, String> {
+        let Some(target) = followed_player_bundle_id(preferences) else {
+            return Err("未选择播放器，无法重新注册跟随服务".into());
+        };
+
+        if !runtime_supports_follower(tauri::is_dev(), true) {
+            return Err("当前系统不支持播放器跟随".into());
+        }
+
+        let service = service();
+        let status = unsafe { service.status() };
+        log::info!(
+            "Player follower service re-registration status: status={}",
+            service_status_name(&status)
+        );
+
+        if status == SMAppServiceStatus::RequiresApproval {
+            return Err("播放器跟随服务已被系统停用，请先在登录项设置中允许 Lyrics Plus".into());
+        }
+
+        cleanup_legacy_launch_agent(app)?;
+        let app_dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|error| format!("无法定位应用数据目录：{error}"))?;
+        let target_path = app_dir.join(TARGET_FILE_NAME);
+        let version_path = app_dir.join(VERSION_FILE_NAME);
+        fs::create_dir_all(&app_dir)
+            .map_err(|error| format!("创建播放器跟随配置目录失败：{error}"))?;
+        atomic_write(&target_path, target)?;
+
+        if status == SMAppServiceStatus::Enabled {
+            reregister(&service)?;
+        } else if status == SMAppServiceStatus::NotRegistered
+            || status == SMAppServiceStatus::NotFound
+        {
+            register(&service)?;
+        } else {
+            return Err("播放器跟随服务处于未知状态，无法重新注册".into());
+        }
+
+        atomic_write(&version_path, SERVICE_VERSION)?;
+        Ok(service_state())
+    }
+
+    fn service_status_name(status: &SMAppServiceStatus) -> &'static str {
+        if *status == SMAppServiceStatus::NotRegistered {
+            "not_registered"
+        } else if *status == SMAppServiceStatus::Enabled {
+            "enabled"
+        } else if *status == SMAppServiceStatus::RequiresApproval {
+            "requires_approval"
+        } else if *status == SMAppServiceStatus::NotFound {
+            "not_found"
+        } else {
+            "unknown"
+        }
+    }
+
     pub(crate) fn service_state() -> PlayerFollowerServiceState {
         if tauri::is_dev() {
             return PlayerFollowerServiceState::Development;
@@ -290,7 +367,9 @@ mod macos {
 }
 
 #[cfg(target_os = "macos")]
-pub(crate) use macos::{open_system_settings, service_state, start_exit_monitor, sync_service};
+pub(crate) use macos::{
+    force_reregister_service, open_system_settings, service_state, start_exit_monitor, sync_service,
+};
 
 #[cfg(not(target_os = "macos"))]
 pub(crate) fn sync_service(
@@ -298,6 +377,17 @@ pub(crate) fn sync_service(
     _preferences: &AppPreferences,
 ) -> Result<(), String> {
     Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn force_reregister_service(
+    _app: &tauri::AppHandle,
+    preferences: &AppPreferences,
+) -> Result<PlayerFollowerServiceState, String> {
+    if followed_player_bundle_id(preferences).is_none() {
+        return Err("未选择播放器，无法重新注册跟随服务".into());
+    }
+    Err("当前系统不支持播放器跟随".into())
 }
 
 #[cfg(not(target_os = "macos"))]

@@ -322,6 +322,7 @@ pub fn run() {
             commands::resolve_player_follower_application,
             commands::set_player_follower_application,
             commands::get_player_follower_service_status,
+            commands::force_reregister_player_follower_service,
             commands::open_player_follower_system_settings,
             commands::open_automation_system_settings,
             commands::get_application_icons,

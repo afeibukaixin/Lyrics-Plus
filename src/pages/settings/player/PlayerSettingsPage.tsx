@@ -27,6 +27,7 @@ export default function PlayerSettingsPage() {
     resettingSection,
     confirmingReset,
     setError,
+    setNotice,
     resetSection,
   } = useSettingsContext();
   const { t } = useTranslation();
@@ -137,6 +138,7 @@ export default function PlayerSettingsPage() {
     if (!selected) return;
     setSavingFollower(true);
     setError(null);
+    setNotice(null);
     try {
       await setPlayerFollowerApplication(await api.resolvePlayerFollowerApplication(selected));
     } catch (error) {
@@ -149,6 +151,7 @@ export default function PlayerSettingsPage() {
 
   const clearFollower = async () => {
     setSavingFollower(true);
+    setNotice(null);
     try {
       await setPlayerFollowerApplication(null);
     } catch (error) {
@@ -159,11 +162,14 @@ export default function PlayerSettingsPage() {
     }
   };
 
-  const retryFollower = async () => {
+  const reregisterFollower = async () => {
     if (!config.app.playerFollowerApplication) return;
     setSavingFollower(true);
+    setError(null);
+    setNotice(null);
     try {
-      await setPlayerFollowerApplication(config.app.playerFollowerApplication);
+      await api.reregisterPlayerFollowerService();
+      setNotice(t("settings.app.playerFollowerReregistered"));
     } catch (error) {
       setError(messageOf(error));
     } finally {
@@ -173,6 +179,7 @@ export default function PlayerSettingsPage() {
   };
 
   const followerUnavailable = followerStatus === null || followerStatus === "development" || followerStatus === "unsupported";
+  const canReregisterFollower = Boolean(config.app.playerFollowerApplication) && !followerUnavailable;
   const systemMediaAllowlist = config.app.systemMediaFilterMode === "allowlist";
   const playbackStatus = playbackStatusText(playback.snapshot, t);
   const playbackNeutral = playback.snapshot.errorCode === "waiting" || playback.snapshot.errorCode === "no_unique_player";
@@ -236,22 +243,23 @@ export default function PlayerSettingsPage() {
       />
     </SettingsSection>
     <SettingsSection id="player-follower" title={t("settings.app.playerFollower")}>
+      {canReregisterFollower && <p className={styles.cardHint}>{t("settings.app.playerFollowerAdhocWarning")}</p>}
       <div className={styles.systemApplicationsToolbar}>
         <p className={styles.cardHint}>{t("settings.app.playerFollowerHint")}</p>
         <div className={styles.shortcutControls}>
           {followerStatus === "development" && <Badge variant="secondary">{t("settings.app.playerFollowerDevelopmentShort")}</Badge>}
           <Button variant="outline" size="sm" disabled={savingFollower || followerUnavailable} onClick={() => void chooseFollower()}><Plus />{t("settings.app.choosePlayerFollower")}</Button>
+          {canReregisterFollower && <Button variant="outline" size="sm" disabled={savingFollower} onClick={() => void reregisterFollower()}>{t("settings.app.retryPlayerFollower")}</Button>}
         </div>
       </div>
       <ApplicationList applications={config.app.playerFollowerApplication ? [config.app.playerFollowerApplication] : []} icons={applicationIcons} names={applicationNames} busy={savingFollower || followerUnavailable} emptyLabel={t("settings.app.playerFollowerEmpty")} removeLabel={t("common.actions.remove")} onRemove={() => void clearFollower()} />
       {followerStatus === "unsupported" && <p className={styles.cardHint} data-error="true">{t("settings.app.playerFollowerUnsupported")}</p>}
       {(followerStatus === "not_found" || followerStatus === "not_registered") && config.app.playerFollowerApplication && <div className={styles.systemApplicationsToolbar}>
         <p className={styles.cardHint} data-error="true">{t(followerStatus === "not_found" ? "settings.app.playerFollowerNotFound" : "settings.app.playerFollowerNotRegistered")}</p>
-        <Button variant="outline" size="sm" disabled={savingFollower} onClick={() => void retryFollower()}>{t("settings.app.retryPlayerFollower")}</Button>
       </div>}
       {followerStatus === "requires_approval" && <div className={styles.systemApplicationsToolbar}>
         <p className={styles.cardHint} data-error="true">{t("settings.app.playerFollowerApproval")}</p>
-        <Button variant="outline" size="sm" onClick={() => void api.openPlayerFollowerSystemSettings().catch((error) => setError(messageOf(error)))}>{t("settings.app.openLoginItems")}</Button>
+        <Button variant="outline" size="sm" disabled={savingFollower} onClick={() => void api.openPlayerFollowerSystemSettings().catch((error) => setError(messageOf(error)))}>{t("settings.app.openLoginItems")}</Button>
       </div>}
     </SettingsSection>
   </SettingsPage>;
