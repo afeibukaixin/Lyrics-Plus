@@ -241,13 +241,33 @@
   transition: color 180ms ease, background-color 180ms ease;
 }
 
+.shell:not([data-locked="true"]) .line {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.shell:not([data-locked="true"]) .line:hover {
+  color: var(--list-active-color);
+  background: var(--list-active-background);
+}
+
+.shell:not([data-locked="true"]) .line:hover p,
+.shell:not([data-locked="true"]) .line:hover small { opacity: var(--list-active-opacity); }
+
+.sectionBreak {
+  flex: 0 0 var(--list-section-break-height);
+}
+
+.sectionBreak[data-compact="true"] {
+  flex-basis: calc(var(--list-section-break-height) * 0.2);
+}
+
 .line p {
   font-size: var(--list-font-size);
   font-weight: var(--list-font-weight);
   line-height: var(--list-line-height);
   opacity: var(--list-inactive-opacity);
   text-align: var(--list-alignment);
-  text-shadow: 0 1px 3px rgb(0 0 0 / 36%);
   text-wrap: pretty;
   transition: opacity 180ms ease;
 }
@@ -257,9 +277,15 @@
   line-height: var(--list-line-height);
   opacity: var(--list-inactive-opacity);
   text-align: var(--list-alignment);
-  text-shadow: 0 1px 2px rgb(0 0 0 / 36%);
   text-wrap: pretty;
   transition: opacity 180ms ease;
+}
+
+.line p,
+.line small {
+  text-shadow: var(--list-text-shadow);
+  -webkit-text-stroke: var(--list-text-stroke-width) var(--list-text-stroke-color);
+  paint-order: stroke fill;
 }
 
 .line small[data-kind="translation"] { color: var(--list-translation-color); }

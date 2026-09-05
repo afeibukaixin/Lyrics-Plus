@@ -3,6 +3,7 @@ import {
   defaultLyricsBaseAppearance,
   defaultLyricsStyleInheritance,
   defaultListLyricsAppearance,
+  defaultListLyricsLineOrder,
   defaultDesktopLyricsAppearance,
   defaultDesktopLyricsPresentation,
   defaultNotchLyricsAppearance,
@@ -18,7 +19,7 @@ const defaultTitleFilterKeywords = [
 ];
 
 export const defaultConfig: AppConfig = {
-  schemaVersion: 64,
+  schemaVersion: 65,
   app: { theme: "dark", language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, hideMenuBarIcon: false, silentStartup: false, autoCheckUpdates: true, lyricsWindowsShowOnAllSpaces: false, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     chineseConversion: "original",
@@ -55,7 +56,7 @@ export const defaultConfig: AppConfig = {
         appearance: defaultDesktopLyricsAppearance,
       },
       statusBar: { enabled: false, hideWhenNotPlaying: false, presentation: defaultStatusBarLyricsPresentation, appearance: defaultStatusBarLyricsAppearance },
-      listWindow: { enabled: false, alwaysOnTop: false, locked: false, showTranslation: true, showRomanization: false, appearance: defaultListLyricsAppearance },
+      listWindow: { enabled: false, alwaysOnTop: false, locked: false, showTranslation: true, showRomanization: false, lineOrder: defaultListLyricsLineOrder, appearance: defaultListLyricsAppearance },
       notch: {
         enabled: false,
         hideWhenNotPlaying: false,

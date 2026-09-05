@@ -1,5 +1,6 @@
 import type {
   ListLyricsAppearance,
+  ListLyricsLineOrder,
   LyricsBaseAppearance,
   LyricsStyleInheritance,
   NotchLyricsAppearance,
@@ -154,8 +155,20 @@ export const defaultListLyricsAppearance: ListLyricsAppearance = {
   backgroundColor: "#171821",
   backgroundOpacity: 1,
   backgroundMode: "solid",
+  textShadowOffsetX: 0,
+  textShadowOffsetY: 1,
+  textShadowBlur: 4,
+  textShadowColor: "rgba(0, 0, 0, 0.55)",
+  textStrokeWidth: 0.5,
+  textStrokeColor: "rgba(0, 0, 0, 0.7)",
   alignment: "center",
 };
+
+export const defaultListLyricsLineOrder: ListLyricsLineOrder = [
+  "original",
+  "translation",
+  "romanization",
+];
 
 export const defaultNotchLyricsAppearance: NotchLyricsAppearance = {
   fontFamily: defaultOverlayStyle.fontFamily,

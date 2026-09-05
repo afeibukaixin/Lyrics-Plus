@@ -84,6 +84,9 @@ export default function LyricsListWindow() {
         "--list-active-background": appearance.activeBackgroundColor,
         "--list-background": appearance.backgroundColor,
         "--list-background-opacity": transparentBackground ? 0 : appearance.backgroundOpacity,
+        "--list-text-shadow": `${appearance.textShadowOffsetX}px ${appearance.textShadowOffsetY}px ${appearance.textShadowBlur}px ${appearance.textShadowColor}`,
+        "--list-text-stroke-width": `${appearance.textStrokeWidth}px`,
+        "--list-text-stroke-color": appearance.textStrokeColor,
         "--list-alignment": appearance.alignment,
       } as CSSProperties}
     >
@@ -128,6 +131,7 @@ export default function LyricsListWindow() {
         t={t}
         lines={lines}
         auxiliary={auxiliary}
+        lineOrder={options.lineOrder}
         activeIndex={lyrics.activeIndex}
         activeRef={following.activeRef}
         following={following.following}

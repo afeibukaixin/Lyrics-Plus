@@ -1,7 +1,7 @@
 import type { TFunction } from "i18next";
 import { ArrowDownToLine, Music2, Search } from "lucide-react";
 import type { RefObject } from "react";
-import type { LyricsLine, LyricsRuntimeStatus } from "../../shared/types";
+import type { LyricsLine, LyricsRuntimeStatus, ListLyricsLineOrder } from "../../shared/types";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,6 +17,8 @@ type LyricsListContentProps = {
   t: TFunction;
   lines: LyricsLine[];
   auxiliary: LyricsListAuxiliaryLine[];
+  lineOrder: ListLyricsLineOrder;
+  onLineClick?: (line: LyricsLine) => void;
   activeIndex: number;
   activeRef: RefObject<HTMLDivElement | null>;
   following: boolean;
@@ -32,6 +34,8 @@ export function LyricsListContent({
   t,
   lines,
   auxiliary,
+  lineOrder,
+  onLineClick,
   activeIndex,
   activeRef,
   following,
@@ -59,9 +63,13 @@ export function LyricsListContent({
                   role="listitem"
                   aria-current={active ? "true" : undefined}
                 >
-                  <p>{line.text || "\u00a0"}</p>
-                  {supporting?.translation && <small data-kind="translation">{supporting.translation.text}</small>}
-                  {supporting?.romanization && <small data-kind="romanization">{supporting.romanization.text}</small>}
+                  {lineOrder.map((kind) => {
+                    if (kind === "original") return <p key={kind}>{line.text}</p>;
+                    const supportingLine = supporting?.[kind];
+                    return supportingLine
+                      ? <small data-kind={kind} key={kind}>{supportingLine.text}</small>
+                      : null;
+                  })}
                 </div>
               );
             })}

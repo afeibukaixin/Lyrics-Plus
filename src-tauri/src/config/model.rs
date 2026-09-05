@@ -539,7 +539,38 @@ pub struct ListLyricsPreferences {
     pub locked: bool,
     pub show_translation: bool,
     pub show_romanization: bool,
+    pub line_order: [ListLyricsLineKind; 3],
     pub appearance: ListLyricsAppearance,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ListLyricsLineKind {
+    Original,
+    Translation,
+    Romanization,
+}
+
+impl ListLyricsLineKind {
+    fn order_index(self) -> usize {
+        match self {
+            Self::Original => 0,
+            Self::Translation => 1,
+            Self::Romanization => 2,
+        }
+    }
+}
+
+fn is_valid_list_line_order(order: &[ListLyricsLineKind; 3]) -> bool {
+    let mut seen = [false; 3];
+    for kind in order {
+        let index = (*kind).order_index();
+        if seen[index] {
+            return false;
+        }
+        seen[index] = true;
+    }
+    true
 }
 
 impl Default for ListLyricsPreferences {
@@ -550,6 +581,11 @@ impl Default for ListLyricsPreferences {
             locked: false,
             show_translation: true,
             show_romanization: false,
+            line_order: [
+                ListLyricsLineKind::Original,
+                ListLyricsLineKind::Translation,
+                ListLyricsLineKind::Romanization,
+            ],
             appearance: ListLyricsAppearance::default(),
         }
     }
@@ -575,6 +611,12 @@ pub struct ListLyricsAppearance {
     pub background_color: String,
     pub background_opacity: f64,
     pub background_mode: String,
+    pub text_shadow_offset_x: f64,
+    pub text_shadow_offset_y: f64,
+    pub text_shadow_blur: f64,
+    pub text_shadow_color: String,
+    pub text_stroke_width: f64,
+    pub text_stroke_color: String,
     pub alignment: String,
 }
 
@@ -598,6 +640,12 @@ impl Default for ListLyricsAppearance {
             background_color: "#171821".into(),
             background_opacity: 1.0,
             background_mode: "solid".into(),
+            text_shadow_offset_x: 0.0,
+            text_shadow_offset_y: 1.0,
+            text_shadow_blur: 4.0,
+            text_shadow_color: "rgba(0, 0, 0, 0.55)".into(),
+            text_stroke_width: 0.5,
+            text_stroke_color: "rgba(0, 0, 0, 0.7)".into(),
             alignment: "center".into(),
         }
     }
@@ -962,6 +1010,9 @@ impl AppConfig {
         status_appearance.secondary_font_weight =
             normalize_display_font_weight(status_appearance.secondary_font_weight);
         status_appearance.width = status_appearance.width.clamp(120, 360);
+        if !is_valid_list_line_order(&self.lyrics.displays.list_window.line_order) {
+            return Err("歌词窗口歌词顺序必须包含原文、翻译和音译各一次".into());
+        }
         let list_appearance = &mut self.lyrics.displays.list_window.appearance;
         list_appearance.font_size = list_appearance.font_size.clamp(12, 56);
         list_appearance.font_weight = normalize_display_font_weight(list_appearance.font_weight);
@@ -974,6 +1025,12 @@ impl AppConfig {
         list_appearance.inactive_opacity = list_appearance.inactive_opacity.clamp(0.0, 1.0);
         list_appearance.background_opacity =
             list_appearance.background_opacity.clamp(0.0, 1.0);
+        list_appearance.text_shadow_offset_x =
+            list_appearance.text_shadow_offset_x.clamp(-20.0, 20.0);
+        list_appearance.text_shadow_offset_y =
+            list_appearance.text_shadow_offset_y.clamp(-20.0, 20.0);
+        list_appearance.text_shadow_blur = list_appearance.text_shadow_blur.clamp(0.0, 40.0);
+        list_appearance.text_stroke_width = list_appearance.text_stroke_width.clamp(0.0, 8.0);
         if !matches!(
             list_appearance.background_mode.as_str(),
             "solid" | "transparent"
@@ -1014,6 +1071,8 @@ impl AppConfig {
                 list_appearance.active_background_color.as_str(),
             ),
             ("列表窗口背景", list_appearance.background_color.as_str()),
+            ("列表歌词阴影颜色", list_appearance.text_shadow_color.as_str()),
+            ("列表歌词描边颜色", list_appearance.text_stroke_color.as_str()),
             ("灵动岛歌词颜色", notch_appearance.active_color.as_str()),
             ("灵动岛未激活颜色", notch_appearance.inactive_color.as_str()),
             ("灵动岛翻译颜色", notch_appearance.translation_color.as_str()),

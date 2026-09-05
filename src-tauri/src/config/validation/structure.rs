@@ -247,6 +247,7 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
                         "locked",
                         "showTranslation",
                         "showRomanization",
+                        "lineOrder",
                         "appearance",
                     ],
                 )?;
@@ -272,6 +273,12 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
                             "backgroundColor",
                             "backgroundOpacity",
                             "backgroundMode",
+                            "textShadowOffsetX",
+                            "textShadowOffsetY",
+                            "textShadowBlur",
+                            "textShadowColor",
+                            "textStrokeWidth",
+                            "textStrokeColor",
                             "alignment",
                         ],
                     )?;

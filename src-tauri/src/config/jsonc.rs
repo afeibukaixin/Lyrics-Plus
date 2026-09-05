@@ -125,6 +125,9 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             line if line.starts_with("          \"showRomanization\":") => {
                 Some(("          ", ConfigComment::ShowRomanization))
             }
+            line if line.starts_with("        \"lineOrder\":") => {
+                Some(("        ", ConfigComment::LineOrder))
+            }
             line if line.starts_with("          \"primaryLinePosition\":") => {
                 Some(("          ", ConfigComment::PrimaryLinePosition))
             }

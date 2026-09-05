@@ -620,6 +620,44 @@ fn migrate_v64_compact_display_preferences(user: &mut Value, version: u16) {
     }
 }
 
+pub(crate) fn migrate_v65_list_line_order(user: &mut Value, version: u16) {
+    if version >= 65 {
+        return;
+    }
+    let Some(list_window) = user
+        .pointer_mut("/lyrics/displays/listWindow")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    list_window
+        .entry("lineOrder")
+        .or_insert_with(|| serde_json::json!(["original", "translation", "romanization"]));
+    if let Some(appearance) = list_window
+        .get_mut("appearance")
+        .and_then(Value::as_object_mut)
+    {
+        appearance
+            .entry("textShadowOffsetX")
+            .or_insert_with(|| Value::from(0.0));
+        appearance
+            .entry("textShadowOffsetY")
+            .or_insert_with(|| Value::from(1.0));
+        appearance
+            .entry("textShadowBlur")
+            .or_insert_with(|| Value::from(4.0));
+        appearance
+            .entry("textShadowColor")
+            .or_insert_with(|| Value::from("rgba(0, 0, 0, 0.55)"));
+        appearance
+            .entry("textStrokeWidth")
+            .or_insert_with(|| Value::from(0.5));
+        appearance
+            .entry("textStrokeColor")
+            .or_insert_with(|| Value::from("rgba(0, 0, 0, 0.7)"));
+    }
+}
+
 fn remove_retired_fullscreen_space_preferences(user: &mut Value) {
     if let Some(overlay) = user.pointer_mut("/overlay").and_then(Value::as_object_mut) {
         overlay.remove("joinOtherAppsFullscreen");

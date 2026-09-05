@@ -87,6 +87,7 @@ pub(super) fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftEr
     config::migrate_v63_simplified_japanese_repair(&mut user, version);
     let migrated_layout = config::migrate_legacy_overlay_layout(&mut user, version, raw)?;
     config::migrate_v64_compact_display_preferences(&mut user, version);
+    config::migrate_v65_list_line_order(&mut user, version);
     config::remove_retired_fullscreen_space_preferences(&mut user);
     super::structure::validate_known_fields(&user, raw)?;
     super::fields::validate_field_types_and_options(&user, raw)?;

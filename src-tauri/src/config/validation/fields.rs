@@ -273,6 +273,7 @@ pub(super) fn validate_field_types_and_options(
             ));
         }
     }
+    validate_list_line_order(value, raw)?;
     validate_string_option(
         value,
         raw,
@@ -490,24 +491,68 @@ pub(super) fn validate_field_types_and_options(
             return Err(error_at_key(raw, "amllBaseUrl", "amllBaseUrl 不能为空"));
         }
     }
-    for key in [
-        "activeColor",
-        "inactiveColor",
-        "solidColor",
-        "translationColor",
-        "romanizationColor",
-        "textShadowColor",
-        "textStrokeColor",
+    for appearance_path in [
+        "/lyrics/displays/desktop/appearance",
+        "/lyrics/displays/listWindow/appearance",
     ] {
-        let pointer = format!("/lyrics/displays/desktop/appearance/{key}");
-        if let Some(candidate) = value.pointer(&pointer) {
-            let color = candidate
-                .as_str()
-                .ok_or_else(|| error_at_key(raw, key, &format!("{key} 必须是颜色字符串")))?;
-            if !is_supported_color(color) {
-                return Err(error_at_key(raw, key, &format!("{key} 不是有效颜色")));
+        for key in [
+            "activeColor",
+            "inactiveColor",
+            "solidColor",
+            "translationColor",
+            "romanizationColor",
+            "textShadowColor",
+            "textStrokeColor",
+        ] {
+            let pointer = format!("{appearance_path}/{key}");
+            if let Some(candidate) = value.pointer(&pointer) {
+                let color = candidate
+                    .as_str()
+                    .ok_or_else(|| error_at_key(raw, key, &format!("{key} 必须是颜色字符串")))?;
+                if !is_supported_color(color) {
+                    return Err(error_at_key(raw, key, &format!("{key} 不是有效颜色")));
+                }
             }
         }
+    }
+    Ok(())
+}
+
+fn validate_list_line_order(value: &Value, raw: &str) -> Result<(), ConfigDraftError> {
+    let Some(candidate) = value.pointer("/lyrics/displays/listWindow/lineOrder") else {
+        return Ok(());
+    };
+    let items = candidate
+        .as_array()
+        .ok_or_else(|| error_at_key(raw, "lineOrder", "lineOrder 必须是数组"))?;
+    if items.len() != 3 {
+        return Err(error_at_key(
+            raw,
+            "lineOrder",
+            "lineOrder 必须恰好包含 original、translation、romanization 各一次",
+        ));
+    }
+    let mut seen = [false; 3];
+    for item in items {
+        let kind = item
+            .as_str()
+            .ok_or_else(|| error_at_key(raw, "lineOrder", "lineOrder 中的项目必须是字符串"))?;
+        let index = match kind {
+            "original" => 0,
+            "translation" => 1,
+            "romanization" => 2,
+            _ => {
+                return Err(error_at_key(
+                    raw,
+                    "lineOrder",
+                    "lineOrder 仅支持 original、translation、romanization",
+                ));
+            }
+        };
+        if seen[index] {
+            return Err(error_at_key(raw, "lineOrder", "lineOrder 不能包含重复项目"));
+        }
+        seen[index] = true;
     }
     Ok(())
 }

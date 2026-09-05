@@ -113,6 +113,19 @@
 .providerStatus[data-health="unavailable"] { color: var(--destructive); }
 .dragHandle { cursor: grab; touch-action: none; user-select: none; }
 .dragHandle:active { cursor: grabbing; }
+.lineOrderSettingRow { min-height: 0; align-items: stretch; gap: 4px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.lineOrderSettingRow:last-child { border-bottom: 0; }
+.lineOrderSettingHeader { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; }
+.lineOrderSettingHeader > [data-slot="field-content"] { min-width: 0; flex: 1 1 auto; }
+.lineOrderSettingRow > [data-slot="field-description"] { width: 100%; margin: 0; }
+.lineOrderEditor { display: flex; min-width: 0; align-items: center; gap: 8px; overflow-x: auto; padding: 2px 0; }
+.lineOrderEditor[data-dragging="true"] { user-select: none; }
+.lineOrderControl { flex: 1 1 260px; max-width: 390px; min-width: 0; }
+.lineOrderItem { flex: none; transition: transform .15s cubic-bezier(.2, .8, .2, 1), opacity .15s, box-shadow .15s; will-change: transform; }
+.lineOrderItem[data-dragging="true"] { position: relative; z-index: 2; transition: none; }
+.lineOrderTag { gap: 2px; padding: 2px 6px 2px 3px; white-space: nowrap; }
+.lineOrderHandle { cursor: grab; touch-action: none; user-select: none; }
+.lineOrderHandle:active { cursor: grabbing; }
 .providerConfigFields { margin: 18px 0; }
 
 .systemApplicationsToolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 12px 16px; }

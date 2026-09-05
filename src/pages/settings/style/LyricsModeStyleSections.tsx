@@ -6,6 +6,8 @@ import type {
   LyricsMonitor,
   LyricsStyleInheritance,
   LyricsStyleMode,
+  ListLyricsLineKind,
+  ListLyricsLineOrder,
   NotchSlotContent,
   NotchLyricsPreferences,
   OverlayFontWeight,
@@ -18,8 +20,10 @@ import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { reportFrontendError } from "../../../shared/debugLog";
 import { emitNotchWidthPreview } from "../../../shared/tauriEvent";
-import { api, isTauriRuntime } from "../../../shared/api";
+import { api, isTauriRuntime, messageOf } from "../../../shared/api";
 import CompactLyricsPresentationSettings from "./CompactLyricsPresentationSettings";
+import ListLyricsLineOrderEditor from "./ListLyricsLineOrderEditor";
+import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field";
 
 type AuxiliaryMode = Exclude<LyricsStyleMode, "desktop">;
 
@@ -29,6 +33,7 @@ type Props = {
   inheritance: LyricsStyleInheritance;
   update: <Mode extends AuxiliaryMode>(mode: Mode, preferences: LyricsDisplayPreferences[Mode]) => Promise<void>;
   setListLyricsLocked: (locked: boolean) => Promise<void>;
+  setError: (message: string | null) => void;
   updateInheritance: (mode: LyricsStyleMode, inheritance: LyricsModeStyleInheritance) => Promise<void>;
   resetPosition: (mode: AuxiliaryMode) => Promise<void>;
 };
@@ -78,7 +83,7 @@ export function auxiliarySections(mode: AuxiliaryMode, labels: AuxiliarySectionL
   ];
 }
 
-export default function LyricsModeStyleSections({ mode, displays, inheritance, update, setListLyricsLocked, updateInheritance, resetPosition }: Props) {
+export default function LyricsModeStyleSections({ mode, displays, inheritance, update, setListLyricsLocked, setError, updateInheritance, resetPosition }: Props) {
   const { t } = useTranslation();
   const [notchMonitors, setNotchMonitors] = useState<LyricsMonitor[]>([]);
   const notchWidthPreviewActiveRef = useRef(false);
@@ -169,12 +174,41 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
     const value = displays.listWindow;
     const appearance = value.appearance;
     const save = (next: ListLyricsPreferences) => void update("listWindow", next);
+    const lineOrderLabels: Record<ListLyricsLineKind, string> = {
+      original: t("settings.display.listWindow.original"),
+      translation: t("common.feature.translation"),
+      romanization: t("common.feature.romanization"),
+    };
+    const saveLineOrder = async (lineOrder: ListLyricsLineOrder) => {
+      try {
+        await update("listWindow", { ...value, lineOrder });
+      } catch (error) {
+        setError(messageOf(error));
+        throw error;
+      }
+    };
     return <>
       <SettingsSection id="mode-state" title={t("settings.style.modeControls.displayInteraction")}>
         <ToggleRow label={t("settings.display.listWindow.show")} value={value.enabled} onChange={(enabled) => save({ ...value, enabled })} />
         <ToggleRow label={t("settings.display.listWindow.lock")} description={t("settings.display.listWindow.lockHint")} value={value.locked} onChange={updateListLocked} />
         <ToggleRow label={t("settings.display.listWindow.translation")} value={value.showTranslation} onChange={(showTranslation) => save({ ...value, showTranslation })} />
         <ToggleRow label={t("settings.display.listWindow.romanization")} value={value.showRomanization} onChange={(showRomanization) => save({ ...value, showRomanization })} />
+        <Field className={styles.lineOrderSettingRow}>
+          <div className={styles.lineOrderSettingHeader}>
+            <FieldContent>
+              <FieldTitle>{t("settings.display.listWindow.lineOrder")}</FieldTitle>
+            </FieldContent>
+            <div className={styles.lineOrderControl}>
+              <ListLyricsLineOrderEditor
+                order={value.lineOrder}
+                labels={lineOrderLabels}
+                dragLabel={(kind) => t("settings.display.listWindow.dragLine", { line: lineOrderLabels[kind] })}
+                onChange={saveLineOrder}
+              />
+            </div>
+          </div>
+          <FieldDescription>{t("settings.display.listWindow.lineOrderHint")}</FieldDescription>
+        </Field>
       </SettingsSection>
       {inheritanceSection}
       <SettingsSection id="mode-text" title={t("settings.style.modeControls.textLayout")}>
@@ -196,6 +230,12 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
         </>}
         <RangeRow label={t("settings.display.listWindow.activeOpacity")} value={appearance.activeOpacity} min={0} max={1} step={0.05} suffix="%" displayValue={Math.round(appearance.activeOpacity * 100)} onChange={(activeOpacity) => save(patchAppearance(value, { activeOpacity }))} />
         <RangeRow label={t("settings.display.listWindow.inactiveOpacity")} value={appearance.inactiveOpacity} min={0} max={1} step={0.05} suffix="%" displayValue={Math.round(appearance.inactiveOpacity * 100)} onChange={(inactiveOpacity) => save(patchAppearance(value, { inactiveOpacity }))} />
+        <RangeRow label={t("settings.overlay.textShadowOffsetX")} value={appearance.textShadowOffsetX} min={-20} max={20} suffix="px" onChange={(textShadowOffsetX) => save(patchAppearance(value, { textShadowOffsetX }))} />
+        <RangeRow label={t("settings.overlay.textShadowOffsetY")} value={appearance.textShadowOffsetY} min={-20} max={20} suffix="px" onChange={(textShadowOffsetY) => save(patchAppearance(value, { textShadowOffsetY }))} />
+        <RangeRow label={t("settings.overlay.textShadowBlur")} value={appearance.textShadowBlur} min={0} max={40} suffix="px" onChange={(textShadowBlur) => save(patchAppearance(value, { textShadowBlur }))} />
+        <ColorRow label={t("settings.overlay.textShadowColor")} description={t("settings.overlay.textShadowColorHint")} value={appearance.textShadowColor} onChange={(textShadowColor) => save(patchAppearance(value, { textShadowColor }))} />
+        <RangeRow label={t("settings.overlay.textStrokeWidth")} description={t("settings.overlay.textStrokeWidthHint")} value={appearance.textStrokeWidth} min={0} max={8} step={0.5} suffix="px" onChange={(textStrokeWidth) => save(patchAppearance(value, { textStrokeWidth }))} />
+        <ColorRow label={t("settings.overlay.textStrokeColor")} description={t("settings.overlay.textStrokeColorHint")} value={appearance.textStrokeColor} onChange={(textStrokeColor) => save(patchAppearance(value, { textStrokeColor }))} />
         <ColorRow label={t("settings.style.modeControls.activeBackground")} value={appearance.activeBackgroundColor} onChange={(activeBackgroundColor) => save(patchAppearance(value, { activeBackgroundColor }))} />
       </SettingsSection>
       <SettingsSection id="mode-background" title={t("settings.style.modeControls.backgroundSize")}>

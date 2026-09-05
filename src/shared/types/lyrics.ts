@@ -65,6 +65,14 @@ export type CompactKaraokeStyle = "sweep" | "highlight";
 
 export type StatusBarAlignment = "left" | "center" | "right";
 
+export type ListLyricsLineKind = "original" | "translation" | "romanization";
+
+export type ListLyricsLineOrder = [
+  ListLyricsLineKind,
+  ListLyricsLineKind,
+  ListLyricsLineKind,
+];
+
 export type SupportingLyricsPriority = "translation" | "romanization";
 
 export type CompactLyricsPresentation = {
@@ -149,6 +157,12 @@ export type ListLyricsAppearance = {
   backgroundColor: string;
   backgroundOpacity: number;
   backgroundMode: "solid" | "transparent";
+  textShadowOffsetX: number;
+  textShadowOffsetY: number;
+  textShadowBlur: number;
+  textShadowColor: string;
+  textStrokeWidth: number;
+  textStrokeColor: string;
   alignment: "left" | "center" | "right";
 };
 
@@ -197,6 +211,7 @@ export type LyricsDisplayPreferences = {
     locked: boolean;
     showTranslation: boolean;
     showRomanization: boolean;
+    lineOrder: ListLyricsLineOrder;
     appearance: ListLyricsAppearance;
   };
   notch: {

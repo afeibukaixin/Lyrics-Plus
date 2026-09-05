@@ -132,6 +132,30 @@ pub(super) fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), Co
             1.0,
         ),
         (
+            "textShadowOffsetX",
+            value.pointer("/lyrics/displays/listWindow/appearance/textShadowOffsetX"),
+            -20.0,
+            20.0,
+        ),
+        (
+            "textShadowOffsetY",
+            value.pointer("/lyrics/displays/listWindow/appearance/textShadowOffsetY"),
+            -20.0,
+            20.0,
+        ),
+        (
+            "textShadowBlur",
+            value.pointer("/lyrics/displays/listWindow/appearance/textShadowBlur"),
+            0.0,
+            40.0,
+        ),
+        (
+            "textStrokeWidth",
+            value.pointer("/lyrics/displays/listWindow/appearance/textStrokeWidth"),
+            0.0,
+            8.0,
+        ),
+        (
             "fontSize",
             value.pointer("/lyrics/displays/notch/appearance/fontSize"),
             12.0,
