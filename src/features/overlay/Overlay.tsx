@@ -1,9 +1,9 @@
 import { useRef, useState } from "react";
-import { isTauriRuntime } from "../../shared/api";
 import {
   secondaryDisplayFlags,
   type ToolbarPlacement,
 } from "../../shared/types";
+import { isMacTauriRuntime } from "../../shared/tauriEvent";
 import styles from "./Overlay.module.scss";
 import { OverlayKaraokeLine } from "./OverlayKaraokeLine";
 import { useOverlayContentFit } from "./useOverlayContentFit";
@@ -78,10 +78,8 @@ export default function Overlay() {
   const transparentMode = style.backgroundMode === "transparent" || style.background === "transparent";
   const glassEnabled = !transparentMode && style.background === "glass";
   const effectiveBackgroundOpacity = transparentMode ? 0 : style.backgroundOpacity;
-  const nativeVibrancy = isTauriRuntime() && /Macintosh|Mac OS X/.test(navigator.userAgent);
-  const backdropFilter = glassEnabled && !nativeVibrancy
-    ? `blur(${style.backgroundBlur}px) saturate(1.2)`
-    : "none";
+  const backdropFilter = glassEnabled ? `blur(${style.backgroundBlur}px)` : "none";
+  const backdropKeepAlive = isMacTauriRuntime() && glassEnabled && style.backgroundBlur > 0;
   const minimumHorizontalWidth = Math.min(fitLimits.width, toolbarMinimums.horizontal);
   const minimumVerticalHeight = Math.min(fitLimits.height, toolbarMinimums.vertical);
   const {
@@ -261,6 +259,7 @@ export default function Overlay() {
       data-constrained={constrained}
       data-hover={overlayHovered || unlockFeedback}
       data-resizing={resizing}
+      data-backdrop-keepalive={backdropKeepAlive ? "true" : undefined}
       onPointerDown={startWindowDrag}
       style={{
         "--lyric-font-family": style.fontFamily,

@@ -36,22 +36,17 @@
   padding: 16px 20px 14px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   cursor: grab;
+  isolation: isolate;
 }
 
 .header:active { cursor: grabbing; }
-.track { min-width: 0; }
-
-.dragRegion {
-  position: absolute;
-  z-index: 3;
-  top: 0;
-  right: 12px;
-  left: 12px;
-  height: 24px;
-  cursor: grab;
+.track,
+.source {
+  position: relative;
+  z-index: 1;
 }
 
-.dragRegion:active { cursor: grabbing; }
+.track { min-width: 0; }
 
 .track h1,
 .track p,
@@ -94,15 +89,51 @@
   right: 0;
   left: 0;
   border-bottom: 0;
+  background: transparent;
+  opacity: 1;
+  transform: none;
+}
+
+.shell[data-background-mode="transparent"] .header::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: inherit;
   background: color-mix(in srgb, var(--list-background) 78%, transparent);
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-4px);
-  transition: opacity 150ms ease, transform 150ms ease;
+  content: "";
+  transform: translateZ(0);
+  transition: opacity 150ms ease;
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  will-change: opacity;
 }
 
-.shell[data-background-mode="transparent"][data-toolbar-visible="true"] .header {
+.shell[data-backdrop-keepalive="true"] .header::before {
+  // Header 的背景层独立保活，避免影响标题文字的位移动画。
+  -webkit-animation: list-backdrop-compositor-keepalive 1s linear infinite alternate;
+  animation: list-backdrop-compositor-keepalive 1s linear infinite alternate;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  -webkit-transform-style: preserve-3d;
+  transform-style: preserve-3d;
+  will-change: opacity, transform, backdrop-filter;
+}
+
+.shell[data-background-mode="transparent"] .header > .track,
+.shell[data-background-mode="transparent"] .header > .source {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.shell[data-background-mode="transparent"][data-toolbar-visible="true"] .header::before {
+  opacity: 1;
+}
+
+.shell[data-background-mode="transparent"][data-toolbar-visible="true"] .header > .track,
+.shell[data-background-mode="transparent"][data-toolbar-visible="true"] .header > .source {
   opacity: 1;
   transform: translateY(0);
 }
@@ -135,6 +166,7 @@
   transform: translate(-50%, -5px);
   transition: opacity 150ms ease, transform 150ms ease;
   backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
 :global(html[data-resolved-theme="light"]) .toolbar {
@@ -354,6 +386,16 @@
 .resizeNorthWest { top: 0; left: 0; cursor: nwse-resize; }
 .resizeSouthEast { right: 0; bottom: 0; cursor: nwse-resize; }
 .resizeSouthWest { bottom: 0; left: 0; cursor: nesw-resize; }
+
+@-webkit-keyframes list-backdrop-compositor-keepalive {
+  from { -webkit-transform: translate3d(0, 0, 0); transform: translate3d(0, 0, 0); }
+  to { -webkit-transform: translate3d(0, 0, .001px); transform: translate3d(0, 0, .001px); }
+}
+
+@keyframes list-backdrop-compositor-keepalive {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, 0, .001px); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .header,

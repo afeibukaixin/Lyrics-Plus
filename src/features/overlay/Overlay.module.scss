@@ -16,6 +16,17 @@
   overflow: hidden; border-radius: var(--background-radius); pointer-events: none;
   transition: backdrop-filter .16s ease, -webkit-backdrop-filter .16s ease;
 }
+.overlay[data-backdrop-keepalive="true"] .surface {
+  // macOS 透明 WebView 可能在窗口静止时回收 backdrop-filter 的合成层。
+  // 仅移动独立的 surface 层，保持文字内容和交互动画不变。
+  -webkit-animation: overlay-backdrop-compositor-keepalive 1s linear infinite alternate;
+  animation: overlay-backdrop-compositor-keepalive 1s linear infinite alternate;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  -webkit-transform-style: preserve-3d;
+  transform-style: preserve-3d;
+  will-change: transform, backdrop-filter;
+}
 .surface::before {
   content: ""; position: absolute; inset: 0; z-index: 0; border-radius: inherit;
   opacity: var(--background-opacity);
@@ -202,7 +213,7 @@
   display: flex; align-items: center; gap: 3px; padding: 3px 5px; overflow-x: auto; overflow-y: hidden;
   border: 1px solid var(--border); border-radius: 9px; background: color-mix(in srgb, var(--popover) 90%, transparent); box-shadow: 0 7px 24px rgb(0 0 0 / 18%);
   opacity: 0; pointer-events: none;
-  transform: translate(-50%, -5px); transition: opacity .16s, transform .16s; backdrop-filter: blur(14px);
+  transform: translate(-50%, -5px); transition: opacity .16s, transform .16s; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   cursor: default;
 }
 .overlay:not([data-orientation="vertical"])[data-toolbar-placement="bottom"] .toolbar {
@@ -250,6 +261,16 @@
 @keyframes vertical-marquee-once {
   0%, 12% { transform: translateY(0); }
   88%, 100% { transform: translateY(calc(0px - var(--marquee-distance))); }
+}
+
+@-webkit-keyframes overlay-backdrop-compositor-keepalive {
+  from { -webkit-transform: translate3d(0, 0, 0); transform: translate3d(0, 0, 0); }
+  to { -webkit-transform: translate3d(0, 0, .001px); transform: translate3d(0, 0, .001px); }
+}
+
+@keyframes overlay-backdrop-compositor-keepalive {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, 0, .001px); }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -251,14 +251,6 @@ pub fn run() {
                 if matches!(event, tauri::WindowEvent::Resized(_)) {
                     if let Some(overlay) = window.app_handle().get_webview_window("lyrics-overlay")
                     {
-                        if let Some(state) = window.app_handle().try_state::<AppState>() {
-                            let style = state
-                                .overlay_style
-                                .read()
-                                .unwrap_or_else(|error| error.into_inner())
-                                .clone();
-                            sync_overlay_vibrancy(&overlay, &style);
-                        }
                         if !suppress_overlay_persistence(window.app_handle(), &overlay) {
                             persist_overlay_state(window.app_handle(), &overlay);
                         }

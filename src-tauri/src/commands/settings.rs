@@ -336,7 +336,6 @@ pub fn reset_settings_section(
                 .unwrap_or_else(|error| error.into_inner()) = style.clone();
 
             if let Some(window) = app.get_webview_window("lyrics-overlay") {
-                crate::sync_overlay_vibrancy(&window, &style);
                 crate::reset_overlay_toolbar_placement(&app, style.orientation);
             }
             app.emit("overlay://style", &style)
@@ -395,7 +394,6 @@ pub fn reset_settings_section(
             let window = app
                 .get_webview_window("lyrics-overlay")
                 .ok_or_else(|| "歌词浮窗不存在".to_string())?;
-            crate::sync_overlay_vibrancy(&window, &style);
             window
                 .set_ignore_cursor_events(false)
                 .map_err(|error| error.to_string())?;

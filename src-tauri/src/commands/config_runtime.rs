@@ -157,9 +157,6 @@ pub(super) fn apply_app_config(
         .overlay_style
         .write()
         .unwrap_or_else(|error| error.into_inner()) = style.clone();
-    if let Some(window) = app.get_webview_window("lyrics-overlay") {
-        crate::sync_overlay_vibrancy(&window, &style);
-    }
 
     state
         .providers

@@ -4,9 +4,7 @@ use super::platform::{
     apply_joining_other_apps_fullscreen, apply_lyrics_window_space_behavior,
     refresh_overlay_mouse_tracking,
 };
-use crate::{
-    sync_overlay_vibrancy, AppState, OverlayOrientation, OverlayStyleSettings, UiLanguage,
-};
+use crate::{AppState, OverlayOrientation, OverlayStyleSettings, UiLanguage};
 
 pub(crate) fn initial_overlay_dimensions(style: &OverlayStyleSettings) -> (f64, f64) {
     match style.orientation {
@@ -67,7 +65,6 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
         .lyrics_windows_show_on_all_spaces;
     apply_lyrics_window_space_behavior(&window, enabled)?;
     refresh_overlay_mouse_tracking(&window);
-    sync_overlay_vibrancy(&window, &style);
 
     Ok(())
 }

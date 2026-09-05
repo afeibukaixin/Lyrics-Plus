@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use tauri::{Emitter, Manager, State};
+use tauri::{Emitter, State};
 
 use crate::config::AppConfig;
 use crate::overlay_model::OverlayStyleSettings;
@@ -44,9 +44,6 @@ pub(crate) fn sync_desktop_style_from_config(
         .overlay_style
         .write()
         .unwrap_or_else(|error| error.into_inner()) = style.clone();
-    if let Some(window) = app.get_webview_window("lyrics-overlay") {
-        crate::sync_overlay_vibrancy(&window, &style);
-    }
     app.emit("overlay://style", &style)
         .map_err(|error| error.to_string())?;
     Ok(style)

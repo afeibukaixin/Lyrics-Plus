@@ -51,7 +51,7 @@ tauri-plugin-macos-fps = "0.1.0"
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = "0.6"
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", default-features = false, features = ["NSAttributedString", "NSBitmapImageRep", "NSButton", "NSColor", "NSControl", "NSEvent", "NSFont", "NSFontDescriptor", "NSFontManager", "NSGraphics", "NSGraphicsContext", "NSImage", "NSImageRep", "NSMenu", "NSResponder", "NSRunningApplication", "NSScreen", "NSStatusBarButton", "NSStatusItem", "NSUserInterfaceItemIdentification", "NSView", "NSVisualEffectView", "NSWindow", "NSWorkspace", "libc", "objc2-core-graphics", "objc2-quartz-core"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["NSAttributedString", "NSBitmapImageRep", "NSButton", "NSColor", "NSControl", "NSEvent", "NSFont", "NSFontDescriptor", "NSFontManager", "NSGraphics", "NSGraphicsContext", "NSImage", "NSImageRep", "NSMenu", "NSResponder", "NSRunningApplication", "NSScreen", "NSStatusBarButton", "NSStatusItem", "NSUserInterfaceItemIdentification", "NSView", "NSWindow", "NSWorkspace", "libc", "objc2-core-graphics", "objc2-quartz-core"] }
 objc2-core-graphics = { version = "0.3", default-features = false, features = ["CGColor", "CGDirectDisplay"] }
 objc2-core-foundation = { version = "0.3", default-features = false, features = ["objc2"] }
 objc2-core-video = { version = "0.3", default-features = false, features = ["CVBase", "CVDisplayLink", "CVReturn", "objc2", "objc2-core-graphics"] }

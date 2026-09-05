@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use crate::overlay_effect::{HORIZONTAL_OVERLAY_SURFACE_INSET, VERTICAL_OVERLAY_SURFACE_INSET};
+use crate::overlay_surface::{HORIZONTAL_OVERLAY_SURFACE_INSET, VERTICAL_OVERLAY_SURFACE_INSET};
 use crate::overlay_model::OverlayOrientation;
 use crate::overlay_placement::{
     NotchPointerSamplePayload, NOTCH_POINTER_SAMPLE_EVENT, OVERLAY_HOVER_EVENT,

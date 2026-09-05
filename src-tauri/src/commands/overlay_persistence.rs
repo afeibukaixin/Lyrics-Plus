@@ -29,9 +29,6 @@ pub(super) fn persist_overlay_style_for_current_monitor(
         .update(|config| config.lyrics.displays.desktop.apply_style(style))?;
     app.emit("config://changed", &config)
         .map_err(|error| error.to_string())?;
-    if let Some(window) = app.get_webview_window("lyrics-overlay") {
-        crate::sync_overlay_vibrancy(&window, style);
-    }
     app.emit("overlay://style", style)
         .map_err(|error| error.to_string())
 }

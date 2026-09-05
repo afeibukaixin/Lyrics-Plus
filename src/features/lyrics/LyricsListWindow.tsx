@@ -1,6 +1,7 @@
 import { useMemo, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { LyricsLine } from "../../shared/types";
+import { isMacTauriRuntime } from "../../shared/tauriEvent";
 import { useAppConfig } from "../config/AppConfigProvider";
 import { usePlayback } from "../player/usePlayback";
 import { findAlignedAuxiliaryLine } from "./useLyrics";
@@ -25,6 +26,7 @@ export default function LyricsListWindow() {
   const lines = lyrics.document?.tracks.original.lines ?? [];
   const offsetMs = lyrics.document?.offsetMs ?? 0;
   const transparentBackground = appearance.backgroundMode === "transparent";
+  const backdropKeepAlive = isMacTauriRuntime() && transparentBackground;
   const translationAvailable = Boolean(lyrics.document?.tracks.translation);
   const romanizationAvailable = Boolean(lyrics.document?.tracks.romanization);
 
@@ -71,6 +73,7 @@ export default function LyricsListWindow() {
       data-following={following.following}
       data-locked={locked}
       data-toolbar-visible={toolbar.toolbarVisible}
+      data-backdrop-keepalive={backdropKeepAlive && toolbar.toolbarVisible ? "true" : undefined}
       onMouseEnter={toolbar.showToolbar}
       onMouseLeave={toolbar.scheduleToolbarHide}
       style={{
@@ -98,10 +101,6 @@ export default function LyricsListWindow() {
       } as CSSProperties}
     >
       <div className={styles.background} aria-hidden="true" />
-
-      {transparentBackground && (
-        <div className={styles.dragRegion} aria-hidden="true" onPointerDown={windowInteractions.startWindowDrag} />
-      )}
 
       {!locked && (
         <header className={styles.header} onPointerDown={windowInteractions.startWindowDrag}>

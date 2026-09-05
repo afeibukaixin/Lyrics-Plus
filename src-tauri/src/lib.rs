@@ -4,7 +4,7 @@ mod language;
 mod lyrics;
 #[cfg(target_os = "macos")]
 mod macos_status_item;
-mod overlay_effect;
+mod overlay_surface;
 mod overlay_model;
 mod overlay_placement;
 mod overlay_pointer;
@@ -21,7 +21,6 @@ use std::time::{Duration, Instant};
 
 use config::ConfigStore;
 use language::UiLanguage;
-pub(crate) use overlay_effect::sync_overlay_vibrancy;
 pub(crate) use overlay_model::{
     OverlayBackground, OverlayBackgroundMode, OverlayOrientation, OverlayStyleSettings,
 };

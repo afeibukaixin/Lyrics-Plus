@@ -1,0 +1,2 @@
+pub(crate) const HORIZONTAL_OVERLAY_SURFACE_INSET: f64 = 46.0;
+pub(crate) const VERTICAL_OVERLAY_SURFACE_INSET: f64 = 48.0;

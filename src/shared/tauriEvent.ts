@@ -23,6 +23,15 @@ export function isTauriRuntime() {
   return typeof internals?.invoke === "function" && typeof internals.transformCallback === "function";
 }
 
+/**
+ * CSS backdrop-filter 在 macOS 透明 WebView 中需要持续保持合成层。
+ * 仅用于选择 macOS Tauri 窗口的兼容样式，不代表运行时能力检测。
+ */
+export function isMacTauriRuntime() {
+  if (!isTauriRuntime() || typeof navigator === "undefined") return false;
+  return /Macintosh|Mac OS X/.test(navigator.userAgent);
+}
+
 export function emitNotchWidthPreview(payload: NotchWidthPreviewPayload) {
   if (!isTauriRuntime()) return Promise.resolve();
   return emitTo("lyrics-notch", NOTCH_WIDTH_PREVIEW_EVENT, payload);

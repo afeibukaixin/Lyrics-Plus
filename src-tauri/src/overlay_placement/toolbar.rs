@@ -40,14 +40,6 @@ pub(crate) fn set_overlay_toolbar_placement(app: &tauri::AppHandle, placement: T
     };
     if changed {
         let _ = app.emit(OVERLAY_TOOLBAR_PLACEMENT_EVENT, placement);
-        if let Some(window) = app.get_webview_window("lyrics-overlay") {
-            let style = state
-                .overlay_style
-                .read()
-                .unwrap_or_else(|error| error.into_inner())
-                .clone();
-            crate::sync_overlay_vibrancy(&window, &style);
-        }
     }
 }
 
