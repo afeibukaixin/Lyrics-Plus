@@ -58,6 +58,12 @@ export default function LyricsListWindow() {
   const title = playback.snapshot.title ?? t("lyricsList.noTrack");
   const artist = playback.snapshot.artist ?? t("lyricsList.waiting");
 
+  const seekToLine = (line: LyricsLine) => {
+    const positionMs = Math.max(0, Math.round(line.startMs - offsetMs));
+    void playback.seekTo(positionMs).catch(() => undefined);
+    following.resumeFollowing();
+  };
+
   return (
     <main
       className={styles.shell}
@@ -132,6 +138,7 @@ export default function LyricsListWindow() {
         lines={lines}
         auxiliary={auxiliary}
         lineOrder={options.lineOrder}
+        onLineClick={locked ? undefined : seekToLine}
         activeIndex={lyrics.activeIndex}
         activeRef={following.activeRef}
         following={following.following}

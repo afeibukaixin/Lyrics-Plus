@@ -62,6 +62,7 @@ export function LyricsListContent({
                   ref={active ? activeRef : undefined}
                   role="listitem"
                   aria-current={active ? "true" : undefined}
+                  onClick={onLineClick ? () => onLineClick(line) : undefined}
                 >
                   {lineOrder.map((kind) => {
                     if (kind === "original") return <p key={kind}>{line.text}</p>;
