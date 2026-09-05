@@ -1,6 +1,9 @@
 use tauri::Manager;
 
 #[cfg(target_os = "macos")]
+use objc2_app_kit::NSWindowCollectionBehavior;
+
+#[cfg(target_os = "macos")]
 fn apply_joining_other_apps_fullscreen_on_main(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     use objc2::MainThreadMarker;
     use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
@@ -79,12 +82,12 @@ pub(crate) fn apply_joining_other_apps_fullscreen(
 }
 
 #[cfg(target_os = "macos")]
-fn apply_lyrics_window_space_behavior_on_main(
+fn apply_window_collection_behavior_on_main(
     window: &tauri::WebviewWindow,
-    enabled: bool,
+    desired_behavior: NSWindowCollectionBehavior,
 ) -> tauri::Result<()> {
     use objc2::MainThreadMarker;
-    use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
+    use objc2_app_kit::NSWindow;
 
     if MainThreadMarker::new().is_none() {
         return Err(std::io::Error::other(
@@ -97,7 +100,7 @@ fn apply_lyrics_window_space_behavior_on_main(
     let original_behavior = ns_window.collectionBehavior();
     let mut behavior = original_behavior;
     // Managed 与 Transient 同时决定窗口参与 Spaces 和 Mission Control 的方式；
-    // 先清理互斥的 Space 行为，再按统一设置选择最终模式。
+    // 先清理互斥的 Space 行为，再按窗口类型选择最终模式。
     behavior.remove(
         NSWindowCollectionBehavior::CanJoinAllSpaces
             | NSWindowCollectionBehavior::MoveToActiveSpace
@@ -105,13 +108,7 @@ fn apply_lyrics_window_space_behavior_on_main(
             | NSWindowCollectionBehavior::Transient
             | NSWindowCollectionBehavior::Stationary,
     );
-    if enabled {
-        behavior.insert(
-            NSWindowCollectionBehavior::Managed | NSWindowCollectionBehavior::CanJoinAllSpaces,
-        );
-    } else {
-        behavior.insert(NSWindowCollectionBehavior::Transient);
-    }
+    behavior.insert(desired_behavior);
     if behavior != original_behavior {
         ns_window.setCollectionBehavior(behavior);
     }
@@ -124,12 +121,40 @@ pub(crate) fn apply_lyrics_window_space_behavior(
     enabled: bool,
 ) -> tauri::Result<()> {
     run_window_collection_behavior_update(window, move |target| {
-        apply_lyrics_window_space_behavior_on_main(target, enabled)
+        let desired_behavior = if enabled {
+            NSWindowCollectionBehavior::Managed | NSWindowCollectionBehavior::CanJoinAllSpaces
+        } else {
+            NSWindowCollectionBehavior::Transient
+        };
+        apply_window_collection_behavior_on_main(target, desired_behavior)
     })
 }
 
 #[cfg(not(target_os = "macos"))]
 pub(crate) fn apply_lyrics_window_space_behavior(
+    window: &tauri::WebviewWindow,
+    enabled: bool,
+) -> tauri::Result<()> {
+    window.set_visible_on_all_workspaces(enabled)
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn apply_list_lyrics_window_space_behavior(
+    window: &tauri::WebviewWindow,
+    enabled: bool,
+) -> tauri::Result<()> {
+    run_window_collection_behavior_update(window, move |target| {
+        let desired_behavior = if enabled {
+            NSWindowCollectionBehavior::Managed | NSWindowCollectionBehavior::CanJoinAllSpaces
+        } else {
+            NSWindowCollectionBehavior::Managed
+        };
+        apply_window_collection_behavior_on_main(target, desired_behavior)
+    })
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn apply_list_lyrics_window_space_behavior(
     window: &tauri::WebviewWindow,
     enabled: bool,
 ) -> tauri::Result<()> {
@@ -142,7 +167,11 @@ pub(crate) fn apply_lyrics_windows_space_behavior(
 ) -> tauri::Result<()> {
     for label in ["lyrics-overlay", "lyrics-list", "lyrics-notch"] {
         if let Some(window) = app.get_webview_window(label) {
-            apply_lyrics_window_space_behavior(&window, enabled)?;
+            if label == "lyrics-list" {
+                apply_list_lyrics_window_space_behavior(&window, enabled)?;
+            } else {
+                apply_lyrics_window_space_behavior(&window, enabled)?;
+            }
         }
     }
     Ok(())

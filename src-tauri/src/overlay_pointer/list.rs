@@ -1,7 +1,11 @@
 use std::time::{Duration, Instant};
 
-use crate::overlay_placement::{OVERLAY_POINTER_MONITOR_INTERVAL, UNLOCK_HANDLE_HIDE_DELAY};
-use crate::overlay_pointer::geometry::point_in_window_bounds;
+use crate::overlay_placement::{
+    ToolbarPlacement, OVERLAY_POINTER_MONITOR_INTERVAL, UNLOCK_HANDLE_BACKGROUND_GAP,
+    UNLOCK_HANDLE_HIDE_DELAY,
+};
+use crate::overlay_pointer::geometry::{point_in_window_bounds, unlock_handle_position};
+use crate::overlay_surface::HORIZONTAL_OVERLAY_SURFACE_INSET;
 use crate::AppState;
 use tauri::{Emitter, Manager};
 
@@ -25,14 +29,16 @@ pub(crate) fn position_list_unlock_handle(app: &tauri::AppHandle) {
     } else {
         1.0
     };
-    let inset = (12.0 * scale).round() as u32;
-    let x = position.x.saturating_add(
-        size.width
-            .saturating_sub(handle_size.width)
-            .saturating_sub(inset) as i32,
-    );
-    let y = position.y.saturating_add(inset as i32);
-    let _ = handle.set_position(tauri::PhysicalPosition::new(x, y));
+    let surface_inset = (HORIZONTAL_OVERLAY_SURFACE_INSET * scale).round() as u32;
+    let background_gap = (UNLOCK_HANDLE_BACKGROUND_GAP * scale).round() as u32;
+    let _ = handle.set_position(unlock_handle_position(
+        ToolbarPlacement::Top,
+        position,
+        size,
+        handle_size,
+        surface_inset,
+        background_gap,
+    ));
 }
 
 pub(crate) const LIST_UNLOCK_HANDLE_HOVER_EVENT: &str = "lyrics-list-unlock-handle://hover";
@@ -71,7 +77,25 @@ pub(crate) fn sync_list_unlock_handle(app: &tauri::AppHandle) {
             return;
         }
     }
+    let Some(handle) = app.get_webview_window("lyrics-list-unlock-handle") else {
+        return;
+    };
     position_list_unlock_handle(app);
+    let cursor_inside = match (
+        app.cursor_position(),
+        list.outer_position(),
+        list.outer_size(),
+    ) {
+        (Ok(cursor), Ok(position), Ok(size)) => {
+            point_in_window_bounds(cursor, position, size)
+        }
+        _ => true,
+    };
+    if cursor_inside {
+        let _ = handle.show();
+    } else {
+        let _ = handle.hide();
+    }
     super::wake_overlay_pointer_monitor(app);
 }
 

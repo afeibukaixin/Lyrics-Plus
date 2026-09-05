@@ -1,6 +1,6 @@
 use tauri::{Manager, WebviewWindowBuilder};
 
-use super::platform::{apply_lyrics_window_space_behavior, refresh_overlay_mouse_tracking};
+use super::platform::{apply_list_lyrics_window_space_behavior, refresh_overlay_mouse_tracking};
 use crate::{sync_list_unlock_handle, AppState, UiLanguage};
 
 const LIST_LYRICS_DEFAULT_WIDTH: f64 = 520.0;
@@ -51,7 +51,7 @@ pub(super) fn create_list_lyrics_window(app: &tauri::AppHandle) -> tauri::Result
         .snapshot()
         .app
         .lyrics_windows_show_on_all_spaces;
-    apply_lyrics_window_space_behavior(&window, enabled)?;
+    apply_list_lyrics_window_space_behavior(&window, enabled)?;
     apply_list_lyrics_window_lock(app, locked).map_err(std::io::Error::other)?;
     Ok(())
 }

@@ -28,6 +28,7 @@ export default function UnlockHandle() {
     <IconButton
       className={styles.handle}
       data-hover={hovered}
+      data-target={target}
       disabled={busy}
       label={unlockLabel}
       tooltip={unlockLabel}

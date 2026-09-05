@@ -8,7 +8,10 @@ use super::lifecycle::{
 };
 use super::list_lyrics::{apply_list_lyrics_window_lock, create_list_lyrics_window};
 use super::notch::{create_notch_lyrics_window, schedule_notch_position};
-use super::platform::{apply_joining_other_apps_fullscreen, apply_lyrics_window_space_behavior};
+use super::platform::{
+    apply_joining_other_apps_fullscreen, apply_list_lyrics_window_space_behavior,
+    apply_lyrics_window_space_behavior,
+};
 #[cfg(not(target_os = "macos"))]
 use super::status_bar::{create_status_bar_lyrics_window, position_status_bar_window_default};
 #[cfg(target_os = "macos")]
@@ -98,7 +101,7 @@ pub(crate) fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Resu
                     .set_always_on_top(displays.list_window.always_on_top)
                     .map_err(|error| error.to_string())?;
                 apply_list_lyrics_window_lock(app, displays.list_window.locked)?;
-                apply_lyrics_window_space_behavior(&window, lyrics_windows_show_on_all_spaces)
+                apply_list_lyrics_window_space_behavior(&window, lyrics_windows_show_on_all_spaces)
                     .map_err(|error| error.to_string())?;
                 if !window.is_visible().unwrap_or(false) {
                     window.show().map_err(|error| error.to_string())?;
@@ -113,7 +116,7 @@ pub(crate) fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Resu
         schedule_surface_destroy(app, "lyrics-list");
         schedule_surface_destroy(app, "lyrics-list-unlock-handle");
         if let Some(window) = app.get_webview_window("lyrics-list") {
-            apply_lyrics_window_space_behavior(&window, lyrics_windows_show_on_all_spaces)
+            apply_list_lyrics_window_space_behavior(&window, lyrics_windows_show_on_all_spaces)
                 .map_err(|error| error.to_string())?;
         }
         sync_list_unlock_handle(app);
