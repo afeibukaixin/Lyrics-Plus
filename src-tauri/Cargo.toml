@@ -31,7 +31,7 @@ serde-saphyr = { version = "1.2", default-features = false, features = ["deseria
 base64 = "0.22"
 encoding_rs = "0.8"
 minisign-verify = "0.2.5"
-lyrics-crypto = "0.1.3"
+lyrics-crypto = { git = "https://github.com/afeibukaixin/Lyrics-Helper.git", rev = "d1e19b51cdd0bb6f88034b038c350cb3a82b24dc", package = "lyrics-crypto" }
 futures = "0.3"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 log = "0.4"
