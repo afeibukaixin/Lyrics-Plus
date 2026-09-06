@@ -187,6 +187,10 @@ impl ConfigStore {
     }
 
     pub fn set_comment_language(&self, language: UiLanguage) -> Result<bool, String> {
+        let language = match language {
+            UiLanguage::ZhCn => UiLanguage::ZhCn,
+            _ => UiLanguage::EnUs,
+        };
         let mut state = self
             .state
             .write()

@@ -87,13 +87,19 @@ pub(super) fn create_status_bar_lyrics_window(app: &tauri::AppHandle) -> tauri::
     }
     let config = app.state::<AppState>().config.snapshot();
     let appearance = &config.lyrics.displays.status_bar.appearance;
+    let title = config
+        .app
+        .language
+        .native_language()
+        .native_labels()
+        .status_bar_title;
     let height = appearance.font_size as f64 + 12.0;
     let window = WebviewWindowBuilder::new(
         app,
         "lyrics-status-bar",
         crate::webview_url(app, "index.html?view=lyrics-status-bar"),
     )
-    .title("Lyrics Plus 菜单栏歌词")
+    .title(title)
     .inner_size(appearance.width as f64, height.max(26.0))
     .transparent(true)
     .decorations(false)

@@ -375,7 +375,7 @@ mod tests {
             configured_comment_language(&LanguagePreference::from("zh-CN")),
             UiLanguage::ZhCn
         );
-        for language in ["system", "zh-TW", "en-US", "ja-JP"] {
+        for language in ["system", "zh-TW", "en-US", "ja-JP", "ko-KR"] {
             assert_eq!(
                 configured_comment_language(&LanguagePreference::from(language)),
                 UiLanguage::EnUs

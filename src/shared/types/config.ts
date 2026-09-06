@@ -7,7 +7,7 @@ import type { OverlaySettings, OverlayStyle } from "./overlay";
 export type SettingsSection = "style" | "lyrics" | "player" | "application" | "about";
 export type LanguagePreference = "system" | SupportedLanguage;
 export type ThemePreference = "system" | "light" | "dark";
-export type NativeLanguage = "zh-CN" | "en-US";
+export type NativeLanguage = "zh-CN" | "en-US" | "ja-JP" | "ko-KR";
 export type ChineseConversion = "original" | "simplified" | "traditional";
 
 export type SettingsResetResponse = {

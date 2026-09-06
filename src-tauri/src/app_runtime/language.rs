@@ -35,6 +35,7 @@ pub(super) fn apply_native_language(
         ("lyrics-overlay", labels.overlay_title),
         ("lyrics-list", labels.list_title),
         ("lyrics-notch", labels.notch_title),
+        ("lyrics-status-bar", labels.status_bar_title),
     ] {
         if let Some(window) = app.get_webview_window(label) {
             window.set_title(title).map_err(|error| error.to_string())?;

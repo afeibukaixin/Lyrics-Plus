@@ -4,7 +4,7 @@ use super::platform::{
     apply_joining_other_apps_fullscreen, apply_lyrics_window_space_behavior,
     refresh_overlay_mouse_tracking,
 };
-use crate::{AppState, OverlayOrientation, OverlayStyleSettings, UiLanguage};
+use crate::{AppState, OverlayOrientation, OverlayStyleSettings};
 
 pub(crate) fn initial_overlay_dimensions(style: &OverlayStyleSettings) -> (f64, f64) {
     match style.orientation {
@@ -35,13 +35,22 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
         OverlayOrientation::Vertical => MIN_VERTICAL_HOST_WIDTH,
         OverlayOrientation::Horizontal => 190.0,
     };
+    let title = app
+        .state::<AppState>()
+        .config
+        .snapshot()
+        .app
+        .language
+        .native_language()
+        .native_labels()
+        .overlay_title;
 
     let window = WebviewWindowBuilder::new(
         app,
         "lyrics-overlay",
         crate::webview_url(app, "index.html?view=overlay"),
     )
-    .title(UiLanguage::ZhCn.native_labels().overlay_title)
+    .title(title)
     .inner_size(initial_width, initial_height)
     .min_inner_size(minimum_width, 76.0)
     .transparent(true)

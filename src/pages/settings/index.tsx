@@ -93,11 +93,6 @@ export default function Settings() {
     return () => window.removeEventListener("keydown", cancelDrag);
   }, [providerDrag]);
 
-  useEffect(() => {
-    if (lyrics.providerStatuses.length === 0) return;
-    setProviderView((current) => current ? { ...current, statuses: lyrics.providerStatuses } : current);
-  }, [lyrics.providerStatuses]);
-
   const {
     beginProviderDrag,
     clearMusixmatchToken,

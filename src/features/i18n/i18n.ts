@@ -32,7 +32,10 @@ export function normalizeLanguagePreference(preference: string): LanguagePrefere
 }
 
 export function nativeLanguageFor(language: SupportedLanguage): NativeLanguage {
-  return language === "zh-CN" ? "zh-CN" : "en-US";
+  if (language === "zh-CN") return "zh-CN";
+  if (language === "ja-JP") return "ja-JP";
+  if (language === "ko-KR") return "ko-KR";
+  return "en-US";
 }
 
 export const appI18n = createInstance();

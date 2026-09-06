@@ -142,7 +142,7 @@ export default function ApplicationSettingsPage() {
       {shortcutActions.map((action) => {
         const active = recording === action;
         const isDefault = config.app.shortcuts[action] === defaultGlobalShortcuts[action];
-        return <div className={styles.shortcutRow} key={action}><span>{t(`settings.app.${action}`)}</span><div className={styles.shortcutControls}>
+        return <div className={styles.shortcutRow} key={action}><span>{t(`settings.app.${action}`)}</span><div className={styles.shortcutActionControls}>
           <Button ref={(element) => { shortcutRecorderRefs.current[action] = element; }} variant="outline" size="sm" className={styles.shortcutRecorder} aria-pressed={active} data-recording={active} disabled={savingShortcut} onClick={() => setRecording(active ? null : action)} onKeyDown={(event) => {
             if (!active) return;
             event.preventDefault();

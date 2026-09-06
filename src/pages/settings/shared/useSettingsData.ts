@@ -80,7 +80,21 @@ export function useSettingsData({
 
   useEffect(() => {
     if (providerStatuses.length === 0) return;
-    setProviderView((current) => current ? { ...current, statuses: providerStatuses } : current);
+    setProviderView((current) => {
+      if (!current) return current;
+      const incoming = new Map(providerStatuses.map((status) => [status.providerId, status]));
+      const known = new Set(current.statuses.map((status) => status.providerId));
+      const disabled = new Set(current.settings.providers.filter((provider) => !provider.enabled).map((provider) => provider.id));
+      return {
+        ...current,
+        statuses: [
+          ...current.statuses.map((status) => incoming.get(status.providerId) ?? (disabled.has(status.providerId)
+            ? { ...status, health: "unknown" as const, detail: { kind: "not_participated" as const }, checkedAtMs: null }
+            : status)),
+          ...providerStatuses.filter((status) => !known.has(status.providerId)),
+        ],
+      };
+    });
   }, [providerStatuses]);
 
   return {

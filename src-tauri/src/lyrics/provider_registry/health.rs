@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use super::super::{
     LyricsProvider, LyricsSearchInput, ProviderError, ProviderErrorKind, ProviderHealth,
-    ProviderStatus,
+    ProviderStatus, ProviderStatusDetail,
 };
 use super::search::report_status;
 use super::ProviderRegistry;
@@ -37,7 +37,7 @@ impl ProviderRegistry {
         };
         if let Some(error) = self.cooldown_error(provider.id()) {
             log::debug!("歌词源测试因冷却跳过：{}：{}", provider.id(), error.message);
-            self.record_cooldown_status(provider.as_ref(), &error.message);
+            self.record_cooldown_status(provider.as_ref(), &error);
             return self
                 .statuses
                 .read()
@@ -48,20 +48,37 @@ impl ProviderRegistry {
         }
         match tokio::time::timeout(self.timeout, provider.search(client, &input)).await {
             Ok(Ok(report)) => {
-                let (health, message) = report_status(&report);
+                let (health, detail) = report_status(&report);
                 if let Some(warning) = &report.warning {
+                    log::debug!(
+                        "歌词源测试部分失败：provider={} kind={:?} status={:?} message={}",
+                        provider.id(),
+                        &warning.kind,
+                        warning.status_code,
+                        &warning.message
+                    );
                     self.record_failure(provider.as_ref(), warning);
                 } else {
                     self.record_success(provider.id());
                 }
-                self.record_status(provider.as_ref(), health, message);
+                self.record_status(provider.as_ref(), health, detail);
             }
             Ok(Err(error)) => {
+                log::debug!(
+                    "歌词源测试失败：provider={} kind={:?} status={:?} message={}",
+                    provider.id(),
+                    &error.kind,
+                    error.status_code,
+                    &error.message
+                );
                 self.record_failure(provider.as_ref(), &error);
                 self.record_status(
                     provider.as_ref(),
                     ProviderHealth::Unavailable,
-                    Some(error.message),
+                    ProviderStatusDetail::Failure {
+                        error_kind: error.kind,
+                        status_code: error.status_code,
+                    },
                 )
             }
             Err(_) => {
@@ -71,7 +88,7 @@ impl ProviderRegistry {
                 self.record_status(
                     provider.as_ref(),
                     ProviderHealth::Unavailable,
-                    Some(error.message),
+                    ProviderStatusDetail::Timeout,
                 )
             }
         }
@@ -106,7 +123,13 @@ impl ProviderRegistry {
                 let mut status = statuses.get(provider_id).cloned()?;
                 if let Some(error) = self.cooldown_error(provider_id) {
                     status.health = ProviderHealth::Unavailable;
-                    status.message = Some(error.message);
+                    status.detail = ProviderStatusDetail::Cooldown {
+                        retry_after_ms: error.retry_after_ms,
+                        requires_configuration: matches!(
+                            error.kind,
+                            ProviderErrorKind::Unauthorized | ProviderErrorKind::Configuration
+                        ),
+                    };
                 }
                 Some(status)
             })
@@ -142,11 +165,13 @@ impl ProviderRegistry {
             .as_secs()
             .saturating_add(if remaining.subsec_nanos() > 0 { 1 } else { 0 })
             .max(1);
-        Some(ProviderError::new(
+        let mut error = ProviderError::new(
             provider_id,
             ProviderErrorKind::Http,
             format!("歌词源请求冷却中，剩余约 {seconds} 秒"),
-        ))
+        );
+        error.retry_after_ms = Some(remaining.as_millis().min(u128::from(u64::MAX)) as u64);
+        Some(error)
     }
 
     pub(super) fn record_success(&self, provider_id: &str) {
@@ -236,14 +261,24 @@ impl ProviderRegistry {
         hasher.finish()
     }
 
-    pub(super) fn record_cooldown_status(&self, provider: &dyn LyricsProvider, message: &str) {
+    pub(super) fn record_cooldown_status(
+        &self,
+        provider: &dyn LyricsProvider,
+        error: &ProviderError,
+    ) {
         let mut statuses = self
             .statuses
             .write()
             .unwrap_or_else(|error| error.into_inner());
         if let Some(status) = statuses.get_mut(provider.id()) {
             status.health = ProviderHealth::Unavailable;
-            status.message = Some(message.to_string());
+            status.detail = ProviderStatusDetail::Cooldown {
+                retry_after_ms: error.retry_after_ms,
+                requires_configuration: matches!(
+                    &error.kind,
+                    ProviderErrorKind::Unauthorized | ProviderErrorKind::Configuration
+                ),
+            };
         }
     }
 
@@ -251,7 +286,7 @@ impl ProviderRegistry {
         &self,
         provider: &dyn LyricsProvider,
         health: ProviderHealth,
-        message: Option<String>,
+        detail: ProviderStatusDetail,
     ) {
         self.statuses
             .write()
@@ -262,7 +297,7 @@ impl ProviderRegistry {
                     provider_id: provider.id().into(),
                     name: provider.display_name().into(),
                     health,
-                    message,
+                    detail,
                     checked_at_ms: Some(super::super::now_ms()),
                 },
             );

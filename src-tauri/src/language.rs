@@ -1,14 +1,18 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[cfg(target_os = "macos")]
 use objc2_foundation::NSLocale;
 
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 pub enum UiLanguage {
     #[serde(rename = "zh-CN")]
     ZhCn,
     #[serde(rename = "en-US")]
     EnUs,
+    #[serde(rename = "ja-JP")]
+    JaJp,
+    #[serde(rename = "ko-KR")]
+    KoKr,
 }
 
 #[derive(Clone, Copy)]
@@ -25,6 +29,7 @@ pub struct NativeLabels {
     pub overlay_title: &'static str,
     pub list_title: &'static str,
     pub notch_title: &'static str,
+    pub status_bar_title: &'static str,
 }
 
 #[derive(Clone, Copy)]
@@ -74,6 +79,8 @@ pub enum ConfigComment {
     StatusBarVerticalOffset,
     PrimaryLinePosition,
     LineGap,
+    NotchDefaultBorderRadius,
+    NotchExpandedBorderRadius,
     NotchTopBorderRadius,
     NotchInlineLyricsOnNonNotch,
     SecondaryLineGap,
@@ -119,6 +126,14 @@ impl UiLanguage {
             return Some(Self::EnUs);
         }
 
+        if normalized == "ja" || normalized.starts_with("ja-") {
+            return Some(Self::JaJp);
+        }
+
+        if normalized == "ko" || normalized.starts_with("ko-") {
+            return Some(Self::KoKr);
+        }
+
         None
     }
 
@@ -153,6 +168,7 @@ impl UiLanguage {
                 overlay_title: "Lyrics Plus 桌面歌词",
                 list_title: "Lyrics Plus 歌词窗口",
                 notch_title: "Lyrics Plus 灵动岛歌词",
+                status_bar_title: "Lyrics Plus 菜单栏歌词",
             },
             Self::EnUs => NativeLabels {
                 toggle_overlay: "Show Desktop Lyrics",
@@ -167,6 +183,37 @@ impl UiLanguage {
                 overlay_title: "Lyrics Plus Desktop Lyrics",
                 list_title: "Lyrics Plus Lyrics Window",
                 notch_title: "Lyrics Plus Dynamic Island Lyrics",
+                status_bar_title: "Lyrics Plus Menu Bar Lyrics",
+            },
+            Self::JaJp => NativeLabels {
+                toggle_overlay: "デスクトップ歌詞を表示",
+                toggle_status_bar_lyrics: "メニューバー歌詞を表示",
+                toggle_list_lyrics: "歌詞ウィンドウを表示",
+                toggle_notch_lyrics: "ダイナミックアイランド歌詞を表示",
+                switch_lyrics: "歌詞を切り替え",
+                settings: "設定",
+                quit: "終了",
+                quick_title: "クイック歌詞切替",
+                unlock_title: "デスクトップ歌詞のロック解除",
+                overlay_title: "Lyrics Plus デスクトップ歌詞",
+                list_title: "Lyrics Plus 歌詞ウィンドウ",
+                notch_title: "Lyrics Plus ダイナミックアイランド歌詞",
+                status_bar_title: "Lyrics Plus メニューバー歌詞",
+            },
+            Self::KoKr => NativeLabels {
+                toggle_overlay: "데스크톱 가사 표시",
+                toggle_status_bar_lyrics: "메뉴 막대 가사 표시",
+                toggle_list_lyrics: "가사 창 표시",
+                toggle_notch_lyrics: "다이내믹 아일랜드 가사 표시",
+                switch_lyrics: "가사 전환",
+                settings: "설정",
+                quit: "종료",
+                quick_title: "빠른 가사 전환",
+                unlock_title: "데스크톱 가사 잠금 해제",
+                overlay_title: "Lyrics Plus 데스크톱 가사",
+                list_title: "Lyrics Plus 가사 창",
+                notch_title: "Lyrics Plus 다이내믹 아일랜드 가사",
+                status_bar_title: "Lyrics Plus 메뉴 막대 가사",
             },
         }
     }
@@ -218,6 +265,8 @@ impl UiLanguage {
             (Self::ZhCn, ConfigComment::StatusBarVerticalOffset) => "菜单栏歌词垂直偏移：-6–6pt，正值向上，负值向下。",
             (Self::ZhCn, ConfigComment::PrimaryLinePosition) => "主副歌词顺序：first 主歌词横排在上/竖排在右，second 主歌词横排在下/竖排在左。",
             (Self::ZhCn, ConfigComment::LineGap) => "双排主副歌词间距：0–32px。",
+            (Self::ZhCn, ConfigComment::NotchDefaultBorderRadius) => "灵动岛默认（收起态）底部圆角：0–20px。",
+            (Self::ZhCn, ConfigComment::NotchExpandedBorderRadius) => "灵动岛展开态底部圆角：0–24px。",
             (Self::ZhCn, ConfigComment::NotchTopBorderRadius) => "灵动岛顶部内凹圆角：0–15px。",
             (Self::ZhCn, ConfigComment::NotchInlineLyricsOnNonNotch) => "非刘海屏紧凑态是否将第一行歌词与左右槽内容放在同一行。",
             (Self::ZhCn, ConfigComment::SecondaryLineGap) => "列表窗口同一歌词组内主歌词、翻译和音译的间距：0–32px。",
@@ -276,6 +325,8 @@ impl UiLanguage {
             (Self::EnUs, ConfigComment::StatusBarVerticalOffset) => "Menu bar lyric vertical offset: -6 to 6pt; positive values move up and negative values move down.",
             (Self::EnUs, ConfigComment::PrimaryLinePosition) => "Primary/secondary lyric order: first puts the primary lyric top/right; second puts it bottom/left in horizontal/vertical layouts.",
             (Self::EnUs, ConfigComment::LineGap) => "Double-line primary/secondary lyric gap: 0–32px.",
+            (Self::EnUs, ConfigComment::NotchDefaultBorderRadius) => "Dynamic Island default (collapsed) bottom corner radius: 0–20px.",
+            (Self::EnUs, ConfigComment::NotchExpandedBorderRadius) => "Dynamic Island expanded bottom corner radius: 0–24px.",
             (Self::EnUs, ConfigComment::NotchTopBorderRadius) => "Dynamic Island top concave corner radius: 0–15px.",
             (Self::EnUs, ConfigComment::NotchInlineLyricsOnNonNotch) => "Whether compact lyrics on non-notch displays share a row with the left and right slots.",
             (Self::EnUs, ConfigComment::SecondaryLineGap) => "List-window gap between primary, translation, and romanization lines in one lyric group: 0–32px.",
@@ -289,6 +340,7 @@ impl UiLanguage {
             (Self::EnUs, ConfigComment::InactiveLyricsOpacity) => "List-window other lyric text opacity: 0–1.0.",
             (Self::EnUs, ConfigComment::TextShadow) => "Lyric shadow horizontal/vertical offsets, blur radius, and color.",
             (Self::EnUs, ConfigComment::TextStroke) => "Lyric stroke width and color; set width to 0 to disable the stroke.",
+            (Self::JaJp | Self::KoKr, comment) => Self::EnUs.config_comment(comment),
         }
     }
 }

@@ -29,6 +29,14 @@ export const languageRegistry = {
     nativeLabel: "English",
     matches: (language: string) => language === "en" || language.startsWith("en-"),
   },
+  "ja-JP": {
+    nativeLabel: "日本語",
+    matches: (language: string) => language === "ja" || language.startsWith("ja-"),
+  },
+  "ko-KR": {
+    nativeLabel: "한국어",
+    matches: (language: string) => language === "ko" || language.startsWith("ko-"),
+  },
 } as const;
 
 export type SupportedLanguage = keyof typeof languageRegistry;

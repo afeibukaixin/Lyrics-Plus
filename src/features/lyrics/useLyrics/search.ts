@@ -23,9 +23,16 @@ export function useLyricsSearch(
 
   const applySearchResponse = useCallback((response: Pick<SearchResponse, "results" | "providerStatuses" | "error">) => {
     state.setResults(response.results);
-    state.setProviderStatuses(response.providerStatuses);
+    state.setProviderStatuses((current) => {
+      const incoming = new Map(response.providerStatuses.map((status) => [status.providerId, status]));
+      const known = new Set(current.map((status) => status.providerId));
+      return [
+        ...current.map((status) => incoming.get(status.providerId) ?? status),
+        ...response.providerStatuses.filter((status) => !known.has(status.providerId)),
+      ];
+    });
     if (response.error) {
-      state.setError(response.error);
+      state.setError(t("settings.lyrics.searchError"));
     } else if (response.results.length === 0) {
       state.setError(t("settings.lyrics.noResults"));
     }

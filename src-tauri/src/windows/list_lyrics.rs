@@ -1,7 +1,7 @@
 use tauri::{Manager, WebviewWindowBuilder};
 
 use super::platform::{apply_list_lyrics_window_space_behavior, refresh_overlay_mouse_tracking};
-use crate::{sync_list_unlock_handle, AppState, UiLanguage};
+use crate::{sync_list_unlock_handle, AppState};
 
 const LIST_LYRICS_DEFAULT_WIDTH: f64 = 520.0;
 const LIST_LYRICS_DEFAULT_HEIGHT: f64 = 720.0;
@@ -26,12 +26,21 @@ pub(super) fn create_list_lyrics_window(app: &tauri::AppHandle) -> tauri::Result
         .displays
         .list_window
         .locked;
+    let title = app
+        .state::<AppState>()
+        .config
+        .snapshot()
+        .app
+        .language
+        .native_language()
+        .native_labels()
+        .list_title;
     let window = WebviewWindowBuilder::new(
         app,
         "lyrics-list",
         crate::webview_url(app, "index.html?view=lyrics-list"),
     )
-    .title(UiLanguage::ZhCn.native_labels().list_title)
+    .title(title)
     .inner_size(LIST_LYRICS_DEFAULT_WIDTH, LIST_LYRICS_DEFAULT_HEIGHT)
     .min_inner_size(360.0, 480.0)
     .transparent(true)

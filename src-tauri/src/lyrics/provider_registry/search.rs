@@ -6,7 +6,7 @@ use futures::future::join_all;
 use super::super::{
     prepare_title_filter_keywords_with_normalization, LyricsSearchInput, LyricsSearchResult,
     ProviderError, ProviderErrorKind, ProviderHealth, ProviderOrderMode, ProviderSearchOutcome,
-    ProviderSearchReport, ProviderSettings, ScoringSettings,
+    ProviderSearchReport, ProviderSettings, ProviderStatusDetail, ScoringSettings,
     DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
 };
 use super::ProviderRegistry;
@@ -69,7 +69,7 @@ pub(super) async fn search_once(
                 error.message
             );
             errors.push(error.to_string());
-            registry.record_cooldown_status(*provider, &error.message);
+            registry.record_cooldown_status(*provider, &error);
         } else {
             active.push(*provider);
         }
@@ -89,26 +89,44 @@ pub(super) async fn search_once(
             Ok(Ok(mut report)) => {
                 any_success = true;
                 retain_valid_provider_results(provider.id(), &mut report.results);
-                let (health, message) = report_status(&report);
+                let (health, detail) = report_status(&report);
                 if let Some(warning) = &report.warning {
+                    log::debug!(
+                        "歌词源搜索部分失败：provider={} kind={:?} status={:?} message={}",
+                        provider.id(),
+                        &warning.kind,
+                        warning.status_code,
+                        &warning.message
+                    );
                     registry.record_failure(provider, warning);
                 } else {
                     registry.record_success(provider.id());
                 }
-                registry.record_status(provider, health, message);
+                registry.record_status(provider, health, detail);
                 results.append(&mut report.results);
             }
             Ok(Err(error)) => {
                 errors.push(error.to_string());
                 registry.record_failure(provider, &error);
-                registry.record_status(provider, ProviderHealth::Unavailable, Some(error.message));
+                registry.record_status(
+                    provider,
+                    ProviderHealth::Unavailable,
+                    ProviderStatusDetail::Failure {
+                        error_kind: error.kind,
+                        status_code: error.status_code,
+                    },
+                );
             }
             Err(_) => {
                 let error =
                     ProviderError::new(provider.id(), ProviderErrorKind::Network, "搜索超时");
                 errors.push(error.to_string());
                 registry.record_failure(provider, &error);
-                registry.record_status(provider, ProviderHealth::Unavailable, Some(error.message));
+                registry.record_status(
+                    provider,
+                    ProviderHealth::Unavailable,
+                    ProviderStatusDetail::Timeout,
+                );
             }
         }
     }
@@ -141,6 +159,10 @@ pub(super) async fn search_once(
             }
         }
     }
+    let error = (!any_success && !errors.is_empty()).then(|| {
+        log::debug!("歌词源搜索失败：{}", errors.join("；"));
+        "provider_search_failed".to_string()
+    });
     Ok(ProviderSearchOutcome {
         results,
         statuses: registry.statuses_for(&enabled_ids),
@@ -155,7 +177,7 @@ pub(super) async fn search_once(
             .iter()
             .map(|provider| provider.id.clone())
             .collect(),
-        error: (!any_success && !errors.is_empty()).then(|| errors.join("；")),
+        error,
     })
 }
 
@@ -184,19 +206,24 @@ fn retain_valid_provider_results(provider_id: &str, results: &mut Vec<LyricsSear
     });
 }
 
-pub(super) fn report_status(report: &ProviderSearchReport) -> (ProviderHealth, Option<String>) {
+pub(super) fn report_status(
+    report: &ProviderSearchReport,
+) -> (ProviderHealth, ProviderStatusDetail) {
     if let Some(warning) = &report.warning {
         return (
             ProviderHealth::Degraded,
-            Some(format!("部分请求失败：{}", warning.message)),
+            ProviderStatusDetail::PartialFailure {
+                result_count: report.results.len(),
+                error_kind: warning.kind.clone(),
+            },
         );
     }
-    let message = if report.results.is_empty() {
-        "连接正常，未找到同步歌词".into()
-    } else {
-        format!("连接正常，返回 {} 个候选", report.results.len())
-    };
-    (ProviderHealth::Available, Some(message))
+    (
+        ProviderHealth::Available,
+        ProviderStatusDetail::Success {
+            result_count: report.results.len(),
+        },
+    )
 }
 
 impl ProviderRegistry {

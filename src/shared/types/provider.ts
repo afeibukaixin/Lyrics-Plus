@@ -64,11 +64,22 @@ export type ProviderCredentialUpdate = {
 
 export type ProviderHealth = "unknown" | "available" | "degraded" | "unavailable";
 
+export type ProviderErrorKind = "network" | "http" | "invalid_response" | "configuration" | "unauthorized";
+
+export type ProviderStatusDetail =
+  | { kind: "not_tested" }
+  | { kind: "not_participated" }
+  | { kind: "success"; resultCount: number }
+  | { kind: "partial_failure"; resultCount: number; errorKind: ProviderErrorKind }
+  | { kind: "failure"; errorKind: ProviderErrorKind; statusCode: number | null }
+  | { kind: "timeout" }
+  | { kind: "cooldown"; retryAfterMs: number | null; requiresConfiguration: boolean };
+
 export type ProviderStatus = {
   providerId: string;
   name: string;
   health: ProviderHealth;
-  message: string | null;
+  detail: ProviderStatusDetail;
   checkedAtMs: number | null;
 };
 

@@ -169,7 +169,11 @@ pub fn set_native_language(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     crate::apply_native_language(&app, language)?;
-    if state.config.set_comment_language(language)? {
+    let comment_language = match language {
+        UiLanguage::ZhCn => UiLanguage::ZhCn,
+        _ => UiLanguage::EnUs,
+    };
+    if state.config.set_comment_language(comment_language)? {
         app.emit("config://changed", state.config.snapshot())
             .map_err(|error| error.to_string())?;
     }

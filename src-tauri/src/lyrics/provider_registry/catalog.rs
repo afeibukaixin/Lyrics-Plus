@@ -11,9 +11,9 @@ use super::super::super::musixmatch::MusixmatchProvider;
 use super::super::super::netease::NeteaseProvider;
 use super::super::super::qqmusic::QqMusicProvider;
 use super::super::{
-    LyricsProvider, ProviderHealth, ProviderSettings, ProviderStatus, AMLL_DISPLAY_NAME,
-    KUGOU_DISPLAY_NAME, KUWO_DISPLAY_NAME, LRCLIB_DISPLAY_NAME, MIGU_DISPLAY_NAME,
-    MUSIXMATCH_DISPLAY_NAME, NETEASE_DISPLAY_NAME, QQMUSIC_DISPLAY_NAME,
+    LyricsProvider, ProviderHealth, ProviderSettings, ProviderStatus, ProviderStatusDetail,
+    AMLL_DISPLAY_NAME, KUGOU_DISPLAY_NAME, KUWO_DISPLAY_NAME, LRCLIB_DISPLAY_NAME,
+    MIGU_DISPLAY_NAME, MUSIXMATCH_DISPLAY_NAME, NETEASE_DISPLAY_NAME, QQMUSIC_DISPLAY_NAME,
 };
 
 pub(super) fn build_providers(
@@ -44,7 +44,7 @@ pub(super) fn initial_statuses(
                     provider_id: provider.id().into(),
                     name: provider.display_name().into(),
                     health: ProviderHealth::Unknown,
-                    message: Some("尚未测试".into()),
+                    detail: ProviderStatusDetail::NotTested,
                     checked_at_ms: None,
                 },
             )

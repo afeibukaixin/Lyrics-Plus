@@ -11,12 +11,42 @@ pub enum ProviderHealth {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ProviderStatusDetail {
+    NotTested,
+    NotParticipated,
+    Success {
+        #[serde(rename = "resultCount")]
+        result_count: usize,
+    },
+    PartialFailure {
+        #[serde(rename = "resultCount")]
+        result_count: usize,
+        #[serde(rename = "errorKind")]
+        error_kind: ProviderErrorKind,
+    },
+    Failure {
+        #[serde(rename = "errorKind")]
+        error_kind: ProviderErrorKind,
+        #[serde(rename = "statusCode")]
+        status_code: Option<u16>,
+    },
+    Timeout,
+    Cooldown {
+        #[serde(rename = "retryAfterMs")]
+        retry_after_ms: Option<u64>,
+        #[serde(rename = "requiresConfiguration")]
+        requires_configuration: bool,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderStatus {
     pub provider_id: String,
     pub name: String,
     pub health: ProviderHealth,
-    pub message: Option<String>,
+    pub detail: ProviderStatusDetail,
     pub checked_at_ms: Option<u64>,
 }
 

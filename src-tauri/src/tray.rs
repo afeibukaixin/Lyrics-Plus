@@ -2,12 +2,21 @@ fn create_unlock_handle(app: &tauri::AppHandle) -> tauri::Result<()> {
     if app.get_webview_window("lyrics-unlock-handle").is_some() {
         return Ok(());
     }
+    let title = app
+        .state::<AppState>()
+        .config
+        .snapshot()
+        .app
+        .language
+        .native_language()
+        .native_labels()
+        .unlock_title;
     let builder = WebviewWindowBuilder::new(
         app,
         "lyrics-unlock-handle",
         crate::webview_url(app, "index.html?view=unlock-handle"),
     )
-    .title(UiLanguage::ZhCn.native_labels().unlock_title)
+    .title(title)
     .inner_size(28.0, 28.0)
     .transparent(true)
     .decorations(false)
@@ -40,12 +49,21 @@ fn create_list_unlock_handle(app: &tauri::AppHandle) -> tauri::Result<()> {
     {
         return Ok(());
     }
+    let title = app
+        .state::<AppState>()
+        .config
+        .snapshot()
+        .app
+        .language
+        .native_language()
+        .native_labels()
+        .unlock_title;
     let builder = WebviewWindowBuilder::new(
         app,
         "lyrics-list-unlock-handle",
         crate::webview_url(app, "index.html?view=lyrics-list-unlock-handle"),
     )
-    .title(UiLanguage::ZhCn.native_labels().unlock_title)
+    .title(title)
     .inner_size(28.0, 28.0)
     .transparent(true)
     .decorations(false)

@@ -402,7 +402,7 @@ mod tests {
                         provider_id: id.into(),
                         name: id.into(),
                         health: ProviderHealth::Unknown,
-                        message: None,
+                        detail: ProviderStatusDetail::NotTested,
                         checked_at_ms: None,
                     },
                 )
@@ -478,7 +478,7 @@ mod tests {
                     provider_id: "lrclib".into(),
                     name: "lrclib".into(),
                     health: ProviderHealth::Unknown,
-                    message: None,
+                    detail: ProviderStatusDetail::NotTested,
                     checked_at_ms: None,
                 },
             )])),
@@ -516,7 +516,7 @@ mod tests {
                     provider_id: "lrclib".into(),
                     name: "lrclib".into(),
                     health: ProviderHealth::Unknown,
-                    message: None,
+                    detail: ProviderStatusDetail::NotTested,
                     checked_at_ms: None,
                 },
             )])),
@@ -577,10 +577,13 @@ mod tests {
                 .unwrap();
             let status = &outcome.statuses[0];
             assert_eq!(status.health, ProviderHealth::Unavailable);
-            assert!(status
-                .message
-                .as_deref()
-                .is_some_and(|message| message.contains("冷却中")));
+            assert!(matches!(
+                &status.detail,
+                ProviderStatusDetail::Cooldown {
+                    requires_configuration: false,
+                    ..
+                }
+            ));
         });
     }
 
@@ -602,10 +605,10 @@ mod tests {
                 .unwrap();
             assert!(outcome.results.is_empty());
             assert_eq!(outcome.statuses[0].health, ProviderHealth::Available);
-            assert_eq!(
-                outcome.statuses[0].message.as_deref(),
-                Some("连接正常，未找到同步歌词")
-            );
+            assert!(matches!(
+                &outcome.statuses[0].detail,
+                ProviderStatusDetail::Success { result_count: 0 }
+            ));
         });
     }
 

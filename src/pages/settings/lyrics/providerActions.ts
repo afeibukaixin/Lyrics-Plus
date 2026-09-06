@@ -175,12 +175,12 @@ export function createProviderActions({
         statuses: current.statuses.map((item) => {
           const provider = current.settings.providers.find((candidate) => candidate.id === item.providerId);
           if (!provider?.enabled) {
-            return { ...item, health: "unknown" as const, message: t("settings.lyrics.notParticipated"), checkedAtMs: null };
+            return { ...item, health: "unknown" as const, detail: { kind: "not_participated" as const }, checkedAtMs: null };
           }
           return response.providerStatuses.find((status) => status.providerId === item.providerId) ?? item;
         }),
       } : current);
-      if (response.error) setError(response.error);
+      if (response.error) setError(t("settings.lyrics.searchError"));
     } catch (value) {
       setError(messageOf(value));
     } finally {

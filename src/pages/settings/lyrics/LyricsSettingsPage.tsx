@@ -1,4 +1,4 @@
-import type { ChineseConversion, LibraryScanStatus, MatchWeights, MusixmatchTokenType, ProviderSettings, ProviderStatus } from "../../../shared/types";
+import type { ChineseConversion, LibraryScanStatus, MatchWeights, MusixmatchTokenType, ProviderErrorKind, ProviderSettings, ProviderStatus, ProviderStatusDetail } from "../../../shared/types";
 import type { TFunction } from "i18next";
 import { useEffect, useState, type FormEvent } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -38,6 +38,45 @@ const defaultTitleFilterKeywords = [
 
 function healthLabel(status: ProviderStatus | undefined, t: TFunction) {
   return t(`settings.lyrics.health.${status?.health ?? "unknown"}`);
+}
+
+function providerErrorLabel(errorKind: ProviderErrorKind, t: TFunction) {
+  return t(`settings.lyrics.statusDetail.errors.${errorKind}`);
+}
+
+function providerDetailLabel(status: ProviderStatus | undefined, t: TFunction) {
+  const detail: ProviderStatusDetail = status?.detail ?? { kind: "not_tested" };
+  switch (detail.kind) {
+    case "not_tested":
+      return t("settings.lyrics.statusDetail.notTested");
+    case "not_participated":
+      return t("settings.lyrics.notParticipated");
+    case "success":
+      return detail.resultCount > 0
+        ? t("settings.lyrics.statusDetail.successWithResults", { count: detail.resultCount })
+        : t("settings.lyrics.statusDetail.successNoResults");
+    case "partial_failure":
+      return t("settings.lyrics.statusDetail.partialFailure", {
+        count: detail.resultCount,
+        reason: providerErrorLabel(detail.errorKind, t),
+      });
+    case "failure": {
+      const reason = providerErrorLabel(detail.errorKind, t);
+      return t("settings.lyrics.statusDetail.failure", {
+        reason: detail.statusCode ? `${reason} · HTTP ${detail.statusCode}` : reason,
+      });
+    }
+    case "timeout":
+      return t("settings.lyrics.statusDetail.timeout");
+    case "cooldown":
+      if (detail.requiresConfiguration) return t("settings.lyrics.statusDetail.configurationCooldown");
+      if (detail.retryAfterMs !== null) {
+        return t("settings.lyrics.statusDetail.cooldown", {
+          seconds: Math.max(1, Math.ceil(detail.retryAfterMs / 1_000)),
+        });
+      }
+      return t("settings.lyrics.statusDetail.cooldownUnknown");
+  }
 }
 
 export default function LyricsSettingsPage() {
@@ -387,13 +426,15 @@ export default function LyricsSettingsPage() {
       <p className={styles.cardHint}>{providerView?.settings.mode === "smart" ? t("settings.lyrics.smartHint") : t("settings.lyrics.strictHint")}</p>
       <ItemGroup className={styles.providers} data-dragging={Boolean(providerDrag)}>{providerView?.settings.providers.map((provider, index) => {
         const status = providerView.statuses.find((item) => item.providerId === provider.id);
+        const providerName = status?.name ?? provider.id;
+        const detail = providerDetailLabel(status, t);
         return <Item variant="muted" className={styles.provider} data-dragging={providerDrag?.providerId === provider.id} key={provider.id} ref={(element) => { if (element) providerRows.current.set(provider.id, element); else providerRows.current.delete(provider.id); }} style={{ transform: providerDragTransform(index) }}>
-          <ItemMedia><Button type="button" variant="ghost" size="icon-sm" className={styles.dragHandle} aria-label={`${status?.name ?? provider.id} #${index + 1}`} disabled={savingProviderOrder} onPointerDown={(event) => beginProviderDrag(provider.id, index, event)} onPointerMove={continueProviderDrag} onPointerUp={finishProviderDrag} onPointerCancel={() => setProviderDrag(null)} onLostPointerCapture={() => setProviderDrag(null)}><GripVertical /></Button></ItemMedia>
+          <ItemMedia><Button type="button" variant="ghost" size="icon-sm" className={styles.dragHandle} aria-label={`${providerName} #${index + 1}`} disabled={savingProviderOrder} onPointerDown={(event) => beginProviderDrag(provider.id, index, event)} onPointerMove={continueProviderDrag} onPointerUp={finishProviderDrag} onPointerCancel={() => setProviderDrag(null)} onLostPointerCapture={() => setProviderDrag(null)}><GripVertical /></Button></ItemMedia>
           <Badge variant="outline">#{index + 1}</Badge>
-          <ItemContent><ItemTitle>{status?.name ?? provider.id}</ItemTitle><ItemDescription className={styles.providerStatus} data-health={status?.health ?? "unknown"} title={status?.message ?? undefined}>{healthLabel(status, t)}{status?.message ? ` · ${status.message}` : ""}</ItemDescription></ItemContent>
+          <ItemContent><ItemTitle>{providerName}</ItemTitle><ItemDescription className={styles.providerStatus} data-health={status?.health ?? "unknown"}>{healthLabel(status, t)} · {detail}</ItemDescription></ItemContent>
           <ItemActions>
-            {(provider.id === "musixmatch" || provider.id === "amll_ttml") && <IconButton label={t("settings.lyrics.providerConfig.configure", { source: status?.name ?? provider.id })} tooltip={t("settings.lyrics.providerConfig.configure", { source: status?.name ?? provider.id })} variant="ghost" size="icon-sm" onClick={() => openProviderConfig(provider.id)}><Settings2 /></IconButton>}
-            <Switch aria-label={status?.name ?? provider.id} checked={provider.enabled} onCheckedChange={() => toggleProvider(provider.id)} />
+            {(provider.id === "musixmatch" || provider.id === "amll_ttml") && <IconButton label={t("settings.lyrics.providerConfig.configure", { source: providerName })} tooltip={t("settings.lyrics.providerConfig.configure", { source: providerName })} variant="ghost" size="icon-sm" onClick={() => openProviderConfig(provider.id)}><Settings2 /></IconButton>}
+            <Switch aria-label={providerName} checked={provider.enabled} onCheckedChange={() => toggleProvider(provider.id)} />
             <Button variant="secondary" size="sm" disabled={testingProvider !== null} onClick={() => void testProviders([provider.id])}>{testingProvider === provider.id || testingProvider === "*" ? t("common.actions.testing") : t("common.actions.test")}</Button>
           </ItemActions>
         </Item>;

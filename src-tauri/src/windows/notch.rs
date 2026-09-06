@@ -4,7 +4,7 @@ use super::platform::{
     apply_lyrics_window_space_behavior, enable_notch_window_behavior,
     refresh_overlay_mouse_tracking,
 };
-use crate::{AppState, NotchLayoutMetrics, UiLanguage};
+use crate::{AppState, NotchLayoutMetrics};
 
 #[cfg(target_os = "macos")]
 fn screen_notch_layout(monitor: &tauri::Monitor) -> NotchLayoutMetrics {
@@ -265,12 +265,21 @@ pub(super) fn create_notch_lyrics_window(app: &tauri::AppHandle) -> tauri::Resul
     }
     // 宿主窗口固定为最大内容宽度加左右留白，实时预览只调整内部 Visual Island。
     let width = 656.0;
+    let title = app
+        .state::<AppState>()
+        .config
+        .snapshot()
+        .app
+        .language
+        .native_language()
+        .native_labels()
+        .notch_title;
     let window = WebviewWindowBuilder::new(
         app,
         "lyrics-notch",
         crate::webview_url(app, "index.html?view=lyrics-notch"),
     )
-    .title(UiLanguage::ZhCn.native_labels().notch_title)
+    .title(title)
     .inner_size(width, 220.0)
     .transparent(true)
     .accept_first_mouse(true)

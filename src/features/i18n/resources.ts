@@ -1,5 +1,7 @@
 import type { SupportedLanguage } from "../../shared/types";
 import { enUS } from "./locales/en-US";
+import { jaJP } from "./locales/ja-JP";
+import { koKR } from "./locales/ko-KR";
 import { zhCN } from "./locales/zh-CN";
 import { zhHK } from "./locales/zh-HK";
 import { zhTW } from "./locales/zh-TW";
@@ -12,4 +14,6 @@ export const translationResources: Record<SupportedLanguage, { translation: AppT
   "zh-HK": { translation: zhHK },
   "zh-TW": { translation: zhTW },
   "en-US": { translation: enUS },
+  "ja-JP": { translation: jaJP },
+  "ko-KR": { translation: koKR },
 };

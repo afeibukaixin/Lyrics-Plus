@@ -4,7 +4,7 @@ use super::lifecycle::{
     hide_surface, prepare_surface_show, schedule_surface_destroy, set_surface_runtime_state,
     toggle_quick_lyrics_reopen_while_destroying, SurfaceRuntimeState,
 };
-use crate::{SurfaceReopenRequest, UiLanguage};
+use crate::{AppState, SurfaceReopenRequest};
 
 const QUICK_LYRICS_REFRESH_EVENT: &str = "quick-lyrics://refresh";
 
@@ -31,12 +31,21 @@ pub(crate) fn show_quick_lyrics_window(app: &tauri::AppHandle) -> Result<(), Str
         return Ok(());
     }
 
+    let title = app
+        .state::<AppState>()
+        .config
+        .snapshot()
+        .app
+        .language
+        .native_language()
+        .native_labels()
+        .quick_title;
     let window = WebviewWindowBuilder::new(
         app,
         "quick-lyrics",
         crate::webview_url(app, "index.html?view=quick-lyrics"),
     )
-    .title(UiLanguage::ZhCn.native_labels().quick_title)
+    .title(title)
     .inner_size(900.0, 620.0)
     .resizable(false)
     .maximizable(false)
