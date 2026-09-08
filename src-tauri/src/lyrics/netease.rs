@@ -3,8 +3,9 @@ use serde::Deserialize;
 
 use super::parse_lrc_with_options;
 use super::provider::{
-    collect_provider_results, score_candidate, LyricsProvider, LyricsSearchInput,
-    LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
+    collect_provider_results, score_candidate, version_tags_from_title, LyricsProvider,
+    LyricsSearchInput, LyricsSearchResult, ProviderCandidate, ProviderCandidateReport,
+    ProviderCapabilities, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
     NETEASE_DISPLAY_NAME,
 };
 
@@ -80,39 +81,8 @@ impl LyricsProvider for NeteaseProvider {
         input: &'a LyricsSearchInput,
     ) -> ProviderFuture<'a, ProviderSearchReport> {
         Box::pin(async move {
-            let mut url = reqwest::Url::parse("https://music.163.com/api/cloudsearch/pc").map_err(
-                |error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()),
-            )?;
-            url.query_pairs_mut()
-                .append_pair(
-                    "s",
-                    &format!("{} {}", input.title.trim(), input.artist.trim()),
-                )
-                .append_pair("type", "1")
-                .append_pair("offset", "0")
-                .append_pair("total", "true")
-                // 未登录搜索会把部分翻唱置顶，扩大候选池后再由本地元数据评分。
-                .append_pair("limit", "100");
-            let response = client
-                .get(url)
-                .header("Referer", "https://music.163.com/")
-                .send()
-                .await
-                .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
-            if !response.status().is_success() {
-                return Err(super::provider::response_error(
-                    self.id(),
-                    &response,
-                    "搜索请求失败",
-                ));
-            }
-            let envelope = response.json::<SearchEnvelope>().await.map_err(|error| {
-                self.error(ProviderErrorKind::InvalidResponse, error.to_string())
-            })?;
-            let mut candidates = envelope
-                .result
-                .map(|result| result.songs)
-                .unwrap_or_default()
+            let songs = self.search_songs(client, input).await?;
+            let mut candidates = songs
                 .into_iter()
                 .map(|song| {
                     let mut result = LyricsSearchResult {
@@ -152,6 +122,58 @@ impl LyricsProvider for NeteaseProvider {
                 |(candidate, detail)| detail.map(|detail| result_from_detail(candidate, detail)),
             ))
         })
+    }
+
+    fn search_candidates<'a>(
+        &'a self,
+        client: &'a reqwest::Client,
+        input: &'a LyricsSearchInput,
+    ) -> ProviderFuture<'a, ProviderCandidateReport> {
+        Box::pin(async move {
+            let songs = self.search_songs(client, input).await?;
+            Ok(ProviderCandidateReport {
+                candidates: songs.into_iter().map(candidate_from_song).collect(),
+                warning: None,
+            })
+        })
+    }
+
+    fn fetch<'a>(
+        &'a self,
+        client: &'a reqwest::Client,
+        _input: &'a LyricsSearchInput,
+        candidate: &'a ProviderCandidate,
+    ) -> ProviderFuture<'a, Option<LyricsSearchResult>> {
+        Box::pin(async move {
+            let detail = self
+                .fetch_detail(client, &candidate.provider_item_id)
+                .await?;
+            Ok(result_from_detail(candidate.metadata_result(), detail))
+        })
+    }
+}
+
+fn candidate_from_song(song: NeteaseSong) -> ProviderCandidate {
+    ProviderCandidate {
+        provider_id: "netease".into(),
+        provider_item_id: song.id.to_string(),
+        title: song.name.clone(),
+        artists: song.artists.into_iter().map(|artist| artist.name).collect(),
+        album: song.album.map(|album| album.name),
+        duration_ms: song.duration,
+        version_tags: version_tags_from_title(&song.name),
+        capabilities: ProviderCapabilities {
+            metadata_search: true,
+            id_lookup: true,
+            plain_text: false,
+            line_timing: true,
+            word_timing: true,
+            translation: true,
+            romanization: true,
+        },
+        source: NETEASE_DISPLAY_NAME.into(),
+        lookup_key: None,
+        legacy_result: None,
     }
 }
 
@@ -197,6 +219,46 @@ fn result_from_detail(
 }
 
 impl NeteaseProvider {
+    async fn search_songs(
+        &self,
+        client: &reqwest::Client,
+        input: &LyricsSearchInput,
+    ) -> Result<Vec<NeteaseSong>, ProviderError> {
+        let mut url = reqwest::Url::parse("https://music.163.com/api/cloudsearch/pc")
+            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
+        url.query_pairs_mut()
+            .append_pair(
+                "s",
+                &format!("{} {}", input.title.trim(), input.artist.trim()),
+            )
+            .append_pair("type", "1")
+            .append_pair("offset", "0")
+            .append_pair("total", "true")
+            // 未登录搜索会把部分翻唱置顶，扩大候选池后再由本地元数据评分。
+            .append_pair("limit", "100");
+        let response = client
+            .get(url)
+            .header("Referer", "https://music.163.com/")
+            .send()
+            .await
+            .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
+        if !response.status().is_success() {
+            return Err(super::provider::response_error(
+                self.id(),
+                &response,
+                "搜索请求失败",
+            ));
+        }
+        let envelope = response
+            .json::<SearchEnvelope>()
+            .await
+            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
+        Ok(envelope
+            .result
+            .map(|result| result.songs)
+            .unwrap_or_default())
+    }
+
     async fn fetch_detail(
         &self,
         client: &reqwest::Client,

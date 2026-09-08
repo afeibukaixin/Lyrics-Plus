@@ -19,7 +19,7 @@ const defaultTitleFilterKeywords = [
 ];
 
 export const defaultConfig: AppConfig = {
-  schemaVersion: 65,
+  schemaVersion: 69,
   app: { theme: "dark", language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, hideMenuBarIcon: false, silentStartup: false, autoCheckUpdates: true, lyricsWindowsShowOnAllSpaces: false, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     chineseConversion: "original",
@@ -27,12 +27,10 @@ export const defaultConfig: AppConfig = {
     providers: {
       mode: "smart",
       autoApplyThreshold: 60,
-      autoApplyDurationGuardEnabled: true,
-      autoApplyDurationToleranceSeconds: 15,
       autoSearchDebounceMs: 2000,
       preferCapabilities: true,
-      capabilityPreferenceTolerance: 4,
-      matchWeights: { title: 64, artist: 16, album: 16, duration: 4 },
+      capabilityPreferenceTolerance: 10,
+      matchWeights: { title: 64, artist: 16, album: 5, duration: 10, version: 5 },
       normalizeChinese: true,
       titleFilterKeywords: defaultTitleFilterKeywords,
       amllBaseUrl: "https://api.amll.dev",
@@ -41,10 +39,9 @@ export const defaultConfig: AppConfig = {
         { id: "kugou", enabled: true },
         { id: "qqmusic", enabled: true },
         { id: "netease", enabled: true },
-        { id: "kuwo", enabled: true },
-        { id: "amll_ttml", enabled: true },
-        { id: "migu", enabled: true },
-        { id: "musixmatch", enabled: true },
+        { id: "amll_ttml", enabled: false },
+        { id: "musixmatch", enabled: false },
+        { id: "qishui", enabled: true },
       ],
     },
     displays: {

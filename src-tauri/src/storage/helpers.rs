@@ -84,7 +84,7 @@ pub(super) fn available_path(
     artist: &str,
     raw: &str,
     original_format: &str,
-) -> PathBuf {
+) -> Result<PathBuf, String> {
     let stem = format!("{} - {}", safe_component(artist), safe_component(title));
     let extension = if original_format == "lyricsfile" {
         ".lyricsfile.yaml"
@@ -92,22 +92,40 @@ pub(super) fn available_path(
         ".lrc"
     };
     let initial = library_dir.join(format!("{stem}{extension}"));
-    if !initial.exists() || read_lyric_text(&initial).ok().as_deref() == Some(raw) {
-        return initial;
+    if !path_is_occupied(&initial)? {
+        return Ok(initial);
     }
-    for suffix in 2..10_000 {
-        let candidate = library_dir.join(format!("{stem} ({suffix}){extension}"));
-        if !candidate.exists() || read_lyric_text(&candidate).ok().as_deref() == Some(raw) {
-            return candidate;
+    let digest = stable_filename_hash(raw);
+    for prefix_length in (8..=64).step_by(4) {
+        let prefix = &digest[..prefix_length];
+        let candidate = library_dir.join(format!("{stem} [{prefix}]{extension}"));
+        if !path_is_occupied(&candidate)? {
+            return Ok(candidate);
         }
     }
-    library_dir.join(format!("{stem}-{}{extension}", content_hash(raw)))
+    Err(format!(
+        "歌词文件名哈希冲突，无法安全保存：{stem}{extension}"
+    ))
 }
 
 pub(super) fn content_hash(raw: &str) -> String {
     let mut hasher = DefaultHasher::new();
     raw.hash(&mut hasher);
     format!("{:016x}", hasher.finish())
+}
+
+/// 用稳定的 SHA-256 摘要区分同名但内容不同的托管歌词版本。
+pub(super) fn stable_filename_hash(raw: &str) -> String {
+    let digest = Sha256::digest(raw.as_bytes());
+    digest.iter().map(|byte| format!("{:02x}", byte)).collect()
+}
+
+fn path_is_occupied(path: &Path) -> Result<bool, String> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!("检查歌词文件路径失败 {}：{error}", path.display())),
+    }
 }
 
 pub(super) fn read_lyric_text(path: &Path) -> Result<String, String> {
@@ -118,6 +136,41 @@ pub(super) fn read_lyric_text(path: &Path) -> Result<String, String> {
     decode_lyrics_bytes(&bytes)
         .map(|raw| raw.trim_start_matches('\u{feff}').to_string())
         .map_err(|error| format!("读取歌词文件失败：{error}"))
+}
+
+pub(super) fn atomic_write_lyric(path: &Path, raw: &str) -> Result<(), String> {
+    if path_is_occupied(path)? {
+        return Err(format!("目标歌词文件已存在，拒绝覆盖：{}", path.display()));
+    }
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|value| value.as_nanos())
+        .unwrap_or_default();
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("lyrics");
+    let temporary =
+        path.with_file_name(format!(".{file_name}.{}.{}.tmp", std::process::id(), nonce));
+    if let Err(error) = fs::write(&temporary, raw) {
+        return Err(format!("保存歌词临时文件失败：{error}"));
+    }
+    match path_is_occupied(path) {
+        Ok(true) => {
+            let _ = fs::remove_file(&temporary);
+            return Err(format!("目标歌词文件已存在，拒绝覆盖：{}", path.display()));
+        }
+        Ok(false) => {}
+        Err(error) => {
+            let _ = fs::remove_file(&temporary);
+            return Err(error);
+        }
+    }
+    if let Err(error) = fs::rename(&temporary, path) {
+        let _ = fs::remove_file(&temporary);
+        return Err(format!("原子替换歌词文件失败：{error}"));
+    }
+    Ok(())
 }
 
 pub(super) fn upsert_file_index(
@@ -134,12 +187,13 @@ pub(super) fn upsert_file_index(
         .execute(
             "INSERT INTO lyric_files
                (content_path, title, artist, source, original_format, manual_selected,
-                content_hash, app_owned, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, unixepoch())
+               content_hash, app_owned, available, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1, unixepoch())
              ON CONFLICT(content_path) DO UPDATE SET
                title=excluded.title, artist=excluded.artist, source=excluded.source,
                original_format=excluded.original_format, manual_selected=excluded.manual_selected,
-               content_hash=excluded.content_hash, app_owned=excluded.app_owned, updated_at=unixepoch()",
+               content_hash=excluded.content_hash, app_owned=excluded.app_owned,
+               available=1, updated_at=unixepoch()",
             params![
                 path.to_string_lossy(),
                 title,
@@ -156,10 +210,12 @@ pub(super) fn upsert_file_index(
 }
 
 fn migrate_legacy_files(
-    connection: &Connection,
+    connection: &mut Connection,
     legacy_dir: &Path,
     library_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // 旧目录在 V2 中只作为历史只读来源登记；迁移阶段不再复制、覆盖或删除用户文件。
+    let _ = (legacy_dir, library_dir);
     let mut statement = connection.prepare(
         "SELECT track_key, title, artist, source, content_path, manual_selected
          FROM lyric_associations",
@@ -178,36 +234,18 @@ fn migrate_legacy_files(
         .collect::<rusqlite::Result<Vec<_>>>()?;
     drop(statement);
 
-    for (track_key, title, artist, source, old_path, manual_selected) in rows {
-        if !old_path.exists() {
+    let transaction = connection.transaction()?;
+    for (track_key, title, artist, source, path, manual_selected) in rows {
+        if !path.is_file() {
             continue;
         }
-        let raw = read_lyric_text(&old_path)
+        let raw = read_lyric_text(&path)
             .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
         let original_format = parse_lrc_with_options(&raw, &source, manual_selected)
             .map(|document| document.metadata.original_format)
             .unwrap_or_else(|_| "lrc".into());
-        let path = if old_path.starts_with(library_dir) {
-            old_path.clone()
-        } else if old_path.starts_with(legacy_dir) {
-            let destination = available_path(library_dir, &title, &artist, &raw, &original_format);
-            if destination != old_path && !destination.exists() {
-                fs::copy(&old_path, &destination)?;
-            }
-            connection.execute(
-                "UPDATE lyric_associations SET content_path=?2, updated_at=unixepoch()
-                 WHERE track_key=?1",
-                params![track_key, destination.to_string_lossy()],
-            )?;
-            if destination.exists() && old_path != destination {
-                let _ = fs::remove_file(&old_path);
-            }
-            destination
-        } else {
-            old_path.clone()
-        };
         upsert_file_index(
-            connection,
+            &transaction,
             &path,
             &title,
             &artist,
@@ -216,6 +254,12 @@ fn migrate_legacy_files(
             manual_selected,
             &content_hash(&raw),
         )?;
+        transaction.execute(
+            "UPDATE lyric_associations SET content_path=?2, updated_at=updated_at
+             WHERE track_key=?1",
+            params![track_key, path.to_string_lossy()],
+        )?;
     }
+    transaction.commit()?;
     Ok(())
 }

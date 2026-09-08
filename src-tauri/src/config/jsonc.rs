@@ -45,12 +45,6 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             line if line.starts_with("      \"autoApplyThreshold\":") => {
                 Some(("      ", ConfigComment::AutoApplyThreshold))
             }
-            line if line.starts_with("      \"autoApplyDurationGuardEnabled\":") => {
-                Some(("      ", ConfigComment::AutoApplyDurationGuard))
-            }
-            line if line.starts_with("      \"autoApplyDurationToleranceSeconds\":") => {
-                Some(("      ", ConfigComment::AutoApplyDurationTolerance))
-            }
             line if line.starts_with("      \"autoSearchDebounceMs\":") => {
                 Some(("      ", ConfigComment::AutoSearchDebounce))
             }

@@ -25,6 +25,7 @@ export function useLyricsLifecycle(
     state.setSearching(false);
     state.setError(null);
     state.setResults([]);
+    state.setAutoApplyCandidate(null);
     updateDocument(null);
     state.setLoadState(active && trackKey ? "loading" : "idle");
     if (!active || !trackKey) return;

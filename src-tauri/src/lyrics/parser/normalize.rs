@@ -90,11 +90,7 @@ pub(super) fn normalize_document(document: &mut LyricsDocument) {
     }
 }
 
-pub(crate) fn lyrics_quality_report(
-    document: &LyricsDocument,
-    duration_ms: Option<u64>,
-    duration_tolerance_ms: Option<u64>,
-) -> LyricsQualityReport {
+pub(crate) fn lyrics_quality_report(document: &LyricsDocument) -> LyricsQualityReport {
     let original = &document.tracks.original.lines;
     let has_valid_synced_original = original.iter().any(|line| {
         !line.text.trim().is_empty() && line.start_ms <= line.end_ms.unwrap_or(u64::MAX)
@@ -123,13 +119,9 @@ pub(crate) fn lyrics_quality_report(
                 && attempted_word_lines.contains(&line.start_ms)
         })
         .count();
-    let auto_applicable = has_valid_synced_original
-        && match (duration_ms, duration_tolerance_ms) {
-            (Some(duration), Some(tolerance)) => {
-                last_valid_time_ms.is_none_or(|last| last <= duration.saturating_add(tolerance))
-            }
-            _ => true,
-        };
+    // 时间轴末尾与播放器时长可能因片头、片尾或版本差异而不同，
+    // 不再用固定秒数把候选拦截在自动匹配之外。
+    let auto_applicable = has_valid_synced_original;
     LyricsQualityReport {
         has_valid_synced_original,
         degraded_word_lines,

@@ -1,4 +1,4 @@
-import type { ChineseConversion, LibraryScanStatus, MatchWeights, MusixmatchTokenType, ProviderErrorKind, ProviderSettings, ProviderStatus, ProviderStatusDetail } from "../../../shared/types";
+import type { ChineseConversion, LibraryRootView, LibraryScanStatus, MatchWeights, MusixmatchTokenType, ProviderErrorKind, ProviderSettings, ProviderStatus, ProviderStatusDetail } from "../../../shared/types";
 import type { TFunction } from "i18next";
 import { useEffect, useState, type FormEvent } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -11,7 +11,7 @@ import { useAppConfig } from "../../../features/config/AppConfigProvider";
 import { useSettingsContext } from "../shared/SettingsContext";
 import styles from "../settings.module.scss";
 import { PageHeader, RangeRow, SelectRow, SettingsPage, SettingsSection, ToggleRow } from "../shared/components";
-import { GripVertical, Settings2, X } from "lucide-react";
+import { FolderPlus, GripVertical, RefreshCw, Settings2, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
@@ -25,11 +25,10 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input";
 
 const defaultAmllBaseUrl = "https://api.amll.dev";
-const defaultMatchWeights: MatchWeights = { title: 64, artist: 16, album: 16, duration: 4 };
-const defaultCapabilityPreferenceTolerance = 4;
-const defaultAutoApplyDurationToleranceSeconds = 15;
-const matchWeightKeys = ["title", "artist", "album", "duration"] as const;
+const defaultMatchWeights: MatchWeights = { title: 64, artist: 16, album: 5, duration: 10, version: 5 };
+const matchWeightKeys = ["title", "artist", "album", "duration", "version"] as const;
 type MatchWeightKey = (typeof matchWeightKeys)[number];
+const defaultCapabilityPreferenceTolerance = 10;
 
 const defaultTitleFilterKeywords = [
   "feat", "ft", "featuring", "主题曲", "片头曲", "片尾曲",
@@ -96,8 +95,10 @@ export default function LyricsSettingsPage() {
   const [savingMatchRules, setSavingMatchRules] = useState(false);
   const [savingChineseConversion, setSavingChineseConversion] = useState(false);
   const [savingJapaneseRepair, setSavingJapaneseRepair] = useState(false);
+  const [addingLibraryRoot, setAddingLibraryRoot] = useState(false);
   const {
     playback, lyrics, fileInput, providerRows, providerView, providerCredentials, testingProvider,
+    libraryRoots, setLibraryRoots,
     resettingSection, confirmingReset, providerDrag, savingProviderOrder,
     saveProviderSettings, saveMusixmatchToken, clearMusixmatchToken,
     beginProviderDrag, continueProviderDrag, finishProviderDrag,
@@ -125,7 +126,7 @@ export default function LyricsSettingsPage() {
     if (!isTauriRuntime()) return;
     const acceptStatus = (status: LibraryScanStatus) => {
       setScanStatus((current) => !current || status.scanId >= current.scanId ? status : current);
-      setLibraryDir(status.libraryDir);
+      setLibraryDir((current) => current ?? status.libraryDir);
     };
     const cleanup = createTauriListenerCleanup(
       listen<LibraryScanStatus>("lyrics://library-scan-progress", ({ payload }) => acceptStatus(payload)),
@@ -166,10 +167,55 @@ export default function LyricsSettingsPage() {
     }
   };
 
-  const rescanLibrary = async () => {
+  const updateLibraryRoot = (next: LibraryRootView) => {
+    setLibraryRoots((current) => current.some((root) => root.rootId === next.rootId)
+      ? current.map((root) => root.rootId === next.rootId ? next : root)
+      : [...current, next]);
+  };
+
+  const addLocalRoot = async () => {
+    const selected = await open({ directory: true, multiple: false, title: t("settings.lyrics.chooseLocalRoot") });
+    if (!selected || Array.isArray(selected)) return;
+    setAddingLibraryRoot(true);
     setError(null);
     try {
-      setScanStatus(await api.rescanLyricsLibrary());
+      const root = await api.addLibraryRoot(selected);
+      updateLibraryRoot(root);
+    } catch (error) {
+      setError(messageOf(error));
+    } finally {
+      setAddingLibraryRoot(false);
+    }
+  };
+
+  const toggleLibraryRoot = async (root: LibraryRootView) => {
+    setError(null);
+    try {
+      const next = await api.setLibraryRootEnabled(root.rootId, !root.enabled);
+      updateLibraryRoot(next);
+      if (!next.enabled) {
+        setScanStatus((current) => current?.libraryDir === root.path ? null : current);
+      }
+    } catch (error) {
+      setError(messageOf(error));
+    }
+  };
+
+  const removeLibraryRoot = async (root: LibraryRootView) => {
+    setError(null);
+    try {
+      await api.removeLibraryRoot(root.rootId);
+      setLibraryRoots((current) => current.filter((item) => item.rootId !== root.rootId));
+      setScanStatus((current) => current?.libraryDir === root.path ? null : current);
+    } catch (error) {
+      setError(messageOf(error));
+    }
+  };
+
+  const rescanRoot = async (root: LibraryRootView) => {
+    setError(null);
+    try {
+      setScanStatus(await api.rescanLibraryRoot(root.rootId));
     } catch (error) {
       setError(messageOf(error));
     }
@@ -215,10 +261,6 @@ export default function LyricsSettingsPage() {
     if (saved) setProviderConfig(null);
   };
 
-  const previewMatchWeight = (key: MatchWeightKey, value: number) => {
-    setMatchWeightsDraft((current) => ({ ...current, [key]: value }));
-  };
-
   const updateNormalizeChinese = async (normalizeChinese: boolean) => {
     if (!providerView || savingMatchRules) return;
     setSavingMatchRules(true);
@@ -230,13 +272,6 @@ export default function LyricsSettingsPage() {
     if (!providerView || savingMatchRules) return;
     setSavingMatchRules(true);
     await saveProviderSettings({ ...providerView.settings, preferCapabilities });
-    setSavingMatchRules(false);
-  };
-
-  const updateAutoApplyDurationGuard = async (autoApplyDurationGuardEnabled: boolean) => {
-    if (!providerView || savingMatchRules) return;
-    setSavingMatchRules(true);
-    await saveProviderSettings({ ...providerView.settings, autoApplyDurationGuardEnabled });
     setSavingMatchRules(false);
   };
 
@@ -274,25 +309,6 @@ export default function LyricsSettingsPage() {
     }
   };
 
-  const commitMatchWeight = async (key: MatchWeightKey, value: number) => {
-    if (!providerView) return;
-    const previous = providerView.settings.matchWeights;
-    const matchWeights = { ...previous, [key]: value };
-    const total = matchWeightKeys.reduce((sum, item) => sum + matchWeights[item], 0);
-    if (total === 0) {
-      setError(t("settings.lyrics.matchWeightsEmpty"));
-      setMatchWeightsDraft(previous);
-      throw new Error("match weights cannot all be zero");
-    }
-    setSavingMatchRules(true);
-    const saved = await saveProviderSettings({ ...providerView.settings, matchWeights });
-    setSavingMatchRules(false);
-    if (!saved) {
-      setMatchWeightsDraft(previous);
-      throw new Error("failed to save match weights");
-    }
-  };
-
   const commitAutoSearchDebounce = async (seconds: number) => {
     if (!providerView) return;
     const autoSearchDebounceMs = Math.round(seconds * 1_000 / 100) * 100;
@@ -300,24 +316,58 @@ export default function LyricsSettingsPage() {
     if (!saved) throw new Error("failed to save lyric search debounce");
   };
 
-  const commitAutoApplyDurationTolerance = async (seconds: number) => {
+  const commitScoringNumber = async (
+    key: "autoApplyThreshold",
+    value: number,
+  ) => {
     if (!providerView) return;
-    const autoApplyDurationToleranceSeconds = Math.round(seconds);
-    const saved = await saveProviderSettings({ ...providerView.settings, autoApplyDurationToleranceSeconds });
-    if (!saved) throw new Error("failed to save lyric duration tolerance");
+    const settings = { ...providerView.settings, [key]: Math.round(value) };
+    setSavingMatchRules(true);
+    const saved = await saveProviderSettings(settings);
+    setSavingMatchRules(false);
+    if (!saved) throw new Error("failed to save lyric scoring setting");
+  };
+
+  const previewMatchWeight = (key: MatchWeightKey, value: number) => {
+    setMatchWeightsDraft((current) => ({ ...current, [key]: Math.round(value) }));
+  };
+
+  const commitMatchWeight = async (key: MatchWeightKey, value: number) => {
+    if (!providerView) return;
+    const previous = providerView.settings.matchWeights;
+    const matchWeights = { ...previous, [key]: Math.round(value) };
+    if (matchWeightKeys.every((item) => matchWeights[item] === 0)) {
+      setMatchWeightsDraft(previous);
+      setError(t("settings.lyrics.matchWeightsEmpty"));
+      throw new Error("match weights cannot all be zero");
+    }
+    setSavingMatchRules(true);
+    const saved = await saveProviderSettings({
+      ...providerView.settings,
+      matchWeights,
+    });
+    setSavingMatchRules(false);
+    if (!saved) {
+      setMatchWeightsDraft(previous);
+      throw new Error("failed to save lyric match weight");
+    }
   };
 
   const matchWeightTotal = matchWeightKeys.reduce((sum, key) => sum + matchWeightsDraft[key], 0);
-  const matchWeightPercentage = (key: MatchWeightKey) => {
-    if (matchWeightTotal === 0) return "0";
-    const percentage = matchWeightsDraft[key] / matchWeightTotal * 100;
-    return Number.isInteger(percentage) ? percentage.toFixed(0) : percentage.toFixed(1);
-  };
+  const matchWeightPercentage = (key: MatchWeightKey) => matchWeightTotal === 0
+    ? 0
+    : Math.round(matchWeightsDraft[key] / matchWeightTotal * 1_000) / 10;
 
-  const scanActive = scanStatus?.phase === "discovering" || scanStatus?.phase === "indexing";
   const scanProgress = scanStatus?.phase === "indexing" && scanStatus.total
     ? Math.round(scanStatus.processed / scanStatus.total * 100)
     : 0;
+  const providerManifests = providerView?.manifests ?? [];
+  const providerPreferences = providerView?.settings.providers ?? [];
+  const providerEntries = providerPreferences.map((provider, index) => ({
+    provider,
+    index,
+    manifest: providerManifests.find((manifest) => manifest.id === provider.id),
+  }));
   const sections = [
     { id: "lyrics-current-track", label: t("settings.lyrics.currentTrack") },
     { id: "lyrics-output", label: t("settings.lyrics.output") },
@@ -327,6 +377,19 @@ export default function LyricsSettingsPage() {
     { id: "lyrics-title-filters", label: t("settings.lyrics.titleFilters") },
     { id: "lyrics-provider-priority", label: t("settings.lyrics.providerPriority") },
   ];
+  const scanStatusView = scanStatus && <div className={styles.scanStatus} data-phase={scanStatus.phase}>
+    <small className={styles.scanPath}>{scanStatus.libraryDir}</small>
+    {scanStatus.phase === "discovering" && <><Progress className="animate-pulse" value={100} /><strong>{t("settings.lyrics.scanDiscovering")}</strong><span>{t("settings.lyrics.scanDiscovered", { discovered: scanStatus.discovered, skipped: scanStatus.skipped })}</span></>}
+    {scanStatus.phase === "indexing" && <><Progress value={scanProgress} /><strong>{t("settings.lyrics.scanIndexing", { processed: scanStatus.processed, total: scanStatus.total ?? 0 })}</strong><span>{t("settings.lyrics.scanLiveStats", scanStatus)}</span></>}
+    {scanStatus.phase === "completed" && <><strong>{t("settings.lyrics.scanCompleted")}</strong><span>{t("settings.lyrics.scanSummary", scanStatus)}</span>{scanStatus.firstFailure && <small>{scanStatus.firstFailure}</small>}</>}
+    {scanStatus.phase === "failed" && <><strong>{t("settings.lyrics.scanFailed")}</strong><span role="alert">{scanStatus.error}</span></>}
+  </div>;
+  const managedRootPath = libraryRoots.find((root) => root.rootKind === "managed")?.path ?? libraryDir;
+  const isManagedScan = scanStatus?.libraryDir === managedRootPath;
+  const scanStatusTargetExists = Boolean(scanStatus && libraryRoots.some((root) =>
+    (root.rootKind === "managed" || (root.rootKind === "local" && root.enabled))
+    && root.path === scanStatus.libraryDir
+  ));
 
   return <SettingsPage sections={sections}>
     <PageHeader title={t("settings.lyrics.title")} description={t("settings.lyrics.description")} onReset={() => void resetSection("lyrics")} resetting={resettingSection === "lyrics"} confirming={confirmingReset === "lyrics"} />
@@ -362,41 +425,29 @@ export default function LyricsSettingsPage() {
       />
     </SettingsSection>
     <SettingsSection id="lyrics-directory" title={t("settings.lyrics.directory")}>
-      <p className={styles.directoryPath}>{libraryDir ?? t("library.loadingDirectory")}</p>
-      {scanStatus && <div className={styles.scanStatus} data-phase={scanStatus.phase}>
-        {scanStatus.phase === "discovering" && <><Progress className="animate-pulse" value={100} /><strong>{t("settings.lyrics.scanDiscovering")}</strong><span>{t("settings.lyrics.scanDiscovered", { discovered: scanStatus.discovered, skipped: scanStatus.skipped })}</span></>}
-        {scanStatus.phase === "indexing" && <><Progress value={scanProgress} /><strong>{t("settings.lyrics.scanIndexing", { processed: scanStatus.processed, total: scanStatus.total ?? 0 })}</strong><span>{t("settings.lyrics.scanLiveStats", scanStatus)}</span></>}
-        {scanStatus.phase === "completed" && <><strong>{t("settings.lyrics.scanCompleted")}</strong><span>{t("settings.lyrics.scanSummary", scanStatus)}</span>{scanStatus.firstFailure && <small>{scanStatus.firstFailure}</small>}</>}
-        {scanStatus.phase === "failed" && <><strong>{t("settings.lyrics.scanFailed")}</strong><span role="alert">{scanStatus.error}</span></>}
-      </div>}
-      <div className={styles.buttonRow}>
-        <Button variant="secondary" size="sm" disabled={!libraryDir} onClick={() => void api.openLyricsDirectory().catch((error) => setError(messageOf(error)))}>{t("library.openFolder")}</Button>
-        <Button variant="secondary" size="sm" disabled={changingDirectory} onClick={() => void changeDirectory()}>{changingDirectory ? t("library.changing") : t("library.changeFolder")}</Button>
-        <Button variant="secondary" size="sm" disabled={!libraryDir} onClick={() => void rescanLibrary()}>{scanActive ? t("settings.lyrics.restartScan") : t("settings.lyrics.rescan")}</Button>
+      <div className={styles.directoryBlock}>
+        <div className={styles.sectionSubheading}><strong>{t("settings.lyrics.managedDirectory")}</strong></div>
+        <p className={styles.directoryPath} title={libraryDir ?? undefined}>{libraryDir ?? t("library.loadingDirectory")}</p>
+        <div className={styles.buttonRow}>
+          <Button variant="secondary" size="sm" disabled={!libraryDir} onClick={() => void api.openLyricsDirectory().catch((error) => setError(messageOf(error)))}>{t("library.openFolder")}</Button>
+          <Button variant="secondary" size="sm" disabled={changingDirectory} onClick={() => void changeDirectory()}>{changingDirectory ? t("library.changing") : t("library.changeFolder")}</Button>
+        </div>
+        {scanStatusTargetExists && isManagedScan && scanStatusView}
+      </div>
+      <div className={styles.directoryBlock}>
+        <div className={styles.sectionSubheading}><strong>{t("settings.lyrics.localRoots")}</strong><Button variant="secondary" size="sm" disabled={addingLibraryRoot} onClick={() => void addLocalRoot()}><FolderPlus data-icon="inline-start" />{addingLibraryRoot ? t("settings.lyrics.addingLocalRoot") : t("settings.lyrics.addLocalRoot")}</Button></div>
+        {scanStatusTargetExists && !isManagedScan && scanStatusView}
+        <div className={styles.libraryRoots}>
+        {libraryRoots.filter((root) => root.rootKind === "local").map((root) => <Item variant="muted" className={styles.libraryRoot} key={root.rootId}>
+          <ItemContent><ItemTitle>{root.displayName}</ItemTitle><ItemDescription title={root.path}>{root.path}<br />{t("settings.lyrics.rootStats", { files: root.fileCount, unavailable: root.unavailableCount })}{root.lastScanAt ? ` · ${new Date(root.lastScanAt * 1000).toLocaleString()}` : ""}</ItemDescription>{root.lastError && <small role="alert">{root.lastError}</small>}</ItemContent>
+          <ItemActions><Switch aria-label={root.displayName} checked={root.enabled} onCheckedChange={() => void toggleLibraryRoot(root)} /><Button variant="ghost" size="icon-sm" disabled={!root.enabled} onClick={() => void rescanRoot(root)} aria-label={t("settings.lyrics.rescanRoot")}><RefreshCw /></Button><Button variant="ghost" size="icon-sm" onClick={() => void removeLibraryRoot(root)} aria-label={t("settings.lyrics.removeRoot")}><Trash2 /></Button></ItemActions>
+        </Item>)}
+        </div>
       </div>
     </SettingsSection>
     <SettingsSection id="lyrics-auto-match" title={t("settings.lyrics.autoMatch")}>
-      <RangeRow label={t("settings.lyrics.threshold")} value={providerView?.settings.autoApplyThreshold ?? 60} min={0} max={100} suffix="%" onChange={(autoApplyThreshold) => { if (providerView) void saveProviderSettings({ ...providerView.settings, autoApplyThreshold }); }} />
       <p className={styles.cardHint}>{t("settings.lyrics.thresholdHint")}</p>
-      <ToggleRow
-        label={t("settings.lyrics.durationGuard")}
-        description={t("settings.lyrics.durationGuardHint")}
-        value={providerView?.settings.autoApplyDurationGuardEnabled ?? true}
-        disabled={!providerView || savingMatchRules}
-        onChange={updateAutoApplyDurationGuard}
-      />
-      <RangeRow
-        label={t("settings.lyrics.durationTolerance")}
-        value={providerView?.settings.autoApplyDurationToleranceSeconds ?? defaultAutoApplyDurationToleranceSeconds}
-        min={0}
-        max={60}
-        step={1}
-        suffix="s"
-        disabled={!providerView || savingMatchRules || !providerView.settings.autoApplyDurationGuardEnabled}
-        onChange={() => undefined}
-        onValueCommitted={commitAutoApplyDurationTolerance}
-      />
-      <p className={styles.cardHint}>{t("settings.lyrics.durationToleranceHint")}</p>
+      <RangeRow label={t("settings.lyrics.autoApplyThreshold")} value={providerView?.settings.autoApplyThreshold ?? 60} min={0} max={100} suffix="%" disabled={!providerView || savingMatchRules} onChange={() => undefined} onValueCommitted={(value) => commitScoringNumber("autoApplyThreshold", value)} />
       <RangeRow label={t("settings.lyrics.autoSearchDebounce")} value={(providerView?.settings.autoSearchDebounceMs ?? 2000) / 1000} min={0} max={5} step={0.1} suffix="s" disabled={!providerView} onChange={() => undefined} onValueCommitted={commitAutoSearchDebounce} />
       <p className={styles.cardHint}>{t("settings.lyrics.autoSearchDebounceHint")}</p>
     </SettingsSection>
@@ -414,8 +465,9 @@ export default function LyricsSettingsPage() {
       />
       <p className={styles.cardHint}>{t("settings.lyrics.capabilityPreferenceToleranceHint")}</p>
       <ToggleRow label={t("settings.lyrics.normalizeChinese")} description={t("settings.lyrics.normalizeChineseHint")} value={providerView?.settings.normalizeChinese ?? true} disabled={!providerView || savingMatchRules} onChange={updateNormalizeChinese} />
-      {matchWeightKeys.map((key) => <RangeRow key={key} label={t(`settings.lyrics.matchWeight.${key}`)} value={providerView?.settings.matchWeights[key] ?? defaultMatchWeights[key]} min={0} max={100} suffix="" disabled={!providerView || savingMatchRules} onChange={() => undefined} onValuePreview={(value) => previewMatchWeight(key, value)} onValueCommitted={(value) => commitMatchWeight(key, value)} onPreviewCanceled={() => setMatchWeightsDraft(providerView?.settings.matchWeights ?? defaultMatchWeights)} />)}
-      <p className={styles.cardHint}>{t("settings.lyrics.matchWeightSummary", { title: matchWeightPercentage("title"), artist: matchWeightPercentage("artist"), album: matchWeightPercentage("album"), duration: matchWeightPercentage("duration") })}<br />{t("settings.lyrics.matchRulesHint")}</p>
+      <div className={styles.matchWeights}>
+        {matchWeightKeys.map((key) => <RangeRow key={key} label={t(`settings.lyrics.matchWeight.${key}`)} value={providerView?.settings.matchWeights[key] ?? defaultMatchWeights[key]} displayValue={matchWeightPercentage(key)} min={0} max={100} suffix="%" disabled={!providerView || savingMatchRules} onChange={() => undefined} onValuePreview={(value) => previewMatchWeight(key, value)} onValueCommitted={(value) => commitMatchWeight(key, value)} onPreviewCanceled={() => setMatchWeightsDraft(providerView?.settings.matchWeights ?? defaultMatchWeights)} />)}
+      </div>
     </SettingsSection>
     <SettingsSection id="lyrics-title-filters" title={t("settings.lyrics.titleFilters")} trailing={<Button variant="ghost" size="sm" disabled={savingTitleFilters} onClick={() => void (providerView && saveProviderSettings({ ...providerView.settings, titleFilterKeywords: defaultTitleFilterKeywords }))}>{t("settings.lyrics.restoreTitleFilters")}</Button>}>
       <p className={styles.cardHint}>{t("settings.lyrics.titleFiltersHint")}</p>
@@ -424,21 +476,23 @@ export default function LyricsSettingsPage() {
     </SettingsSection>
     <SettingsSection id="lyrics-provider-priority" title={t("settings.lyrics.providerPriority")} trailing={providerView && <div className={styles.shortcutControls}><Button variant="secondary" size="sm" disabled={!lyrics.trackKey || !providerView.settings.providers.some((provider) => provider.enabled) || testingProvider !== null} onClick={() => void testAllProviders()}>{testingProvider === "*" ? t("common.actions.testing") : t("common.actions.testAll")}</Button><Select disabled={savingProviderOrder} items={[{ value: "strict", label: t("settings.lyrics.strict") }, { value: "smart", label: t("settings.lyrics.smart") }]} value={providerView.settings.mode} onValueChange={(mode) => void saveProviderSettings({ ...providerView.settings, mode: mode as ProviderSettings["mode"] })}><SelectTrigger className="w-32" aria-label={t("settings.lyrics.providerPriority")}><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="strict">{t("settings.lyrics.strict")}</SelectItem><SelectItem value="smart">{t("settings.lyrics.smart")}</SelectItem></SelectGroup></SelectContent></Select></div>}>
       <p className={styles.cardHint}>{providerView?.settings.mode === "smart" ? t("settings.lyrics.smartHint") : t("settings.lyrics.strictHint")}</p>
-      <ItemGroup className={styles.providers} data-dragging={Boolean(providerDrag)}>{providerView?.settings.providers.map((provider, index) => {
-        const status = providerView.statuses.find((item) => item.providerId === provider.id);
-        const providerName = status?.name ?? provider.id;
-        const detail = providerDetailLabel(status, t);
-        return <Item variant="muted" className={styles.provider} data-dragging={providerDrag?.providerId === provider.id} key={provider.id} ref={(element) => { if (element) providerRows.current.set(provider.id, element); else providerRows.current.delete(provider.id); }} style={{ transform: providerDragTransform(index) }}>
-          <ItemMedia><Button type="button" variant="ghost" size="icon-sm" className={styles.dragHandle} aria-label={`${providerName} #${index + 1}`} disabled={savingProviderOrder} onPointerDown={(event) => beginProviderDrag(provider.id, index, event)} onPointerMove={continueProviderDrag} onPointerUp={finishProviderDrag} onPointerCancel={() => setProviderDrag(null)} onLostPointerCapture={() => setProviderDrag(null)}><GripVertical /></Button></ItemMedia>
-          <Badge variant="outline">#{index + 1}</Badge>
-          <ItemContent><ItemTitle>{providerName}</ItemTitle><ItemDescription className={styles.providerStatus} data-health={status?.health ?? "unknown"}>{healthLabel(status, t)} · {detail}</ItemDescription></ItemContent>
-          <ItemActions>
-            {(provider.id === "musixmatch" || provider.id === "amll_ttml") && <IconButton label={t("settings.lyrics.providerConfig.configure", { source: providerName })} tooltip={t("settings.lyrics.providerConfig.configure", { source: providerName })} variant="ghost" size="icon-sm" onClick={() => openProviderConfig(provider.id)}><Settings2 /></IconButton>}
-            <Switch aria-label={providerName} checked={provider.enabled} onCheckedChange={() => toggleProvider(provider.id)} />
-            <Button variant="secondary" size="sm" disabled={testingProvider !== null} onClick={() => void testProviders([provider.id])}>{testingProvider === provider.id || testingProvider === "*" ? t("common.actions.testing") : t("common.actions.test")}</Button>
-          </ItemActions>
-        </Item>;
-      })}</ItemGroup>
+      <p className={styles.cardHint}>{t("settings.lyrics.sourceCandidateHint")}</p>
+      <ItemGroup className={styles.providers} data-dragging={Boolean(providerDrag)}>{providerEntries.map(({ provider, index, manifest }) => {
+          if (!manifest) return null;
+          const status = providerView?.statuses.find((item) => item.providerId === provider.id);
+          const providerName = manifest.displayName;
+          const detail = providerDetailLabel(status, t);
+          return <Item variant="muted" className={styles.provider} data-dragging={providerDrag?.providerId === provider.id} key={provider.id} ref={(element) => { if (element) providerRows.current.set(provider.id, element); else providerRows.current.delete(provider.id); }} style={{ transform: providerDragTransform(index) }}>
+            <ItemMedia><Button type="button" variant="ghost" size="icon-sm" className={styles.dragHandle} aria-label={`${providerName} #${index + 1}`} disabled={savingProviderOrder} onPointerDown={(event) => beginProviderDrag(provider.id, index, event)} onPointerMove={continueProviderDrag} onPointerUp={finishProviderDrag} onPointerCancel={() => setProviderDrag(null)} onLostPointerCapture={() => setProviderDrag(null)}><GripVertical /></Button></ItemMedia>
+            <Badge variant="outline">#{index + 1}</Badge>
+            <ItemContent><ItemTitle>{providerName}</ItemTitle><ItemDescription className={styles.providerStatus} data-health={status?.health ?? "unknown"}>{healthLabel(status, t)} · {detail}</ItemDescription></ItemContent>
+            <ItemActions>
+              {(provider.id === "musixmatch" || provider.id === "amll_ttml") && <IconButton label={t("settings.lyrics.providerConfig.configure", { source: providerName })} tooltip={t("settings.lyrics.providerConfig.configure", { source: providerName })} variant="ghost" size="icon-sm" onClick={() => openProviderConfig(provider.id)}><Settings2 /></IconButton>}
+              <Switch aria-label={providerName} checked={provider.enabled} onCheckedChange={() => toggleProvider(provider.id)} />
+              <Button variant="secondary" size="sm" disabled={testingProvider !== null} onClick={() => void testProviders([provider.id])}>{testingProvider === provider.id || testingProvider === "*" ? t("common.actions.testing") : t("common.actions.test")}</Button>
+            </ItemActions>
+          </Item>;
+        })}</ItemGroup>
     </SettingsSection>
     <Dialog open={providerConfig !== null} onOpenChange={(open) => { if (!open && !savingProviderConfig) setProviderConfig(null); }}>
       <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto">

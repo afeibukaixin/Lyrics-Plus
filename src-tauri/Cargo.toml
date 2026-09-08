@@ -37,7 +37,7 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 log = "0.4"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 sha2 = "0.10"
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.32", features = ["bundled", "backup"] }
 strsim = "0.11"
 tokio = { version = "1", features = ["macros", "sync", "time"] }
 wait-timeout = "0.2"

@@ -21,16 +21,12 @@ export function useLyricsSearch(
 ) {
   const { t } = useTranslation();
 
-  const applySearchResponse = useCallback((response: Pick<SearchResponse, "results" | "providerStatuses" | "error">) => {
+  const applySearchResponse = useCallback((
+    response: Pick<SearchResponse, "results" | "providerStatuses" | "error" | "autoApplyCandidate">,
+  ) => {
     state.setResults(response.results);
-    state.setProviderStatuses((current) => {
-      const incoming = new Map(response.providerStatuses.map((status) => [status.providerId, status]));
-      const known = new Set(current.map((status) => status.providerId));
-      return [
-        ...current.map((status) => incoming.get(status.providerId) ?? status),
-        ...response.providerStatuses.filter((status) => !known.has(status.providerId)),
-      ];
-    });
+    state.setAutoApplyCandidate(response.autoApplyCandidate ?? null);
+    state.setProviderStatuses(response.providerStatuses);
     if (response.error) {
       state.setError(t("settings.lyrics.searchError"));
     } else if (response.results.length === 0) {
@@ -58,19 +54,22 @@ export function useLyricsSearch(
     }
   }, [applySearchResponse]);
 
-  const applyResult = useCallback(async (result: LyricsSearchResult, manualSelected = true) => {
+  const applyResult = useCallback(async (
+    result: LyricsSearchResult,
+    manualSelected = true,
+  ) => {
     if (!trackKey || !snapshot.title || !snapshot.artist) return null;
     state.setError(null);
     try {
       const saved = await api.saveLyrics(
-        trackKey,
-        snapshot.title,
-        snapshot.artist,
-        snapshot.album,
-        snapshot.durationMs,
-        result,
-        manualSelected,
-      );
+          trackKey,
+          snapshot.title,
+          snapshot.artist,
+          snapshot.album,
+          snapshot.durationMs,
+          result,
+          manualSelected,
+        );
       if (state.activeTrackKey.current === trackKey) {
         updateDocument(saved, trackKey);
         state.setLoadState("ready");
@@ -91,17 +90,32 @@ export function useLyricsSearch(
       artist: snapshot.artist ?? "",
       album: snapshot.album,
       durationMs: snapshot.durationMs,
+      platform: snapshot.player,
+      platformItemId: snapshot.trackId,
     };
     if (!trackKey || !input.title.trim() || !input.artist.trim()) return null;
     const generation = ++state.searchGeneration.current;
     const key = trackKey;
     const isCurrent = () => state.searchGeneration.current === generation && state.activeTrackKey.current === key;
+    // 快速窗口的 refresh 只在搜索开始时没有歌词的情况下允许自动落库。
+    // 这样既能填充首次打开的歌曲，也不会覆盖已经存在的默认歌词。
+    const autoApplyIfMissing = intent === "refresh"
+      && state.loadState === "missing"
+      && state.documentRef.current === null;
     state.setSearching(true);
     state.setError(null);
+    if (intent !== "refresh") state.setAutoApplyCandidate(null);
     try {
       const response = await api.searchLyrics(trackKey, input, intent);
       if (!isCurrent()) return null;
       applySearchResponse(response);
+      if (autoApplyIfMissing && response.autoApply && response.autoApplyCandidate && state.documentRef.current === null) {
+        const candidate = response.results.find((result) => (
+          result.providerId === response.autoApplyCandidate?.providerId
+          && result.id === response.autoApplyCandidate?.id
+        ));
+        if (candidate) await applyResult(candidate, false);
+      }
       return response;
     } catch (searchError) {
       if (isCurrent()) state.setError(messageOf(searchError));
@@ -109,7 +123,7 @@ export function useLyricsSearch(
     } finally {
       if (isCurrent()) state.setSearching(false);
     }
-  }, [applySearchResponse, snapshot.album, snapshot.artist, snapshot.durationMs, snapshot.title, trackKey]);
+  }, [applyResult, applySearchResponse, snapshot.album, snapshot.artist, snapshot.durationMs, snapshot.title, state.loadState, trackKey]);
 
   return {
     search: (intent: LyricsSearchIntent = "automatic") => search(intent),

@@ -14,10 +14,11 @@ use super::super::credentials::{
 #[cfg(test)]
 use super::ProviderSearchOutcome;
 use super::{
-    LyricsProvider, LyricsSearchInput, ProviderSettings, ProviderSettingsView, ProviderStatus,
+    LyricsProvider, LyricsSearchInput, ProviderDescriptor, ProviderSettings, ProviderSettingsView,
+    ProviderStatus,
 };
 use cache::{CachedSearch, SearchFlight, SearchKey};
-pub(super) use catalog::provider_definitions;
+pub(super) use catalog::{provider_definitions, provider_manifests};
 use health::ProviderCooldown;
 
 pub struct ProviderRegistry {
@@ -72,14 +73,48 @@ impl ProviderRegistry {
     }
 
     pub fn settings_view(&self) -> ProviderSettingsView {
+        let mut settings = self
+            .settings
+            .read()
+            .unwrap_or_else(|error| error.into_inner())
+            .clone();
+        let manifests = provider_manifests()
+            .into_iter()
+            .filter(|manifest| manifest.tier != super::ProviderTier::Dormant)
+            .collect::<Vec<_>>();
+        settings.providers.retain(|preference| {
+            manifests
+                .iter()
+                .any(|manifest| manifest.id == preference.id)
+        });
         ProviderSettingsView {
-            settings: self
-                .settings
-                .read()
-                .unwrap_or_else(|error| error.into_inner())
-                .clone(),
+            settings,
             statuses: self.statuses(),
+            manifests,
         }
+    }
+
+    pub fn catalog_view(&self) -> Vec<ProviderDescriptor> {
+        let view = self.settings_view();
+        let enabled = view
+            .settings
+            .providers
+            .into_iter()
+            .map(|preference| (preference.id, preference.enabled))
+            .collect::<std::collections::HashMap<_, _>>();
+        let statuses = view
+            .statuses
+            .into_iter()
+            .map(|status| (status.provider_id.clone(), status))
+            .collect::<std::collections::HashMap<_, _>>();
+        view.manifests
+            .into_iter()
+            .map(|manifest| ProviderDescriptor {
+                enabled: enabled.get(&manifest.id).copied().unwrap_or(false),
+                status: statuses.get(&manifest.id).cloned(),
+                manifest,
+            })
+            .collect()
     }
 
     pub fn set_settings(
@@ -135,7 +170,15 @@ impl ProviderRegistry {
         client: &reqwest::Client,
         input: &LyricsSearchInput,
     ) -> Result<ProviderSearchOutcome, String> {
-        let mut outcome = self.search_with_cache(client, input, false).await?;
+        let mut outcome = self
+            .search_with_cache(
+                client,
+                input,
+                false,
+                false,
+                super::MAX_INTERACTIVE_FETCH_CANDIDATES,
+            )
+            .await?;
         // 保留 ProviderRegistry 直接调用方的旧批量边界；跨本地/在线的语义去重
         // 在命令层完成，避免这里提前丢失 Smart 模式所需的质量信息。
         super::deduplicate(&mut outcome.results);
@@ -143,10 +186,10 @@ impl ProviderRegistry {
         Ok(outcome)
     }
 
-    pub(crate) fn local_search_context(
+    pub(crate) fn scoring_context(
         &self,
         input: &LyricsSearchInput,
-    ) -> Result<(LyricsSearchInput, u8, bool, u8), String> {
+    ) -> Result<(LyricsSearchInput, u8), String> {
         let settings = self
             .settings
             .read()
@@ -155,8 +198,6 @@ impl ProviderRegistry {
         Ok((
             search::with_scoring_settings(input, &settings)?,
             settings.auto_apply_threshold,
-            settings.auto_apply_duration_guard_enabled,
-            settings.auto_apply_duration_tolerance_seconds,
         ))
     }
 

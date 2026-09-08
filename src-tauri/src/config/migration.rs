@@ -684,6 +684,87 @@ fn migrate_v66_notch_expanded_border_radius(user: &mut Value, version: u16) {
     );
 }
 
+fn migrate_v67_provider_scoring(user: &mut Value, version: u16) {
+    if version >= 67 {
+        return;
+    }
+    let Some(providers) = user
+        .pointer_mut("/lyrics/providers")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    providers.remove("showExperimentalProviders");
+    providers
+        .entry("identityDurationFullScoreToleranceSeconds")
+        .or_insert_with(|| Value::from(2));
+    providers
+        .entry("identityDurationPartialScoreToleranceSeconds")
+        .or_insert_with(|| Value::from(5));
+}
+
+fn migrate_v68_provider_matching(user: &mut Value, version: u16) {
+    if version >= 68 {
+        return;
+    }
+    let Some(providers) = user
+        .pointer_mut("/lyrics/providers")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    providers.remove("autoApplyScoreGap");
+
+    let old_defaults = [
+        ("title", 30),
+        ("artist", 25),
+        ("album", 10),
+        ("duration", 20),
+        ("version", 15),
+    ];
+    let uses_old_defaults = providers
+        .get("matchWeights")
+        .and_then(Value::as_object)
+        .is_some_and(|weights| {
+            weights.len() == old_defaults.len()
+                && old_defaults.iter().all(|(key, value)| {
+                    weights.get(*key).and_then(Value::as_u64) == Some(*value)
+                })
+        });
+    if uses_old_defaults {
+        providers.insert(
+            "matchWeights".into(),
+            serde_json::json!({
+                "title": 40,
+                "artist": 40,
+                "album": 5,
+                "duration": 10,
+                "version": 5,
+            }),
+        );
+    }
+}
+
+pub(crate) fn migrate_v69_provider_duration_settings(user: &mut Value, version: u16) {
+    if version >= 69 {
+        return;
+    }
+    if let Some(providers) = user
+        .pointer_mut("/lyrics/providers")
+        .and_then(Value::as_object_mut)
+    {
+        // 旧版的固定秒数容差已由连续时长评分替代，升级时静默移除。
+        for key in [
+            "identityDurationFullScoreToleranceSeconds",
+            "identityDurationPartialScoreToleranceSeconds",
+            "autoApplyDurationGuardEnabled",
+            "autoApplyDurationToleranceSeconds",
+        ] {
+            providers.remove(key);
+        }
+    }
+}
+
 fn remove_retired_fullscreen_space_preferences(user: &mut Value) {
     if let Some(overlay) = user.pointer_mut("/overlay").and_then(Value::as_object_mut) {
         overlay.remove("joinOtherAppsFullscreen");

@@ -37,6 +37,7 @@ export function useLyrics(snapshot: PlaybackSnapshot, positionMs: number, active
     trackKey,
     document: state.document,
     results: state.results,
+    autoApplyCandidate: state.autoApplyCandidate,
     providerStatuses: state.providerStatuses,
     searching: state.searching,
     loadState: state.loadState,

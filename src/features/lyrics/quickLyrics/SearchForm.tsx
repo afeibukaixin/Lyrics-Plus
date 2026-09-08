@@ -1,4 +1,5 @@
 import type { TFunction } from "i18next";
+import { Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { InputGroup, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
@@ -12,7 +13,9 @@ type QuickLyricsSearchFormProps = {
   artistInvalid: boolean;
   durationInvalid: boolean;
   formDisabled: boolean;
+  detailsDisabled: boolean;
   searching: boolean;
+  onOpenDetails: () => void;
   onSearch: () => void | Promise<void>;
   onUpdateField: (field: keyof SearchFormState, value: string) => void;
   t: TFunction;
@@ -24,7 +27,9 @@ export function QuickLyricsSearchForm({
   artistInvalid,
   durationInvalid,
   formDisabled,
+  detailsDisabled,
   searching,
+  onOpenDetails,
   onSearch,
   onUpdateField,
   t,
@@ -103,7 +108,12 @@ export function QuickLyricsSearchForm({
         </Field>
         <Button className={styles.searchButton} disabled={formDisabled} type="submit">{searching ? t("common.actions.searching") : t("common.actions.search")}</Button>
       </FieldGroup>
-      <FieldDescription className={styles.searchHint}>{t("quickLyrics.searchRuleHint")} {t("quickLyrics.durationFuzzyHint")}</FieldDescription>
+      <div className={styles.searchMetaRow}>
+        <FieldDescription className={styles.searchHint}>{t("quickLyrics.searchRuleHint")} {t("quickLyrics.durationFuzzyHint")}</FieldDescription>
+        <Button type="button" variant="secondary" size="sm" className={styles.detailsButton} disabled={detailsDisabled} onClick={onOpenDetails}>
+          <Info data-icon="inline-start" />{t("quickLyrics.details.open")}
+        </Button>
+      </div>
     </form>
   );
 }

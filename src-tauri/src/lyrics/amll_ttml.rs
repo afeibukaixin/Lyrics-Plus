@@ -5,8 +5,9 @@ use std::sync::{Arc, RwLock};
 
 use super::parse_lrc_with_options;
 use super::provider::{
-    collect_provider_results, score_candidate, LyricsProvider, LyricsSearchInput,
-    LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
+    collect_provider_results, score_candidate, version_tags_from_title, LyricsProvider,
+    LyricsSearchInput, LyricsSearchResult, ProviderCandidate, ProviderCandidateReport,
+    ProviderCapabilities, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
     ProviderSettings, AMLL_DISPLAY_NAME,
 };
 
@@ -99,9 +100,114 @@ impl LyricsProvider for AmllTtmlProvider {
             collect_provider_results(outcomes)
         })
     }
+
+    fn search_candidates<'a>(
+        &'a self,
+        client: &'a reqwest::Client,
+        input: &'a LyricsSearchInput,
+    ) -> ProviderFuture<'a, ProviderCandidateReport> {
+        Box::pin(async move {
+            let base_url = self
+                .settings
+                .read()
+                .unwrap_or_else(|error| error.into_inner())
+                .amll_base_url
+                .clone();
+            let mut songs = self.fetch_search(client, input, &base_url, false).await?;
+            if songs.is_empty() {
+                songs = self.fetch_search(client, input, &base_url, true).await?;
+            }
+            Ok(ProviderCandidateReport {
+                candidates: songs
+                    .into_iter()
+                    .filter_map(provider_candidate_from_song)
+                    .collect(),
+                warning: None,
+            })
+        })
+    }
+
+    fn lookup_by_id<'a>(
+        &'a self,
+        client: &'a reqwest::Client,
+        _input: &'a LyricsSearchInput,
+        provider_item_id: &'a str,
+    ) -> ProviderFuture<'a, ProviderCandidateReport> {
+        Box::pin(async move {
+            let base_url = self
+                .settings
+                .read()
+                .unwrap_or_else(|error| error.into_inner())
+                .amll_base_url
+                .clone();
+            let Some(song) = self
+                .fetch_song_by_id(client, &base_url, provider_item_id)
+                .await?
+            else {
+                return Ok(ProviderCandidateReport {
+                    candidates: Vec::new(),
+                    warning: None,
+                });
+            };
+            Ok(ProviderCandidateReport {
+                candidates: provider_candidate_from_song(song).into_iter().collect(),
+                warning: None,
+            })
+        })
+    }
+
+    fn fetch<'a>(
+        &'a self,
+        client: &'a reqwest::Client,
+        input: &'a LyricsSearchInput,
+        candidate: &'a ProviderCandidate,
+    ) -> ProviderFuture<'a, Option<LyricsSearchResult>> {
+        Box::pin(async move {
+            let base_url = self
+                .settings
+                .read()
+                .unwrap_or_else(|error| error.into_inner())
+                .amll_base_url
+                .clone();
+            let id = candidate.provider_item_id.parse::<u64>().map_err(|_| {
+                self.error(ProviderErrorKind::InvalidResponse, "AMLL 歌曲 ID 格式无效")
+            })?;
+            self.fetch_result(
+                client,
+                input,
+                &base_url,
+                AmllCandidate {
+                    id,
+                    title: candidate.title.clone(),
+                    artist: candidate.artists.join(" / "),
+                    album: candidate.album.clone(),
+                },
+            )
+            .await
+        })
+    }
 }
 
 impl AmllTtmlProvider {
+    async fn fetch_song_by_id(
+        &self,
+        client: &reqwest::Client,
+        base_url: &str,
+        provider_item_id: &str,
+    ) -> Result<Option<SongItem>, ProviderError> {
+        let mut url = self.api_url(base_url, "/v1/lyrics/get")?;
+        url.query_pairs_mut()
+            .append_pair("id", provider_item_id.trim());
+        let envelope = self.send_json::<ApiResponse<SongItem>>(client, url).await?;
+        if envelope.status == 404 {
+            return Ok(None);
+        }
+        if envelope.status != 200 {
+            return Err(self.api_error(envelope.status, envelope.error, envelope.message));
+        }
+        Ok(envelope.data)
+    }
+
     async fn fetch_search(
         &self,
         client: &reqwest::Client,
@@ -264,6 +370,37 @@ fn candidate_from_song(song: SongItem) -> Option<AmllCandidate> {
         title: first_value(&song.music_names)?,
         artist: joined_values(&song.artist_names).unwrap_or_default(),
         album: first_value(&song.album_names),
+    })
+}
+
+fn provider_candidate_from_song(song: SongItem) -> Option<ProviderCandidate> {
+    let candidate = candidate_from_song(song)?;
+    Some(ProviderCandidate {
+        provider_id: "amll_ttml".into(),
+        provider_item_id: candidate.id.to_string(),
+        title: candidate.title.clone(),
+        artists: candidate
+            .artist
+            .split(" / ")
+            .map(str::trim)
+            .filter(|artist| !artist.is_empty())
+            .map(str::to_owned)
+            .collect(),
+        album: candidate.album,
+        duration_ms: None,
+        version_tags: version_tags_from_title(&candidate.title),
+        capabilities: ProviderCapabilities {
+            metadata_search: true,
+            id_lookup: true,
+            plain_text: false,
+            line_timing: true,
+            word_timing: true,
+            translation: true,
+            romanization: true,
+        },
+        source: AMLL_DISPLAY_NAME.into(),
+        lookup_key: None,
+        legacy_result: None,
     })
 }
 

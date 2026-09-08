@@ -1,5 +1,6 @@
 use crate::lyrics::provider::{
-    LyricsSearchResult, ProviderOrderMode, DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
+    has_identity_conflict, LyricsSearchResult, ProviderOrderMode,
+    DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
 };
 use crate::lyrics::{
     lyrics_quality_report, parse_lrc_with_options, semantic_fingerprint, LyricsDocument,
@@ -19,24 +20,13 @@ pub(super) struct AnalyzedCandidate {
 
 pub(super) fn analyze_candidate(
     result: LyricsSearchResult,
-    duration_ms: Option<u64>,
-    duration_guard_enabled: bool,
-    duration_tolerance_seconds: u8,
     stable_index: usize,
     is_local: bool,
 ) -> AnalyzedCandidate {
     let document = parse_lrc_with_options(&result.lyrics, &result.source, false).ok();
-    let duration_tolerance_ms =
-        duration_guard_enabled.then(|| u64::from(duration_tolerance_seconds).saturating_mul(1_000));
     let mut quality = document
         .as_ref()
-        .map(|document| {
-            lyrics_quality_report(
-                document,
-                duration_ms.or(result.duration_ms),
-                duration_tolerance_ms,
-            )
-        })
+        .map(lyrics_quality_report)
         .unwrap_or(LyricsQualityReport {
             has_valid_synced_original: false,
             degraded_word_lines: 0,
@@ -164,7 +154,7 @@ fn log_ranked_candidates(
             "lyrics.rank candidate rank={} provider={} id={:?} reason={reason} score={:.4} stable_index={} provider_rank={} parse_ok={} valid_synced_original={} auto_applicable={} degraded_word_lines={} synced={} word_timing={} translation={} romanization={} capability_count={} capability_rank={:?}",
             index + 1,
             candidate.result.provider_id,
-            candidate.result.id,
+            candidate_log_id(candidate),
             candidate.result.score,
             candidate.stable_index,
             provider_rank(candidate, provider_order),
@@ -374,11 +364,15 @@ pub(super) fn deduplicate_analyzed_candidates(
             (false, true) => (true, "local_precedence"),
             (false, false) => {
                 if matches!(mode, ProviderOrderMode::Strict) {
-                    (
-                        provider_rank(&candidate, provider_order)
-                            < provider_rank(existing, provider_order),
-                        strict_ranking_reason(&candidate, existing, provider_order),
-                    )
+                    if candidate.quality.auto_applicable != existing.quality.auto_applicable {
+                        (candidate.quality.auto_applicable, "auto_applicable")
+                    } else {
+                        (
+                            provider_rank(&candidate, provider_order)
+                                < provider_rank(existing, provider_order),
+                            strict_ranking_reason(&candidate, existing, provider_order),
+                        )
+                    }
                 } else {
                     (
                         smart_order_with_threshold(
@@ -410,13 +404,9 @@ pub(super) fn deduplicate_analyzed_candidates(
             } else {
                 existing.result.provider_id.as_str()
             },
-            if replace {
-                &candidate.result.id
-            } else {
-                &existing.result.id
-            },
+            if replace { candidate_log_id(&candidate) } else { candidate_log_id(existing) },
             candidate.result.provider_id,
-            candidate.result.id,
+            candidate_log_id(&candidate),
         );
         if replace {
             deduplicated[existing_index] = candidate;
@@ -470,18 +460,40 @@ pub(super) fn sort_analyzed_candidates(
     }
 }
 
-pub(super) fn can_auto_apply_analyzed(
-    candidates: &[AnalyzedCandidate],
+/// 按已经完成的排序结果寻找第一条真正可自动采用的候选。
+///
+/// 排序靠前的候选可能因为版本冲突、解析失败或质量门槛被淘汰，不能
+/// 让这类候选阻塞后续来源的自动回退。
+pub(super) fn auto_apply_analyzed<'a>(
+    candidates: &'a [AnalyzedCandidate],
     threshold_percent: u8,
-) -> bool {
-    let Some(first) = candidates.first() else {
-        return false;
-    };
-    if first.result.score * 100.0 < f64::from(threshold_percent) || !first.quality.auto_applicable {
+    input: &crate::lyrics::provider::LyricsSearchInput,
+) -> Option<&'a AnalyzedCandidate> {
+    let selected = candidates.iter().find(|candidate| {
+        candidate.result.score * 100.0 >= f64::from(threshold_percent)
+            && candidate.quality.auto_applicable
+            && !has_identity_conflict(input, &candidate.result)
+    });
+    if let Some(candidate) = selected {
+        log::debug!(
+            "歌词候选通过自动采用：provider={} id={:?} score={:.4}",
+            candidate.result.provider_id,
+            candidate_log_id(candidate),
+            candidate.result.score
+        );
+        return Some(candidate);
+    }
+    if let Some(first) = candidates.first() {
         if first.result.score * 100.0 < f64::from(threshold_percent) {
             log::debug!(
                 "歌词候选因相似度未达到阈值而拦截：score={:.4} threshold={threshold_percent}",
                 first.result.score
+            );
+        } else if has_identity_conflict(input, &first.result) {
+            log::debug!(
+                "歌词候选因录音版本或主歌手冲突而拦截：provider={} id={:?}",
+                first.result.provider_id,
+                candidate_log_id(first)
             );
         } else {
             log::debug!(
@@ -489,9 +501,16 @@ pub(super) fn can_auto_apply_analyzed(
                 first.result.provider_id
             );
         }
-        return false;
     }
-    true
+    None
+}
+
+fn candidate_log_id(candidate: &AnalyzedCandidate) -> String {
+    if candidate.is_local {
+        "<local-file>".into()
+    } else {
+        candidate.result.id.clone()
+    }
 }
 
 pub(super) fn log_ranked_search(

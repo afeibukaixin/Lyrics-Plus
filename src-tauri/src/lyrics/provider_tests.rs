@@ -102,6 +102,8 @@ mod tests {
             artist: "Adele".into(),
             album: Some("25".into()),
             duration_ms: Some(295_000),
+            platform: None,
+            platform_item_id: None,
             scoring: Arc::default(),
         };
         assert!(score_candidate(&input, &result("lrclib", 0.0, "line")) > 0.98);
@@ -120,6 +122,8 @@ mod tests {
             artist: "蕭敬騰".into(),
             album: Some("愛的時刻".into()),
             duration_ms: Some(295_000),
+            platform: None,
+            platform_item_id: None,
             scoring: Arc::default(),
         };
         let simplified = LyricsSearchInput {
@@ -127,6 +131,8 @@ mod tests {
             artist: "萧敬腾".into(),
             album: Some("爱的时刻".into()),
             duration_ms: Some(295_000),
+            platform: None,
+            platform_item_id: None,
             scoring: Arc::default(),
         };
         let mut candidate = result("lrclib", 0.0, "line");
@@ -181,6 +187,8 @@ mod tests {
             artist: "OneRepublic".into(),
             album: None,
             duration_ms: Some(240_000),
+            platform: None,
+            platform_item_id: None,
             scoring: Arc::new(ScoringSettings {
                 title_filter_keywords: keywords.as_ref().clone(),
                 ..ScoringSettings::default()
@@ -330,8 +338,6 @@ mod tests {
         let settings = ProviderSettings {
             mode: ProviderOrderMode::Smart,
             auto_apply_threshold: 60,
-            auto_apply_duration_guard_enabled: true,
-            auto_apply_duration_tolerance_seconds: 15,
             auto_search_debounce_ms: 2_000,
             prefer_capabilities: false,
             capability_preference_tolerance: DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
@@ -373,8 +379,6 @@ mod tests {
         let settings = ProviderSettings {
             mode,
             auto_apply_threshold: 60,
-            auto_apply_duration_guard_enabled: true,
-            auto_apply_duration_tolerance_seconds: 15,
             auto_search_debounce_ms: 2_000,
             prefer_capabilities: false,
             capability_preference_tolerance: DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
@@ -457,8 +461,6 @@ mod tests {
             settings: Arc::new(RwLock::new(ProviderSettings {
                 mode: ProviderOrderMode::Smart,
                 auto_apply_threshold: 60,
-                auto_apply_duration_guard_enabled: true,
-                auto_apply_duration_tolerance_seconds: 15,
                 auto_search_debounce_ms: 2_000,
                 prefer_capabilities: false,
                 capability_preference_tolerance: DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
@@ -540,6 +542,8 @@ mod tests {
                         artist: "Adele".into(),
                         album: None,
                         duration_ms: None,
+                        platform: None,
+                        platform_item_id: None,
                         scoring: Arc::default(),
                     },
                 )
@@ -570,6 +574,8 @@ mod tests {
                         artist: "Adele".into(),
                         album: None,
                         duration_ms: None,
+                        platform: None,
+                        platform_item_id: None,
                         scoring: Arc::default(),
                     },
                 )
@@ -598,6 +604,8 @@ mod tests {
                         artist: "Artist".into(),
                         album: None,
                         duration_ms: None,
+                        platform: None,
+                        platform_item_id: None,
                         scoring: Arc::default(),
                     },
                 )
@@ -621,6 +629,8 @@ mod tests {
                 artist: "Adele".into(),
                 album: None,
                 duration_ms: None,
+                platform: None,
+                platform_item_id: None,
                 scoring: Arc::default(),
             };
             let strict = mock_registry(ProviderOrderMode::Strict, false)
@@ -649,6 +659,8 @@ mod tests {
                 artist: "Adele".into(),
                 album: None,
                 duration_ms: None,
+                platform: None,
+                platform_item_id: None,
                 scoring: Arc::default(),
             };
 
@@ -686,14 +698,14 @@ mod tests {
                 artist: "周杰伦".into(),
                 album: Some("叶惠美".into()),
                 duration_ms: Some(269_000),
+                platform: None,
+                platform_item_id: None,
                 scoring: Arc::default(),
             };
             for target in ["netease", "qqmusic", "kugou", "lrclib"] {
                 let settings = ProviderSettings {
                     mode: ProviderOrderMode::Smart,
                     auto_apply_threshold: 60,
-                    auto_apply_duration_guard_enabled: true,
-                    auto_apply_duration_tolerance_seconds: 15,
                     auto_search_debounce_ms: 2_000,
                     prefer_capabilities: false,
                     capability_preference_tolerance: DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,

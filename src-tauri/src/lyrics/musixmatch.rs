@@ -7,9 +7,10 @@ use tokio::sync::Mutex as AsyncMutex;
 use super::credentials::{MusixmatchTokenType, ProviderCredentialStore};
 use super::parse_lrc_with_options;
 use super::provider::{
-    collect_provider_results, duration_ms_from_seconds_u64, score_candidate, LyricsProvider,
-    LyricsSearchInput, LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture,
-    ProviderSearchReport, MUSIXMATCH_DISPLAY_NAME,
+    collect_provider_results, duration_ms_from_seconds_u64, score_candidate,
+    version_tags_from_title, LyricsProvider, LyricsSearchInput, LyricsSearchResult,
+    ProviderCandidate, ProviderCandidateReport, ProviderCapabilities, ProviderError,
+    ProviderErrorKind, ProviderFuture, ProviderSearchReport, MUSIXMATCH_DISPLAY_NAME,
 };
 
 const DESKTOP_API_BASE: &str = "https://apic-desktop.musixmatch.com/ws/1.1";
@@ -149,9 +150,233 @@ impl LyricsProvider for MusixmatchProvider {
             }
         })
     }
+
+    fn search_candidates<'a>(
+        &'a self,
+        client: &'a reqwest::Client,
+        input: &'a LyricsSearchInput,
+    ) -> ProviderFuture<'a, ProviderCandidateReport> {
+        Box::pin(async move {
+            match self.credentials.musixmatch_credentials() {
+                Some((MusixmatchTokenType::DeveloperApiKey, token)) => {
+                    self.search_developer_candidates(client, input, &token)
+                        .await
+                }
+                Some((MusixmatchTokenType::DesktopUserToken, token)) => {
+                    self.search_desktop_candidate(client, input, &token, DesktopTokenSource::Manual)
+                        .await
+                }
+                None => {
+                    let token = self.anonymous_token(client).await?;
+                    match self
+                        .search_desktop_candidate(
+                            client,
+                            input,
+                            &token,
+                            DesktopTokenSource::Anonymous,
+                        )
+                        .await
+                    {
+                        Err(error) if error.kind == ProviderErrorKind::Unauthorized => {
+                            let refreshed = self.refresh_anonymous_token(client, &token).await?;
+                            self.search_desktop_candidate(
+                                client,
+                                input,
+                                &refreshed,
+                                DesktopTokenSource::Anonymous,
+                            )
+                            .await
+                        }
+                        outcome => outcome,
+                    }
+                }
+            }
+        })
+    }
+
+    fn fetch<'a>(
+        &'a self,
+        client: &'a reqwest::Client,
+        input: &'a LyricsSearchInput,
+        candidate: &'a ProviderCandidate,
+    ) -> ProviderFuture<'a, Option<LyricsSearchResult>> {
+        Box::pin(async move {
+            match self.credentials.musixmatch_credentials() {
+                Some((MusixmatchTokenType::DeveloperApiKey, token)) => {
+                    self.fetch_developer_result(
+                        client,
+                        input,
+                        &token,
+                        track_from_candidate(candidate)?,
+                    )
+                    .await
+                }
+                Some((MusixmatchTokenType::DesktopUserToken, token)) => {
+                    self.fetch_desktop_candidate(
+                        client,
+                        input,
+                        candidate,
+                        &token,
+                        DesktopTokenSource::Manual,
+                    )
+                    .await
+                }
+                None => {
+                    let token = self.anonymous_token(client).await?;
+                    match self
+                        .fetch_desktop_candidate(
+                            client,
+                            input,
+                            candidate,
+                            &token,
+                            DesktopTokenSource::Anonymous,
+                        )
+                        .await
+                    {
+                        Err(error) if error.kind == ProviderErrorKind::Unauthorized => {
+                            let refreshed = self.refresh_anonymous_token(client, &token).await?;
+                            self.fetch_desktop_candidate(
+                                client,
+                                input,
+                                candidate,
+                                &refreshed,
+                                DesktopTokenSource::Anonymous,
+                            )
+                            .await
+                        }
+                        outcome => outcome,
+                    }
+                }
+            }
+        })
+    }
 }
 
 impl MusixmatchProvider {
+    async fn search_developer_candidates(
+        &self,
+        client: &reqwest::Client,
+        input: &LyricsSearchInput,
+        token: &str,
+    ) -> Result<ProviderCandidateReport, ProviderError> {
+        let mut url = self.api_url(DEVELOPER_API_BASE, "track.search")?;
+        url.query_pairs_mut()
+            .append_pair("q_track", input.title.trim())
+            .append_pair("q_artist", input.artist.trim())
+            .append_pair("page", "1")
+            .append_pair("page_size", "10")
+            .append_pair("s_track_rating", "desc")
+            .append_pair("apikey", token);
+        let envelope = self.send(client.get(url)).await?;
+        if envelope.message.header.status_code == 404 {
+            return Ok(ProviderCandidateReport {
+                candidates: Vec::new(),
+                warning: None,
+            });
+        }
+        self.ensure_developer_status(envelope.message.header.status_code)?;
+        let tracks = self.ranked_tracks(input, envelope.message.body)?;
+        Ok(ProviderCandidateReport {
+            candidates: tracks.into_iter().map(candidate_from_track).collect(),
+            warning: None,
+        })
+    }
+
+    async fn search_desktop_candidate(
+        &self,
+        client: &reqwest::Client,
+        input: &LyricsSearchInput,
+        token: &str,
+        source: DesktopTokenSource,
+    ) -> Result<ProviderCandidateReport, ProviderError> {
+        let mut url = self.api_url(DESKTOP_API_BASE, "macro.subtitles.get")?;
+        url.query_pairs_mut()
+            .append_pair("namespace", "lyrics_richsynched")
+            .append_pair("subtitle_format", "lrc")
+            .append_pair("q_track", input.title.trim())
+            .append_pair("q_artist", input.artist.trim())
+            .append_pair("app_id", DESKTOP_APP_ID)
+            .append_pair("usertoken", token);
+        if let Some(album) = input
+            .album
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+        {
+            url.query_pairs_mut().append_pair("q_album", album.trim());
+        }
+        if let Some(duration_ms) = input.duration_ms {
+            url.query_pairs_mut().append_pair(
+                "q_duration",
+                &(duration_ms as f64 / 1000.0).round().to_string(),
+            );
+        }
+        let envelope = self.send_desktop(client.get(url)).await?;
+        if envelope.message.header.status_code == 404 {
+            return Ok(ProviderCandidateReport {
+                candidates: Vec::new(),
+                warning: None,
+            });
+        }
+        self.ensure_desktop_status(envelope.message.header.status_code, source)?;
+        if nested_status_code(&envelope.message.body) == Some(401) {
+            return Err(self.error(
+                ProviderErrorKind::Unauthorized,
+                "Musixmatch Desktop Token 已失效",
+            ));
+        }
+        Ok(ProviderCandidateReport {
+            candidates: macro_track(&envelope.message.body)
+                .into_iter()
+                .map(candidate_from_track)
+                .collect(),
+            warning: None,
+        })
+    }
+
+    async fn fetch_desktop_candidate(
+        &self,
+        client: &reqwest::Client,
+        input: &LyricsSearchInput,
+        candidate: &ProviderCandidate,
+        token: &str,
+        source: DesktopTokenSource,
+    ) -> Result<Option<LyricsSearchResult>, ProviderError> {
+        let mut url = self.api_url(DESKTOP_API_BASE, "macro.subtitles.get")?;
+        url.query_pairs_mut()
+            .append_pair("namespace", "lyrics_richsynched")
+            .append_pair("subtitle_format", "lrc")
+            .append_pair("q_track", candidate.title.trim())
+            .append_pair("q_artist", &candidate.artists.join(" / "))
+            .append_pair("app_id", DESKTOP_APP_ID)
+            .append_pair("usertoken", token);
+        if let Some(album) = candidate
+            .album
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+        {
+            url.query_pairs_mut().append_pair("q_album", album.trim());
+        }
+        if let Some(duration_ms) = candidate.duration_ms {
+            url.query_pairs_mut().append_pair(
+                "q_duration",
+                &(duration_ms as f64 / 1000.0).round().to_string(),
+            );
+        }
+        let envelope = self.send_desktop(client.get(url)).await?;
+        if envelope.message.header.status_code == 404 {
+            return Ok(None);
+        }
+        self.ensure_desktop_status(envelope.message.header.status_code, source)?;
+        if nested_status_code(&envelope.message.body) == Some(401) {
+            return Err(self.error(
+                ProviderErrorKind::Unauthorized,
+                "Musixmatch Desktop Token 已失效",
+            ));
+        }
+        self.fetch_desktop_result(client, input, token, source, envelope.message.body)
+            .await
+    }
+
     async fn search_developer(
         &self,
         client: &reqwest::Client,
@@ -332,7 +557,7 @@ impl MusixmatchProvider {
         tracks.sort_by(|left, right| {
             metadata_score(input, right).total_cmp(&metadata_score(input, left))
         });
-        tracks.truncate(5);
+        tracks.truncate(10);
         Ok(tracks)
     }
 
@@ -684,6 +909,66 @@ fn track_duration_ms(track_length: Option<u64>) -> Option<u64> {
     track_length
         .filter(|duration| *duration > 0)
         .map(duration_ms_from_seconds_u64)
+}
+
+fn candidate_from_track(track: MusixmatchTrack) -> ProviderCandidate {
+    let MusixmatchTrack {
+        track_id,
+        track_name,
+        artist_name,
+        album_name,
+        track_length,
+        commontrack_id,
+        has_richsync,
+    } = track;
+    ProviderCandidate {
+        provider_id: "musixmatch".into(),
+        provider_item_id: track_id.to_string(),
+        title: track_name.clone(),
+        artists: artist_name
+            .split(" / ")
+            .map(str::trim)
+            .filter(|artist| !artist.is_empty())
+            .map(str::to_owned)
+            .collect(),
+        album: album_name,
+        duration_ms: track_duration_ms(track_length),
+        version_tags: version_tags_from_title(&track_name),
+        capabilities: ProviderCapabilities {
+            metadata_search: true,
+            id_lookup: true,
+            plain_text: true,
+            line_timing: true,
+            word_timing: has_richsync == Some(1),
+            translation: true,
+            romanization: false,
+        },
+        source: MUSIXMATCH_DISPLAY_NAME.into(),
+        lookup_key: commontrack_id.map(|value| value.to_string()),
+        legacy_result: None,
+    }
+}
+
+fn track_from_candidate(candidate: &ProviderCandidate) -> Result<MusixmatchTrack, ProviderError> {
+    let track_id = candidate.provider_item_id.parse::<u64>().map_err(|_| {
+        ProviderError::new(
+            "musixmatch",
+            ProviderErrorKind::InvalidResponse,
+            "Musixmatch 歌曲 ID 格式无效",
+        )
+    })?;
+    Ok(MusixmatchTrack {
+        track_id,
+        track_name: candidate.title.clone(),
+        artist_name: candidate.artists.join(" / "),
+        album_name: candidate.album.clone(),
+        track_length: candidate.duration_ms.map(|value| value / 1_000),
+        commontrack_id: candidate
+            .lookup_key
+            .as_deref()
+            .and_then(|value| value.parse::<u64>().ok()),
+        has_richsync: Some(u8::from(candidate.capabilities.word_timing)),
+    })
 }
 
 fn metadata_score(input: &LyricsSearchInput, track: &MusixmatchTrack) -> f64 {

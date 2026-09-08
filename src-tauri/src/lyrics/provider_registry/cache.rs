@@ -23,6 +23,10 @@ pub(in crate::lyrics::provider) struct SearchKey {
     artist: String,
     album: Option<String>,
     duration_ms: Option<u64>,
+    platform: Option<String>,
+    platform_item_id: Option<String>,
+    fetch_limit: usize,
+    automatic: bool,
     settings: ProviderSettings,
     revision: u64,
 }
@@ -32,12 +36,18 @@ impl SearchKey {
         input: &LyricsSearchInput,
         settings: ProviderSettings,
         revision: u64,
+        fetch_limit: usize,
+        automatic: bool,
     ) -> Self {
         Self {
             title: input.title.trim().into(),
             artist: input.artist.trim().into(),
             album: input.album.as_deref().map(str::trim).map(str::to_owned),
             duration_ms: input.duration_ms,
+            platform: input.platform.clone(),
+            platform_item_id: input.platform_item_id.clone(),
+            fetch_limit,
+            automatic,
             settings,
             revision,
         }
@@ -50,6 +60,8 @@ impl ProviderRegistry {
         client: &reqwest::Client,
         input: &LyricsSearchInput,
         bypass_cache: bool,
+        automatic: bool,
+        fetch_limit: usize,
     ) -> Result<ProviderSearchOutcome, String> {
         let settings = self
             .settings
@@ -60,6 +72,8 @@ impl ProviderRegistry {
             input,
             settings.clone(),
             self.revision.load(std::sync::atomic::Ordering::SeqCst),
+            fetch_limit,
+            automatic,
         );
         if !bypass_cache {
             if let Some(outcome) = self.cached_search(&key) {
@@ -86,7 +100,7 @@ impl ProviderRegistry {
             }
         };
         let result = flight
-            .get_or_init(|| self.search_once(client, input, settings))
+            .get_or_init(|| self.search_once(client, input, settings, automatic, fetch_limit))
             .await
             .clone();
         if let Ok(outcome) = &result {

@@ -40,6 +40,17 @@ pub enum ProviderStatusDetail {
     },
 }
 
+impl ProviderStatusDetail {
+    pub(crate) fn result_count(&self) -> usize {
+        match self {
+            Self::Success { result_count } | Self::PartialFailure { result_count, .. } => {
+                *result_count
+            }
+            _ => 0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderStatus {
@@ -48,6 +59,144 @@ pub struct ProviderStatus {
     pub health: ProviderHealth,
     pub detail: ProviderStatusDetail,
     pub checked_at_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderTier {
+    Stable,
+    ExactId,
+    Advanced,
+    Experimental,
+    Dormant,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderAutoBindingPolicy {
+    Allowed,
+    ExactIdOnly,
+    UserOnly,
+    Disabled,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderPersistencePolicy {
+    DownloadLibrary,
+    CacheOnly,
+    MemoryOnly,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderCapabilities {
+    pub metadata_search: bool,
+    pub id_lookup: bool,
+    pub plain_text: bool,
+    pub line_timing: bool,
+    pub word_timing: bool,
+    pub translation: bool,
+    pub romanization: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderManifest {
+    pub id: String,
+    pub display_name: String,
+    pub implementation_key: String,
+    pub tier: ProviderTier,
+    pub enabled_by_default: bool,
+    pub auto_binding: ProviderAutoBindingPolicy,
+    pub capabilities: ProviderCapabilities,
+    pub requires_credentials: bool,
+    pub persistence: ProviderPersistencePolicy,
+    pub request_timeout_ms: u64,
+    pub notice_key: Option<String>,
+}
+
+/// 对外公开的 Provider 描述，同时携带当前用户策略和最近状态。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderDescriptor {
+    pub manifest: ProviderManifest,
+    pub enabled: bool,
+    pub status: Option<ProviderStatus>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderCandidate {
+    pub provider_id: String,
+    pub provider_item_id: String,
+    pub title: String,
+    pub artists: Vec<String>,
+    pub album: Option<String>,
+    pub duration_ms: Option<u64>,
+    pub version_tags: Vec<String>,
+    pub capabilities: ProviderCapabilities,
+    pub source: String,
+    pub lookup_key: Option<String>,
+    #[serde(skip)]
+    pub(crate) legacy_result: Option<LyricsSearchResult>,
+}
+
+#[derive(Debug)]
+pub struct ProviderCandidateReport {
+    pub candidates: Vec<ProviderCandidate>,
+    pub warning: Option<ProviderError>,
+}
+
+impl ProviderCandidate {
+    pub(crate) fn from_result(result: LyricsSearchResult) -> Self {
+        let artists = result
+            .artist
+            .split(" / ")
+            .map(str::trim)
+            .filter(|artist| !artist.is_empty())
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        Self {
+            provider_id: result.provider_id.clone(),
+            provider_item_id: result.id.clone(),
+            title: result.title.clone(),
+            artists,
+            album: result.album.clone(),
+            duration_ms: result.duration_ms,
+            version_tags: version_tags_from_title(&result.title),
+            capabilities: ProviderCapabilities {
+                metadata_search: true,
+                id_lookup: true,
+                plain_text: true,
+                line_timing: result.synced,
+                word_timing: result.has_word_timing,
+                translation: result.has_translation,
+                romanization: result.has_romanization,
+            },
+            source: result.source.clone(),
+            lookup_key: None,
+            legacy_result: Some(result),
+        }
+    }
+
+    pub(crate) fn metadata_result(&self) -> LyricsSearchResult {
+        LyricsSearchResult {
+            id: self.provider_item_id.clone(),
+            provider_id: self.provider_id.clone(),
+            title: self.title.clone(),
+            artist: self.artists.join(" / "),
+            album: self.album.clone(),
+            duration_ms: self.duration_ms,
+            source: self.source.clone(),
+            synced: self.capabilities.line_timing,
+            has_translation: self.capabilities.translation,
+            has_word_timing: self.capabilities.word_timing,
+            has_romanization: self.capabilities.romanization,
+            score: 0.0,
+            lyrics: String::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -236,6 +385,7 @@ pub struct MatchWeights {
     pub artist: u8,
     pub album: u8,
     pub duration: u8,
+    pub version: u8,
 }
 
 impl MatchWeights {
@@ -244,6 +394,7 @@ impl MatchWeights {
             + u16::from(self.artist)
             + u16::from(self.album)
             + u16::from(self.duration)
+            + u16::from(self.version)
     }
 }
 
@@ -252,8 +403,9 @@ impl Default for MatchWeights {
         Self {
             title: 64,
             artist: 16,
-            album: 16,
-            duration: 4,
+            album: 5,
+            duration: 10,
+            version: 5,
         }
     }
 }
@@ -263,6 +415,7 @@ pub(crate) struct ScoringSettings {
     title_filter_keywords: Vec<String>,
     match_weights: MatchWeights,
     normalize_chinese: bool,
+    confirmed_artist_aliases: Vec<(String, String)>,
 }
 
 impl Default for ScoringSettings {
@@ -271,7 +424,15 @@ impl Default for ScoringSettings {
             title_filter_keywords: Vec::new(),
             match_weights: MatchWeights::default(),
             normalize_chinese: default_normalize_chinese(),
+            confirmed_artist_aliases: Vec::new(),
         }
+    }
+}
+
+impl ScoringSettings {
+    pub(crate) fn with_confirmed_artist_aliases(mut self, aliases: Vec<(String, String)>) -> Self {
+        self.confirmed_artist_aliases = aliases;
+        self
     }
 }
 
@@ -282,6 +443,12 @@ pub struct LyricsSearchInput {
     pub artist: String,
     pub album: Option<String>,
     pub duration_ms: Option<u64>,
+    /// 播放器平台上下文；用于处理平台返回的署名字段不完整问题。
+    #[serde(default)]
+    pub platform: Option<String>,
+    /// 当前播放器曲目的平台内 ID；为空时只进行普通元数据搜索。
+    #[serde(default)]
+    pub platform_item_id: Option<String>,
     #[serde(skip)]
     pub(crate) scoring: Arc<ScoringSettings>,
 }

@@ -5,9 +5,10 @@ use serde::Deserialize;
 
 use super::parse_lrc_with_options;
 use super::provider::{
-    collect_provider_results, duration_ms_from_seconds_u64, score_candidate, LyricsProvider,
-    LyricsSearchInput, LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture,
-    ProviderSearchReport, KUGOU_DISPLAY_NAME,
+    collect_provider_results, duration_ms_from_seconds_u64, score_candidate,
+    version_tags_from_title, LyricsProvider, LyricsSearchInput, LyricsSearchResult,
+    ProviderCandidate, ProviderCandidateReport, ProviderCapabilities, ProviderError,
+    ProviderErrorKind, ProviderFuture, ProviderSearchReport, KUGOU_DISPLAY_NAME,
 };
 
 #[derive(Debug, Deserialize)]
@@ -116,9 +117,113 @@ impl LyricsProvider for KugouProvider {
             collect_provider_results(outcomes)
         })
     }
+
+    fn search_candidates<'a>(
+        &'a self,
+        client: &'a reqwest::Client,
+        input: &'a LyricsSearchInput,
+    ) -> ProviderFuture<'a, ProviderCandidateReport> {
+        Box::pin(async move {
+            Ok(ProviderCandidateReport {
+                candidates: self
+                    .search_songs(client, input)
+                    .await?
+                    .into_iter()
+                    .map(candidate_from_song)
+                    .collect(),
+                warning: None,
+            })
+        })
+    }
+
+    fn fetch<'a>(
+        &'a self,
+        client: &'a reqwest::Client,
+        input: &'a LyricsSearchInput,
+        candidate: &'a ProviderCandidate,
+    ) -> ProviderFuture<'a, Option<LyricsSearchResult>> {
+        Box::pin(async move {
+            let song = KugouSong {
+                file_hash: candidate.provider_item_id.clone(),
+                song_name: candidate.title.clone(),
+                singer_name: candidate.artists.join(" / "),
+                album_name: candidate.album.clone(),
+                duration: candidate.duration_ms.map(|duration| duration / 1_000),
+                mix_song_id: candidate.lookup_key.clone(),
+            };
+            self.fetch_result(client, input, song).await
+        })
+    }
+}
+
+fn candidate_from_song(song: KugouSong) -> ProviderCandidate {
+    let title = song.song_name;
+    let artists = song
+        .singer_name
+        .split(" / ")
+        .map(str::trim)
+        .filter(|artist| !artist.is_empty())
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    ProviderCandidate {
+        provider_id: "kugou".into(),
+        provider_item_id: song.file_hash,
+        title: title.clone(),
+        artists,
+        album: song.album_name.filter(|album| !album.is_empty()),
+        duration_ms: song.duration.map(duration_ms_from_seconds_u64),
+        version_tags: version_tags_from_title(&title),
+        capabilities: ProviderCapabilities {
+            metadata_search: true,
+            id_lookup: true,
+            plain_text: true,
+            line_timing: true,
+            word_timing: true,
+            translation: false,
+            romanization: false,
+        },
+        source: KUGOU_DISPLAY_NAME.into(),
+        lookup_key: song.mix_song_id,
+        legacy_result: None,
+    }
 }
 
 impl KugouProvider {
+    async fn search_songs(
+        &self,
+        client: &reqwest::Client,
+        input: &LyricsSearchInput,
+    ) -> Result<Vec<KugouSong>, ProviderError> {
+        let mut url = reqwest::Url::parse("https://songsearch.kugou.com/song_search_v2")
+            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
+        url.query_pairs_mut()
+            .append_pair(
+                "keyword",
+                &format!("{} {}", input.title.trim(), input.artist.trim()),
+            )
+            .append_pair("page", "1")
+            .append_pair("pagesize", "10")
+            .append_pair("platform", "WebFilter");
+        let response = client
+            .get(url)
+            .header("Referer", "https://www.kugou.com/")
+            .send()
+            .await
+            .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
+        if !response.status().is_success() {
+            return Err(super::provider::response_error(
+                self.id(),
+                &response,
+                "搜索请求失败",
+            ));
+        }
+        let envelope = response
+            .json::<SearchEnvelope>()
+            .await
+            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
+        Ok(envelope.data.map(|data| data.lists).unwrap_or_default())
+    }
+
     async fn fetch_result(
         &self,
         client: &reqwest::Client,
@@ -154,7 +259,9 @@ impl KugouProvider {
             .any(|line| line.words.as_ref().is_some_and(|words| !words.is_empty()));
         let has_romanization = parsed.tracks.romanization.is_some();
         let mut result = LyricsSearchResult {
-            id: format!("{}|{}", lyric_candidate.id, lyric_candidate.accesskey),
+            // 持久化使用来源歌曲的稳定 FileHash；歌词接口的 accesskey 只在本次
+            // 正文获取过程中使用，不能成为跨请求的歌曲身份。
+            id: song.file_hash,
             provider_id: self.id().into(),
             title: song.song_name,
             artist: song.singer_name,

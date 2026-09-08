@@ -34,10 +34,13 @@ mod tests {
                     track_key: "spotify:test",
                     title: "测试歌曲",
                     artist: "测试歌手",
+                    album: None,
+                    duration_ms: None,
                     source: "test",
                     raw: "[00:01.00]第一行\n[00:02.00]第二行",
                     provider_id: Some("test"),
                     provider_item_id: Some("version-1"),
+                    confidence: None,
                     kind: SaveKind::ManualSelection,
                 })
                 .expect("save lyrics");
@@ -99,10 +102,13 @@ mod tests {
                         track_key,
                         title: track_key,
                         artist: "Artist",
+                        album: None,
+                        duration_ms: None,
                         source: legacy_name,
                         raw: "[00:01]Legacy source",
                         provider_id: Some(track_key),
                         provider_item_id: Some("1"),
+                        confidence: None,
                         kind: SaveKind::ManualSelection,
                     })
                     .unwrap();
@@ -139,10 +145,13 @@ mod tests {
                 track_key: "track",
                 title: "Song",
                 artist: "Artist",
+                album: None,
+                duration_ms: None,
                 source: "本地导入",
                 raw: "[00:01]Manual",
                 provider_id: None,
                 provider_item_id: None,
+                confidence: None,
                 kind: SaveKind::Import,
             })
             .unwrap();
@@ -151,10 +160,13 @@ mod tests {
                 track_key: "track",
                 title: "Song",
                 artist: "Artist",
+                album: None,
+                duration_ms: None,
                 source: "LRCLIB",
                 raw: "[00:01]Network",
                 provider_id: Some("lrclib"),
                 provider_item_id: Some("1"),
+                confidence: None,
                 kind: SaveKind::Automatic,
             })
             .unwrap();
@@ -188,10 +200,13 @@ mod tests {
                 track_key: "track",
                 title: "Song",
                 artist: "Artist",
+                album: None,
+                duration_ms: None,
                 source: "本地导入",
                 raw: "[00:01]Manual",
                 provider_id: None,
                 provider_item_id: None,
+                confidence: None,
                 kind: SaveKind::Import,
             })
             .unwrap();

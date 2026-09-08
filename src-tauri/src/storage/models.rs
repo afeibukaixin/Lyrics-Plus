@@ -9,10 +9,13 @@ pub struct SaveRequest<'a> {
     pub track_key: &'a str,
     pub title: &'a str,
     pub artist: &'a str,
+    pub album: Option<&'a str>,
+    pub duration_ms: Option<u64>,
     pub source: &'a str,
     pub raw: &'a str,
     pub provider_id: Option<&'a str>,
     pub provider_item_id: Option<&'a str>,
+    pub confidence: Option<u8>,
     pub kind: SaveKind,
 }
 

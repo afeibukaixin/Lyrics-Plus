@@ -1,5 +1,5 @@
 import type { SupportedLanguage } from "./base";
-import type { GlobalShortcutSettings, RegisteredApplication, PlayerSelection, SystemMediaFilterMode } from "./player";
+import type { GlobalShortcutSettings, RegisteredApplication, PlayerKind, PlayerSelection, SystemMediaFilterMode } from "./player";
 import type { LyricsBaseAppearance, LyricsDisplayPreferences, LyricsStyleInheritance } from "./lyrics";
 import type { ProviderSettings, ProviderSettingsView } from "./provider";
 import type { OverlaySettings, OverlayStyle } from "./overlay";
@@ -73,6 +73,8 @@ export type LyricsSearchInput = {
   artist: string;
   album: string | null;
   durationMs: number | null;
+  platform?: PlayerKind | null;
+  platformItemId?: string | null;
 };
 
 export type LyricsSearchIntent = "automatic" | "refresh" | "manual";

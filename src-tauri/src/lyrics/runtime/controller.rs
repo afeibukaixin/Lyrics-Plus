@@ -216,15 +216,42 @@ fn sync_lyrics_runtime_inner(app: &tauri::AppHandle, playback: &PlaybackSnapshot
             return;
         };
 
+        if let Some(player) = playback.player {
+            if let Err(error) = state.storage.observe_track(
+                &track_key,
+                player_key(player),
+                playback.track_id.as_deref(),
+                &title,
+                std::slice::from_ref(&artist),
+                playback.album.as_deref(),
+                playback.duration_ms,
+            ) {
+                log::warn!("记录当前播放录音观察失败：{error}");
+            }
+        }
+
         let input = LyricsSearchInput {
             title: title.clone(),
             artist: artist.clone(),
             album: playback.album.clone(),
             duration_ms: playback.duration_ms,
+            platform: playback.player.map(player_key).map(str::to_owned),
+            platform_item_id: playback
+                .track_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|id| !id.is_empty())
+                .map(str::to_owned),
             scoring: Arc::default(),
         };
-        match search_lyrics_for_session(&state, &track_key, input, LyricsSearchIntent::Automatic)
-            .await
+        match search_lyrics_for_session(
+            worker_app.clone(),
+            &state,
+            &track_key,
+            input,
+            LyricsSearchIntent::Automatic,
+        )
+        .await
         {
             Ok(response) => {
                 if !current() {
@@ -243,9 +270,20 @@ fn sync_lyrics_runtime_inner(app: &tauri::AppHandle, playback: &PlaybackSnapshot
                     return;
                 }
                 let document = if response.auto_apply {
-                    response.results.first().and_then(|result| {
-                        save_automatic_search_result(&state, &track_key, &title, &artist, result)
-                            .ok()
+                    response.auto_apply_candidate.as_ref().and_then(|selected| {
+                        response
+                            .results
+                            .iter()
+                            .find(|result| {
+                                result.provider_id == selected.provider_id
+                                    && result.id == selected.id
+                            })
+                            .and_then(|result| {
+                                save_automatic_search_result(
+                                    &state, &track_key, &title, &artist, result,
+                                )
+                                .ok()
+                            })
                     })
                 } else {
                     None

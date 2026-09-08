@@ -6,6 +6,7 @@ import { usePlayback } from "../../../features/player/usePlayback";
 import type {
   OverlaySettings,
   OverlayStyle,
+  LibraryRootView,
   ProviderCredentialView,
   ProviderSettings,
   ProviderSettingsView,
@@ -52,12 +53,14 @@ export type SettingsOutletContext = {
   overlaySettings: OverlaySettings;
   style: OverlayStyle;
   providerView: ProviderSettingsView | null;
+  libraryRoots: LibraryRootView[];
   providerCredentials: ProviderCredentialView | null;
   testingProvider: string | null;
   resettingSection: SettingsSection | null;
   confirmingReset: SettingsSection | null;
   providerDrag: ProviderDragState | null;
   savingProviderOrder: boolean;
+  setLibraryRoots: Dispatch<SetStateAction<LibraryRootView[]>>;
   setError: Dispatch<SetStateAction<string | null>>;
   setNotice: Dispatch<SetStateAction<string | null>>;
   updateStyle: (patch: Partial<OverlayStyle>) => Promise<boolean>;

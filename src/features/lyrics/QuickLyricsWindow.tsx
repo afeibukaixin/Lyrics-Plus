@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLyrics } from "./useLyrics";
 import { usePlayback } from "../player/usePlayback";
+import { QuickLyricsDetails } from "./quickLyrics/Details";
 import { QuickLyricsPreview } from "./quickLyrics/Preview";
 import { QuickLyricsResults } from "./quickLyrics/Results";
 import { QuickLyricsSearchForm } from "./quickLyrics/SearchForm";
@@ -13,6 +15,7 @@ export default function QuickLyricsWindow() {
   const { t } = useTranslation();
   const playback = usePlayback();
   const lyrics = useLyrics(playback.snapshot, playback.positionMs, playback.active);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const search = useQuickLyricsSearch(playback, lyrics);
   const selection = useQuickLyricsSelection(lyrics, t);
   const isLoading = lyrics.searching || lyrics.loadState === "loading";
@@ -31,8 +34,10 @@ export default function QuickLyricsWindow() {
         <QuickLyricsSearchForm
           artistInvalid={search.artistInvalid}
           durationInvalid={search.durationInvalid}
+          detailsDisabled={!lyrics.trackKey}
           formDisabled={search.formDisabled}
           onSearch={() => search.searchLyrics(selection.clearNotice)}
+          onOpenDetails={() => setDetailsOpen(true)}
           onUpdateField={search.updateSearchField}
           searchForm={search.searchForm}
           searching={search.searching}
@@ -46,12 +51,12 @@ export default function QuickLyricsWindow() {
           applyingKey={selection.applyingKey}
           candidateDetailsOpen={selection.candidateDetailsOpen}
           emptyDescription={emptyDescription}
-          isCurrent={selection.isCurrent}
+          currentItem={selection.currentItem}
           isLoading={isLoading}
           localResults={selection.localResults}
           onlineResults={selection.onlineResults}
           recommendedKey={selection.recommendedKey}
-          resultsCount={lyrics.results.length}
+          resultsCount={selection.resultsCount}
           selectedKey={selection.selectedKey}
           selectAndApply={selection.selectAndApply}
           setCandidateDetailsOpen={selection.setCandidateDetailsOpen}
@@ -62,6 +67,7 @@ export default function QuickLyricsWindow() {
       </section>
 
       <div className={cn(styles.status, "text-xs text-muted-foreground")} aria-live="polite">{isLoading ? t("quickLyrics.searchingCandidates") : selection.applyingKey ? t("quickLyrics.applying") : selection.notice}</div>
+      <QuickLyricsDetails open={detailsOpen} onOpenChange={setDetailsOpen} playback={playback.snapshot} lyrics={lyrics} onSearch={() => lyrics.search("manual")} t={t} />
     </main>
   );
 }

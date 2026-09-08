@@ -36,12 +36,6 @@ pub(super) fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), Co
             100.0,
         ),
         (
-            "autoApplyDurationToleranceSeconds",
-            value.pointer("/lyrics/providers/autoApplyDurationToleranceSeconds"),
-            0.0,
-            60.0,
-        ),
-        (
             "autoSearchDebounceMs",
             value.pointer("/lyrics/providers/autoSearchDebounceMs"),
             0.0,
@@ -74,6 +68,12 @@ pub(super) fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), Co
         (
             "duration",
             value.pointer("/lyrics/providers/matchWeights/duration"),
+            0.0,
+            100.0,
+        ),
+        (
+            "version",
+            value.pointer("/lyrics/providers/matchWeights/version"),
             0.0,
             100.0,
         ),

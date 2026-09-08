@@ -17,7 +17,7 @@ use crate::config::{
 use crate::language::UiLanguage;
 use crate::lyrics::credentials::{MusixmatchTokenType, ProviderCredentialView};
 use crate::lyrics::provider::{
-    LyricsSearchInput, ProviderSettings, ProviderSettingsView, ProviderStatus,
+    LyricsSearchInput, ProviderDescriptor, ProviderSettings, ProviderSettingsView, ProviderStatus,
 };
 use crate::lyrics::LyricsDocument;
 use crate::player::{
@@ -25,7 +25,10 @@ use crate::player::{
     PlaybackArtwork, PlaybackSnapshot, PlaybackSpectrumState, PlayerSelection,
 };
 use crate::storage::library::LibraryScanStatus;
-use crate::storage::{SaveKind, SaveRequest, LOCAL_PROVIDER_ID};
+use crate::storage::{
+    LibraryRootView, LyricsSearchTrace, RecordingView, SaveKind, SaveRequest,
+    SongAssociationCandidate, LOCAL_PROVIDER_ID,
+};
 use crate::ui_update::UiUpdateStateView;
 
 mod application_discovery;

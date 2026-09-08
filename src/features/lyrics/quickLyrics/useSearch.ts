@@ -91,6 +91,8 @@ export function useQuickLyricsSearch(
       artist,
       album: searchForm.album.trim() || null,
       durationMs,
+      platform: playback.snapshot.player,
+      platformItemId: playback.snapshot.trackId,
     }, "manual");
   };
 

@@ -5,8 +5,9 @@ use serde::Deserialize;
 
 use super::parse_lrc_with_options;
 use super::provider::{
-    duration_ms_from_seconds, score_candidate, LyricsProvider, LyricsSearchInput,
-    LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
+    duration_ms_from_seconds, score_candidate, version_tags_from_title, LyricsProvider,
+    LyricsSearchInput, LyricsSearchResult, ProviderCandidate, ProviderCandidateReport,
+    ProviderCapabilities, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
     LRCLIB_DISPLAY_NAME,
 };
 
@@ -69,9 +70,149 @@ impl LyricsProvider for LrcLibProvider {
             Ok(ProviderSearchReport::available(results))
         })
     }
+
+    fn search_candidates<'a>(
+        &'a self,
+        client: &'a reqwest::Client,
+        input: &'a LyricsSearchInput,
+    ) -> ProviderFuture<'a, ProviderCandidateReport> {
+        Box::pin(async move {
+            let items = self.fetch_broad(client, input).await?;
+            Ok(ProviderCandidateReport {
+                candidates: items
+                    .into_iter()
+                    .filter_map(|item| self.candidate_from_item(item))
+                    .collect(),
+                warning: None,
+            })
+        })
+    }
+
+    fn lookup_by_id<'a>(
+        &'a self,
+        client: &'a reqwest::Client,
+        _input: &'a LyricsSearchInput,
+        provider_item_id: &'a str,
+    ) -> ProviderFuture<'a, ProviderCandidateReport> {
+        Box::pin(async move {
+            let Some(item) = self.fetch_by_id(client, provider_item_id).await? else {
+                return Ok(ProviderCandidateReport {
+                    candidates: Vec::new(),
+                    warning: None,
+                });
+            };
+            Ok(ProviderCandidateReport {
+                candidates: self.candidate_from_item(item).into_iter().collect(),
+                warning: None,
+            })
+        })
+    }
+
+    fn fetch<'a>(
+        &'a self,
+        client: &'a reqwest::Client,
+        input: &'a LyricsSearchInput,
+        candidate: &'a ProviderCandidate,
+    ) -> ProviderFuture<'a, Option<LyricsSearchResult>> {
+        Box::pin(async move {
+            let Some(item) = self
+                .fetch_by_id(client, &candidate.provider_item_id)
+                .await?
+            else {
+                return Ok(None);
+            };
+            Ok(self.result_from_item(input, item))
+        })
+    }
 }
 
 impl LrcLibProvider {
+    async fn fetch_by_id(
+        &self,
+        client: &reqwest::Client,
+        provider_item_id: &str,
+    ) -> Result<Option<LrcLibItem>, ProviderError> {
+        self.ensure_not_rate_limited()?;
+        let id = provider_item_id.trim().parse::<i64>().map_err(|_| {
+            self.error(
+                ProviderErrorKind::InvalidResponse,
+                "LRCLIB 歌曲 ID 格式无效",
+            )
+        })?;
+        let url = reqwest::Url::parse(&format!("https://lrclib.net/api/get/{id}"))
+            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
+        let response = client.get(url).send().await.map_err(|error| {
+            self.error(
+                ProviderErrorKind::Network,
+                format!("精确歌词获取失败：{error}"),
+            )
+        })?;
+        if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            return Err(self.rate_limit_error(&response));
+        }
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        if !response.status().is_success() {
+            return Err(super::provider::response_error(
+                self.id(),
+                &response,
+                "歌词服务请求失败",
+            ));
+        }
+        response
+            .json::<LrcLibItem>()
+            .await
+            .map(Some)
+            .map_err(|error| {
+                self.error(
+                    ProviderErrorKind::InvalidResponse,
+                    format!("无法解析精确歌词结果：{error}"),
+                )
+            })
+    }
+
+    fn candidate_from_item(&self, item: LrcLibItem) -> Option<ProviderCandidate> {
+        let LrcLibItem {
+            id,
+            track_name,
+            artist_name,
+            album_name,
+            duration,
+            synced_lyrics,
+            lyricsfile,
+        } = item;
+        let lyrics = lyricsfile
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+            .or(synced_lyrics.as_deref());
+        let (has_translation, has_word_timing, has_romanization) =
+            lyrics.map(capabilities).unwrap_or((false, false, false));
+        Some(ProviderCandidate {
+            provider_id: self.id().into(),
+            provider_item_id: id.to_string(),
+            title: track_name.clone(),
+            artists: vec![artist_name],
+            album: album_name,
+            duration_ms: duration.and_then(duration_ms_from_seconds),
+            version_tags: version_tags_from_title(&track_name),
+            capabilities: ProviderCapabilities {
+                metadata_search: true,
+                id_lookup: true,
+                plain_text: true,
+                line_timing: lyrics.is_some_and(|value| {
+                    parse_lrc_with_options(value, LRCLIB_DISPLAY_NAME, false).is_ok()
+                }),
+                word_timing: has_word_timing,
+                translation: has_translation,
+                romanization: has_romanization,
+            },
+            source: self.display_name().into(),
+            lookup_key: None,
+            legacy_result: None,
+        })
+    }
+
     async fn fetch_exact(
         &self,
         client: &reqwest::Client,

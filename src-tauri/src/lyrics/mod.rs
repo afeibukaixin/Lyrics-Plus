@@ -5,12 +5,17 @@ pub(crate) mod conversion;
 pub mod credentials;
 pub(crate) mod encoding;
 pub mod kugou;
+// 休眠来源保留实现，便于后续恢复，但当前不会注册或发起请求。
+#[allow(dead_code)]
 pub mod kuwo;
 pub mod lrclib;
+// 休眠来源保留实现，便于后续恢复，但当前不会注册或发起请求。
+#[allow(dead_code)]
 pub mod migu;
 pub mod musixmatch;
 pub mod netease;
 pub mod provider;
+pub mod qishui;
 pub mod qqmusic;
 
 include!("types.rs");

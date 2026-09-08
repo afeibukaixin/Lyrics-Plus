@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, RwLock};
 
 use rusqlite::{params, Connection, OptionalExtension};
+use serde::Serialize;
+use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager};
 
 use crate::lyrics::encoding::decode_lyrics_bytes;
@@ -32,6 +34,15 @@ include!("associations.rs");
 include!("preferences.rs");
 include!("helpers.rs");
 include!("aliases.rs");
+mod song_manager;
+use song_manager::recording_version_tags;
+pub use song_manager::{
+    ExternalIdentifier, RecordingView, SongAssociationCandidate, TrackObservation,
+};
+include!("bindings.rs");
+include!("roots.rs");
+include!("search_runs.rs");
+include!("v2_views.rs");
 
 #[cfg(test)]
 include!("tests.rs");

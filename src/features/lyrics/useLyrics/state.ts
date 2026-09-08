@@ -5,6 +5,7 @@ import type {
   LyricsLoadStatus,
   LyricsSearchResult,
   ProviderStatus,
+  SearchResponse,
 } from "../../../shared/types";
 
 export type PendingOffsetWrite = {
@@ -17,6 +18,7 @@ export type LyricsLoadState = "idle" | "loading" | LyricsLoadStatus;
 export function useLyricsState(trackKey: string | null, active: boolean) {
   const [document, setDocument] = useState<LyricsDocument | null>(null);
   const [results, setResults] = useState<LyricsSearchResult[]>([]);
+  const [autoApplyCandidate, setAutoApplyCandidate] = useState<SearchResponse["autoApplyCandidate"]>(null);
   const [searching, setSearching] = useState(false);
   const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +36,8 @@ export function useLyricsState(trackKey: string | null, active: boolean) {
     setDocument,
     results,
     setResults,
+    autoApplyCandidate,
+    setAutoApplyCandidate,
     searching,
     setSearching,
     providerStatuses,

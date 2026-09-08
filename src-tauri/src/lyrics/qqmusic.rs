@@ -4,9 +4,10 @@ use lyrics_crypto::decrypter::qrc::decrypter::decrypt_lyrics;
 use serde::Deserialize;
 
 use super::provider::{
-    collect_provider_results, duration_ms_from_seconds_u64, score_candidate, LyricsProvider,
-    LyricsSearchInput, LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture,
-    ProviderSearchReport, QQMUSIC_DISPLAY_NAME,
+    collect_provider_results, duration_ms_from_seconds_u64, score_candidate,
+    version_tags_from_title, LyricsProvider, LyricsSearchInput, LyricsSearchResult,
+    ProviderCandidate, ProviderCandidateReport, ProviderCapabilities, ProviderError,
+    ProviderErrorKind, ProviderFuture, ProviderSearchReport, QQMUSIC_DISPLAY_NAME,
 };
 
 pub(crate) const QQMUSIC_PROVIDER_ID: &str = "qqmusic";
@@ -172,6 +173,75 @@ impl LyricsProvider for QqMusicProvider {
                 },
             ))
         })
+    }
+
+    fn search_candidates<'a>(
+        &'a self,
+        client: &'a reqwest::Client,
+        input: &'a LyricsSearchInput,
+    ) -> ProviderFuture<'a, ProviderCandidateReport> {
+        Box::pin(async move {
+            Ok(ProviderCandidateReport {
+                candidates: self
+                    .search_songs(client, input)
+                    .await?
+                    .into_iter()
+                    .map(candidate_from_song)
+                    .collect(),
+                warning: None,
+            })
+        })
+    }
+
+    fn fetch<'a>(
+        &'a self,
+        client: &'a reqwest::Client,
+        _input: &'a LyricsSearchInput,
+        candidate: &'a ProviderCandidate,
+    ) -> ProviderFuture<'a, Option<LyricsSearchResult>> {
+        Box::pin(async move {
+            let qq_candidate = QqCandidate {
+                result: candidate.metadata_result(),
+                song_mid: candidate.provider_item_id.clone(),
+                song_id: candidate
+                    .lookup_key
+                    .as_deref()
+                    .and_then(|value| value.parse::<u64>().ok()),
+            };
+            let detail = self.fetch_detail(client, &qq_candidate).await?;
+            Ok(result_from_payload(qq_candidate.result, detail))
+        })
+    }
+}
+
+fn candidate_from_song(song: QqSong) -> ProviderCandidate {
+    let song_id = song.songid.as_ref().and_then(value_as_u64);
+    let title = song.songname;
+    let artists = song
+        .singer
+        .into_iter()
+        .map(|singer| singer.name)
+        .collect::<Vec<_>>();
+    ProviderCandidate {
+        provider_id: QQMUSIC_PROVIDER_ID.into(),
+        provider_item_id: song.songmid,
+        title: title.clone(),
+        artists,
+        album: song.albumname.filter(|album| !album.is_empty()),
+        duration_ms: song.interval.map(duration_ms_from_seconds_u64),
+        version_tags: version_tags_from_title(&title),
+        capabilities: ProviderCapabilities {
+            metadata_search: true,
+            id_lookup: true,
+            plain_text: true,
+            line_timing: true,
+            word_timing: true,
+            translation: true,
+            romanization: true,
+        },
+        source: QQMUSIC_DISPLAY_NAME.into(),
+        lookup_key: song_id.map(|value| value.to_string()),
+        legacy_result: None,
     }
 }
 
@@ -339,6 +409,45 @@ fn normalize_rich_auxiliary(raw: &str) -> Option<String> {
 }
 
 impl QqMusicProvider {
+    async fn search_songs(
+        &self,
+        client: &reqwest::Client,
+        input: &LyricsSearchInput,
+    ) -> Result<Vec<QqSong>, ProviderError> {
+        let mut url = reqwest::Url::parse("https://c.y.qq.com/soso/fcgi-bin/client_search_cp")
+            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
+        url.query_pairs_mut()
+            .append_pair(
+                "w",
+                &format!("{} {}", input.title.trim(), input.artist.trim()),
+            )
+            .append_pair("p", "1")
+            .append_pair("n", "12")
+            .append_pair("format", "json");
+        let response = client
+            .get(url)
+            .header("Referer", "https://y.qq.com/")
+            .send()
+            .await
+            .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
+        if !response.status().is_success() {
+            return Err(super::provider::response_error(
+                self.id(),
+                &response,
+                "搜索请求失败",
+            ));
+        }
+        let envelope = response
+            .json::<SearchEnvelope>()
+            .await
+            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
+        Ok(envelope
+            .data
+            .and_then(|data| data.song)
+            .map(|song| song.list)
+            .unwrap_or_default())
+    }
+
     async fn fetch_detail(
         &self,
         client: &reqwest::Client,

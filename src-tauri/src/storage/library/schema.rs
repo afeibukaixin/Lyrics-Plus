@@ -60,6 +60,12 @@ pub(in crate::storage) fn initialize_schema(connection: &Connection) -> rusqlite
         "app_owned",
         "INTEGER NOT NULL DEFAULT 1",
     )?;
+    ensure_column(
+        connection,
+        "lyric_files",
+        "available",
+        "INTEGER NOT NULL DEFAULT 1 CHECK (available IN (0, 1))",
+    )?;
     if added_app_owned {
         connection.execute(
             "UPDATE lyric_files SET app_owned=0 WHERE source IN ('本地文件', '本地导入', '手动导入')",

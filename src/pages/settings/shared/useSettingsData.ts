@@ -7,6 +7,7 @@ import type {
   OverlaySettings,
   OverlayStyle,
   DesktopLyricsAppearance,
+  LibraryRootView,
   ProviderCredentialView,
   ProviderSettingsView,
   ProviderStatus,
@@ -22,6 +23,39 @@ type UseSettingsDataOptions = {
   providerStatuses: ProviderStatus[];
 };
 
+function mergeProviderStatuses(
+  current: ProviderSettingsView,
+  incoming: ProviderStatus[],
+): ProviderSettingsView {
+  const enabled = new Set(
+    current.settings.providers
+      .filter((provider) => provider.enabled)
+      .map((provider) => provider.id),
+  );
+  const applicable = incoming.filter((status) => enabled.has(status.providerId));
+  const incomingById = new Map(applicable.map((status) => [status.providerId, status]));
+  const known = new Set(current.statuses.map((status) => status.providerId));
+  const disabled = new Set(
+    current.settings.providers
+      .filter((provider) => !provider.enabled)
+      .map((provider) => provider.id),
+  );
+  return {
+    ...current,
+    statuses: [
+      ...current.statuses.map((status) => disabled.has(status.providerId)
+        ? {
+            ...status,
+            health: "unknown" as const,
+            detail: { kind: "not_participated" as const },
+            checkedAtMs: null,
+          }
+        : incomingById.get(status.providerId) ?? status),
+      ...applicable.filter((status) => !known.has(status.providerId)),
+    ],
+  };
+}
+
 export function useSettingsData({
   appearance,
   locationPathname,
@@ -29,9 +63,11 @@ export function useSettingsData({
 }: UseSettingsDataOptions) {
   const fileInput = useRef<HTMLInputElement>(null);
   const providerRows = useRef(new Map<string, HTMLDivElement>());
+  const latestProviderEventStatuses = useRef<ProviderStatus[] | null>(null);
   const [overlaySettings, setOverlaySettings] = useState<OverlaySettings>({ visible: true, locked: false });
   const [style, setStyle] = useState<OverlayStyle>(defaultOverlayStyle);
   const [providerView, setProviderView] = useState<ProviderSettingsView | null>(null);
+  const [libraryRoots, setLibraryRoots] = useState<LibraryRootView[]>([]);
   const [providerCredentials, setProviderCredentials] = useState<ProviderCredentialView | null>(null);
   const [testingProvider, setTestingProvider] = useState<string | null>(null);
   const [resettingSection, setResettingSection] = useState<SettingsSection | null>(null);
@@ -48,17 +84,34 @@ export function useSettingsData({
     if (!isTauriRuntime()) return;
     void api.getOverlaySettings().then(setOverlaySettings).catch((value) => setError(messageOf(value)));
     void api.getOverlayStyle().then(setStyle).catch((value) => setError(messageOf(value)));
-    void api.getProviderSettings().then(setProviderView).catch((value) => setError(messageOf(value)));
+    void api.getProviderSettings().then((view) => {
+      const latestStatuses = latestProviderEventStatuses.current;
+      setProviderView(latestStatuses ? mergeProviderStatuses(view, latestStatuses) : view);
+    }).catch((value) => setError(messageOf(value)));
     void api.getProviderCredentials().then(setProviderCredentials).catch((value) => setError(messageOf(value)));
+    void api.getLibraryRoots().then(setLibraryRoots).catch((value) => setError(messageOf(value)));
     const cleanupSettingsListener = createTauriListenerCleanup(
       listen<OverlaySettings>("overlay://settings", ({ payload }) => setOverlaySettings(payload)),
     );
     const cleanupStyleListener = createTauriListenerCleanup(
       listen<OverlayStyle>("overlay://style", ({ payload }) => setStyle(payload)),
     );
+    const cleanupProviderStatusListener = createTauriListenerCleanup(
+      listen<ProviderStatus[]>("lyrics://provider-statuses", ({ payload }) => {
+        latestProviderEventStatuses.current = payload;
+        setProviderView((current) => current ? mergeProviderStatuses(current, payload) : current);
+      }),
+    );
+    const cleanupLibraryListener = createTauriListenerCleanup(
+      listen("lyrics://library-changed", () => {
+        void api.getLibraryRoots().then(setLibraryRoots).catch((value) => setError(messageOf(value)));
+      }),
+    );
     return () => {
       cleanupSettingsListener();
       cleanupStyleListener();
+      cleanupProviderStatusListener();
+      cleanupLibraryListener();
     };
   }, []);
 
@@ -80,27 +133,14 @@ export function useSettingsData({
 
   useEffect(() => {
     if (providerStatuses.length === 0) return;
-    setProviderView((current) => {
-      if (!current) return current;
-      const incoming = new Map(providerStatuses.map((status) => [status.providerId, status]));
-      const known = new Set(current.statuses.map((status) => status.providerId));
-      const disabled = new Set(current.settings.providers.filter((provider) => !provider.enabled).map((provider) => provider.id));
-      return {
-        ...current,
-        statuses: [
-          ...current.statuses.map((status) => incoming.get(status.providerId) ?? (disabled.has(status.providerId)
-            ? { ...status, health: "unknown" as const, detail: { kind: "not_participated" as const }, checkedAtMs: null }
-            : status)),
-          ...providerStatuses.filter((status) => !known.has(status.providerId)),
-        ],
-      };
-    });
+    setProviderView((current) => current ? mergeProviderStatuses(current, providerStatuses) : current);
   }, [providerStatuses]);
 
   return {
     confirmingReset,
     error,
     fileInput,
+    libraryRoots,
     notice,
     overlaySettings,
     providerCredentials,
@@ -114,6 +154,7 @@ export function useSettingsData({
     setNotice,
     setOverlaySettings,
     setProviderCredentials,
+    setLibraryRoots,
     setProviderDrag,
     setProviderView,
     setResettingSection,

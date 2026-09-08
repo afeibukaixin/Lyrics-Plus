@@ -1,13 +1,61 @@
 impl Storage {
+    fn select_managed_lyric_path(
+        &self,
+        title: &str,
+        artist: &str,
+        raw: &str,
+        original_format: &str,
+    ) -> Result<(PathBuf, bool), String> {
+        let fingerprint = content_hash(raw);
+        let library_dir = self.library_directory();
+        let candidates = {
+            let connection = self
+                .connection
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            let mut statement = connection
+                .prepare(
+                    "SELECT content_path FROM lyric_files
+                     WHERE content_hash=?1 AND managed=1 AND app_owned=1
+                     ORDER BY updated_at DESC, content_path ASC",
+                )
+                .map_err(|error| format!("读取可复用歌词文件失败：{error}"))?;
+            let candidates = statement
+                .query_map(rusqlite::params![fingerprint], |row| {
+                    row.get::<_, String>(0)
+                })
+                .map_err(|error| format!("查询可复用歌词文件失败：{error}"))?
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .map_err(|error| format!("解析可复用歌词文件失败：{error}"))?;
+            candidates
+        };
+        if let Some(path) = candidates.into_iter().map(PathBuf::from).find(|path| {
+            path.strip_prefix(&library_dir).is_ok()
+                && lyric_path_matches_format(path, original_format)
+                && path.is_file()
+                && read_lyric_text(path).ok().as_deref() == Some(raw)
+        }) {
+            return Ok((path, false));
+        }
+
+        Ok((
+            available_path(&library_dir, title, artist, raw, original_format)?,
+            true,
+        ))
+    }
+
     pub fn save(&self, request: SaveRequest<'_>) -> Result<LyricsDocument, String> {
         let SaveRequest {
             track_key,
             title,
             artist,
+            album,
+            duration_ms,
             source,
             raw,
             provider_id,
             provider_item_id,
+            confidence,
             kind,
         } = request;
         let canonical_track_key = self.canonical_track_key(track_key)?;
@@ -29,29 +77,11 @@ impl Storage {
         if document.metadata.artist.is_none() {
             document.metadata.artist = Some(artist.into());
         }
-        let library_dir = self
-            .library_dir
-            .read()
-            .unwrap_or_else(|error| error.into_inner())
-            .clone();
-        let reusable_path = existing
-            .as_ref()
-            .map(|association| association.path.clone())
-            .filter(|path| path.starts_with(&library_dir))
-            .filter(|path| self.file_is_app_owned(path).unwrap_or(false))
-            .filter(|path| lyric_path_matches_format(path, &document.metadata.original_format));
-        let path = reusable_path
-            .clone()
-            .unwrap_or_else(|| {
-                available_path(
-                    &library_dir,
-                    title,
-                    artist,
-                    raw,
-                    &document.metadata.original_format,
-                )
-            });
-        fs::write(&path, raw).map_err(|error| format!("保存歌词文件失败：{error}"))?;
+        let (path, needs_write) =
+            self.select_managed_lyric_path(title, artist, raw, &document.metadata.original_format)?;
+        if needs_write {
+            atomic_write_lyric(&path, raw)?;
+        }
         let content_hash = content_hash(raw);
         let connection = self
             .connection
@@ -108,16 +138,40 @@ impl Storage {
             )
             .map_err(|error| format!("整理歌词使用记录失败：{error}"))?;
         drop(connection);
-        if let Some(old_path) = existing
-            .as_ref()
-            .map(|association| association.path.clone())
-            .filter(|old_path| old_path != &path)
-        {
-            if let Err(error) = self.cleanup_unreferenced_app_owned_files([old_path]) {
-                log::warn!("整理旧歌词文件失败：{error}");
-            }
+        let source_kind = if kind == SaveKind::Import {
+            "local"
+        } else {
+            "managed"
+        };
+        if let Err(error) = self.sync_v2_lyric_binding(
+            track_key,
+            title,
+            artist,
+            album,
+            duration_ms,
+            source,
+            raw,
+            &path,
+            &document.metadata.original_format,
+            provider_id,
+            provider_item_id,
+            confidence,
+            kind,
+            source_kind,
+            document.offset_ms,
+            document.tracks.translation.is_some(),
+            document
+                .tracks
+                .original
+                .lines
+                .iter()
+                .any(|line| line.words.as_ref().is_some_and(|words| !words.is_empty())),
+            document.tracks.romanization.is_some(),
+        ) {
+            log::warn!("同步新歌词绑定失败，保留旧结构：{error}");
         }
-        self.load(&canonical_track_key)?
+        // 平台移出后，旧 canonical 别名仍可能指向原歌曲；按精确曲目读取新绑定。
+        self.load(track_key)?
             .ok_or_else(|| "歌词保存后无法读取".into())
     }
 
@@ -125,19 +179,29 @@ impl Storage {
         &self,
         input: &LyricsSearchInput,
     ) -> Result<Vec<LyricsSearchResult>, String> {
-        let library_dir = self.library_directory();
         let indexed = {
             let connection = self
                 .connection
                 .lock()
                 .unwrap_or_else(|error| error.into_inner());
+            let roots = connection
+                .prepare("SELECT root_kind, path FROM library_roots WHERE enabled=1")
+                .and_then(|mut statement| {
+                    statement
+                        .query_map([], |row| {
+                            Ok((
+                                row.get::<_, String>(0)?,
+                                PathBuf::from(row.get::<_, String>(1)?),
+                            ))
+                        })
+                        .and_then(|rows| rows.collect::<rusqlite::Result<Vec<_>>>())
+                })
+                .map_err(|error| format!("读取本地歌词根目录失败：{error}"))?;
             let mut statement = connection
                 .prepare(
-                    // 在线歌词保存到歌词目录后仍是缓存，不应以本地候选参与在线结果去重。
+                    // 在线歌词保存到托管目录后仍是应用资源，不应以本地候选参与在线结果去重。
                     "SELECT content_path, title, artist, duration_ms, content_hash
-                     FROM lyric_files
-                     WHERE managed=1
-                       AND (app_owned=0 OR source IN ('本地文件', '本地导入', '手动导入'))",
+                     FROM lyric_files WHERE managed=1 AND available=1",
                 )
                 .map_err(|error| format!("读取本地歌词索引失败：{error}"))?;
             let rows = statement
@@ -154,15 +218,16 @@ impl Storage {
                 .map_err(|error| format!("查询本地歌词索引失败：{error}"))?
                 .collect::<rusqlite::Result<Vec<_>>>()
                 .map_err(|error| format!("解析本地歌词索引失败：{error}"))?;
-            rows
+            rows.into_iter()
+                .filter(|candidate| is_searchable_local_candidate(&candidate.path, &roots))
+                .collect::<Vec<_>>()
         };
 
         let mut candidates = indexed
             .into_iter()
-            .filter(|candidate| candidate.path.starts_with(&library_dir))
             .filter_map(|mut candidate| {
                 let result = LyricsSearchResult {
-                    id: candidate.path.to_string_lossy().into_owned(),
+                    id: local_provider_item_id(&candidate.content_hash),
                     provider_id: LOCAL_PROVIDER_ID.into(),
                     title: candidate.title.clone(),
                     artist: candidate.artist.clone(),
@@ -199,7 +264,7 @@ impl Storage {
             } else {
                 candidate.content_hash.clone()
             };
-            if !seen_content.insert(content_key) {
+            if !seen_content.insert(content_key.clone()) {
                 continue;
             }
             let Ok(document) = parse_lrc_with_options(&raw, LOCAL_FILE_SOURCE, false) else {
@@ -214,7 +279,7 @@ impl Storage {
                     .map(|line| line.end_ms.unwrap_or(line.start_ms))
             });
             results.push(LyricsSearchResult {
-                id: candidate.path.to_string_lossy().into_owned(),
+                id: local_provider_item_id(&content_key),
                 provider_id: LOCAL_PROVIDER_ID.into(),
                 title: candidate.title,
                 artist: candidate.artist,
@@ -245,7 +310,10 @@ impl Storage {
             track_key,
             title,
             artist,
+            album,
+            duration_ms,
             provider_item_id,
+            confidence,
             kind,
             ..
         } = request;
@@ -261,31 +329,71 @@ impl Storage {
                 .ok_or_else(|| "受保护的歌词关联无法读取".into());
         }
 
-        let requested_path = provider_item_id.ok_or_else(|| "本地歌词缺少索引标识".to_string())?;
-        let library_dir = self.library_directory();
+        let requested_id = provider_item_id.ok_or_else(|| "本地歌词缺少索引标识".to_string())?;
         let (path, original_format) = {
             let connection = self
                 .connection
                 .lock()
                 .unwrap_or_else(|error| error.into_inner());
-            connection
-                .query_row(
-                    "SELECT content_path, original_format FROM lyric_files
-                     WHERE content_path=?1 AND managed=1",
-                    params![requested_path],
-                    |row| {
+            let roots = connection
+                .prepare("SELECT root_kind, path FROM library_roots WHERE enabled=1")
+                .and_then(|mut statement| {
+                    statement
+                        .query_map([], |row| {
+                            Ok((
+                                row.get::<_, String>(0)?,
+                                PathBuf::from(row.get::<_, String>(1)?),
+                            ))
+                        })
+                        .and_then(|rows| rows.collect::<rusqlite::Result<Vec<_>>>())
+                })
+                .map_err(|error| format!("读取本地歌词根目录失败：{error}"))?;
+            let row = if let Some(content_hash) = requested_id.strip_prefix("local:") {
+                // 内容哈希可能同时出现在应用目录和本地目录，必须从同哈希文件中选出本地根目录内的那一份。
+                let mut statement = connection
+                    .prepare(
+                        "SELECT content_path, original_format
+                         FROM lyric_files
+                         WHERE content_hash=?1 AND managed=1 AND available=1
+                         ORDER BY updated_at DESC",
+                    )
+                    .map_err(|error| format!("读取本地歌词索引失败：{error}"))?;
+                let candidate = statement
+                    .query_map(params![content_hash], |row| {
                         Ok((
                             PathBuf::from(row.get::<_, String>(0)?),
                             row.get::<_, String>(1)?,
                         ))
-                    },
-                )
-                .optional()
-                .map_err(|error| format!("读取本地歌词索引失败：{error}"))?
-                .ok_or_else(|| "本地歌词已不在索引中，请重新扫描".to_string())?
+                    })
+                    .map_err(|error| format!("查询本地歌词索引失败：{error}"))?
+                    .collect::<rusqlite::Result<Vec<_>>>()
+                    .map_err(|error| format!("解析本地歌词索引失败：{error}"))?
+                    .into_iter()
+                    .find(|(path, _)| is_searchable_local_candidate(path, &roots));
+                candidate
+            } else {
+                // 兼容旧前端传入的绝对路径，但仍会经过根目录和可用状态校验。
+                connection
+                    .query_row(
+                        "SELECT content_path, original_format
+                         FROM lyric_files
+                         WHERE content_path=?1 AND managed=1 AND available=1",
+                        params![requested_id],
+                        |row| {
+                            Ok((
+                                PathBuf::from(row.get::<_, String>(0)?),
+                                row.get::<_, String>(1)?,
+                            ))
+                        },
+                    )
+                    .optional()
+                    .map_err(|error| format!("读取本地歌词索引失败：{error}"))?
+                    .filter(|(path, _)| is_searchable_local_candidate(path, &roots))
+            };
+            row.ok_or_else(|| "本地歌词不属于已启用的只读目录".to_string())?
         };
-        if !path.starts_with(&library_dir) || !path.is_file() {
-            return Err("本地歌词文件不在当前歌词目录中".into());
+        if !path.is_file() {
+            return Err("本地歌词文件已不可用".into());
         }
 
         let raw = read_lyric_text(&path)?;
@@ -320,7 +428,7 @@ impl Storage {
                     original_format,
                     kind.is_manual(),
                     LOCAL_PROVIDER_ID,
-                    path.to_string_lossy(),
+                    requested_id,
                 ],
             )
             .map_err(|error| format!("保存本地歌词关联失败：{error}"))?;
@@ -340,17 +448,46 @@ impl Storage {
             )
             .map_err(|error| format!("整理歌词使用记录失败：{error}"))?;
         drop(connection);
-        if let Some(old_path) = existing
-            .as_ref()
-            .map(|association| association.path.clone())
-            .filter(|old_path| old_path != &path)
-        {
-            if let Err(error) = self.cleanup_unreferenced_app_owned_files([old_path]) {
-                log::warn!("整理旧歌词文件失败：{error}");
-            }
+        if let Err(error) = self.sync_v2_lyric_binding(
+            track_key,
+            title,
+            artist,
+            album,
+            duration_ms,
+            LOCAL_FILE_SOURCE,
+            &raw,
+            &path,
+            &original_format,
+            Some(LOCAL_PROVIDER_ID),
+            Some(requested_id),
+            confidence,
+            kind,
+            "local",
+            document.offset_ms,
+            document.tracks.translation.is_some(),
+            document
+                .tracks
+                .original
+                .lines
+                .iter()
+                .any(|line| line.words.as_ref().is_some_and(|words| !words.is_empty())),
+            document.tracks.romanization.is_some(),
+        ) {
+            log::warn!("同步本地歌词新绑定失败，保留旧结构：{error}");
         }
         Ok(document)
     }
+}
+
+fn is_application_lyric_path(path: &Path) -> bool {
+    let Some(file_name) = path.file_name().and_then(|value| value.to_str()) else {
+        return false;
+    };
+    file_name.ends_with(".lyricsfile.yaml")
+        || path
+            .extension()
+            .and_then(|value| value.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("lrc"))
 }
 
 fn lyric_path_matches_format(path: &Path, original_format: &str) -> bool {
@@ -359,4 +496,28 @@ fn lyric_path_matches_format(path: &Path, original_format: &str) -> bool {
         .and_then(|value| value.to_str())
         .is_some_and(|value| value.to_ascii_lowercase().ends_with(".lyricsfile.yaml"));
     (original_format == "lyricsfile") == is_lyricsfile
+}
+
+fn local_provider_item_id(content_hash: &str) -> String {
+    format!(
+        "local:{}",
+        if content_hash.trim().is_empty() {
+            "unknown"
+        } else {
+            content_hash
+        }
+    )
+}
+
+fn is_searchable_local_candidate(path: &Path, roots: &[(String, PathBuf)]) -> bool {
+    let matching_root = roots
+        .iter()
+        .filter(|(_, root_path)| path.starts_with(root_path))
+        .max_by_key(|(_, root_path)| root_path.as_os_str().len());
+    match matching_root.map(|(kind, _)| kind.as_str()) {
+        // “本地歌词”只代表用户明确绑定的本地目录；应用下载目录、历史目录
+        // 和应用管理目录中的导入文件不会混入该候选分组。
+        Some("local") => true,
+        _ => false,
+    }
 }

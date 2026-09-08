@@ -1,3 +1,35 @@
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DetachPlatformTrackInput {
+    pub track_key: String,
+    pub platform: String,
+    pub lyrics_mode: DetachLyricsMode,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DetachLyricsMode {
+    InheritCurrent,
+    Unbound,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssociateSongCandidateInput {
+    pub track_key: String,
+    pub platform: String,
+    pub candidate_recording_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetArtistAliasConfirmationInput {
+    pub track_key: String,
+    pub artist_id: i64,
+    pub alias: String,
+    pub confirmed: bool,
+}
+
 #[cfg(test)]
 fn prefer_candidate_capabilities(
     results: &mut [LyricsSearchResult],
@@ -136,6 +168,55 @@ pub fn get_completed_lyrics_search(
 }
 
 #[tauri::command]
+pub fn get_lyrics_search_trace(
+    track_key: String,
+    state: State<'_, AppState>,
+) -> Result<Option<LyricsSearchTrace>, String> {
+    state.storage.latest_lyrics_search_trace(&track_key)
+}
+
+#[tauri::command]
+pub fn get_current_lyrics_context(
+    track_key: String,
+    state: State<'_, AppState>,
+) -> Result<Option<crate::storage::LyricsContext>, String> {
+    state.storage.current_lyrics_context(&track_key)
+}
+
+#[tauri::command]
+pub fn set_artist_alias_confirmation(
+    input: SetArtistAliasConfirmationInput,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::LyricsContext, String> {
+    state.storage.set_artist_alias_confirmation(
+        &input.track_key,
+        input.artist_id,
+        &input.alias,
+        input.confirmed,
+    )?;
+    state
+        .storage
+        .current_lyrics_context(&input.track_key)?
+        .ok_or_else(|| "更新歌手别名后无法读取当前歌曲身份".to_string())
+}
+
+#[tauri::command]
+pub async fn search_lyrics_v2(
+    app: tauri::AppHandle,
+    track_key: String,
+    input: LyricsSearchInput,
+    intent: LyricsSearchIntent,
+    state: State<'_, AppState>,
+) -> Result<SearchResponse, String> {
+    let started = std::time::Instant::now();
+    let response = search_lyrics_for_session(app, &state, &track_key, input, intent).await?;
+    state
+        .telemetry
+        .track_search(intent, &response, started.elapsed().as_millis() as u64);
+    Ok(response)
+}
+
+#[tauri::command]
 pub fn get_lyrics_runtime_snapshot(state: State<'_, AppState>) -> LyricsRuntimeSnapshot {
     let config = state.config.snapshot();
     let mut snapshot = state
@@ -205,10 +286,13 @@ fn save_and_emit(
         track_key: &input.track_key,
         title: &input.title,
         artist: &input.artist,
+        album: input.album.as_deref(),
+        duration_ms: input.duration_ms,
         source: &input.source,
         raw: &input.lyrics,
         provider_id: input.provider_id.as_deref(),
         provider_item_id: input.provider_item_id.as_deref(),
+        confidence: None,
         kind,
     };
     let document = if input.provider_id.as_deref() == Some(LOCAL_PROVIDER_ID) {
@@ -250,6 +334,55 @@ pub fn import_lyrics(
 }
 
 #[tauri::command]
+pub fn import_local_lyrics(
+    app: tauri::AppHandle,
+    input: SaveLyricsInput,
+    state: State<'_, AppState>,
+) -> Result<LyricsDocument, String> {
+    save_and_emit(&app, &state, input, SaveKind::Import)
+}
+
+#[tauri::command]
+pub fn select_lyrics_candidate(
+    app: tauri::AppHandle,
+    mut input: SaveLyricsInput,
+    state: State<'_, AppState>,
+) -> Result<LyricsDocument, String> {
+    input.manual_selected = true;
+    let track_key = input.track_key.clone();
+    let provider_id = input.provider_id.clone();
+    let provider_item_id = input.provider_item_id.clone();
+    let document = save_and_emit(&app, &state, input, SaveKind::ManualSelection)?;
+    if let (Some(provider_id), Some(provider_item_id)) =
+        (provider_id.as_deref(), provider_item_id.as_deref())
+    {
+        state
+            .storage
+            .mark_latest_lyrics_search_selection(
+                &track_key,
+                provider_id,
+                provider_item_id,
+                "user_selected_default",
+            )
+            .ok();
+    }
+    Ok(document)
+}
+
+#[tauri::command]
+pub fn clear_lyrics_binding(
+    app: tauri::AppHandle,
+    track_key: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    state.storage.clear_lyrics_binding(&track_key)?;
+    app.emit("lyrics://changed", &track_key)
+        .map_err(|error| error.to_string())?;
+    set_runtime_document_if_active(&app, &track_key, None);
+    Ok(())
+}
+
+#[tauri::command]
 pub fn set_lyrics_offset(
     app: tauri::AppHandle,
     track_key: String,
@@ -257,6 +390,21 @@ pub fn set_lyrics_offset(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     state.storage.set_offset(&track_key, offset_ms)?;
+    app.emit("lyrics://changed", &track_key)
+        .map_err(|error| error.to_string())?;
+    let document = state.storage.load(&track_key)?;
+    set_runtime_document_if_active(&app, &track_key, document);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_lyrics_offset_v2(
+    app: tauri::AppHandle,
+    track_key: String,
+    offset_ms: i64,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    state.storage.set_v2_lyrics_offset(&track_key, offset_ms)?;
     app.emit("lyrics://changed", &track_key)
         .map_err(|error| error.to_string())?;
     let document = state.storage.load(&track_key)?;
@@ -275,6 +423,62 @@ pub fn remove_lyrics_association(
         .map_err(|error| error.to_string())?;
     set_runtime_document_if_active(&app, &track_key, None);
     Ok(())
+}
+
+#[tauri::command]
+pub fn get_song_association_candidates(
+    track_key: String,
+    platform: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<SongAssociationCandidate>, String> {
+    let settings = state.providers.settings_view().settings;
+    state
+        .storage
+        .song_association_candidates(&platform, &track_key, &settings)
+}
+
+#[tauri::command]
+pub fn associate_song_candidate(
+    app: tauri::AppHandle,
+    input: AssociateSongCandidateInput,
+    state: State<'_, AppState>,
+) -> Result<RecordingView, String> {
+    let settings = state.providers.settings_view().settings;
+    let view = state.storage.associate_song_candidate(
+        &input.platform,
+        &input.track_key,
+        input.candidate_recording_id,
+        &settings,
+    )?;
+    publish_song_management_change(&app, &state, &input.track_key);
+    Ok(view)
+}
+
+#[tauri::command]
+pub fn detach_platform_track(
+    app: tauri::AppHandle,
+    input: DetachPlatformTrackInput,
+    state: State<'_, AppState>,
+) -> Result<RecordingView, String> {
+    let inherit_current_lyrics = matches!(input.lyrics_mode, DetachLyricsMode::InheritCurrent);
+    let view = state.storage.detach_platform_track(
+        &input.platform,
+        &input.track_key,
+        inherit_current_lyrics,
+    )?;
+    publish_song_management_change(&app, &state, &input.track_key);
+    Ok(view)
+}
+
+/// 事务已提交后，通知或文件读取失败不能被报告成数据库回滚。
+fn publish_song_management_change(app: &tauri::AppHandle, state: &AppState, track_key: &str) {
+    match state.storage.load(track_key) {
+        Ok(document) => set_runtime_document_if_active(app, track_key, document),
+        Err(error) => log::warn!("歌曲关系已保存，刷新歌词失败：{error}"),
+    }
+    if let Err(error) = app.emit("lyrics://changed", track_key) {
+        log::warn!("歌曲关系已保存，发送刷新通知失败：{error}");
+    }
 }
 
 pub(crate) fn start_library_scan(app: &tauri::AppHandle) -> LibraryScanStatus {
@@ -302,6 +506,106 @@ pub(crate) fn start_library_scan(app: &tauri::AppHandle) -> LibraryScanStatus {
         }
     });
     status
+}
+
+pub(crate) fn start_library_root_scan(
+    app: &tauri::AppHandle,
+    root_id: &str,
+) -> Result<LibraryScanStatus, String> {
+    let storage = app.state::<AppState>().storage.clone();
+    let status = storage.begin_library_root_scan(root_id)?;
+    let scan_id = status.scan_id;
+    let root_id = root_id.to_owned();
+    let worker_app = app.clone();
+    let _ = app.emit("lyrics://library-scan-progress", &status);
+    tauri::async_runtime::spawn_blocking(move || {
+        let result = storage.run_library_root_scan(scan_id, &root_id, |status| {
+            let _ = worker_app.emit("lyrics://library-scan-progress", status);
+        });
+        match result {
+            Ok(true) => {
+                reload_active_lyrics_runtime(&worker_app);
+                let _ = worker_app.emit("lyrics://library-changed", ());
+            }
+            Ok(false) => {}
+            Err(error) => {
+                log::warn!("扫描歌词根目录失败：{error}");
+                if let Some(status) = storage.fail_library_scan(scan_id, error) {
+                    let _ = worker_app.emit("lyrics://library-scan-progress", status);
+                }
+            }
+        }
+    });
+    Ok(status)
+}
+
+#[tauri::command]
+pub fn get_library_roots(state: State<'_, AppState>) -> Result<Vec<LibraryRootView>, String> {
+    state.storage.list_library_roots()
+}
+
+#[tauri::command]
+pub fn list_library_roots(state: State<'_, AppState>) -> Result<Vec<LibraryRootView>, String> {
+    state.storage.list_library_roots()
+}
+
+#[tauri::command]
+pub fn get_provider_catalog(state: State<'_, AppState>) -> Vec<ProviderDescriptor> {
+    state.providers.catalog_view()
+}
+
+#[tauri::command]
+pub fn update_provider_policy(
+    settings: ProviderSettings,
+    state: State<'_, AppState>,
+) -> Result<ProviderSettingsView, String> {
+    let view = state.providers.set_settings(settings)?;
+    state
+        .config
+        .update(|config| config.lyrics.providers = view.settings.clone())?;
+    invalidate_lyrics_search_session(&state);
+    Ok(view)
+}
+
+#[tauri::command]
+pub fn add_library_root(
+    app: tauri::AppHandle,
+    path: String,
+    display_name: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<LibraryRootView, String> {
+    let root = state
+        .storage
+        .add_library_root(&path, display_name.as_deref())?;
+    let _ = start_library_root_scan(&app, &root.root_id)?;
+    Ok(root)
+}
+
+#[tauri::command]
+pub fn set_library_root_enabled(
+    app: tauri::AppHandle,
+    root_id: String,
+    enabled: bool,
+    state: State<'_, AppState>,
+) -> Result<LibraryRootView, String> {
+    let root = state.storage.set_library_root_enabled(&root_id, enabled)?;
+    if enabled {
+        let _ = start_library_root_scan(&app, &root_id)?;
+    }
+    Ok(root)
+}
+
+#[tauri::command]
+pub fn remove_library_root(root_id: String, state: State<'_, AppState>) -> Result<(), String> {
+    state.storage.remove_library_root(&root_id)
+}
+
+#[tauri::command]
+pub fn rescan_library_root(
+    app: tauri::AppHandle,
+    root_id: String,
+) -> Result<LibraryScanStatus, String> {
+    start_library_root_scan(&app, &root_id)
 }
 
 #[tauri::command]

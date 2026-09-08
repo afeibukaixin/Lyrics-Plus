@@ -184,10 +184,6 @@ pub(super) fn validate_field_types_and_options(
             "autoCenterWithTranslationOrRomanization",
         ),
         ("/lyrics/providers/preferCapabilities", "preferCapabilities"),
-        (
-            "/lyrics/providers/autoApplyDurationGuardEnabled",
-            "autoApplyDurationGuardEnabled",
-        ),
         ("/lyrics/providers/normalizeChinese", "normalizeChinese"),
         (
             "/lyrics/repairSimplifiedJapanese",
@@ -204,10 +200,6 @@ pub(super) fn validate_field_types_and_options(
     for (pointer, key) in [
         ("/schemaVersion", "schemaVersion"),
         ("/lyrics/providers/autoApplyThreshold", "autoApplyThreshold"),
-        (
-            "/lyrics/providers/autoApplyDurationToleranceSeconds",
-            "autoApplyDurationToleranceSeconds",
-        ),
         (
             "/lyrics/providers/autoSearchDebounceMs",
             "autoSearchDebounceMs",

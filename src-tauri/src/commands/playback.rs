@@ -73,11 +73,13 @@ pub fn set_player_selection(
 }
 
 #[tauri::command]
+#[deprecated(note = "请使用 search_lyrics_v2")]
 pub async fn search_lyrics(
+    app: tauri::AppHandle,
     track_key: String,
     input: LyricsSearchInput,
     intent: LyricsSearchIntent,
     state: State<'_, AppState>,
 ) -> Result<SearchResponse, String> {
-    search_lyrics_for_session(&state, &track_key, input, intent).await
+    search_lyrics_for_session(app, &state, &track_key, input, intent).await
 }

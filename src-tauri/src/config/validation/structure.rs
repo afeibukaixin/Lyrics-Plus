@@ -76,8 +76,6 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
                     "mode",
                     "providers",
                     "autoApplyThreshold",
-                    "autoApplyDurationGuardEnabled",
-                    "autoApplyDurationToleranceSeconds",
                     "autoSearchDebounceMs",
                     "preferCapabilities",
                     "capabilityPreferenceTolerance",
@@ -91,7 +89,7 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
                 check_keys(
                     match_weights,
                     raw,
-                    &["title", "artist", "album", "duration"],
+                    &["title", "artist", "album", "duration", "version"],
                 )?;
             }
             if let Some(items) = providers.get("providers").and_then(Value::as_array) {

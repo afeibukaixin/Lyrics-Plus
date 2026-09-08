@@ -14,10 +14,6 @@ pub enum LyricsSearchIntent {
 }
 
 impl LyricsSearchIntent {
-    pub(crate) fn is_manual(self) -> bool {
-        matches!(self, Self::Manual)
-    }
-
     pub(crate) fn uses_debounce(self) -> bool {
         matches!(self, Self::Automatic | Self::Refresh)
     }
@@ -53,11 +49,23 @@ pub struct SaveLyricsInput {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LyricsCandidateRef {
+    pub provider_id: String,
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchResponse {
     pub auto_apply: bool,
+    pub auto_apply_candidate: Option<LyricsCandidateRef>,
     pub results: Vec<LyricsSearchResult>,
     pub provider_statuses: Vec<ProviderStatus>,
     pub error: Option<String>,
+    #[serde(skip)]
+    pub provider_elapsed_ms: std::collections::HashMap<String, u64>,
+    #[serde(skip)]
+    pub decision_elapsed_ms: u64,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
@@ -84,6 +92,8 @@ pub(crate) struct LyricsSearchRequestKey {
     artist: String,
     album: Option<String>,
     duration_ms: Option<u64>,
+    platform: Option<String>,
+    platform_item_id: Option<String>,
 }
 
 impl LyricsSearchRequestKey {
@@ -98,12 +108,28 @@ impl LyricsSearchRequestKey {
                 .filter(|album| !album.is_empty())
                 .map(str::to_owned),
             duration_ms: input.duration_ms,
+            platform: input.platform.clone(),
+            platform_item_id: input.platform_item_id.clone(),
         }
     }
 }
 
 pub(crate) type LyricsSearchFlight = tokio::sync::OnceCell<Result<SearchResponse, String>>;
 pub(crate) const LYRICS_SEARCH_INVALIDATED: &str = "当前歌词搜索已失效";
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LyricsSearchProgress {
+    pub run_id: String,
+    pub stage: String,
+    pub provider_id: Option<String>,
+    pub status: String,
+    /// 当前阶段耗时；搜索进行中为截至事件发出时的阶段耗时。
+    pub elapsed_ms: u64,
+    /// 从本轮搜索开始计算的累计耗时。
+    pub total_elapsed_ms: u64,
+    pub candidate_count: usize,
+}
 
 pub struct LyricsSearchSession {
     pub(crate) activation: u64,

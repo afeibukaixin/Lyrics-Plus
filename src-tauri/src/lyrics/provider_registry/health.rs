@@ -7,7 +7,7 @@ use super::super::{
     LyricsProvider, LyricsSearchInput, ProviderError, ProviderErrorKind, ProviderHealth,
     ProviderStatus, ProviderStatusDetail,
 };
-use super::search::report_status;
+use super::search::legacy_report_status;
 use super::ProviderRegistry;
 
 pub(in crate::lyrics::provider) struct ProviderCooldown {
@@ -18,6 +18,7 @@ pub(in crate::lyrics::provider) struct ProviderCooldown {
 }
 
 impl ProviderRegistry {
+    #[allow(deprecated)]
     pub async fn test_provider(
         &self,
         client: &reqwest::Client,
@@ -33,6 +34,8 @@ impl ProviderRegistry {
             artist: "周杰伦".into(),
             album: None,
             duration_ms: Some(269_000),
+            platform: None,
+            platform_item_id: None,
             scoring: Arc::default(),
         };
         if let Some(error) = self.cooldown_error(provider.id()) {
@@ -48,7 +51,7 @@ impl ProviderRegistry {
         }
         match tokio::time::timeout(self.timeout, provider.search(client, &input)).await {
             Ok(Ok(report)) => {
-                let (health, detail) = report_status(&report);
+                let (health, detail) = legacy_report_status(&report);
                 if let Some(warning) = &report.warning {
                     log::debug!(
                         "歌词源测试部分失败：provider={} kind={:?} status={:?} message={}",

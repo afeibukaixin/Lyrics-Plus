@@ -1,15 +1,30 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use futures::future::join_all;
+use futures::stream::{self, StreamExt};
+
+use crate::lyrics::{lyrics_quality_report, parse_lrc_with_options, semantic_fingerprint};
 
 use super::super::{
-    prepare_title_filter_keywords_with_normalization, LyricsSearchInput, LyricsSearchResult,
-    ProviderError, ProviderErrorKind, ProviderHealth, ProviderOrderMode, ProviderSearchOutcome,
-    ProviderSearchReport, ProviderSettings, ProviderStatusDetail, ScoringSettings,
-    DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
+    exact_provider_identity, has_identity_conflict,
+    prepare_title_filter_keywords_with_normalization, score_candidate, title_matches,
+    LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderCandidate,
+    ProviderCandidateReport, ProviderError, ProviderErrorKind, ProviderHealth, ProviderOrderMode,
+    ProviderSearchOutcome, ProviderSearchReport, ProviderSettings, ProviderStatusDetail,
+    ScoringSettings, DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE, MIN_AUTOMATIC_FETCH_RESULTS,
 };
 use super::ProviderRegistry;
+
+const MAX_PROVIDER_CONCURRENCY: usize = 4;
+const MAX_METADATA_CANDIDATES_PER_PROVIDER: usize = 10;
+
+struct CandidateWork<'a> {
+    provider: &'a dyn LyricsProvider,
+    candidate: ProviderCandidate,
+    score: f64,
+}
 
 pub(super) fn with_scoring_settings(
     input: &LyricsSearchInput,
@@ -23,6 +38,7 @@ pub(super) fn with_scoring_settings(
         )?,
         match_weights: settings.match_weights,
         normalize_chinese: settings.normalize_chinese,
+        confirmed_artist_aliases: input.scoring.confirmed_artist_aliases.clone(),
     });
     Ok(scoring_input)
 }
@@ -32,6 +48,8 @@ pub(super) async fn search_once(
     client: &reqwest::Client,
     input: &LyricsSearchInput,
     settings: ProviderSettings,
+    automatic: bool,
+    fetch_limit: usize,
 ) -> Result<ProviderSearchOutcome, String> {
     let priority = settings
         .providers
@@ -76,19 +94,44 @@ pub(super) async fn search_once(
     }
     let scoring_input = with_scoring_settings(input, &settings)?;
     let scoring_input = &scoring_input;
-    let jobs = active.iter().map(|provider| async move {
-        let outcome =
-            tokio::time::timeout(registry.timeout, provider.search(client, scoring_input)).await;
-        (*provider, outcome)
-    });
-    let outcomes = join_all(jobs).await;
-    let mut results = Vec::new();
-    let mut any_success = false;
-    for (provider, outcome) in outcomes {
+    let mut candidates = Vec::new();
+    let mut provider_elapsed_ms: HashMap<String, u64> = HashMap::new();
+    // 使用下标作为异步流元素，避免借用的 trait object 出现在异步闭包参数中，
+    // 否则外层 Future 需要 Send 时会触发 FnOnce 高阶生命周期推断失败。
+    let active = &active;
+    let outcomes = stream::iter(0..active.len())
+        .map(move |index| async move {
+            let provider = active[index];
+            let started = Instant::now();
+            let exact_id = input
+                .platform_item_id
+                .as_deref()
+                .filter(|_| input.platform.as_deref() == Some(provider.id()));
+            let request = if let Some(exact_id) = exact_id {
+                provider.lookup_by_id(client, scoring_input, exact_id)
+            } else {
+                provider.search_candidates(client, scoring_input)
+            };
+            let outcome =
+                tokio::time::timeout(provider_timeout(registry, provider.id()), request).await;
+            (provider, started.elapsed(), outcome)
+        })
+        .buffer_unordered(MAX_PROVIDER_CONCURRENCY)
+        .collect::<Vec<_>>()
+        .await;
+    for (provider, elapsed, outcome) in outcomes {
+        let elapsed_ms = duration_millis(elapsed);
+        provider_elapsed_ms
+            .entry(provider.id().to_owned())
+            .and_modify(|total| *total = total.saturating_add(elapsed_ms))
+            .or_insert(elapsed_ms);
         match outcome {
             Ok(Ok(mut report)) => {
-                any_success = true;
-                retain_valid_provider_results(provider.id(), &mut report.results);
+                retain_valid_provider_candidates(provider.id(), &mut report.candidates);
+                retain_title_matching_provider_candidates(scoring_input, &mut report.candidates);
+                report
+                    .candidates
+                    .truncate(MAX_METADATA_CANDIDATES_PER_PROVIDER);
                 let (health, detail) = report_status(&report);
                 if let Some(warning) = &report.warning {
                     log::debug!(
@@ -103,7 +146,15 @@ pub(super) async fn search_once(
                     registry.record_success(provider.id());
                 }
                 registry.record_status(provider, health, detail);
-                results.append(&mut report.results);
+                candidates.extend(report.candidates.into_iter().map(|candidate| {
+                    let mut metadata = candidate.metadata_result();
+                    metadata.score = score_candidate(scoring_input, &metadata);
+                    CandidateWork {
+                        provider,
+                        candidate,
+                        score: metadata.score,
+                    }
+                }));
             }
             Ok(Err(error)) => {
                 errors.push(error.to_string());
@@ -130,6 +181,169 @@ pub(super) async fn search_once(
             }
         }
     }
+
+    let mut seen_candidate_ids = HashSet::new();
+    candidates.retain(|work| {
+        seen_candidate_ids.insert((
+            work.candidate.provider_id.clone(),
+            work.candidate.provider_item_id.clone(),
+        ))
+    });
+    candidates.sort_by(|left, right| {
+        right.score.total_cmp(&left.score).then_with(|| {
+            priority
+                .get(left.provider.id())
+                .cmp(&priority.get(right.provider.id()))
+        })
+    });
+
+    let mut exact_indices = Vec::new();
+    let mut remaining_indices = Vec::new();
+    for (index, work) in candidates.iter().enumerate() {
+        if is_exact_candidate(input, &work.candidate) {
+            exact_indices.push(index);
+        } else {
+            remaining_indices.push(index);
+        }
+    }
+    let sort_fetch_indices = |indices: &mut Vec<usize>| {
+        indices.sort_by(|left, right| {
+            let left = &candidates[*left];
+            let right = &candidates[*right];
+            match settings.mode {
+                ProviderOrderMode::Strict => priority
+                    .get(left.provider.id())
+                    .cmp(&priority.get(right.provider.id()))
+                    .then_with(|| right.score.total_cmp(&left.score)),
+                ProviderOrderMode::Smart => right.score.total_cmp(&left.score).then_with(|| {
+                    priority
+                        .get(left.provider.id())
+                        .cmp(&priority.get(right.provider.id()))
+                }),
+            }
+        });
+    };
+    sort_fetch_indices(&mut exact_indices);
+    sort_fetch_indices(&mut remaining_indices);
+    let mut fetch_indices = exact_indices;
+    fetch_indices.extend(remaining_indices);
+    let mut results = Vec::new();
+    let mut scheduled_fetches = 0;
+    let mut next_fetch_index = 0;
+    let mut auto_decision_stable = !automatic;
+    while next_fetch_index < fetch_indices.len() {
+        let remaining = fetch_limit.saturating_sub(scheduled_fetches);
+        if remaining == 0 {
+            break;
+        }
+        let batch_end =
+            (next_fetch_index + remaining.min(MAX_PROVIDER_CONCURRENCY)).min(fetch_indices.len());
+        let batch = &fetch_indices[next_fetch_index..batch_end];
+        next_fetch_index = batch_end;
+        scheduled_fetches += batch.len();
+        let jobs = batch.iter().map(|index| {
+            let work = &candidates[*index];
+            async move {
+                let started = Instant::now();
+                let outcome = tokio::time::timeout(
+                    provider_timeout(registry, work.provider.id()),
+                    work.provider.fetch(client, scoring_input, &work.candidate),
+                )
+                .await;
+                (*index, started.elapsed(), outcome)
+            }
+        });
+        for (index, elapsed, outcome) in join_all(jobs).await {
+            let work = &candidates[index];
+            let elapsed_ms = duration_millis(elapsed);
+            provider_elapsed_ms
+                .entry(work.provider.id().to_owned())
+                .and_modify(|total| *total = total.saturating_add(elapsed_ms))
+                .or_insert(elapsed_ms);
+            match outcome {
+                Ok(Ok(Some(mut result))) => {
+                    if result.provider_id != work.provider.id()
+                        || result.id.trim().is_empty()
+                        || result.lyrics.trim().is_empty()
+                    {
+                        log::debug!(
+                            "丢弃来源返回的无效歌词正文：provider={} id={:?}",
+                            work.provider.id(),
+                            result.id
+                        );
+                        continue;
+                    }
+                    if !exact_provider_identity(scoring_input, &result)
+                        && !title_matches(scoring_input, &result)
+                    {
+                        log::debug!(
+                            "丢弃来源返回的标题不匹配歌词正文：provider={} id={:?}",
+                            work.provider.id(),
+                            result.id
+                        );
+                        continue;
+                    }
+                    result.score = score_candidate(scoring_input, &result);
+                    results.push(result);
+                }
+                Ok(Ok(None)) => {}
+                Ok(Err(error)) => {
+                    errors.push(error.to_string());
+                    registry.record_failure(work.provider, &error);
+                    registry.record_status(
+                        work.provider,
+                        ProviderHealth::Degraded,
+                        ProviderStatusDetail::Failure {
+                            error_kind: error.kind,
+                            status_code: error.status_code,
+                        },
+                    );
+                }
+                Err(_) => {
+                    let error = ProviderError::new(
+                        work.provider.id(),
+                        ProviderErrorKind::Network,
+                        "歌词正文获取超时",
+                    );
+                    errors.push(error.to_string());
+                    registry.record_failure(work.provider, &error);
+                    registry.record_status(
+                        work.provider,
+                        ProviderHealth::Degraded,
+                        ProviderStatusDetail::Timeout,
+                    );
+                }
+            }
+        }
+        deduplicate_fetched_results(&mut results);
+        if automatic
+            && should_stop_automatic_fetch(
+                input,
+                &settings,
+                &candidates,
+                &fetch_indices,
+                next_fetch_index,
+                &results,
+            )
+        {
+            auto_decision_stable = true;
+            break;
+        }
+    }
+
+    if automatic && !auto_decision_stable {
+        auto_decision_stable = should_stop_automatic_fetch(
+            input,
+            &settings,
+            &candidates,
+            &fetch_indices,
+            next_fetch_index,
+            &results,
+        );
+    }
+
+    deduplicate_fetched_results(&mut results);
+    let any_success = !results.is_empty();
 
     match settings.mode {
         ProviderOrderMode::Strict => results.sort_by(|left, right| {
@@ -166,9 +380,9 @@ pub(super) async fn search_once(
     Ok(ProviderSearchOutcome {
         results,
         statuses: registry.statuses_for(&enabled_ids),
+        provider_elapsed_ms,
+        auto_decision_stable,
         auto_apply_threshold: settings.auto_apply_threshold,
-        auto_apply_duration_guard_enabled: settings.auto_apply_duration_guard_enabled,
-        auto_apply_duration_tolerance_seconds: settings.auto_apply_duration_tolerance_seconds,
         prefer_capabilities: settings.prefer_capabilities,
         capability_preference_tolerance: settings.capability_preference_tolerance,
         mode: settings.mode,
@@ -181,24 +395,130 @@ pub(super) async fn search_once(
     })
 }
 
+fn duration_millis(duration: Duration) -> u64 {
+    duration.as_millis().min(u128::from(u64::MAX)) as u64
+}
+
+fn provider_timeout(registry: &ProviderRegistry, provider_id: &str) -> Duration {
+    super::provider_manifests()
+        .into_iter()
+        .find(|manifest| manifest.id == provider_id)
+        .and_then(|manifest| {
+            (manifest.request_timeout_ms > 0).then_some(Duration::from_millis(u64::from(
+                manifest.request_timeout_ms,
+            )))
+        })
+        .unwrap_or(registry.timeout)
+}
+
+fn is_exact_candidate(input: &LyricsSearchInput, candidate: &ProviderCandidate) -> bool {
+    input.platform.as_deref() == Some(candidate.provider_id.as_str())
+        && input
+            .platform_item_id
+            .as_deref()
+            .is_some_and(|id| id == candidate.provider_item_id)
+}
+
+/// 在线来源的元数据候选必须先通过与本地歌词相同的标题门槛；
+/// 精确平台 ID 是可信身份，允许绕过文本标题匹配。
+fn retain_title_matching_provider_candidates(
+    input: &LyricsSearchInput,
+    candidates: &mut Vec<ProviderCandidate>,
+) {
+    candidates.retain(|candidate| {
+        if is_exact_candidate(input, candidate) {
+            return true;
+        }
+        let metadata = candidate.metadata_result();
+        let matches = title_matches(input, &metadata);
+        if !matches {
+            log::debug!(
+                "丢弃来源返回的标题不匹配候选：provider={} id={:?}",
+                candidate.provider_id,
+                candidate.provider_item_id
+            );
+        }
+        matches
+    });
+}
+
+fn is_auto_eligible_result(
+    input: &LyricsSearchInput,
+    settings: &ProviderSettings,
+    result: &LyricsSearchResult,
+) -> bool {
+    result.score * 100.0 >= f64::from(settings.auto_apply_threshold)
+        && result.synced
+        && !has_identity_conflict(input, result)
+        && parse_lrc_with_options(&result.lyrics, &result.source, false)
+            .ok()
+            .is_some_and(|document| lyrics_quality_report(&document).auto_applicable)
+}
+
+fn should_stop_automatic_fetch(
+    input: &LyricsSearchInput,
+    settings: &ProviderSettings,
+    candidates: &[CandidateWork<'_>],
+    fetch_indices: &[usize],
+    next_fetch_index: usize,
+    results: &[LyricsSearchResult],
+) -> bool {
+    let has_eligible = results
+        .iter()
+        .any(|result| is_auto_eligible_result(input, settings, result));
+    let enough_preview_results = results.len() >= MIN_AUTOMATIC_FETCH_RESULTS;
+    let exhausted = next_fetch_index >= fetch_indices.len();
+    if exhausted {
+        return true;
+    }
+    if !has_eligible || !enough_preview_results {
+        return false;
+    }
+    match settings.mode {
+        ProviderOrderMode::Strict => true,
+        ProviderOrderMode::Smart => {
+            let Some(top_score) = candidates
+                .iter()
+                .map(|candidate| candidate.score)
+                .max_by(|left, right| left.total_cmp(right))
+            else {
+                return true;
+            };
+            let score_band = if settings.prefer_capabilities {
+                f64::from(settings.capability_preference_tolerance) / 100.0
+            } else {
+                f64::from(DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE) / 100.0
+            };
+            !fetch_indices[next_fetch_index..]
+                .iter()
+                .any(|index| top_score - candidates[*index].score <= score_band + f64::EPSILON)
+        }
+    }
+}
+
 /// 只让带有来源标识和来源内歌曲标识的候选进入统一搜索结果。
-/// provider_id 与 id 共同构成可持久化的来源身份，不能只依赖其中一个字段。
-fn retain_valid_provider_results(provider_id: &str, results: &mut Vec<LyricsSearchResult>) {
-    results.retain(|result| {
-        if result.provider_id != provider_id || result.id.trim().is_empty() {
+/// provider_id 与 provider_item_id 共同构成可持久化的来源身份，不能只依赖其中一个字段。
+fn retain_valid_provider_candidates(provider_id: &str, candidates: &mut Vec<ProviderCandidate>) {
+    candidates.retain(|candidate| {
+        if candidate.provider_id != provider_id || candidate.provider_item_id.trim().is_empty() {
             log::debug!(
                 "丢弃缺少有效来源 ID 的歌词候选：provider={} result_provider={} id={:?}",
                 provider_id,
-                result.provider_id,
-                result.id
+                candidate.provider_id,
+                candidate.provider_item_id
             );
             return false;
         }
-        if result.lyrics.contains('\u{FFFD}') {
+        if candidate.title.contains('\u{FFFD}')
+            || candidate
+                .artists
+                .iter()
+                .any(|artist| artist.contains('\u{FFFD}'))
+        {
             log::debug!(
-                "丢弃包含替换字符的歌词候选：provider={} id={:?}",
+                "丢弃包含替换字符的元数据候选：provider={} id={:?}",
                 provider_id,
-                result.id
+                candidate.provider_item_id
             );
             return false;
         }
@@ -206,7 +526,46 @@ fn retain_valid_provider_results(provider_id: &str, results: &mut Vec<LyricsSear
     });
 }
 
-pub(super) fn report_status(
+fn deduplicate_fetched_results(results: &mut Vec<LyricsSearchResult>) {
+    let mut seen = HashSet::new();
+    results.retain(|result| {
+        let fingerprint = parse_lrc_with_options(&result.lyrics, &result.source, false)
+            .ok()
+            .map(|document| semantic_fingerprint(&document))
+            .filter(|fingerprint| !fingerprint.is_empty())
+            .map(|fingerprint| format!("lrc:{fingerprint}"))
+            .or_else(|| {
+                let raw_fingerprint = result
+                    .lyrics
+                    .chars()
+                    .filter(|character| !character.is_whitespace())
+                    .flat_map(char::to_lowercase)
+                    .collect::<String>();
+                (!raw_fingerprint.is_empty()).then_some(format!("raw:{raw_fingerprint}"))
+            });
+        fingerprint.is_none_or(|fingerprint| seen.insert(fingerprint))
+    });
+}
+
+fn report_status(report: &ProviderCandidateReport) -> (ProviderHealth, ProviderStatusDetail) {
+    if let Some(warning) = &report.warning {
+        return (
+            ProviderHealth::Degraded,
+            ProviderStatusDetail::PartialFailure {
+                result_count: report.candidates.len(),
+                error_kind: warning.kind.clone(),
+            },
+        );
+    }
+    (
+        ProviderHealth::Available,
+        ProviderStatusDetail::Success {
+            result_count: report.candidates.len(),
+        },
+    )
+}
+
+pub(super) fn legacy_report_status(
     report: &ProviderSearchReport,
 ) -> (ProviderHealth, ProviderStatusDetail) {
     if let Some(warning) = &report.warning {
@@ -232,7 +591,9 @@ impl ProviderRegistry {
         client: &reqwest::Client,
         input: &LyricsSearchInput,
         settings: ProviderSettings,
+        automatic: bool,
+        fetch_limit: usize,
     ) -> Result<ProviderSearchOutcome, String> {
-        search_once(self, client, input, settings).await
+        search_once(self, client, input, settings, automatic, fetch_limit).await
     }
 }
