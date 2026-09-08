@@ -42,7 +42,7 @@ const MAX_TITLE_FILTER_KEYWORDS: usize = 32;
 const MAX_TITLE_FILTER_KEYWORD_LENGTH: usize = 64;
 pub(crate) const DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE: u8 = 10;
 const MAX_CAPABILITY_PREFERENCE_TOLERANCE: u8 = 20;
-const DEFAULT_ENABLED_PROVIDER_IDS: [&str; 5] = ["lrclib", "kugou", "qqmusic", "netease", "qishui"];
+const DEFAULT_ENABLED_PROVIDER_IDS: [&str; 4] = ["lrclib", "kugou", "qqmusic", "netease"];
 
 fn default_provider_enabled(id: &str) -> bool {
     DEFAULT_ENABLED_PROVIDER_IDS.contains(&id)

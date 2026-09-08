@@ -42,7 +42,7 @@ export const defaultConfig: AppConfig = {
         { id: "netease", enabled: true },
         { id: "amll_ttml", enabled: false },
         { id: "musixmatch", enabled: false },
-        { id: "qishui", enabled: true },
+        { id: "qishui", enabled: false },
       ],
     },
     displays: {
