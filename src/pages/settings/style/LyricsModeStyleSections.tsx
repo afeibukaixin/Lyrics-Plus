@@ -331,8 +331,9 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
     </SettingsSection>
     </>}
     <SettingsSection id="mode-background" title={t("settings.style.modeControls.backgroundSize")}>
-      <RangeRow label={t("settings.display.notch.bottomBorderRadius")} value={appearance.borderRadius} min={0} max={20} suffix="px" onChange={(borderRadius) => save(patchAppearance(value, { borderRadius }))} />
       <RangeRow label={t("settings.display.notch.topBorderRadius")} value={appearance.topBorderRadius} min={0} max={15} suffix="px" onChange={(topBorderRadius) => save(patchAppearance(value, { topBorderRadius }))} />
+      <RangeRow label={t("settings.display.notch.defaultBorderRadius")} value={appearance.borderRadius} min={0} max={20} suffix="px" onChange={(borderRadius) => save(patchAppearance(value, { borderRadius }))} />
+      <RangeRow label={t("settings.display.notch.expandedBottomBorderRadius")} value={appearance.expandedBorderRadius} min={0} max={24} suffix="px" onChange={(expandedBorderRadius) => save(patchAppearance(value, { expandedBorderRadius }))} />
       <RangePairRow
         label={t("settings.style.modeControls.widthRange")}
         firstLabel={t("settings.style.modeControls.compactWidth")}

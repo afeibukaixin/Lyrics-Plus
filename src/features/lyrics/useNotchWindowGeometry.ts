@@ -207,9 +207,9 @@ export function useNotchWindowGeometry({
     gsap.set(island, {
       width: expanded ? dimensions.expandedWidth : dimensions.collapsedWidth,
       height: expanded ? dimensions.expandedHeight : dimensions.collapsedHeight,
-      ...islandRadii(layout.hasNotch, appearance.borderRadius, expanded),
+      ...islandRadii(expanded ? appearance.expandedBorderRadius : appearance.borderRadius),
     });
-  }, [appearance.borderRadius, collapsedHeight, dimensionsRef, effectiveWidth, expandedHeight, expandedWidth, islandRef, islandState, islandStateRef, layout.hasNotch, widthMotionActiveRef]);
+  }, [appearance.borderRadius, appearance.expandedBorderRadius, collapsedHeight, dimensionsRef, effectiveWidth, expandedHeight, expandedWidth, islandRef, islandState, islandStateRef, widthMotionActiveRef]);
 
   const applyPendingDimensions = useCallback(() => {
     const pending = pendingDimensionsRef.current;

@@ -344,6 +344,9 @@
 }
 
 .player {
+  display: flex;
+  min-height: var(--notch-expanded-min-height);
+  flex-direction: column;
   width: 100%;
   max-width: none;
   overflow: hidden;
@@ -540,7 +543,8 @@
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: clamp(12px, 3cqw, 20px);
-  margin-top: clamp(8px, 2cqw, 12px);
+  margin-top: auto;
+  padding-top: clamp(4px, 1cqw, 8px);
 }
 
 .playerProgress {

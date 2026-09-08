@@ -178,6 +178,7 @@ export type NotchLyricsAppearance = {
   karaokeStyle: CompactKaraokeStyle;
   lineGap: number;
   borderRadius: number;
+  expandedBorderRadius: number;
   topBorderRadius: number;
   maxWidth: number;
   expandedMaxWidth: number;

@@ -182,6 +182,7 @@ export const defaultNotchLyricsAppearance: NotchLyricsAppearance = {
   karaokeStyle: "sweep",
   lineGap: 8,
   borderRadius: 12,
+  expandedBorderRadius: 16,
   topBorderRadius: 12,
   maxWidth: 320,
   expandedMaxWidth: 440,

@@ -68,12 +68,8 @@ export function waitForWebviewLayout() {
   });
 }
 
-export function islandRadii(
-  hasNotch: boolean,
-  borderRadius: number,
-  expanded: boolean,
-) {
-  const radius = `${borderRadius + (hasNotch && expanded ? 4 : 0)}px`;
+export function islandRadii(borderRadius: number) {
+  const radius = `${borderRadius}px`;
   // GSAP 全程使用分角属性，避免屏幕类型切换或动画往返时残留简写圆角。
   return {
     borderTopLeftRadius: "0px",

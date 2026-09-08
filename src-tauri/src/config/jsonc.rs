@@ -215,6 +215,12 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             line if line.starts_with("      \"lineGap\":") => {
                 Some(("      ", ConfigComment::LineGap))
             }
+            line if line.starts_with("          \"borderRadius\":") => {
+                Some(("          ", ConfigComment::NotchDefaultBorderRadius))
+            }
+            line if line.starts_with("          \"expandedBorderRadius\":") => {
+                Some(("          ", ConfigComment::NotchExpandedBorderRadius))
+            }
             line if line.starts_with("          \"topBorderRadius\":") => {
                 Some(("          ", ConfigComment::NotchTopBorderRadius))
             }

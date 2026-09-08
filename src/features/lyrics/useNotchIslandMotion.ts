@@ -14,7 +14,7 @@ import { gsap } from "gsap";
 import { CustomEase } from "gsap/CustomEase";
 import { api, isTauriRuntime } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
-import type { NotchLayoutMetrics, NotchLyricsPreferences } from "../../shared/types";
+import type { NotchLyricsPreferences } from "../../shared/types";
 import {
   islandRadii,
   type IslandDimensions,
@@ -32,7 +32,6 @@ const COLLAPSE_MORPH_EASE = CustomEase.create("notch-collapse-morph", "0.4,0,0.2
 
 type UseNotchIslandMotionOptions = {
   appearance: NotchLyricsPreferences["appearance"];
-  layout: NotchLayoutMetrics;
   shellRef: RefObject<HTMLElement | null>;
   hoverAreaRef: RefObject<HTMLElement | null>;
   islandRef: RefObject<HTMLElement | null>;
@@ -60,7 +59,6 @@ type UseNotchIslandMotionOptions = {
 
 export function useNotchIslandMotion({
   appearance,
-  layout,
   shellRef,
   hoverAreaRef,
   islandRef,
@@ -346,8 +344,8 @@ export function useNotchIslandMotion({
     const target = nextExpanded
       ? { width: dimensions.expandedWidth, height: dimensions.expandedHeight }
       : { width: dimensions.collapsedWidth, height: dimensions.collapsedHeight };
-    const collapsedRadii = islandRadii(layout.hasNotch, appearance.borderRadius, false);
-    const expandedRadii = islandRadii(layout.hasNotch, appearance.borderRadius, true);
+    const collapsedRadii = islandRadii(appearance.borderRadius);
+    const expandedRadii = islandRadii(appearance.expandedBorderRadius);
     const startRadii = nextExpanded ? collapsedRadii : expandedRadii;
     const targetRadii = nextExpanded ? expandedRadii : collapsedRadii;
     const complete = () => finishWidthMotion(nextExpanded);
@@ -434,7 +432,7 @@ export function useNotchIslandMotion({
     }
 
     islandMorphRef.current = timeline;
-  }), [appearance.borderRadius, contentRef, contextSafe, dimensionsRef, finishWidthMotion, islandRef, islandStateRef, islandVisualRef, layout.hasNotch, setIslandStateValue, toolbarRevealRef]);
+  }), [appearance.borderRadius, appearance.expandedBorderRadius, contentRef, contextSafe, dimensionsRef, finishWidthMotion, islandRef, islandStateRef, islandVisualRef, setIslandStateValue, toolbarRevealRef]);
 
   const startExpansion = useMemo(() => contextSafe(() => {
     if (
@@ -518,7 +516,10 @@ export function useNotchIslandMotion({
       && y >= rect.top
       && y <= rect.bottom,
     );
-    const hoverBounds = currentState === "collapsed" ? rect : hoverRect ?? rect;
+    // 收回时只把当前正在缩小的真实岛体作为 hover 区域，避免旧的展开区域在动画途中误触发展开。
+    const hoverBounds = currentState === "collapsed" || currentState === "collapsing"
+      ? rect
+      : hoverRect ?? rect;
     const isInsideHoverArea = source !== "pointerleave"
       && islandVisibleRef.current
       && Boolean(

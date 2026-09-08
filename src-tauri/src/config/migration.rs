@@ -658,6 +658,32 @@ pub(crate) fn migrate_v65_list_line_order(user: &mut Value, version: u16) {
     }
 }
 
+fn migrate_v66_notch_expanded_border_radius(user: &mut Value, version: u16) {
+    if version >= 66 {
+        return;
+    }
+    let Some(appearance) = user
+        .pointer_mut("/lyrics/displays/notch/appearance")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    if appearance.contains_key("expandedBorderRadius") {
+        return;
+    }
+    let Some(border_radius) = appearance
+        .get("borderRadius")
+        .and_then(Value::as_f64)
+    else {
+        return;
+    };
+    // 旧实现只在有刘海屏的展开态额外增加 4px，迁移后将该视觉值保存为显式配置。
+    appearance.insert(
+        "expandedBorderRadius".into(),
+        Value::from(border_radius.clamp(0.0, 20.0) + 4.0),
+    );
+}
+
 fn remove_retired_fullscreen_space_preferences(user: &mut Value) {
     if let Some(overlay) = user.pointer_mut("/overlay").and_then(Value::as_object_mut) {
         overlay.remove("joinOtherAppsFullscreen");

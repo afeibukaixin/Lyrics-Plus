@@ -329,6 +329,7 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
                             "karaokeStyle",
                             "lineGap",
                             "borderRadius",
+                            "expandedBorderRadius",
                             "topBorderRadius",
                             "maxWidth",
                             "expandedMaxWidth",

@@ -30,6 +30,7 @@ import {
 } from "./NotchLyricsComponents";
 import {
   COLLAPSED_HEIGHT_FALLBACK,
+  EXPANDED_HEIGHT_FALLBACK,
   notchCollapsedHeightFloor,
   notchSlotPadding,
   NOTCH_MAX_WIDTH,
@@ -270,7 +271,6 @@ export default function NotchLyricsWindow() {
     islandStateRef,
     islandVisualRef,
     islandVisibleRef,
-    layout,
     pendingDimensionsRef,
     pendingHoverApplyRef,
     pendingVisibilityRef,
@@ -369,6 +369,7 @@ export default function NotchLyricsWindow() {
         "--notch-max-width": `${effectiveWidth}px`,
         "--notch-collapsed-height": `${Math.max(collapsedHeightFloor, collapsedHeight)}px`,
         "--notch-expanded-width": `${Math.min(effectiveExpandedMaxWidth, Math.max(effectiveWidth, expandedWidth))}px`,
+        "--notch-expanded-min-height": `${EXPANDED_HEIGHT_FALLBACK}px`,
         "--notch-expanded-height": `${Math.max(COLLAPSED_HEIGHT_FALLBACK, expandedHeight)}px`,
         "--notch-top-inset": `${resolvedTopInset}px`,
         "--notch-compact-slot-size": `${compactSlotSize}px`,

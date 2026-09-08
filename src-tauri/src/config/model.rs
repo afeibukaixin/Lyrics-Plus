@@ -695,6 +695,7 @@ pub struct NotchLyricsAppearance {
     pub karaoke_style: CompactKaraokeStyle,
     pub line_gap: f64,
     pub border_radius: f64,
+    pub expanded_border_radius: f64,
     pub top_border_radius: f64,
     pub max_width: u16,
     pub expanded_max_width: u16,
@@ -714,6 +715,7 @@ impl Default for NotchLyricsAppearance {
             karaoke_style: CompactKaraokeStyle::Sweep,
             line_gap: 8.0,
             border_radius: 12.0,
+            expanded_border_radius: 16.0,
             top_border_radius: 12.0,
             max_width: 320,
             expanded_max_width: 440,
@@ -1050,6 +1052,9 @@ impl AppConfig {
             normalize_display_font_weight(notch_appearance.secondary_font_weight);
         notch_appearance.line_gap = notch_appearance.line_gap.clamp(0.0, 32.0);
         notch_appearance.border_radius = notch_appearance.border_radius.clamp(0.0, 20.0);
+        notch_appearance.expanded_border_radius = notch_appearance
+            .expanded_border_radius
+            .clamp(0.0, 24.0);
         notch_appearance.top_border_radius = notch_appearance.top_border_radius.clamp(0.0, 15.0);
         notch_appearance.max_width = notch_appearance.max_width.clamp(320, 640);
         notch_appearance.expanded_max_width = notch_appearance
