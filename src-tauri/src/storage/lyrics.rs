@@ -1,4 +1,61 @@
 impl Storage {
+    /// 删除数据库明确标记为应用拥有的在线歌词文件。
+    ///
+    /// 手动导入和外部目录索引会使用用户拥有的来源标记，因此不会进入此列表。
+    pub(crate) fn remove_application_downloads(&self) -> Result<usize, String> {
+        let scan = self.scanner.snapshot();
+        self.scanner.cancel_if_matches(Path::new(&scan.library_dir));
+
+        let paths = {
+            let connection = self
+                .connection
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            let mut statement = connection
+                .prepare(
+                    "SELECT DISTINCT content_path
+                     FROM lyric_files
+                     WHERE app_owned=1
+                       AND source NOT IN ('本地文件', '本地导入', '手动导入')",
+                )
+                .map_err(|error| format!("读取应用下载歌词失败：{error}"))?;
+            let paths = statement
+                .query_map([], |row| row.get::<_, String>(0))
+                .map_err(|error| format!("查询应用下载歌词失败：{error}"))?
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .map_err(|error| format!("解析应用下载歌词失败：{error}"))?
+                .into_iter()
+                .map(PathBuf::from)
+                .filter(|path| is_application_lyric_path(path))
+                .collect::<Vec<_>>();
+            paths
+        };
+
+        let mut deleted = 0;
+        for path in paths {
+            if !path.is_absolute() {
+                return Err(format!("应用下载歌词路径无效：{}", path.display()));
+            }
+            let metadata = match fs::symlink_metadata(&path) {
+                Ok(metadata) => metadata,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => {
+                    return Err(format!("读取应用下载歌词失败 {}：{error}", path.display()))
+                }
+            };
+            if !metadata.file_type().is_file() {
+                return Err(format!("应用下载歌词路径不是文件：{}", path.display()));
+            }
+            fs::remove_file(&path)
+                .map_err(|error| format!("删除应用下载歌词失败 {}：{error}", path.display()))?;
+            deleted += 1;
+        }
+        Ok(deleted)
+    }
+
+    /// 在应用托管目录中复用同一正文的已有文件；找不到时为新版本分配稳定文件名。
+    ///
+    /// 这里只复用应用拥有的资源，避免把用户导入或外部目录文件改成应用托管文件。
     fn select_managed_lyric_path(
         &self,
         title: &str,

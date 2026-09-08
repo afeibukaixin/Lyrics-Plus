@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
+import { FactoryResetDialog, FACTORY_RESET_CONFIRMATION } from "./FactoryResetDialog";
 
 type Props = {
   onApplied: (config: AppConfig, appearanceOnly: boolean) => Promise<void>;
@@ -31,6 +32,10 @@ export default function ConfigEditor({ onApplied, setError, setNotice }: Props) 
   const [conflict, setConflict] = useState(false);
   const [validating, setValidating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [factoryResetOpen, setFactoryResetOpen] = useState(false);
+  const [factoryResetConfirmation, setFactoryResetConfirmation] = useState("");
+  const [factoryResetting, setFactoryResetting] = useState(false);
+  const [factoryResetError, setFactoryResetError] = useState<string | null>(null);
 
   const applyEditorData = (next: ConfigEditorData) => {
     validationRequest.current += 1;
@@ -132,6 +137,35 @@ export default function ConfigEditor({ onApplied, setError, setNotice }: Props) 
     } catch (value) { setError(messageOf(value)); }
   };
 
+  const openFactoryReset = () => {
+    setFactoryResetConfirmation("");
+    setFactoryResetError(null);
+    setFactoryResetOpen(true);
+  };
+
+  const closeFactoryReset = (open: boolean) => {
+    if (open) {
+      setFactoryResetOpen(true);
+      return;
+    }
+    setFactoryResetOpen(false);
+    setFactoryResetConfirmation("");
+    setFactoryResetError(null);
+  };
+
+  const factoryReset = async () => {
+    if (factoryResetConfirmation !== FACTORY_RESET_CONFIRMATION || factoryResetting) return;
+    setFactoryResetting(true);
+    setFactoryResetError(null);
+    setError(null);
+    try {
+      await api.factoryResetApplication(factoryResetConfirmation);
+    } catch (value) {
+      setFactoryResetting(false);
+      setFactoryResetError(messageOf(value));
+    }
+  };
+
   const lineNumbersOf = (value: string) =>
     Array.from({ length: value.split("\n").length }, (_, index) => index + 1).join("\n");
   const userLines = useMemo(() => lineNumbersOf(draft), [draft]);
@@ -161,6 +195,7 @@ export default function ConfigEditor({ onApplied, setError, setNotice }: Props) 
         <div>
           <Button variant="ghost" size="sm" onClick={() => void exportConfig()}>{t("settings.config.export")}</Button>
           <Button variant="ghost" size="sm" onClick={() => void api.revealConfigDirectory().catch((value) => setError(messageOf(value)))}>{t("settings.config.openDirectory")}</Button>
+          <Button variant="destructive" size="sm" onClick={openFactoryReset}>{t("settings.config.factoryResetAction")}</Button>
         </div>
         <Badge variant="outline" data-kind={status.kind} aria-live="polite">{status.text}</Badge>
         <div className={styles.actions}>
@@ -190,6 +225,16 @@ export default function ConfigEditor({ onApplied, setError, setNotice }: Props) 
         </Card>
       </div>
       {!validation?.valid && <Alert variant="destructive" className={styles.fallback}><AlertDescription>{t("settings.config.fallback")}</AlertDescription></Alert>}
+      <FactoryResetDialog
+        confirmation={factoryResetConfirmation}
+        error={factoryResetError}
+        onConfirmationChange={setFactoryResetConfirmation}
+        onConfirm={() => void factoryReset()}
+        onOpenChange={closeFactoryReset}
+        open={factoryResetOpen}
+        resetting={factoryResetting}
+        t={t}
+      />
     </section>
   );
 }

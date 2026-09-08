@@ -44,6 +44,7 @@ export function messageOf(error: unknown): string {
       "start_playback_spectrum",
       "stop_playback_spectrum",
       "get_playback_spectrum_state",
+      "factory_reset_application",
     ].includes(error.command) && error.message) {
       return error.message;
     }

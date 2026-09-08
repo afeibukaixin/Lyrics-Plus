@@ -25,6 +25,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_macos_fps::init())
         .setup(|app| {
+            factory_reset::consume_pending(app.handle()).map_err(std::io::Error::other)?;
             let storage = Arc::new(storage::Storage::new(app.handle())?);
             let notice_accepted = legal_notice_accepted(&storage).unwrap_or(false);
             let app_dir = app.path().app_data_dir()?;
@@ -377,6 +378,7 @@ pub fn run() {
             commands::get_config_editor_data,
             commands::validate_app_config_draft,
             commands::save_app_config_draft,
+            commands::factory_reset_application,
             commands::reset_settings_section,
             commands::get_ui_update_state,
             commands::check_and_prepare_ui_update,

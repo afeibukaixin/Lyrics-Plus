@@ -300,6 +300,15 @@ pub fn save_app_config_draft(
 }
 
 #[tauri::command]
+pub fn factory_reset_application(
+    app: tauri::AppHandle,
+    confirmation: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    crate::factory_reset::prepare(&app, &state.storage, &confirmation)
+}
+
+#[tauri::command]
 pub fn reset_settings_section(
     app: tauri::AppHandle,
     section: SettingsSection,

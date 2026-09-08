@@ -63,4 +63,6 @@ export const settingsApi = {
     invoke<ConfigDraftValidation>("validate_app_config_draft", { raw }),
   saveAppConfigDraft: (raw: string, expectedRevision: number) =>
     invoke<AppConfig>("save_app_config_draft", { raw, expectedRevision }),
+  factoryResetApplication: (confirmation: string) =>
+    invoke<void>("factory_reset_application", { confirmation }),
 };
