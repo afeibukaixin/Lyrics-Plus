@@ -186,7 +186,7 @@ export const zhHK = {
       status: { checking: "正在檢查更新…", available: "發現新版本 {{version}}，本次已暫不安裝。", downloading: "正在下載更新…", installing: "正在安裝更新…", ready: "更新已安裝，重新啟動後生效。", latest: "目前已是最新版本。", error: "更新失敗。", idle: "" },
       project: "開源項目", projectHint: "Lyrics Plus 是採用 MIT License 發布的免費開源項目。", links: { github: "GitHub 項目", releases: "版本發布", issues: "問題回報" },
       community: "交流與支援", qqGroup: "QQ群：{{number}}", joinQqGroup: "申請加入群組",
-      license: "授權與版權", licenseHint: "應用程式碼採用 MIT License；歌詞和其他音樂內容的權利歸相應權利人所有。", privacyTitle: "私隱與匿名統計", telemetry: "傳送匿名使用統計", telemetryHint: "只會傳送功能使用次數、應用程式版本、平台及隨機匿名 ID，不包含歌曲名稱、歌手、歌詞、檔案路徑或記錄。可隨時關閉；關閉後會清除本機佇列和 ID。", telemetryData: "統計會經由專案的 Cloudflare Worker 傳送到 Axiom，只用於了解功能使用情況和歌詞來源穩定性。", advancedTools: "進階工具", advancedToolsHint: "除錯記錄與 JSONC 設定供疑難排解及進階使用者使用。",
+      license: "授權與版權", licenseHint: "應用程式碼採用 MIT License；歌詞和其他音樂內容的權利歸相應權利人所有。", privacyTitle: "私隱與匿名統計", telemetry: "傳送匿名使用統計", telemetryHint: "只會傳送功能使用次數、應用程式版本、平台及隨機匿名 ID，不包含歌曲名稱、歌手、歌詞、檔案路徑或記錄。可隨時關閉；關閉後會清除本機佇列和 ID。", advancedTools: "進階工具", advancedToolsHint: "除錯記錄與 JSONC 設定供疑難排解及進階使用者使用。",
     },
     lyrics: {
       title: "歌詞與搜尋", description: "達到設定相似度的同步歌詞會自動套用；其他結果可在快速切換視窗中預覽。",

@@ -193,7 +193,7 @@ export const koKR = {
       project: "오픈 소스 프로젝트", projectHint: "Lyrics Plus는 MIT License로 배포되는 무료 오픈 소스 소프트웨어입니다.", links: { github: "GitHub 저장소", releases: "릴리스", issues: "문제 신고" },
       community: "커뮤니티 및 지원", qqGroup: "QQ 그룹: {{number}}", joinQqGroup: "QQ 그룹 참여",
       license: "라이선스 및 저작권", licenseHint: "애플리케이션 코드는 MIT License를 사용합니다. 가사 및 기타 음악 콘텐츠는 각 권리자에게 있습니다.",
-      privacyTitle: "개인정보 및 익명 통계", telemetry: "익명 사용 통계 전송", telemetryHint: "기능 사용 횟수, 앱 버전, 플랫폼 및 무작위 익명 ID만 전송합니다. 곡 제목, 아티스트, 가사, 파일 경로와 로그는 포함되지 않습니다. 언제든지 끌 수 있으며 끄면 로컬 큐와 ID가 삭제됩니다.", telemetryData: "통계는 프로젝트의 Cloudflare Worker를 통해 Axiom으로 전송되며 기능 사용 현황과 가사 제공업체 안정성을 파악하는 데 사용됩니다.",
+      privacyTitle: "개인정보 및 익명 통계", telemetry: "익명 사용 통계 전송", telemetryHint: "기능 사용 횟수, 앱 버전, 플랫폼 및 무작위 익명 ID만 전송합니다. 곡 제목, 아티스트, 가사, 파일 경로와 로그는 포함되지 않습니다. 언제든지 끌 수 있으며 끄면 로컬 큐와 ID가 삭제됩니다.",
       advancedTools: "고급 도구", advancedToolsHint: "디버그 로그와 JSONC 구성은 문제 해결 및 고급 사용자용입니다.",
     },
     lyrics: {

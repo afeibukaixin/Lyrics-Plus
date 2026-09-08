@@ -143,7 +143,6 @@ export default function AboutSettingsPage() {
               .finally(() => setSavingTelemetry(false));
           }}
         />
-        <p className={styles.cardHint}>{t("settings.about.telemetryData")}</p>
       </SettingsSection>
       {qqGroup && (
         <SettingsSection id="about-community" title={t("settings.about.community")}>

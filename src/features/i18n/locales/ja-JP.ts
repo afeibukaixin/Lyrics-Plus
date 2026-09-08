@@ -193,7 +193,7 @@ export const jaJP = {
       project: "オープンソースプロジェクト", projectHint: "Lyrics Plus は MIT License で公開された無料のオープンソースソフトウェアです。", links: { github: "GitHub リポジトリ", releases: "リリース", issues: "問題を報告" },
       community: "コミュニティとサポート", qqGroup: "QQ グループ：{{number}}", joinQqGroup: "QQ グループに参加",
       license: "ライセンスと著作権", licenseHint: "アプリケーションコードは MIT License を使用しています。歌詞やその他の音楽コンテンツは各権利者に帰属します。",
-      privacyTitle: "プライバシーと匿名統計", telemetry: "匿名利用統計を送信", telemetryHint: "送信するのは機能の利用回数、アプリのバージョン、プラットフォーム、ランダムな匿名 ID のみです。曲名、アーティスト、歌詞、ファイルパス、ログは含まれません。いつでも無効にでき、無効にすると本機のキューと ID が削除されます。", telemetryData: "統計はプロジェクトの Cloudflare Worker 経由で Axiom に送信され、機能の利用状況と歌詞ソースの安定性を把握するために使用されます。",
+      privacyTitle: "プライバシーと匿名統計", telemetry: "匿名利用統計を送信", telemetryHint: "送信するのは機能の利用回数、アプリのバージョン、プラットフォーム、ランダムな匿名 ID のみです。曲名、アーティスト、歌詞、ファイルパス、ログは含まれません。いつでも無効にでき、無効にすると本機のキューと ID が削除されます。",
       advancedTools: "高度なツール", advancedToolsHint: "デバッグログと JSONC 設定は、トラブルシューティングや上級者向けです。",
     },
     lyrics: {

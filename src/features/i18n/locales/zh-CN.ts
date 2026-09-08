@@ -190,7 +190,7 @@ export const zhCN = {
       project: "开源项目", projectHint: "Lyrics Plus 是采用 MIT License 发布的免费开源项目。", links: { github: "GitHub 项目", releases: "版本发布", issues: "问题反馈" },
       community: "交流与支持", qqGroup: "QQ群：{{number}}", joinQqGroup: "申请加群",
       license: "许可与版权", licenseHint: "应用代码采用 MIT License；歌词和其他音乐内容的权利归相应权利人所有。",
-      privacyTitle: "隐私与匿名统计", telemetry: "发送匿名使用统计", telemetryHint: "只发送功能使用次数、应用版本、系统平台和随机匿名标识，不包含歌曲名、歌手、歌词、文件路径或日志。可随时关闭，关闭后会清除本机统计队列和匿名标识。", telemetryData: "统计通过项目自己的 Cloudflare Worker 转发到 Axiom，仅用于了解功能使用情况和歌词源稳定性。",
+      privacyTitle: "隐私与匿名统计", telemetry: "发送匿名使用统计", telemetryHint: "只发送功能使用次数、应用版本、系统平台和随机匿名标识，不包含歌曲名、歌手、歌词、文件路径或日志。可随时关闭，关闭后会清除本机统计队列和匿名标识。",
       advancedTools: "高级工具", advancedToolsHint: "调试日志和 JSONC 配置面向故障排查与高级用户。",
     },
     lyrics: {

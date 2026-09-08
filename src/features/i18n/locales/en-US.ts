@@ -193,7 +193,7 @@ export const enUS = {
       project: "Open Source Project", projectHint: "Lyrics Plus is free and open-source software released under the MIT License.", links: { github: "GitHub Repository", releases: "Releases", issues: "Report an Issue" },
       community: "Community & Support", qqGroup: "QQ Group: {{number}}", joinQqGroup: "Join QQ Group",
       license: "License & Copyright", licenseHint: "The application code uses the MIT License. Lyrics and other music content belong to their respective rightsholders.",
-      privacyTitle: "Privacy & Anonymous Analytics", telemetry: "Send anonymous usage analytics", telemetryHint: "Only feature counts, app version, platform, and a random anonymous ID are sent. Song titles, artists, lyrics, file paths, and logs are not included. You can turn it off at any time; disabling it clears the local queue and ID.", telemetryData: "Analytics is sent through the project's Cloudflare Worker to Axiom to understand feature usage and lyrics-provider reliability.",
+      privacyTitle: "Privacy & Anonymous Analytics", telemetry: "Send anonymous usage analytics", telemetryHint: "Only feature counts, app version, platform, and a random anonymous ID are sent. Song titles, artists, lyrics, file paths, and logs are not included. You can turn it off at any time; disabling it clears the local queue and ID.",
       advancedTools: "Advanced tools", advancedToolsHint: "Debug logs and JSONC configuration are intended for troubleshooting and advanced users.",
     },
     lyrics: {
