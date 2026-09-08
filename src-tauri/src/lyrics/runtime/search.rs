@@ -730,8 +730,16 @@ pub(crate) fn completed_lyrics_search(state: &AppState, track_key: &str) -> Opti
     if session.track_key.as_deref() != Some(track_key) {
         return None;
     }
-    session
-        .completed
-        .as_ref()
-        .and_then(|completed| completed.as_ref().ok().cloned())
+    session.completed.as_ref().map(|completed| match completed {
+        Ok(response) => response.clone(),
+        Err(error) => SearchResponse {
+            auto_apply: false,
+            auto_apply_candidate: None,
+            results: Vec::new(),
+            provider_statuses: Vec::new(),
+            error: Some(error.clone()),
+            provider_elapsed_ms: std::collections::HashMap::new(),
+            decision_elapsed_ms: 0,
+        },
+    })
 }

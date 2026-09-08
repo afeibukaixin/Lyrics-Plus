@@ -50,7 +50,7 @@ export function useLyricsSearch(
       if (state.activeTrackKey.current === key && state.searchGeneration.current === restoreGeneration) {
         state.setError(messageOf(restoreError));
       }
-      return null;
+      throw restoreError;
     }
   }, [applySearchResponse]);
 
@@ -99,6 +99,8 @@ export function useLyricsSearch(
     const isCurrent = () => state.searchGeneration.current === generation && state.activeTrackKey.current === key;
     state.setSearching(true);
     state.setError(null);
+    // 一旦已有搜索请求接管当前歌曲，恢复流程就不应再补发自动搜索。
+    state.setSearchRestoreState("restored");
     if (intent !== "refresh") state.setAutoApplyCandidate(null);
     try {
       const response = await api.searchLyrics(trackKey, input, intent);

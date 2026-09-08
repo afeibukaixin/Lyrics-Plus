@@ -27,10 +27,28 @@ export function useLyricsLifecycle(
     state.setResults([]);
     state.setAutoApplyCandidate(null);
     updateDocument(null);
+    state.setSearchRestoreState(active && trackKey ? "restoring" : "idle");
     state.setLoadState(active && trackKey ? "loading" : "idle");
     if (!active || !trackKey) return;
+    const restoreGeneration = state.searchGeneration.current;
     void loadTrack(trackKey);
-    void restoreCompletedSearch(trackKey);
+    void restoreCompletedSearch(trackKey)
+      .then((response) => {
+        if (
+          state.activeTrackKey.current === trackKey
+          && state.searchGeneration.current === restoreGeneration
+        ) {
+          state.setSearchRestoreState(response ? "restored" : "absent");
+        }
+      })
+      .catch(() => {
+        if (
+          state.activeTrackKey.current === trackKey
+          && state.searchGeneration.current === restoreGeneration
+        ) {
+          state.setSearchRestoreState("failed");
+        }
+      });
   }, [active, loadTrack, restoreCompletedSearch, trackKey, updateDocument]);
 
   useEffect(() => {

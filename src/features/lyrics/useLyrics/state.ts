@@ -15,10 +15,18 @@ export type PendingOffsetWrite = {
 
 export type LyricsLoadState = "idle" | "loading" | LyricsLoadStatus;
 
+export type LyricsSearchRestoreState =
+  | "idle"
+  | "restoring"
+  | "restored"
+  | "absent"
+  | "failed";
+
 export function useLyricsState(trackKey: string | null, active: boolean) {
   const [document, setDocument] = useState<LyricsDocument | null>(null);
   const [results, setResults] = useState<LyricsSearchResult[]>([]);
   const [autoApplyCandidate, setAutoApplyCandidate] = useState<SearchResponse["autoApplyCandidate"]>(null);
+  const [searchRestoreState, setSearchRestoreState] = useState<LyricsSearchRestoreState>("idle");
   const [searching, setSearching] = useState(false);
   const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +46,8 @@ export function useLyricsState(trackKey: string | null, active: boolean) {
     setResults,
     autoApplyCandidate,
     setAutoApplyCandidate,
+    searchRestoreState,
+    setSearchRestoreState,
     searching,
     setSearching,
     providerStatuses,

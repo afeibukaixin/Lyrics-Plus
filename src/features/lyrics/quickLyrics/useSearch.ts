@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
 import { useLyrics } from "../useLyrics";
 import { usePlayback } from "../../player/usePlayback";
-import { isTauriRuntime } from "../../../shared/api";
-import { createTauriListenerCleanup, QUICK_LYRICS_REFRESH_EVENT } from "../../../shared/tauriEvent";
 import {
   formatDurationParts,
   parseDuration,
@@ -26,24 +23,12 @@ export function useQuickLyricsSearch(
   lyrics: LyricsController,
 ) {
   const searchedTrack = useRef<string | null>(null);
-  const searchRef = useRef(lyrics.search);
-  searchRef.current = lyrics.search;
-  const searchStateRef = useRef({
-    trackKey: lyrics.trackKey,
-    title: playback.snapshot.title,
-    artist: playback.snapshot.artist,
-    searching: lyrics.searching,
-  });
-  searchStateRef.current = {
-    trackKey: lyrics.trackKey,
-    title: playback.snapshot.title,
-    artist: playback.snapshot.artist,
-    searching: lyrics.searching,
-  };
   const [searchForm, setSearchForm] = useState<SearchFormState>(emptySearchForm);
   const [formSubmitted, setFormSubmitted] = useState(false);
 
   useEffect(() => {
+    // 窗口休眠时 trackKey 会清空；重新激活同一首歌需要允许重新接入搜索会话。
+    searchedTrack.current = null;
     const duration = formatDurationParts(playback.snapshot.durationMs);
     setSearchForm({
       title: playback.snapshot.title ?? "",
@@ -56,24 +41,26 @@ export function useQuickLyricsSearch(
 
   useEffect(() => {
     if (
-      !lyrics.trackKey
+      !playback.active
+      || !lyrics.trackKey
       || !playback.snapshot.title
       || !playback.snapshot.artist
-      || (lyrics.loadState !== "ready" && lyrics.loadState !== "missing")
+      || lyrics.loadState !== "missing"
+      || lyrics.searchRestoreState !== "absent"
+      || lyrics.searching
     ) return;
     if (searchedTrack.current === lyrics.trackKey) return;
     searchedTrack.current = lyrics.trackKey;
     void lyrics.search("refresh");
-  }, [lyrics.loadState, lyrics.trackKey, playback.snapshot.artist, playback.snapshot.title]);
-
-  useEffect(() => {
-    if (!isTauriRuntime()) return;
-    return createTauriListenerCleanup(listen(QUICK_LYRICS_REFRESH_EVENT, () => {
-      const current = searchStateRef.current;
-      if (!current.trackKey || !current.title || !current.artist || current.searching) return;
-      void searchRef.current("refresh");
-    }));
-  }, []);
+  }, [
+    lyrics.loadState,
+    lyrics.searchRestoreState,
+    lyrics.searching,
+    lyrics.trackKey,
+    playback.active,
+    playback.snapshot.artist,
+    playback.snapshot.title,
+  ]);
 
   const updateSearchField = (field: keyof SearchFormState, value: string) => {
     setSearchForm((current) => ({ ...current, [field]: value }));

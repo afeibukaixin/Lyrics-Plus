@@ -1,12 +1,10 @@
-use tauri::{Emitter, Manager, WebviewWindowBuilder};
+use tauri::{Manager, WebviewWindowBuilder};
 
 use super::lifecycle::{
     hide_surface, prepare_surface_show, schedule_surface_destroy, set_surface_runtime_state,
     toggle_quick_lyrics_reopen_while_destroying, SurfaceRuntimeState,
 };
 use crate::{AppState, SurfaceReopenRequest};
-
-const QUICK_LYRICS_REFRESH_EVENT: &str = "quick-lyrics://refresh";
 
 pub(crate) fn show_quick_lyrics_window(app: &tauri::AppHandle) -> Result<(), String> {
     if prepare_surface_show(app, "quick-lyrics", SurfaceReopenRequest::QuickLyrics) {
@@ -25,9 +23,6 @@ pub(crate) fn show_quick_lyrics_window(app: &tauri::AppHandle) -> Result<(), Str
         window.show().map_err(|error| error.to_string())?;
         set_surface_runtime_state(app, &window, SurfaceRuntimeState::Active);
         window.set_focus().map_err(|error| error.to_string())?;
-        if let Err(error) = window.emit(QUICK_LYRICS_REFRESH_EVENT, ()) {
-            log::debug!("Failed to request quick lyrics refresh: {error}");
-        }
         return Ok(());
     }
 
