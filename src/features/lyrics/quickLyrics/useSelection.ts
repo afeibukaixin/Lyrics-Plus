@@ -8,13 +8,22 @@ import { resultKey } from "./utils";
 
 type LyricsController = ReturnType<typeof useLyrics>;
 
+type ConfirmedApplication = {
+  key: string;
+  raw: string;
+  source: string;
+};
+
 export type QuickLyricsDisplayItem = {
   kind: "current" | "candidate";
   result: LyricsSearchResult;
   showScore: boolean;
 };
 
-function resultFromCurrentDocument(document: LyricsDocument): LyricsSearchResult {
+function resultFromCurrentDocument(
+  document: LyricsDocument,
+  playbackDurationMs: number | null,
+): LyricsSearchResult {
   const originalLines = document.tracks.original.lines;
   return {
     // This is a UI-only identity. It must never be passed to a save command.
@@ -23,7 +32,8 @@ function resultFromCurrentDocument(document: LyricsDocument): LyricsSearchResult
     title: document.metadata.title ?? "",
     artist: document.metadata.artist ?? "",
     album: document.metadata.album,
-    durationMs: null,
+    // 已保存的歌词文档不包含歌曲时长，当前卡片应继续使用播放器的曲目时长。
+    durationMs: playbackDurationMs,
     source: document.metadata.source,
     synced: originalLines.length > 0,
     hasTranslation: Boolean(document.tracks.translation?.lines.length),
@@ -42,16 +52,22 @@ function matchesCurrentDocument(document: LyricsDocument, result: LyricsSearchRe
     && result.lyrics.trim() === document.raw.trim();
 }
 
-export function useQuickLyricsSelection(lyrics: LyricsController, t: TFunction) {
+export function useQuickLyricsSelection(
+  lyrics: LyricsController,
+  playbackDurationMs: number | null,
+  t: TFunction,
+) {
   const applying = useRef(false);
   const [candidateDetailsOpen, setCandidateDetailsOpen] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [applyingKey, setApplyingKey] = useState<string | null>(null);
+  const [confirmedApplication, setConfirmedApplication] = useState<ConfirmedApplication | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const clearNotice = () => setNotice(null);
 
   useEffect(() => {
     setSelectedKey(null);
+    setConfirmedApplication(null);
     setNotice(null);
   }, [lyrics.trackKey]);
 
@@ -71,26 +87,33 @@ export function useQuickLyricsSelection(lyrics: LyricsController, t: TFunction) 
     return lyrics.results.find((result) => matchesCurrentDocument(document, result)) ?? null;
   }, [lyrics.document, lyrics.results]);
   const matchedCurrentKey = currentResult ? resultKey(currentResult) : null;
+  const confirmedCurrentKey = confirmedApplication
+    && lyrics.document?.raw === confirmedApplication.raw
+    && lyrics.document.metadata.source === confirmedApplication.source
+    && lyrics.results.some((result) => resultKey(result) === confirmedApplication.key)
+      ? confirmedApplication.key
+      : null;
+  const effectiveCurrentKey = confirmedCurrentKey ?? matchedCurrentKey;
   const currentItem = useMemo<QuickLyricsDisplayItem | null>(() => {
-    if (!lyrics.document || currentResult) return null;
+    if (!lyrics.document || effectiveCurrentKey) return null;
     return {
       kind: "current",
-      result: resultFromCurrentDocument(lyrics.document),
+      result: resultFromCurrentDocument(lyrics.document, playbackDurationMs),
       showScore: false,
     };
-  }, [currentResult, lyrics.document]);
-  const currentKey = currentResult
-    ? matchedCurrentKey
+  }, [effectiveCurrentKey, lyrics.document, playbackDurationMs]);
+  const currentKey = effectiveCurrentKey
+    ? effectiveCurrentKey
     : currentItem
       ? resultKey(currentItem.result)
       : null;
   const candidateItems = useMemo<QuickLyricsDisplayItem[]>(
     () => lyrics.results.map((result) => ({
-      kind: resultKey(result) === matchedCurrentKey ? "current" : "candidate",
+      kind: resultKey(result) === effectiveCurrentKey ? "current" : "candidate",
       result,
       showScore: true,
     })),
-    [matchedCurrentKey, lyrics.results],
+    [effectiveCurrentKey, lyrics.results],
   );
   const displayItems = useMemo(
     () => currentItem ? [currentItem, ...candidateItems] : candidateItems,
@@ -142,6 +165,7 @@ export function useQuickLyricsSelection(lyrics: LyricsController, t: TFunction) 
     try {
       const saved = await lyrics.applyResult(result);
       if (saved) {
+        setConfirmedApplication({ key, raw: saved.raw, source: saved.metadata.source });
         setNotice(t("quickLyrics.switched", { source: localizedSource(result.source, t) }));
       } else if (currentKey) {
         setSelectedKey(currentKey);

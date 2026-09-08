@@ -17,7 +17,7 @@ export default function QuickLyricsWindow() {
   const lyrics = useLyrics(playback.snapshot, playback.positionMs, playback.active);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const search = useQuickLyricsSearch(playback, lyrics);
-  const selection = useQuickLyricsSelection(lyrics, t);
+  const selection = useQuickLyricsSelection(lyrics, playback.snapshot.durationMs, t);
   const isLoading = lyrics.searching || lyrics.loadState === "loading";
   const emptyDescription = lyrics.error ?? (
     !lyrics.trackKey

@@ -97,11 +97,6 @@ export function useLyricsSearch(
     const generation = ++state.searchGeneration.current;
     const key = trackKey;
     const isCurrent = () => state.searchGeneration.current === generation && state.activeTrackKey.current === key;
-    // 快速窗口的 refresh 只在搜索开始时没有歌词的情况下允许自动落库。
-    // 这样既能填充首次打开的歌曲，也不会覆盖已经存在的默认歌词。
-    const autoApplyIfMissing = intent === "refresh"
-      && state.loadState === "missing"
-      && state.documentRef.current === null;
     state.setSearching(true);
     state.setError(null);
     if (intent !== "refresh") state.setAutoApplyCandidate(null);
@@ -109,13 +104,6 @@ export function useLyricsSearch(
       const response = await api.searchLyrics(trackKey, input, intent);
       if (!isCurrent()) return null;
       applySearchResponse(response);
-      if (autoApplyIfMissing && response.autoApply && response.autoApplyCandidate && state.documentRef.current === null) {
-        const candidate = response.results.find((result) => (
-          result.providerId === response.autoApplyCandidate?.providerId
-          && result.id === response.autoApplyCandidate?.id
-        ));
-        if (candidate) await applyResult(candidate, false);
-      }
       return response;
     } catch (searchError) {
       if (isCurrent()) state.setError(messageOf(searchError));
@@ -123,7 +111,7 @@ export function useLyricsSearch(
     } finally {
       if (isCurrent()) state.setSearching(false);
     }
-  }, [applyResult, applySearchResponse, snapshot.album, snapshot.artist, snapshot.durationMs, snapshot.title, state.loadState, trackKey]);
+  }, [applySearchResponse, snapshot.album, snapshot.artist, snapshot.durationMs, snapshot.title, trackKey]);
 
   return {
     search: (intent: LyricsSearchIntent = "automatic") => search(intent),

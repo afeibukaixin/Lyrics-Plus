@@ -73,7 +73,7 @@ export function QuickLyricsResults({
         <ItemContent className={styles.resultContent}>
           <div className={styles.resultHeading}>
             <span className={styles.songSummary} title={songSummary}>{songSummary}</span>
-            {(current || recommended) && <Badge variant={current ? "default" : "secondary"}>{current ? t("quickLyrics.current") : t("quickLyrics.recommended")}</Badge>}
+            {(current || recommended) && <Badge variant={current ? (key === selectedKey ? "default" : "outline") : "secondary"}>{current ? t("quickLyrics.current") : t("quickLyrics.recommended")}</Badge>}
           </div>
           <div className={styles.resultDetails}>
             <span className={cn(styles.sourceName, "text-xs text-muted-foreground")} title={localizedSource(result.source, t)}>{localizedSource(result.source, t)}</span>
