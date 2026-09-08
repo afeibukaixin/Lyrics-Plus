@@ -276,7 +276,8 @@ fn artist_credit_similarity(
     actual: &str,
     japanese: bool,
 ) -> f64 {
-    let normalize = |value: &str| normalise_with_options(value, input.scoring.normalize_chinese);
+    // 已确认歌手等价关系始终忽略繁简与标点差异；这不会自动建立中英文关系。
+    let normalize = |value: &str| normalise_with_options(&convert_text(value, Config::T2s), false);
     let mut expected_variants = vec![expected.to_owned()];
     let mut actual_variants = vec![actual.to_owned()];
     for (left, right) in &input.scoring.confirmed_artist_aliases {

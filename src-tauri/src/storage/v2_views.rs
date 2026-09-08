@@ -114,23 +114,14 @@ impl Storage {
     /// 将已确认的歌手别名放入本次搜索评分上下文；未确认别名不会进入评分。
     pub(crate) fn enrich_lyrics_input_with_confirmed_aliases(
         &self,
-        track_key: &str,
+        _track_key: &str,
         input: &LyricsSearchInput,
     ) -> Result<LyricsSearchInput, String> {
-        let Some(context) = self.current_lyrics_context(track_key)? else {
-            return Ok(input.clone());
-        };
-        let aliases = context
-            .recording
-            .artist_credits
-            .into_iter()
-            .flat_map(|credit| {
-                credit
-                    .confirmed_aliases
-                    .into_iter()
-                    .map(move |alias| (credit.canonical_name.clone(), alias))
-            })
-            .collect::<Vec<_>>();
+        let connection = self
+            .connection
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let aliases = song_manager::confirmed_artist_aliases(&connection)?;
         if aliases.is_empty() {
             return Ok(input.clone());
         }
@@ -157,7 +148,7 @@ impl Storage {
         if alias.is_empty() {
             return Err("歌手别名不能为空".into());
         }
-        let normalized_alias = normalize_artist_alias(alias);
+        let normalized_alias = normalize_artist_alias_identity(alias);
         if normalized_alias.is_empty() {
             return Err("歌手别名不包含有效字符".into());
         }
@@ -185,14 +176,13 @@ impl Storage {
             .optional()
             .map_err(|error| format!("读取当前录音失败：{error}"))?
             .ok_or_else(|| "当前曲目尚未建立录音身份".to_string())?;
-        let (artist_belongs, canonical_name) = transaction
+        let (artist_belongs, current_name) = transaction
             .query_row(
                 "SELECT
                     EXISTS(SELECT 1 FROM recording_artist_credits
                            WHERE recording_id=?1 AND artist_id=?2),
-                    COALESCE((SELECT COALESCE(artist.canonical_name, credit.raw_name)
+                    COALESCE((SELECT credit.raw_name
                               FROM recording_artist_credits AS credit
-                              LEFT JOIN artists AS artist ON artist.artist_id=credit.artist_id
                               WHERE credit.recording_id=?1 AND credit.artist_id=?2
                               ORDER BY credit.credit_order LIMIT 1), '')",
                 rusqlite::params![recording_id, artist_id],
@@ -204,10 +194,21 @@ impl Storage {
         if !artist_belongs {
             return Err("歌手不属于当前录音".into());
         }
-        if confirmed && normalize_artist_alias(&canonical_name) == normalized_alias {
+        let display_alias = normalize_artist_alias_display(alias);
+        if confirmed && normalize_artist_alias_display(&current_name) == display_alias {
             return Err("歌手别名与规范歌手名称相同".into());
         }
+        let equivalent_names = song_manager::equivalent_artist_names(
+            &transaction,
+            std::slice::from_ref(&current_name),
+        )?;
         if confirmed {
+            if equivalent_names
+                .iter()
+                .any(|name| normalize_artist_alias_display(name) == display_alias)
+            {
+                return Err("该歌手等价名称已存在".into());
+            }
             transaction
                 .execute(
                     "INSERT INTO artist_aliases
@@ -219,14 +220,22 @@ impl Storage {
                 )
                 .map_err(|error| format!("保存歌手别名失败：{error}"))?;
         } else {
-            transaction
-                .execute(
-                    "UPDATE artist_aliases
-                     SET confirmed=0, updated_at=unixepoch()
-                     WHERE artist_id=?1 AND normalized_alias=?2",
-                    rusqlite::params![artist_id, normalized_alias],
-                )
-                .map_err(|error| format!("移除歌手别名失败：{error}"))?;
+            let alias_ids = song_manager::artist_alias_ids_for_removal(
+                &transaction,
+                artist_id,
+                &current_name,
+                alias,
+            )?;
+            for alias_id in alias_ids {
+                transaction
+                    .execute(
+                        "UPDATE artist_aliases
+                         SET confirmed=0, updated_at=unixepoch()
+                         WHERE alias_id=?1",
+                        rusqlite::params![alias_id],
+                    )
+                    .map_err(|error| format!("移除歌手别名失败：{error}"))?;
+            }
         }
         transaction
             .commit()
@@ -445,12 +454,12 @@ impl Storage {
     }
 }
 
-fn normalize_artist_alias(value: &str) -> String {
-    value
-        .chars()
-        .filter(|character| character.is_alphanumeric())
-        .flat_map(char::to_lowercase)
-        .collect()
+fn normalize_artist_alias_identity(value: &str) -> String {
+    song_manager::normalized_identity_artist(value)
+}
+
+fn normalize_artist_alias_display(value: &str) -> String {
+    song_manager::normalized_artist_alias(value)
 }
 
 fn load_artist_credits(
@@ -483,21 +492,18 @@ fn load_artist_credits(
     rows.into_iter()
         .map(
             |(artist_id, raw_name, canonical_name, credit_order, role)| {
-                let confirmed_aliases = artist_id
-                    .map(|artist_id| {
-                        connection
-                            .prepare(
-                                "SELECT alias FROM artist_aliases
-                             WHERE artist_id=?1 AND confirmed=1 ORDER BY alias_id",
-                            )
-                            .and_then(|mut statement| {
-                                statement
-                                    .query_map(rusqlite::params![artist_id], |row| row.get(0))
-                                    .and_then(|rows| rows.collect::<rusqlite::Result<Vec<_>>>())
-                            })
-                            .unwrap_or_default()
-                    })
-                    .unwrap_or_default();
+                let current_name_key = normalize_artist_alias_display(&raw_name);
+                let mut confirmed_aliases = song_manager::equivalent_artist_names(
+                    connection,
+                    &[raw_name.clone(), canonical_name.clone()],
+                )?
+                .into_iter()
+                .filter(|name| normalize_artist_alias_display(name) != current_name_key)
+                .collect::<Vec<_>>();
+                confirmed_aliases.sort_by_key(|name| normalize_artist_alias_display(name));
+                confirmed_aliases.dedup_by(|left, right| {
+                    normalize_artist_alias_display(left) == normalize_artist_alias_display(right)
+                });
                 Ok(ArtistCredit {
                     artist_id,
                     raw_name,

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
-import { api, isTauriRuntime, messageOf } from "@/shared/api";
+import { api, AppOperationError, isTauriRuntime, messageOf } from "@/shared/api";
 import { createTauriListenerCleanup } from "@/shared/tauriEvent";
 import type { ArtistCredit, LyricsContext, LyricsSearchProgress, LyricsSearchResult, LyricsSearchTrace, SongAssociationCandidate, TrackObservation } from "@/shared/types";
 import { type QuickLyricsDetailsProps, type RecordingAction, type DetachLyricsMode, normalizeArtistName, resultTrace } from "./helpers";
@@ -164,7 +164,11 @@ export function useSongManager({
       ?? null;
   }, [context]);
 
-  const runAction = async (key: string, action: () => Promise<unknown>) => {
+  const runAction = async (
+    key: string,
+    action: () => Promise<unknown>,
+    handleError?: (error: unknown) => boolean,
+  ) => {
     setBusyAction(key);
     setError(null);
     try {
@@ -172,7 +176,7 @@ export function useSongManager({
       await refresh();
       return true;
     } catch (actionError) {
-      setError(messageOf(actionError));
+      if (!handleError?.(actionError)) setError(messageOf(actionError));
       return false;
     } finally {
       setBusyAction(null);
@@ -264,7 +268,7 @@ export function useSongManager({
       setValidationError(t("quickLyrics.details.artistAliasEditor.invalid"));
       return;
     }
-    if (normalizedAlias === normalizeArtistName(credit.canonicalName)) {
+    if (normalizedAlias === normalizeArtistName(credit.rawName)) {
       setValidationError(t("quickLyrics.details.artistAliasEditor.sameAsArtist"));
       return;
     }
@@ -272,17 +276,33 @@ export function useSongManager({
       setValidationError(t("quickLyrics.details.artistAliasEditor.duplicate"));
       return;
     }
-    void runAction(`artist-alias:add:${artistId}:${normalizedAlias}`, async () => {
-      await api.setArtistAliasConfirmation(trackKey, artistId, alias, true);
-      if (trackKeyRef.current !== trackKey) return;
-      setAliasDrafts((previous) => ({ ...previous, [key]: "" }));
-      setAliasErrors((previous) => {
-        if (!(key in previous)) return previous;
-        const next = { ...previous };
-        delete next[key];
-        return next;
-      });
-    });
+    void runAction(
+      `artist-alias:add:${artistId}:${normalizedAlias}`,
+      async () => {
+        await api.setArtistAliasConfirmation(trackKey, artistId, alias, true);
+        if (trackKeyRef.current !== trackKey) return;
+        setAliasDrafts((previous) => ({ ...previous, [key]: "" }));
+        setAliasErrors((previous) => {
+          if (!(key in previous)) return previous;
+          const next = { ...previous };
+          delete next[key];
+          return next;
+        });
+      },
+      (actionError) => {
+        if (!(actionError instanceof AppOperationError)) return false;
+        const validationKeys: Partial<Record<string, "required" | "invalid" | "sameAsArtist" | "duplicate">> = {
+          "歌手别名不能为空": "required",
+          "歌手别名不包含有效字符": "invalid",
+          "歌手别名与规范歌手名称相同": "sameAsArtist",
+          "该歌手等价名称已存在": "duplicate",
+        };
+        const validationKey = validationKeys[actionError.message];
+        if (!validationKey) return false;
+        setValidationError(t(`quickLyrics.details.artistAliasEditor.${validationKey}`));
+        return true;
+      },
+    );
   };
 
   // 别名编辑只刷新歌曲身份上下文；用户下次搜索时才会使用最新别名。

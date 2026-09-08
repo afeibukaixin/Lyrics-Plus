@@ -11,7 +11,7 @@ export function SongInformation({ context, t, currentPlatformId, aliasDrafts, al
               <h2>{t("quickLyrics.details.recording")}</h2>
               <div className={styles.detailsGrid}>
                 <span>{t("quickLyrics.titleField")}</span><strong>{context.recording.title}</strong>
-                <span>{t("quickLyrics.artistField")}</span><strong>{context.recording.artistCredits.map((credit) => credit.canonicalName).join(" / ") || context.observation.rawArtists.join(" / ")}</strong>
+                <span>{t("quickLyrics.artistField")}</span><strong>{context.recording.artistCredits.map((credit) => credit.rawName).join(" / ") || context.observation.rawArtists.join(" / ")}</strong>
                 <span>{t("quickLyrics.albumField")}</span><strong>{context.recording.album || t("quickLyrics.unknown")}</strong>
                 <span>{t("quickLyrics.durationField")}</span><strong>{formatDuration(context.recording.durationMs)}</strong>
                 <span>{t("quickLyrics.details.version")}</span><strong>{context.recording.versionTags.join(" / ") || t("quickLyrics.details.unspecified")}</strong>
@@ -30,7 +30,7 @@ export function SongInformation({ context, t, currentPlatformId, aliasDrafts, al
                     const draft = artistId === null ? "" : aliasDrafts[key] ?? "";
                     const aliasError = artistId === null ? null : aliasErrors[key];
                     return <div className={styles.detailsAliasArtist} key={`${credit.creditOrder}:${key}`}>
-                      <strong className={styles.detailsAliasArtistName}>{credit.canonicalName}</strong>
+                      <strong className={styles.detailsAliasArtistName}>{credit.rawName}</strong>
                       {credit.confirmedAliases.length > 0
                         ? <div className={styles.detailsAliasList}>{credit.confirmedAliases.map((alias) => <div className={styles.detailsAliasItem} key={`${key}:${alias}`}><span>{alias}</span><Button type="button" variant="ghost" size="icon-sm" disabled={busyAction !== null} onClick={() => handleAliasRemove(credit, alias)} aria-label={t("quickLyrics.details.artistAliasEditor.remove", { alias })} title={t("quickLyrics.details.artistAliasEditor.remove", { alias })}><Trash2 /></Button></div>)}</div>
                         : <p className={styles.detailsAliasEmpty}>{t("quickLyrics.details.artistAliasEditor.empty")}</p>}
@@ -38,7 +38,7 @@ export function SongInformation({ context, t, currentPlatformId, aliasDrafts, al
                         ? <form className={styles.detailsAliasAdd} onSubmit={(event) => handleAliasAdd(event, credit)}>
                           <Input
                             aria-invalid={Boolean(aliasError)}
-                            aria-label={t("quickLyrics.details.artistAliasEditor.inputLabel", { artist: credit.canonicalName })}
+                            aria-label={t("quickLyrics.details.artistAliasEditor.inputLabel", { artist: credit.rawName })}
                             autoComplete="off"
                             disabled={busyAction !== null}
                             placeholder={t("quickLyrics.details.artistAliasEditor.placeholder")}
