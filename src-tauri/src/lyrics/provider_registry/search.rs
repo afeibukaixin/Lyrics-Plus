@@ -131,6 +131,14 @@ pub(super) async fn search_once(
                     let right_score = score_candidate(scoring_input, &right.metadata_result());
                     right_score.total_cmp(&left_score)
                 });
+                // 先完成来源内评分再截断，避免低价值候选继续请求歌词正文。
+                let is_exact_lookup = input.platform.as_deref() == Some(provider.id())
+                    && input.platform_item_id.is_some();
+                if !is_exact_lookup {
+                    report
+                        .candidates
+                        .truncate(usize::from(settings.max_candidates_per_provider));
+                }
                 let (health, detail) = report_status(&report);
                 if let Some(warning) = &report.warning {
                     log::debug!(

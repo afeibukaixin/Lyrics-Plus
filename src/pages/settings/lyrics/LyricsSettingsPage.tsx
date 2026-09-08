@@ -29,6 +29,7 @@ const defaultMatchWeights: MatchWeights = { title: 64, artist: 16, album: 5, dur
 const matchWeightKeys = ["title", "artist", "album", "duration", "version"] as const;
 type MatchWeightKey = (typeof matchWeightKeys)[number];
 const defaultCapabilityPreferenceTolerance = 10;
+const defaultMaxCandidatesPerProvider = 20;
 
 const defaultTitleFilterKeywords = [
   "feat", "ft", "featuring", "主题曲", "片头曲", "片尾曲",
@@ -317,7 +318,7 @@ export default function LyricsSettingsPage() {
   };
 
   const commitScoringNumber = async (
-    key: "autoApplyThreshold",
+    key: "autoApplyThreshold" | "maxCandidatesPerProvider",
     value: number,
   ) => {
     if (!providerView) return;
@@ -450,6 +451,8 @@ export default function LyricsSettingsPage() {
       <RangeRow label={t("settings.lyrics.autoApplyThreshold")} value={providerView?.settings.autoApplyThreshold ?? 60} min={0} max={100} suffix="%" disabled={!providerView || savingMatchRules} onChange={() => undefined} onValueCommitted={(value) => commitScoringNumber("autoApplyThreshold", value)} />
       <RangeRow label={t("settings.lyrics.autoSearchDebounce")} value={(providerView?.settings.autoSearchDebounceMs ?? 2000) / 1000} min={0} max={5} step={0.1} suffix="s" disabled={!providerView} onChange={() => undefined} onValueCommitted={commitAutoSearchDebounce} />
       <p className={styles.cardHint}>{t("settings.lyrics.autoSearchDebounceHint")}</p>
+      <RangeRow label={t("settings.lyrics.maxCandidatesPerProvider")} value={providerView?.settings.maxCandidatesPerProvider ?? defaultMaxCandidatesPerProvider} min={1} max={100} suffix={t("settings.lyrics.candidateCountUnit")} disabled={!providerView || savingMatchRules} onChange={() => undefined} onValueCommitted={(value) => commitScoringNumber("maxCandidatesPerProvider", value)} />
+      <p className={styles.cardHint}>{t("settings.lyrics.maxCandidatesPerProviderHint")}</p>
     </SettingsSection>
     <SettingsSection id="lyrics-match-rules" title={t("settings.lyrics.matchRules")}>
       <ToggleRow label={t("settings.lyrics.preferCapabilities")} description={t("settings.lyrics.preferCapabilitiesHint")} value={providerView?.settings.preferCapabilities ?? true} disabled={!providerView || savingMatchRules} onChange={updatePreferCapabilities} />

@@ -198,7 +198,7 @@ export const jaJP = {
     },
     lyrics: {
       title: "歌詞と検索", description: "類似度のしきい値を満たす同期歌詞が自動的に適用されます。その他の結果はクイック切替でプレビューできます。",
-      autoMatch: "自動照合", threshold: "照合類似度", thresholdHint: "ユーザー設定のスコアしきい値を満たし、識別競合がなく品質基準を満たす同期歌詞のみ自動適用されます。再生時間の差は連続的にスコアへ反映され、手動選択は妨げません。", autoApplyThreshold: "自動適用しきい値", autoSearchDebounce: "自動検索の待機時間", autoSearchDebounceHint: "値を小さくすると自動歌詞の反応が速くなりますが、曲をすばやく切り替えると無駄なリクエストとプロバイダーのレート制限リスクが増えます。0 で無効になります。",
+      autoMatch: "自動照合", threshold: "照合類似度", thresholdHint: "ユーザー設定のスコアしきい値を満たし、識別競合がなく品質基準を満たす同期歌詞のみ自動適用されます。再生時間の差は連続的にスコアへ反映され、手動選択は妨げません。", autoApplyThreshold: "自動適用しきい値", autoSearchDebounce: "自動検索の待機時間", autoSearchDebounceHint: "値を小さくすると自動歌詞の反応が速くなりますが、曲をすばやく切り替えると無駄なリクエストとプロバイダーのレート制限リスクが増えます。0 で無効になります。", maxCandidatesPerProvider: "プロバイダーごとの候補上限", maxCandidatesPerProviderHint: "各歌詞プロバイダーから保持する候補数です。デフォルトは 20（範囲 1–100）。値を小さくすると、各プロバイダーへの歌詞リクエストを減らせます。", candidateCountUnit: "件",
       matchRules: "照合ルール", preferCapabilities: "歌詞の機能を優先", preferCapabilitiesHint: "デフォルトで有効です。無効でも近いスコアの中で明らかに品質の低いタイムラインは避けます。有効にすると、下記の範囲内で単語タイミングや要求された翻訳・ローマ字を優先する場合があります。", capabilityPreferenceTolerance: "機能の優先範囲", capabilityPreferenceToleranceHint: "スマート並べ替えでは最高スコアを基準にし、この範囲内で単語タイミング、翻訳、ローマ字を持つ品質の高い候補を優先します。範囲外の候補はスコアを優先します。スマート並べ替えと歌詞機能の優先が有効な場合のみ適用されます。", normalizeChinese: "繁体字と簡体字を統一", normalizeChineseHint: "照合前に曲名、アーティスト、アルバムを簡体字中国語に変換します。無効にすると元の字体を比較します。",
       matchWeight: { title: "曲名の重み", artist: "アーティストの重み", album: "アルバムの重み", duration: "再生時間の重み", version: "バージョンの重み" }, matchWeightsEmpty: "5 つの識別スコアの重みをすべて 0 にはできません。",
       titleFilters: "無視する曲名の内容", titleFiltersHint: "無視する文字列を入力します。周囲の括弧や曲名の接尾辞は、ローカルとオンラインのマッチングスコアおよび候補曲名のフィルタリングに使用されます。",

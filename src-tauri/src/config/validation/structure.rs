@@ -77,6 +77,7 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
                     "providers",
                     "autoApplyThreshold",
                     "autoSearchDebounceMs",
+                    "maxCandidatesPerProvider",
                     "preferCapabilities",
                     "capabilityPreferenceTolerance",
                     "matchWeights",

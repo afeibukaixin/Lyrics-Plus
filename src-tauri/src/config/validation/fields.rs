@@ -204,6 +204,10 @@ pub(super) fn validate_field_types_and_options(
             "/lyrics/providers/autoSearchDebounceMs",
             "autoSearchDebounceMs",
         ),
+        (
+            "/lyrics/providers/maxCandidatesPerProvider",
+            "maxCandidatesPerProvider",
+        ),
         ("/lyrics/displays/statusBar/appearance/fontSize", "fontSize"),
         (
             "/lyrics/displays/statusBar/appearance/fontWeight",

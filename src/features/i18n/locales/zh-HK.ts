@@ -190,7 +190,7 @@ export const zhHK = {
     },
     lyrics: {
       title: "歌詞與搜尋", description: "達到設定相似度的同步歌詞會自動套用；其他結果可在快速切換視窗中預覽。",
-      autoMatch: "自動比對", threshold: "自動比對相似度", thresholdHint: "達到使用者設定的相似度門檻、沒有身份衝突且品質合格的同步歌詞才會自動套用；時長差異只會連續影響評分，其他結果仍可手動選擇。", autoApplyThreshold: "自動套用門檻", autoSearchDebounce: "自動搜尋防抖", autoSearchDebounceHint: "數值越低，自動歌詞回應越快，但快速切歌會產生更多無效請求，並提高觸發歌詞來源限流的風險；0 表示關閉。",
+      autoMatch: "自動比對", threshold: "自動比對相似度", thresholdHint: "達到使用者設定的相似度門檻、沒有身份衝突且品質合格的同步歌詞才會自動套用；時長差異只會連續影響評分，其他結果仍可手動選擇。", autoApplyThreshold: "自動套用門檻", autoSearchDebounce: "自動搜尋防抖", autoSearchDebounceHint: "數值越低，自動歌詞回應越快，但快速切歌會產生更多無效請求，並提高觸發歌詞來源限流的風險；0 表示關閉。", maxCandidatesPerProvider: "每個來源候選上限", maxCandidatesPerProviderHint: "每個歌詞來源最多保留的候選數量，預設 20 項（範圍 1–100）；數值越小可減少向各歌詞來源發起的歌詞正文請求。", candidateCountUnit: "項",
       matchRules: "比對規則", preferCapabilities: "歌詞能力偏好", preferCapabilitiesHint: "預設開啟。關閉後在相近分數內仍會避開明顯降級的時間軸；開啟後會依照下方設定的範圍優先選擇逐字歌詞及目前需要的翻譯或音譯。", capabilityPreferenceTolerance: "能力優選範圍", capabilityPreferenceToleranceHint: "智能排序中，以最高比對分為基準，在此範圍內優先選擇品質合格且具備逐字、翻譯或音譯能力的歌詞；範圍外候選仍按比對分排序。只在智能排序且開啟歌詞能力偏好時生效。", normalizeChinese: "統一繁體與簡體", normalizeChineseHint: "評分前將標題、歌手及專輯統一為簡體；關閉後按原文字形比較。",
       matchWeight: { title: "標題權重", artist: "歌手權重", album: "專輯權重", duration: "時長權重", version: "版本權重" }, matchWeightsEmpty: "五項身份評分權重不能全部為 0。",
       titleFilters: "標題忽略內容", titleFiltersHint: "輸入需要忽略的文字，程式會智能移除所在的括號或標題後綴；用於本機及線上比對分數和候選標題過濾。",

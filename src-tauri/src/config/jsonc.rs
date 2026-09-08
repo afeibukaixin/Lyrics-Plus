@@ -48,6 +48,9 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
             line if line.starts_with("      \"autoSearchDebounceMs\":") => {
                 Some(("      ", ConfigComment::AutoSearchDebounce))
             }
+            line if line.starts_with("      \"maxCandidatesPerProvider\":") => {
+                Some(("      ", ConfigComment::MaxCandidatesPerProvider))
+            }
             line if line.starts_with("      \"titleFilterKeywords\":") => {
                 Some(("      ", ConfigComment::TitleFilterKeywords))
             }

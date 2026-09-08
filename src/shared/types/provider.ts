@@ -45,6 +45,7 @@ export type ProviderSettings = {
   providers: ProviderPreference[];
   autoApplyThreshold: number;
   autoSearchDebounceMs: number;
+  maxCandidatesPerProvider: number;
   preferCapabilities: boolean;
   capabilityPreferenceTolerance: number;
   matchWeights: MatchWeights;

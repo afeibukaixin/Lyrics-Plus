@@ -19,7 +19,7 @@ const defaultTitleFilterKeywords = [
 ];
 
 export const defaultConfig: AppConfig = {
-  schemaVersion: 69,
+  schemaVersion: 70,
   app: { theme: "dark", language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, hideMenuBarIcon: false, silentStartup: false, autoCheckUpdates: true, lyricsWindowsShowOnAllSpaces: false, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     chineseConversion: "original",
@@ -28,6 +28,7 @@ export const defaultConfig: AppConfig = {
       mode: "smart",
       autoApplyThreshold: 60,
       autoSearchDebounceMs: 2000,
+      maxCandidatesPerProvider: 20,
       preferCapabilities: true,
       capabilityPreferenceTolerance: 10,
       matchWeights: { title: 64, artist: 16, album: 5, duration: 10, version: 5 },

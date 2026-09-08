@@ -42,6 +42,12 @@ pub(super) fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), Co
             5_000.0,
         ),
         (
+            "maxCandidatesPerProvider",
+            value.pointer("/lyrics/providers/maxCandidatesPerProvider"),
+            1.0,
+            100.0,
+        ),
+        (
             "capabilityPreferenceTolerance",
             value.pointer("/lyrics/providers/capabilityPreferenceTolerance"),
             0.0,

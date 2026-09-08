@@ -22,6 +22,8 @@ pub struct ProviderSettings {
     pub auto_apply_threshold: u8,
     #[serde(default = "default_auto_search_debounce_ms")]
     pub auto_search_debounce_ms: u64,
+    #[serde(default = "default_max_candidates_per_provider")]
+    pub max_candidates_per_provider: u8,
     #[serde(default = "default_prefer_capabilities")]
     pub prefer_capabilities: bool,
     #[serde(default = "default_capability_preference_tolerance")]
@@ -52,6 +54,10 @@ const fn default_auto_apply_threshold() -> u8 {
 
 const fn default_auto_search_debounce_ms() -> u64 {
     2_000
+}
+
+const fn default_max_candidates_per_provider() -> u8 {
+    20
 }
 
 const fn default_normalize_chinese() -> bool {
@@ -103,6 +109,7 @@ impl Default for ProviderSettings {
                 .collect(),
             auto_apply_threshold: default_auto_apply_threshold(),
             auto_search_debounce_ms: default_auto_search_debounce_ms(),
+            max_candidates_per_provider: default_max_candidates_per_provider(),
             prefer_capabilities: default_prefer_capabilities(),
             capability_preference_tolerance: default_capability_preference_tolerance(),
             match_weights: MatchWeights::default(),
