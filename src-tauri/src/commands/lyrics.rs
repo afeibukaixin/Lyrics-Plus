@@ -159,6 +159,21 @@ pub fn get_cached_lyrics(
     }
 }
 
+/// 仅解析候选歌词供快速切换窗口预览，不写入歌词文件或关联记录。
+#[tauri::command]
+pub fn parse_lyrics_preview(
+    source: String,
+    lyrics: String,
+    state: State<'_, AppState>,
+) -> Result<LyricsDocument, String> {
+    let config = state.config.snapshot();
+    let document = crate::lyrics::parse_lrc_with_options(&lyrics, source, false)?;
+    Ok(document.converted_for_output(
+        config.lyrics.chinese_conversion,
+        config.lyrics.repair_simplified_japanese,
+    ))
+}
+
 #[tauri::command]
 pub fn get_completed_lyrics_search(
     track_key: String,

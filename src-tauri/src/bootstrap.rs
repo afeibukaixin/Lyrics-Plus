@@ -296,6 +296,7 @@ pub fn run() {
             commands::clear_musixmatch_token,
             commands::test_provider,
             commands::get_cached_lyrics,
+            commands::parse_lyrics_preview,
             commands::get_lyrics_runtime_snapshot,
             commands::get_notch_layout_metrics,
             commands::get_lyrics_monitors,

@@ -75,7 +75,7 @@ export const zhTW = {
     candidates: "候選歌詞", localCandidates: "本機歌詞", onlineCandidates: "線上歌詞", current: "目前使用", recommended: "推薦", searchingCandidates: "正在搜尋候選歌詞",
     noCandidates: "目前沒有候選歌詞", autoSearchHint: "播放歌曲後會自動搜尋所有已啟用的來源。",
     preview: "歌詞瀏覽", applying: "正在套用這份歌詞…", selectCandidate: "請選擇候選歌詞",
-    rawHint: "這裡會顯示未經處理的原始歌詞內容。", switched: "已切換為 {{source}} 的歌詞",
+    rawHint: "這裡會顯示解析並排版後的歌詞內容。", previewLoading: "正在解析歌詞瀏覽…", previewParseFailed: "歌詞解析失敗，已顯示原始內容。", switched: "已切換為 {{source}} 的歌詞",
     candidateDetails: "顯示候選詳細資訊",
     details: {
       manager: {"matchingEvidence":"比對依據","passed":"通過","failed":"未通過","weightedScore":"使用者權重綜合分：{{value}}%","weights":"權重：歌名 {{title}} / 歌手 {{artist}} / 專輯 {{album}} / 時長 {{duration}} / 版本 {{version}}","gates":{"title":"歌名 ≥90%","artist":"歌手 ≥80%","duration":"時長差 ≤10 秒","version":"版本相容"},"conflicts":{"title":"歌名未達固定門檻","artist":"歌手未達門檻或主歌手衝突","duration":"時長相差超過 10 秒","version":"歌曲版本標籤衝突","platform":"存在同平台曲目衝突，請先移出多餘曲目"},"warnings":{"durationMissing":"時長資訊不完整，無法驗證時長差","versionMissing":"部分版本標籤未宣告"},"confidence":"信心度 {{value}}%"},

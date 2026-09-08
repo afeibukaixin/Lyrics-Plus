@@ -75,7 +75,7 @@ export const jaJP = {
     candidates: "候補", localCandidates: "ローカル歌詞", onlineCandidates: "オンライン歌詞", current: "現在", recommended: "おすすめ", searchingCandidates: "歌詞候補を検索中",
     noCandidates: "歌詞候補がありません", autoSearchHint: "再生中は有効なすべてのプロバイダーが自動検索されます。",
     preview: "歌詞プレビュー", applying: "この歌詞を適用中…", selectCandidate: "歌詞候補を選択",
-    rawHint: "未処理の歌詞ソースがここに表示されます。", switched: "{{source}} の歌詞に切り替えました",
+    rawHint: "解析済みの歌詞が読みやすい順序で表示されます。", previewLoading: "歌詞プレビューを解析中…", previewParseFailed: "歌詞を解析できないため、元のソースを表示しています。", switched: "{{source}} の歌詞に切り替えました",
     candidateDetails: "候補の詳細を表示",
     details: {
       manager: {"matchingEvidence":"照合根拠","passed":"適合","failed":"不適合","weightedScore":"設定した重みによる総合スコア：{{value}}%","weights":"重み：曲名 {{title}} / 歌手 {{artist}} / アルバム {{album}} / 長さ {{duration}} / バージョン {{version}}","gates":{"title":"曲名 ≥90%","artist":"歌手 ≥80%","duration":"長さの差 ≤10 秒","version":"バージョン互換"},"conflicts":{"title":"曲名が固定基準未満です","artist":"歌手が基準未満、または主要歌手が異なります","duration":"長さの差が 10 秒を超えています","version":"曲のバージョンが一致しません","platform":"同じプラットフォームの曲が重複しています。余分な曲を先に切り離してください。"},"warnings":{"durationMissing":"長さの情報が不足し、差を確認できません","versionMissing":"一部のバージョンが未指定です"},"confidence":"信頼度 {{value}}%"},

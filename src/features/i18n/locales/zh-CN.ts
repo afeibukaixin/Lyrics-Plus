@@ -73,7 +73,7 @@ export const zhCN = {
     candidates: "候选歌词", localCandidates: "本地歌词", onlineCandidates: "在线歌词", current: "当前", recommended: "推荐", searchingCandidates: "正在搜索候选歌词",
     noCandidates: "暂无候选歌词", autoSearchHint: "播放歌曲后会自动搜索所有已启用来源。",
     preview: "歌词浏览", applying: "正在应用这份歌词…", selectCandidate: "选择候选歌词",
-    rawHint: "这里会显示未经处理的原始歌词内容。", switched: "已切换为 {{source}} 的歌词",
+    rawHint: "这里会显示解析并排版后的歌词内容。", previewLoading: "正在解析歌词预览…", previewParseFailed: "歌词解析失败，已显示原始内容。", switched: "已切换为 {{source}} 的歌词",
     candidateDetails: "显示候选详情",
     details: {
       manager: {"matchingEvidence":"匹配依据","passed":"通过","failed":"未通过","weightedScore":"用户权重综合分：{{value}}%","weights":"权重：歌名 {{title}} / 歌手 {{artist}} / 专辑 {{album}} / 时长 {{duration}} / 版本 {{version}}","gates":{"title":"歌名 ≥90%","artist":"歌手 ≥80%","duration":"时长差 ≤10 秒","version":"版本兼容"},"conflicts":{"title":"歌名未达到固定门槛","artist":"歌手未达门槛或主歌手冲突","duration":"时长相差超过 10 秒","version":"歌曲版本标签冲突","platform":"存在同平台曲目冲突，请先移出多余曲目"},"warnings":{"durationMissing":"时长信息不完整，无法验证时长差","versionMissing":"部分版本标签未声明"},"confidence":"置信度 {{value}}%"},

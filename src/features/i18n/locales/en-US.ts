@@ -75,7 +75,7 @@ export const enUS = {
     candidates: "Candidates", localCandidates: "Local lyrics", onlineCandidates: "Online lyrics", current: "Current", recommended: "Recommended", searchingCandidates: "Searching for lyric candidates",
     noCandidates: "No lyric candidates", autoSearchHint: "All enabled providers are searched automatically during playback.",
     preview: "Lyrics Preview", applying: "Applying these lyrics…", selectCandidate: "Select a lyric candidate",
-    rawHint: "The unprocessed lyrics source appears here.", switched: "Switched to lyrics from {{source}}",
+    rawHint: "Parsed lyrics appear here in reading order.", previewLoading: "Parsing lyrics preview…", previewParseFailed: "Lyrics parsing failed; showing the original source.", switched: "Switched to lyrics from {{source}}",
     candidateDetails: "Show candidate details",
     details: {
       manager: {"matchingEvidence":"Matching evidence","passed":"Passed","failed":"Failed","weightedScore":"Score using your weights: {{value}}%","weights":"Weights: title {{title}} / artist {{artist}} / album {{album}} / duration {{duration}} / version {{version}}","gates":{"title":"Title ≥90%","artist":"Artist ≥80%","duration":"Duration difference ≤10 s","version":"Compatible version"},"conflicts":{"title":"Title is below the fixed threshold","artist":"Artist is below the threshold or lead artists conflict","duration":"Durations differ by more than 10 seconds","version":"Song version tags conflict","platform":"Multiple tracks from the same platform conflict. Move extra tracks out first."},"warnings":{"durationMissing":"Missing duration information; difference cannot be verified","versionMissing":"Some version tags are unspecified"},"confidence":"Confidence {{value}}%"},

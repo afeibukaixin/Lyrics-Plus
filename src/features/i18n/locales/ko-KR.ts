@@ -75,7 +75,7 @@ export const koKR = {
     candidates: "후보", localCandidates: "로컬 가사", onlineCandidates: "온라인 가사", current: "현재", recommended: "추천", searchingCandidates: "가사 후보 검색 중",
     noCandidates: "가사 후보가 없습니다", autoSearchHint: "재생 중에는 활성화된 모든 제공업체를 자동으로 검색합니다.",
     preview: "가사 미리보기", applying: "이 가사를 적용하는 중…", selectCandidate: "가사 후보 선택",
-    rawHint: "처리되지 않은 가사 소스가 여기에 표시됩니다.", switched: "{{source}}의 가사로 전환했습니다",
+    rawHint: "분석된 가사가 읽기 순서대로 표시됩니다.", previewLoading: "가사 미리보기를 분석하는 중…", previewParseFailed: "가사 분석에 실패하여 원본을 표시합니다.", switched: "{{source}}의 가사로 전환했습니다",
     candidateDetails: "후보 상세 정보 표시",
     details: {
       manager: {"matchingEvidence":"일치 근거","passed":"통과","failed":"미통과","weightedScore":"사용자 가중치 종합 점수: {{value}}%","weights":"가중치: 제목 {{title}} / 가수 {{artist}} / 앨범 {{album}} / 길이 {{duration}} / 버전 {{version}}","gates":{"title":"제목 ≥90%","artist":"가수 ≥80%","duration":"길이 차이 ≤10초","version":"버전 호환"},"conflicts":{"title":"제목이 고정 기준에 미달합니다","artist":"가수가 기준에 미달하거나 주 가수가 다릅니다","duration":"길이 차이가 10초를 초과합니다","version":"곡 버전이 충돌합니다","platform":"같은 플랫폼의 곡이 중복됩니다. 먼저 불필요한 곡을 분리하세요."},"warnings":{"durationMissing":"길이 정보가 부족하여 차이를 확인할 수 없습니다","versionMissing":"일부 버전 태그가 지정되지 않았습니다"},"confidence":"신뢰도 {{value}}%"},

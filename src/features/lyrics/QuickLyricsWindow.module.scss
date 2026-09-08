@@ -84,13 +84,38 @@
 }
 
 .previewPanel pre {
-  min-height: 100%;
   margin: 0;
   padding: 16px;
   font-family: var(--font-family-mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.previewLines {
+  min-height: 100%;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 16px;
+}
+.previewLine { min-width: 0; display: grid; gap: 2px; }
+.previewLine p { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.previewOriginal { color: var(--foreground); font-size: .9375rem; line-height: 1.5; }
+.previewAuxiliary { color: var(--muted-foreground); font-size: .75rem; line-height: 1.35; }
+.previewSectionBreak { height: 8px; }
+.previewLoading {
+  min-height: 100%;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 16px;
+}
+.previewSkeletonLine { height: 1.25rem; }
+.previewSkeletonLine:nth-child(2n) { width: 82%; }
+.previewSkeletonLine:nth-child(3n) { width: 64%; }
+.previewFallback { min-height: 100%; display: flex; flex-direction: column; gap: 10px; }
+.previewFallback pre { min-height: 0; }
+.previewNotice { margin: 16px 16px 0; }
 
 .empty { min-height: 100%; }
 .status { min-width: 0; overflow: hidden; line-height: 22px; text-overflow: ellipsis; white-space: nowrap; }

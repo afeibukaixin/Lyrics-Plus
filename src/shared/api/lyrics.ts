@@ -43,6 +43,8 @@ export const lyricsApi = {
   }),
   getLyricsRuntimeSnapshot: () =>
     invoke<LyricsRuntimeSnapshot>("get_lyrics_runtime_snapshot"),
+  parseLyricsPreview: (source: string, lyrics: string) =>
+    invoke<LyricsDocument>("parse_lyrics_preview", { source, lyrics }),
   getNotchLayoutMetrics: () => invoke<NotchLayoutMetrics>("get_notch_layout_metrics"),
   getLyricsMonitors: () => invoke<LyricsMonitor[]>("get_lyrics_monitors"),
   getLibraryScanStatus: () => invoke<LibraryScanStatus>("get_library_scan_status"),

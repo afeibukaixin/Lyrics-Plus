@@ -63,7 +63,12 @@ export default function QuickLyricsWindow() {
           t={t}
         />
 
-        <QuickLyricsPreview selected={selection.selected} t={t} />
+        <QuickLyricsPreview
+          activeDocument={lyrics.document}
+          selected={selection.selected}
+          t={t}
+          trackKey={lyrics.trackKey}
+        />
       </section>
 
       <div className={cn(styles.status, "text-xs text-muted-foreground")} aria-live="polite">{isLoading ? t("quickLyrics.searchingCandidates") : selection.applyingKey ? t("quickLyrics.applying") : selection.notice}</div>
