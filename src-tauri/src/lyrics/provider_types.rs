@@ -138,8 +138,6 @@ pub struct ProviderCandidate {
     pub capabilities: ProviderCapabilities,
     pub source: String,
     pub lookup_key: Option<String>,
-    #[serde(skip)]
-    pub(crate) legacy_result: Option<LyricsSearchResult>,
 }
 
 #[derive(Debug)]
@@ -149,37 +147,6 @@ pub struct ProviderCandidateReport {
 }
 
 impl ProviderCandidate {
-    pub(crate) fn from_result(result: LyricsSearchResult) -> Self {
-        let artists = result
-            .artist
-            .split(" / ")
-            .map(str::trim)
-            .filter(|artist| !artist.is_empty())
-            .map(str::to_owned)
-            .collect::<Vec<_>>();
-        Self {
-            provider_id: result.provider_id.clone(),
-            provider_item_id: result.id.clone(),
-            title: result.title.clone(),
-            artists,
-            album: result.album.clone(),
-            duration_ms: result.duration_ms,
-            version_tags: version_tags_from_title(&result.title),
-            capabilities: ProviderCapabilities {
-                metadata_search: true,
-                id_lookup: true,
-                plain_text: true,
-                line_timing: result.synced,
-                word_timing: result.has_word_timing,
-                translation: result.has_translation,
-                romanization: result.has_romanization,
-            },
-            source: result.source.clone(),
-            lookup_key: None,
-            legacy_result: Some(result),
-        }
-    }
-
     pub(crate) fn metadata_result(&self) -> LyricsSearchResult {
         LyricsSearchResult {
             id: self.provider_item_id.clone(),
@@ -477,15 +444,6 @@ pub struct LyricsSearchResult {
 pub struct ProviderSearchReport {
     pub results: Vec<LyricsSearchResult>,
     pub warning: Option<ProviderError>,
-}
-
-impl ProviderSearchReport {
-    pub fn available(results: Vec<LyricsSearchResult>) -> Self {
-        Self {
-            results,
-            warning: None,
-        }
-    }
 }
 
 pub(crate) fn collect_provider_results(

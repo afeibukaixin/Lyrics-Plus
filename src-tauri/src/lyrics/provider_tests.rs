@@ -45,11 +45,11 @@ mod tests {
             self.id
         }
 
-        fn search<'a>(
+        fn search_candidates<'a>(
             &'a self,
             _client: &'a reqwest::Client,
             _input: &'a LyricsSearchInput,
-        ) -> ProviderFuture<'a, ProviderSearchReport> {
+        ) -> ProviderFuture<'a, ProviderCandidateReport> {
             Box::pin(async move {
                 if let Some(calls) = &self.calls {
                     calls.fetch_add(1, Ordering::SeqCst);
@@ -64,9 +64,31 @@ mod tests {
                         "mock failure",
                     ));
                 }
-                Ok(ProviderSearchReport {
-                    results: (!self.empty)
-                        .then(|| result(self.id, self.score, self.lyrics))
+                Ok(ProviderCandidateReport {
+                    candidates: (!self.empty)
+                        .then(|| {
+                            let result = result(self.id, self.score, self.lyrics);
+                            ProviderCandidate {
+                                provider_id: result.provider_id,
+                                provider_item_id: result.id,
+                                title: result.title,
+                                artists: vec![result.artist],
+                                album: result.album,
+                                duration_ms: result.duration_ms,
+                                version_tags: Vec::new(),
+                                capabilities: ProviderCapabilities {
+                                    metadata_search: true,
+                                    id_lookup: true,
+                                    plain_text: true,
+                                    line_timing: true,
+                                    word_timing: false,
+                                    translation: false,
+                                    romanization: false,
+                                },
+                                source: result.source,
+                                lookup_key: None,
+                            }
+                        })
                         .into_iter()
                         .collect(),
                     warning: self.warning.map(|message| {
@@ -74,6 +96,14 @@ mod tests {
                     }),
                 })
             })
+        }
+        fn fetch<'a>(
+            &'a self,
+            _client: &'a reqwest::Client,
+            _input: &'a LyricsSearchInput,
+            _candidate: &'a ProviderCandidate,
+        ) -> ProviderFuture<'a, Option<LyricsSearchResult>> {
+            Box::pin(async move { Ok(Some(result(self.id, self.score, self.lyrics))) })
         }
     }
 

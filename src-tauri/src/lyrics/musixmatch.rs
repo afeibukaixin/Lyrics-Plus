@@ -1,20 +1,18 @@
+use super::endpoints::musixmatch as endpoints;
 use std::sync::Arc;
 
-use futures::future::join_all;
 use serde::Deserialize;
 use tokio::sync::Mutex as AsyncMutex;
 
 use super::credentials::{MusixmatchTokenType, ProviderCredentialStore};
 use super::parse_lrc_with_options;
 use super::provider::{
-    collect_provider_results, duration_ms_from_seconds_u64, score_candidate,
-    version_tags_from_title, LyricsProvider, LyricsSearchInput, LyricsSearchResult,
-    ProviderCandidate, ProviderCandidateReport, ProviderCapabilities, ProviderError,
-    ProviderErrorKind, ProviderFuture, ProviderSearchReport, MUSIXMATCH_DISPLAY_NAME,
+    duration_ms_from_seconds_u64, score_candidate, version_tags_from_title, LyricsProvider,
+    LyricsSearchInput, LyricsSearchResult, ProviderCandidate, ProviderCandidateReport,
+    ProviderCapabilities, ProviderError, ProviderErrorKind, ProviderFuture,
+    MUSIXMATCH_DISPLAY_NAME,
 };
 
-const DESKTOP_API_BASE: &str = "https://apic-desktop.musixmatch.com/ws/1.1";
-const DEVELOPER_API_BASE: &str = "https://api.musixmatch.com/ws/1.1";
 const DESKTOP_APP_ID: &str = "web-desktop-app-v1.0";
 
 #[derive(Debug, Deserialize)]
@@ -112,43 +110,6 @@ impl LyricsProvider for MusixmatchProvider {
 
     fn display_name(&self) -> &'static str {
         MUSIXMATCH_DISPLAY_NAME
-    }
-
-    fn search<'a>(
-        &'a self,
-        client: &'a reqwest::Client,
-        input: &'a LyricsSearchInput,
-    ) -> ProviderFuture<'a, ProviderSearchReport> {
-        Box::pin(async move {
-            match self.credentials.musixmatch_credentials() {
-                Some((MusixmatchTokenType::DeveloperApiKey, token)) => {
-                    self.search_developer(client, input, &token).await
-                }
-                Some((MusixmatchTokenType::DesktopUserToken, token)) => {
-                    self.search_desktop(client, input, &token, DesktopTokenSource::Manual)
-                        .await
-                }
-                None => {
-                    let token = self.anonymous_token(client).await?;
-                    match self
-                        .search_desktop(client, input, &token, DesktopTokenSource::Anonymous)
-                        .await
-                    {
-                        Err(error) if error.kind == ProviderErrorKind::Unauthorized => {
-                            let refreshed = self.refresh_anonymous_token(client, &token).await?;
-                            self.search_desktop(
-                                client,
-                                input,
-                                &refreshed,
-                                DesktopTokenSource::Anonymous,
-                            )
-                            .await
-                        }
-                        outcome => outcome,
-                    }
-                }
-            }
-        })
     }
 
     fn search_candidates<'a>(
@@ -259,7 +220,7 @@ impl MusixmatchProvider {
         input: &LyricsSearchInput,
         token: &str,
     ) -> Result<ProviderCandidateReport, ProviderError> {
-        let mut url = self.api_url(DEVELOPER_API_BASE, "track.search")?;
+        let mut url = self.api_url(endpoints::DEVELOPER_API_BASE, endpoints::SEARCH_PATH)?;
         url.query_pairs_mut()
             .append_pair("q_track", input.title.trim())
             .append_pair("q_artist", input.artist.trim())
@@ -289,7 +250,7 @@ impl MusixmatchProvider {
         token: &str,
         source: DesktopTokenSource,
     ) -> Result<ProviderCandidateReport, ProviderError> {
-        let mut url = self.api_url(DESKTOP_API_BASE, "macro.subtitles.get")?;
+        let mut url = self.api_url(endpoints::DESKTOP_API_BASE, endpoints::MACRO_SUBTITLES_PATH)?;
         url.query_pairs_mut()
             .append_pair("namespace", "lyrics_richsynched")
             .append_pair("subtitle_format", "lrc")
@@ -341,7 +302,7 @@ impl MusixmatchProvider {
         token: &str,
         source: DesktopTokenSource,
     ) -> Result<Option<LyricsSearchResult>, ProviderError> {
-        let mut url = self.api_url(DESKTOP_API_BASE, "macro.subtitles.get")?;
+        let mut url = self.api_url(endpoints::DESKTOP_API_BASE, endpoints::MACRO_SUBTITLES_PATH)?;
         url.query_pairs_mut()
             .append_pair("namespace", "lyrics_richsynched")
             .append_pair("subtitle_format", "lrc")
@@ -377,82 +338,6 @@ impl MusixmatchProvider {
             .await
     }
 
-    async fn search_developer(
-        &self,
-        client: &reqwest::Client,
-        input: &LyricsSearchInput,
-        token: &str,
-    ) -> Result<ProviderSearchReport, ProviderError> {
-        let mut url = self.api_url(DEVELOPER_API_BASE, "track.search")?;
-        url.query_pairs_mut()
-            .append_pair("q_track", input.title.trim())
-            .append_pair("q_artist", input.artist.trim())
-            .append_pair("page", "1")
-            .append_pair("page_size", "10")
-            .append_pair("s_track_rating", "desc")
-            .append_pair("apikey", token);
-        let envelope = self.send(client.get(url)).await?;
-        if envelope.message.header.status_code == 404 {
-            return Ok(ProviderSearchReport::available(Vec::new()));
-        }
-        self.ensure_developer_status(envelope.message.header.status_code)?;
-        let tracks = self.ranked_tracks(input, envelope.message.body)?;
-        let outcomes = join_all(
-            tracks
-                .into_iter()
-                .map(|track| self.fetch_developer_result(client, input, token, track)),
-        )
-        .await;
-        collect_provider_results(outcomes)
-    }
-
-    async fn search_desktop(
-        &self,
-        client: &reqwest::Client,
-        input: &LyricsSearchInput,
-        token: &str,
-        source: DesktopTokenSource,
-    ) -> Result<ProviderSearchReport, ProviderError> {
-        let mut url = self.api_url(DESKTOP_API_BASE, "macro.subtitles.get")?;
-        url.query_pairs_mut()
-            .append_pair("namespace", "lyrics_richsynched")
-            .append_pair("subtitle_format", "lrc")
-            .append_pair("q_track", input.title.trim())
-            .append_pair("q_artist", input.artist.trim())
-            .append_pair("app_id", DESKTOP_APP_ID)
-            .append_pair("usertoken", token);
-        if let Some(album) = input
-            .album
-            .as_deref()
-            .filter(|value| !value.trim().is_empty())
-        {
-            url.query_pairs_mut().append_pair("q_album", album.trim());
-        }
-        if let Some(duration_ms) = input.duration_ms {
-            url.query_pairs_mut().append_pair(
-                "q_duration",
-                &(duration_ms as f64 / 1000.0).round().to_string(),
-            );
-        }
-        let envelope = self.send_desktop(client.get(url)).await?;
-        if envelope.message.header.status_code == 404 {
-            return Ok(ProviderSearchReport::available(Vec::new()));
-        }
-        self.ensure_desktop_status(envelope.message.header.status_code, source)?;
-        if nested_status_code(&envelope.message.body) == Some(401) {
-            return Err(self.error(
-                ProviderErrorKind::Unauthorized,
-                "Musixmatch Desktop Token 已失效",
-            ));
-        }
-        let result = self
-            .fetch_desktop_result(client, input, token, source, envelope.message.body)
-            .await?;
-        Ok(ProviderSearchReport::available(
-            result.into_iter().collect(),
-        ))
-    }
-
     async fn fetch_developer_result(
         &self,
         client: &reqwest::Client,
@@ -460,7 +345,7 @@ impl MusixmatchProvider {
         token: &str,
         track: MusixmatchTrack,
     ) -> Result<Option<LyricsSearchResult>, ProviderError> {
-        let mut url = self.api_url(DEVELOPER_API_BASE, "track.subtitles.get")?;
+        let mut url = self.api_url(endpoints::DEVELOPER_API_BASE, endpoints::SUBTITLES_PATH)?;
         url.query_pairs_mut()
             .append_pair("track_id", &track.track_id.to_string())
             .append_pair("subtitle_format", "lrc")
@@ -526,7 +411,7 @@ impl MusixmatchProvider {
         source: DesktopTokenSource,
         commontrack_id: u64,
     ) -> Result<Option<String>, ProviderError> {
-        let mut url = self.api_url(DESKTOP_API_BASE, "track.richsync.get")?;
+        let mut url = self.api_url(endpoints::DESKTOP_API_BASE, endpoints::RICHSYNC_PATH)?;
         url.query_pairs_mut()
             .append_pair("commontrack_id", &commontrack_id.to_string())
             .append_pair("app_id", DESKTOP_APP_ID)
@@ -661,7 +546,7 @@ impl MusixmatchProvider {
         &self,
         client: &reqwest::Client,
     ) -> Result<String, ProviderError> {
-        let mut url = self.api_url(DESKTOP_API_BASE, "token.get")?;
+        let mut url = self.api_url(endpoints::DESKTOP_API_BASE, endpoints::TOKEN_PATH)?;
         url.query_pairs_mut().append_pair("app_id", DESKTOP_APP_ID);
         let envelope = self.send_desktop(client.get(url)).await?;
         let status = envelope.message.header.status_code;
@@ -727,8 +612,8 @@ impl MusixmatchProvider {
     ) -> Result<MessageEnvelope, ProviderError> {
         self.send(
             request
-                .header("Origin", "https://www.musixmatch.com")
-                .header("Referer", "https://www.musixmatch.com/"),
+                .header("Origin", endpoints::ORIGIN)
+                .header("Referer", endpoints::REFERER),
         )
         .await
     }
@@ -945,7 +830,6 @@ fn candidate_from_track(track: MusixmatchTrack) -> ProviderCandidate {
         },
         source: MUSIXMATCH_DISPLAY_NAME.into(),
         lookup_key: commontrack_id.map(|value| value.to_string()),
-        legacy_result: None,
     }
 }
 

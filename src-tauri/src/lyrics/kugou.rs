@@ -1,14 +1,15 @@
+use super::endpoints::kugou as endpoints;
+#[cfg(test)]
+use super::provider::collect_provider_results;
 use base64::Engine;
-use futures::future::join_all;
 use lyrics_crypto::decrypter::krc::decrypter::decrypt_lyrics;
 use serde::Deserialize;
 
 use super::parse_lrc_with_options;
 use super::provider::{
-    collect_provider_results, duration_ms_from_seconds_u64, score_candidate,
-    version_tags_from_title, LyricsProvider, LyricsSearchInput, LyricsSearchResult,
-    ProviderCandidate, ProviderCandidateReport, ProviderCapabilities, ProviderError,
-    ProviderErrorKind, ProviderFuture, ProviderSearchReport, KUGOU_DISPLAY_NAME,
+    duration_ms_from_seconds_u64, score_candidate, version_tags_from_title, LyricsProvider,
+    LyricsSearchInput, LyricsSearchResult, ProviderCandidate, ProviderCandidateReport,
+    ProviderCapabilities, ProviderError, ProviderErrorKind, ProviderFuture, KUGOU_DISPLAY_NAME,
 };
 
 #[derive(Debug, Deserialize)]
@@ -64,58 +65,6 @@ impl LyricsProvider for KugouProvider {
 
     fn display_name(&self) -> &'static str {
         KUGOU_DISPLAY_NAME
-    }
-
-    fn search<'a>(
-        &'a self,
-        client: &'a reqwest::Client,
-        input: &'a LyricsSearchInput,
-    ) -> ProviderFuture<'a, ProviderSearchReport> {
-        Box::pin(async move {
-            let mut url = reqwest::Url::parse("https://songsearch.kugou.com/song_search_v2")
-                .map_err(|error| {
-                    self.error(ProviderErrorKind::InvalidResponse, error.to_string())
-                })?;
-            url.query_pairs_mut()
-                .append_pair(
-                    "keyword",
-                    &format!("{} {}", input.title.trim(), input.artist.trim()),
-                )
-                .append_pair("page", "1")
-                .append_pair("pagesize", "10")
-                .append_pair("platform", "WebFilter");
-            let response = client
-                .get(url)
-                .header("Referer", "https://www.kugou.com/")
-                .send()
-                .await
-                .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
-            if !response.status().is_success() {
-                return Err(super::provider::response_error(
-                    self.id(),
-                    &response,
-                    "搜索请求失败",
-                ));
-            }
-            let envelope = response.json::<SearchEnvelope>().await.map_err(|error| {
-                self.error(ProviderErrorKind::InvalidResponse, error.to_string())
-            })?;
-            let mut songs = envelope.data.map(|data| data.lists).unwrap_or_default();
-            songs.sort_by(|left, right| {
-                let left_score = metadata_score(input, left);
-                let right_score = metadata_score(input, right);
-                right_score.total_cmp(&left_score)
-            });
-            songs.truncate(4);
-
-            let outcomes = join_all(
-                songs
-                    .into_iter()
-                    .map(|song| self.fetch_result(client, input, song)),
-            )
-            .await;
-            collect_provider_results(outcomes)
-        })
     }
 
     fn search_candidates<'a>(
@@ -184,7 +133,6 @@ fn candidate_from_song(song: KugouSong) -> ProviderCandidate {
         },
         source: KUGOU_DISPLAY_NAME.into(),
         lookup_key: song.mix_song_id,
-        legacy_result: None,
     }
 }
 
@@ -194,7 +142,7 @@ impl KugouProvider {
         client: &reqwest::Client,
         input: &LyricsSearchInput,
     ) -> Result<Vec<KugouSong>, ProviderError> {
-        let mut url = reqwest::Url::parse("https://songsearch.kugou.com/song_search_v2")
+        let mut url = reqwest::Url::parse(endpoints::SEARCH)
             .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
         url.query_pairs_mut()
             .append_pair(
@@ -206,7 +154,7 @@ impl KugouProvider {
             .append_pair("platform", "WebFilter");
         let response = client
             .get(url)
-            .header("Referer", "https://www.kugou.com/")
+            .header("Referer", endpoints::REFERER)
             .send()
             .await
             .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
@@ -285,7 +233,7 @@ impl KugouProvider {
         hash: &str,
         mix_song_id: Option<&str>,
     ) -> Result<Vec<KugouLyricCandidate>, ProviderError> {
-        let mut url = reqwest::Url::parse("https://lyrics.kugou.com/search")
+        let mut url = reqwest::Url::parse(endpoints::LYRIC_SEARCH)
             .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
         {
             let mut query = url.query_pairs_mut();
@@ -300,7 +248,7 @@ impl KugouProvider {
         }
         let response = client
             .get(url)
-            .header("Referer", "https://www.kugou.com/")
+            .header("Referer", endpoints::REFERER)
             .send()
             .await
             .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
@@ -371,7 +319,7 @@ impl KugouProvider {
         access_key: &str,
         format: &str,
     ) -> Result<DownloadEnvelope, ProviderError> {
-        let mut url = reqwest::Url::parse("https://lyrics.kugou.com/download")
+        let mut url = reqwest::Url::parse(endpoints::DOWNLOAD)
             .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
         url.query_pairs_mut()
             .append_pair("ver", "1")
@@ -401,25 +349,6 @@ impl KugouProvider {
     fn error(&self, kind: ProviderErrorKind, message: impl Into<String>) -> ProviderError {
         ProviderError::new(self.id(), kind, message)
     }
-}
-
-fn metadata_score(input: &LyricsSearchInput, song: &KugouSong) -> f64 {
-    let result = LyricsSearchResult {
-        id: String::new(),
-        provider_id: "kugou".into(),
-        title: song.song_name.clone(),
-        artist: song.singer_name.clone(),
-        album: song.album_name.clone(),
-        duration_ms: song.duration.map(duration_ms_from_seconds_u64),
-        source: KUGOU_DISPLAY_NAME.into(),
-        synced: true,
-        has_translation: false,
-        has_word_timing: false,
-        has_romanization: false,
-        score: 0.0,
-        lyrics: String::new(),
-    };
-    score_candidate(input, &result)
 }
 
 #[cfg(test)]

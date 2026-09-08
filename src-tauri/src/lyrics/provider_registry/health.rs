@@ -4,11 +4,12 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use super::super::{
-    LyricsProvider, LyricsSearchInput, ProviderError, ProviderErrorKind, ProviderHealth,
-    ProviderStatus, ProviderStatusDetail,
+    collect_provider_results, score_candidate, LyricsProvider, LyricsSearchInput, ProviderError,
+    ProviderErrorKind, ProviderHealth, ProviderStatus, ProviderStatusDetail,
 };
-use super::search::legacy_report_status;
+use super::search::{fetched_report_status, provider_timeout, with_scoring_settings};
 use super::ProviderRegistry;
+use futures::stream::{self, StreamExt};
 
 pub(in crate::lyrics::provider) struct ProviderCooldown {
     until: Instant,
@@ -18,7 +19,6 @@ pub(in crate::lyrics::provider) struct ProviderCooldown {
 }
 
 impl ProviderRegistry {
-    #[allow(deprecated)]
     pub async fn test_provider(
         &self,
         client: &reqwest::Client,
@@ -49,9 +49,31 @@ impl ProviderRegistry {
                 .cloned()
                 .ok_or_else(|| "无法读取歌词源状态".into());
         }
-        match tokio::time::timeout(self.timeout, provider.search(client, &input)).await {
+        let settings = self
+            .settings
+            .read()
+            .unwrap_or_else(|error| error.into_inner())
+            .clone();
+        let input = with_scoring_settings(&input, &settings)?;
+        let request = async {
+            let mut candidates = provider.search_candidates(client, &input).await?;
+            candidates.candidates.sort_by(|left, right| {
+                score_candidate(&input, &right.metadata_result())
+                    .total_cmp(&score_candidate(&input, &left.metadata_result()))
+            });
+            candidates.candidates.truncate(5);
+            let outcomes = stream::iter(0..candidates.candidates.len())
+                .map(|index| provider.fetch(client, &input, &candidates.candidates[index]))
+                .buffered(4)
+                .collect::<Vec<_>>()
+                .await;
+            let mut report = collect_provider_results(outcomes)?;
+            report.warning = report.warning.or(candidates.warning);
+            Ok::<_, ProviderError>(report)
+        };
+        match tokio::time::timeout(provider_timeout(self, provider.id()), request).await {
             Ok(Ok(report)) => {
-                let (health, detail) = legacy_report_status(&report);
+                let (health, detail) = fetched_report_status(&report);
                 if let Some(warning) = &report.warning {
                     log::debug!(
                         "歌词源测试部分失败：provider={} kind={:?} status={:?} message={}",

@@ -1,11 +1,12 @@
+use super::endpoints::kuwo as endpoints;
 use futures::future::join_all;
 use serde::Deserialize;
 
 use super::parse_lrc_with_options;
 use super::provider::{
     collect_provider_results, parse_duration_text_ms, score_candidate, DurationUnit,
-    LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderError, ProviderErrorKind,
-    ProviderFuture, ProviderSearchReport, KUWO_DISPLAY_NAME,
+    LyricsSearchInput, LyricsSearchResult, ProviderError, ProviderErrorKind, ProviderFuture,
+    ProviderSearchReport, KUWO_DISPLAY_NAME,
 };
 
 #[derive(Debug, Deserialize)]
@@ -49,7 +50,7 @@ struct KuwoLine {
 
 pub struct KuwoProvider;
 
-impl LyricsProvider for KuwoProvider {
+impl KuwoProvider {
     fn id(&self) -> &'static str {
         "kuwo"
     }
@@ -64,7 +65,7 @@ impl LyricsProvider for KuwoProvider {
         input: &'a LyricsSearchInput,
     ) -> ProviderFuture<'a, ProviderSearchReport> {
         Box::pin(async move {
-            let mut url = reqwest::Url::parse("https://search.kuwo.cn/r.s").map_err(|error| {
+            let mut url = reqwest::Url::parse(endpoints::SEARCH).map_err(|error| {
                 self.error(ProviderErrorKind::InvalidResponse, error.to_string())
             })?;
             url.query_pairs_mut()
@@ -82,7 +83,7 @@ impl LyricsProvider for KuwoProvider {
                 .append_pair("pcjson", "1");
             let response = client
                 .get(url)
-                .header("Referer", "https://www.kuwo.cn/")
+                .header("Referer", endpoints::SEARCH_REFERER)
                 .send()
                 .await
                 .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
@@ -129,12 +130,12 @@ impl KuwoProvider {
         if id.is_empty() {
             return Ok(None);
         }
-        let mut url = reqwest::Url::parse("https://kuwo.cn/openapi/v1/www/lyric/getlyric")
+        let mut url = reqwest::Url::parse(endpoints::LYRIC)
             .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
         url.query_pairs_mut().append_pair("musicId", &id);
         let response = client
             .get(url)
-            .header("Referer", "https://kuwo.cn/")
+            .header("Referer", endpoints::LYRIC_REFERER)
             .send()
             .await
             .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;

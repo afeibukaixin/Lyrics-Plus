@@ -1,3 +1,5 @@
+use super::endpoints::lrclib as endpoints;
+use super::provider::score_candidate;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -5,10 +7,9 @@ use serde::Deserialize;
 
 use super::parse_lrc_with_options;
 use super::provider::{
-    duration_ms_from_seconds, score_candidate, version_tags_from_title, LyricsProvider,
-    LyricsSearchInput, LyricsSearchResult, ProviderCandidate, ProviderCandidateReport,
-    ProviderCapabilities, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
-    LRCLIB_DISPLAY_NAME,
+    duration_ms_from_seconds, version_tags_from_title, LyricsProvider, LyricsSearchInput,
+    LyricsSearchResult, ProviderCandidate, ProviderCandidateReport, ProviderCapabilities,
+    ProviderError, ProviderErrorKind, ProviderFuture, LRCLIB_DISPLAY_NAME,
 };
 
 const DEFAULT_COOLDOWN_SECS: u64 = 60;
@@ -46,29 +47,6 @@ impl LyricsProvider for LrcLibProvider {
 
     fn display_name(&self) -> &'static str {
         LRCLIB_DISPLAY_NAME
-    }
-
-    fn search<'a>(
-        &'a self,
-        client: &'a reqwest::Client,
-        input: &'a LyricsSearchInput,
-    ) -> ProviderFuture<'a, ProviderSearchReport> {
-        Box::pin(async move {
-            if let Ok(Some(item)) = self.fetch_exact(client, input).await {
-                if let Some(result) = self.result_from_item(input, item) {
-                    return Ok(ProviderSearchReport::available(vec![result]));
-                }
-            }
-
-            let items = self.fetch_broad(client, input).await?;
-            let mut results = items
-                .into_iter()
-                .filter_map(|item| self.result_from_item(input, item))
-                .collect::<Vec<_>>();
-            results.sort_by(|left, right| right.score.total_cmp(&left.score));
-            results.truncate(8);
-            Ok(ProviderSearchReport::available(results))
-        })
     }
 
     fn search_candidates<'a>(
@@ -139,7 +117,7 @@ impl LrcLibProvider {
                 "LRCLIB 歌曲 ID 格式无效",
             )
         })?;
-        let url = reqwest::Url::parse(&format!("https://lrclib.net/api/get/{id}"))
+        let url = reqwest::Url::parse(&format!("{}/{id}", endpoints::GET))
             .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
         let response = client.get(url).send().await.map_err(|error| {
             self.error(
@@ -209,66 +187,7 @@ impl LrcLibProvider {
             },
             source: self.display_name().into(),
             lookup_key: None,
-            legacy_result: None,
         })
-    }
-
-    async fn fetch_exact(
-        &self,
-        client: &reqwest::Client,
-        input: &LyricsSearchInput,
-    ) -> Result<Option<LrcLibItem>, ProviderError> {
-        self.ensure_not_rate_limited()?;
-        let mut url = reqwest::Url::parse("https://lrclib.net/api/get")
-            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
-        {
-            let mut query = url.query_pairs_mut();
-            query.append_pair("track_name", input.title.trim());
-            query.append_pair("artist_name", input.artist.trim());
-            if let Some(album) = input
-                .album
-                .as_deref()
-                .filter(|album| !album.trim().is_empty())
-            {
-                query.append_pair("album_name", album.trim());
-            }
-            if let Some(duration_ms) = input.duration_ms {
-                query.append_pair(
-                    "duration",
-                    &(duration_ms as f64 / 1000.0).round().to_string(),
-                );
-            }
-        }
-
-        let response = client.get(url).send().await.map_err(|error| {
-            self.error(
-                ProviderErrorKind::Network,
-                format!("精确歌词查询失败：{error}"),
-            )
-        })?;
-        if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
-            return Err(self.rate_limit_error(&response));
-        }
-        if response.status() == reqwest::StatusCode::NOT_FOUND {
-            return Ok(None);
-        }
-        if !response.status().is_success() {
-            return Err(super::provider::response_error(
-                self.id(),
-                &response,
-                "歌词服务请求失败",
-            ));
-        }
-        response
-            .json::<LrcLibItem>()
-            .await
-            .map(Some)
-            .map_err(|error| {
-                self.error(
-                    ProviderErrorKind::InvalidResponse,
-                    format!("无法解析精确歌词结果：{error}"),
-                )
-            })
     }
 
     async fn fetch_broad(
@@ -277,7 +196,7 @@ impl LrcLibProvider {
         input: &LyricsSearchInput,
     ) -> Result<Vec<LrcLibItem>, ProviderError> {
         self.ensure_not_rate_limited()?;
-        let mut url = reqwest::Url::parse("https://lrclib.net/api/search")
+        let mut url = reqwest::Url::parse(endpoints::SEARCH)
             .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
         {
             let mut query = url.query_pairs_mut();

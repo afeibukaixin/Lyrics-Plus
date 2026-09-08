@@ -170,19 +170,9 @@ impl ProviderRegistry {
         client: &reqwest::Client,
         input: &LyricsSearchInput,
     ) -> Result<ProviderSearchOutcome, String> {
-        let mut outcome = self
-            .search_with_cache(
-                client,
-                input,
-                false,
-                false,
-                super::MAX_INTERACTIVE_FETCH_CANDIDATES,
-            )
-            .await?;
-        // 保留 ProviderRegistry 直接调用方的旧批量边界；跨本地/在线的语义去重
-        // 在命令层完成，避免这里提前丢失 Smart 模式所需的质量信息。
+        let mut outcome = self.search_with_cache(client, input, false).await?;
+        // 跨本地/在线的语义去重在命令层完成，避免这里提前丢失 Smart 模式所需的质量信息。
         super::deduplicate(&mut outcome.results);
-        outcome.results.truncate(24);
         Ok(outcome)
     }
 

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+pub(crate) mod endpoints;
 pub mod amll_ttml;
 pub(crate) mod conversion;
 pub mod credentials;

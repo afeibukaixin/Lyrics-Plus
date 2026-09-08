@@ -40,8 +40,7 @@ const MAX_TITLE_FILTER_KEYWORDS: usize = 32;
 const MAX_TITLE_FILTER_KEYWORD_LENGTH: usize = 64;
 pub(crate) const DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE: u8 = 10;
 const MAX_CAPABILITY_PREFERENCE_TOLERANCE: u8 = 20;
-const DEFAULT_ENABLED_PROVIDER_IDS: [&str; 5] =
-    ["lrclib", "kugou", "qqmusic", "netease", "qishui"];
+const DEFAULT_ENABLED_PROVIDER_IDS: [&str; 5] = ["lrclib", "kugou", "qqmusic", "netease", "qishui"];
 
 fn default_provider_enabled(id: &str) -> bool {
     DEFAULT_ENABLED_PROVIDER_IDS.contains(&id)
@@ -141,32 +140,11 @@ pub trait LyricsProvider: Send + Sync {
     fn id(&self) -> &'static str;
     fn display_name(&self) -> &'static str;
 
-    /// 兼容旧搜索入口；新搜索流程应调用 `search_candidates`、`lookup_by_id` 和 `fetch`。
-    #[deprecated(note = "请使用 search_candidates、lookup_by_id 和 fetch")]
-    fn search<'a>(
-        &'a self,
-        client: &'a reqwest::Client,
-        input: &'a LyricsSearchInput,
-    ) -> ProviderFuture<'a, ProviderSearchReport>;
-
-    #[allow(deprecated)]
     fn search_candidates<'a>(
         &'a self,
         client: &'a reqwest::Client,
         input: &'a LyricsSearchInput,
-    ) -> ProviderFuture<'a, ProviderCandidateReport> {
-        Box::pin(async move {
-            let report = self.search(client, input).await?;
-            Ok(ProviderCandidateReport {
-                candidates: report
-                    .results
-                    .into_iter()
-                    .map(ProviderCandidate::from_result)
-                    .collect(),
-                warning: report.warning,
-            })
-        })
-    }
+    ) -> ProviderFuture<'a, ProviderCandidateReport>;
 
     fn lookup_by_id<'a>(
         &'a self,
@@ -188,7 +166,5 @@ pub trait LyricsProvider: Send + Sync {
         _client: &'a reqwest::Client,
         _input: &'a LyricsSearchInput,
         candidate: &'a ProviderCandidate,
-    ) -> ProviderFuture<'a, Option<LyricsSearchResult>> {
-        Box::pin(async move { Ok(candidate.legacy_result.clone()) })
-    }
+    ) -> ProviderFuture<'a, Option<LyricsSearchResult>>;
 }

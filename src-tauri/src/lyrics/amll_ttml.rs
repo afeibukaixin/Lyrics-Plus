@@ -1,14 +1,14 @@
-use futures::future::join_all;
+use super::endpoints::amll_ttml as endpoints;
+use super::provider::score_candidate;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use std::sync::{Arc, RwLock};
 
 use super::parse_lrc_with_options;
 use super::provider::{
-    collect_provider_results, score_candidate, version_tags_from_title, LyricsProvider,
-    LyricsSearchInput, LyricsSearchResult, ProviderCandidate, ProviderCandidateReport,
-    ProviderCapabilities, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
-    ProviderSettings, AMLL_DISPLAY_NAME,
+    version_tags_from_title, LyricsProvider, LyricsSearchInput, LyricsSearchResult,
+    ProviderCandidate, ProviderCandidateReport, ProviderCapabilities, ProviderError,
+    ProviderErrorKind, ProviderFuture, ProviderSettings, AMLL_DISPLAY_NAME,
 };
 
 #[derive(Debug, Deserialize)]
@@ -66,39 +66,6 @@ impl LyricsProvider for AmllTtmlProvider {
 
     fn display_name(&self) -> &'static str {
         AMLL_DISPLAY_NAME
-    }
-
-    fn search<'a>(
-        &'a self,
-        client: &'a reqwest::Client,
-        input: &'a LyricsSearchInput,
-    ) -> ProviderFuture<'a, ProviderSearchReport> {
-        Box::pin(async move {
-            let base_url = self
-                .settings
-                .read()
-                .unwrap_or_else(|error| error.into_inner())
-                .amll_base_url
-                .clone();
-            let mut songs = self.fetch_search(client, input, &base_url, false).await?;
-            if songs.is_empty() {
-                songs = self.fetch_search(client, input, &base_url, true).await?;
-            }
-            let mut candidates = songs
-                .into_iter()
-                .filter_map(candidate_from_song)
-                .map(|candidate| (metadata_score(input, &candidate), candidate))
-                .collect::<Vec<_>>();
-            candidates.sort_by(|left, right| right.0.total_cmp(&left.0));
-            candidates.truncate(5);
-            let outcomes = join_all(
-                candidates
-                    .into_iter()
-                    .map(|(_, candidate)| self.fetch_result(client, input, &base_url, candidate)),
-            )
-            .await;
-            collect_provider_results(outcomes)
-        })
     }
 
     fn search_candidates<'a>(
@@ -195,7 +162,7 @@ impl AmllTtmlProvider {
         base_url: &str,
         provider_item_id: &str,
     ) -> Result<Option<SongItem>, ProviderError> {
-        let mut url = self.api_url(base_url, "/v1/lyrics/get")?;
+        let mut url = self.api_url(base_url, endpoints::GET_PATH)?;
         url.query_pairs_mut()
             .append_pair("id", provider_item_id.trim());
         let envelope = self.send_json::<ApiResponse<SongItem>>(client, url).await?;
@@ -215,7 +182,7 @@ impl AmllTtmlProvider {
         base_url: &str,
         broad: bool,
     ) -> Result<Vec<SongItem>, ProviderError> {
-        let mut url = self.api_url(base_url, "/v1/lyrics/search")?;
+        let mut url = self.api_url(base_url, endpoints::SEARCH_PATH)?;
         {
             let mut query = url.query_pairs_mut();
             if broad {
@@ -244,7 +211,7 @@ impl AmllTtmlProvider {
         base_url: &str,
         candidate: AmllCandidate,
     ) -> Result<Option<LyricsSearchResult>, ProviderError> {
-        let mut url = self.api_url(base_url, "/v1/lyrics/get")?;
+        let mut url = self.api_url(base_url, endpoints::GET_PATH)?;
         url.query_pairs_mut()
             .append_pair("id", &candidate.id.to_string());
         let response = client
@@ -400,7 +367,6 @@ fn provider_candidate_from_song(song: SongItem) -> Option<ProviderCandidate> {
         },
         source: AMLL_DISPLAY_NAME.into(),
         lookup_key: None,
-        legacy_result: None,
     })
 }
 
@@ -421,23 +387,4 @@ fn joined_values(values: &[String]) -> Option<String> {
         .filter(|value| !value.is_empty())
         .collect::<Vec<_>>();
     (!values.is_empty()).then(|| values.join(" / "))
-}
-
-fn metadata_score(input: &LyricsSearchInput, candidate: &AmllCandidate) -> f64 {
-    let result = LyricsSearchResult {
-        id: candidate.id.to_string(),
-        provider_id: "amll_ttml".into(),
-        title: candidate.title.clone(),
-        artist: candidate.artist.clone(),
-        album: candidate.album.clone(),
-        duration_ms: None,
-        source: AMLL_DISPLAY_NAME.into(),
-        synced: true,
-        has_translation: false,
-        has_word_timing: false,
-        has_romanization: false,
-        score: 0.0,
-        lyrics: String::new(),
-    };
-    score_candidate(input, &result)
 }

@@ -25,8 +25,6 @@ pub(in crate::lyrics::provider) struct SearchKey {
     duration_ms: Option<u64>,
     platform: Option<String>,
     platform_item_id: Option<String>,
-    fetch_limit: usize,
-    automatic: bool,
     settings: ProviderSettings,
     revision: u64,
 }
@@ -36,8 +34,6 @@ impl SearchKey {
         input: &LyricsSearchInput,
         settings: ProviderSettings,
         revision: u64,
-        fetch_limit: usize,
-        automatic: bool,
     ) -> Self {
         Self {
             title: input.title.trim().into(),
@@ -46,8 +42,6 @@ impl SearchKey {
             duration_ms: input.duration_ms,
             platform: input.platform.clone(),
             platform_item_id: input.platform_item_id.clone(),
-            fetch_limit,
-            automatic,
             settings,
             revision,
         }
@@ -60,8 +54,6 @@ impl ProviderRegistry {
         client: &reqwest::Client,
         input: &LyricsSearchInput,
         bypass_cache: bool,
-        automatic: bool,
-        fetch_limit: usize,
     ) -> Result<ProviderSearchOutcome, String> {
         let settings = self
             .settings
@@ -72,18 +64,24 @@ impl ProviderRegistry {
             input,
             settings.clone(),
             self.revision.load(std::sync::atomic::Ordering::SeqCst),
-            fetch_limit,
-            automatic,
         );
-        if !bypass_cache {
-            if let Some(outcome) = self.cached_search(&key) {
-                log::debug!(
-                    "歌词搜索命中缓存：title={} artist={}",
-                    input.title,
-                    input.artist
-                );
-                return Ok(outcome);
+        if bypass_cache {
+            // 手动搜索既不读取旧缓存，也不复用自动搜索中的 flight，确保明确搜索会重新请求。
+            let result = self.search_once(client, input, settings).await;
+            if let Ok(outcome) = &result {
+                if outcome.error.is_none() {
+                    self.store_cached_search(key, outcome.clone());
+                }
             }
+            return result;
+        }
+        if let Some(outcome) = self.cached_search(&key) {
+            log::debug!(
+                "歌词搜索命中缓存：title={} artist={}",
+                input.title,
+                input.artist
+            );
+            return Ok(outcome);
         }
         let flight = {
             let mut in_flight = self
@@ -100,7 +98,7 @@ impl ProviderRegistry {
             }
         };
         let result = flight
-            .get_or_init(|| self.search_once(client, input, settings, automatic, fetch_limit))
+            .get_or_init(|| self.search_once(client, input, settings))
             .await
             .clone();
         if let Ok(outcome) = &result {

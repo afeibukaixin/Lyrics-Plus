@@ -1,3 +1,4 @@
+use super::endpoints::migu as endpoints;
 use futures::future::join_all;
 use serde::Deserialize;
 
@@ -5,8 +6,8 @@ use super::encoding::decode_lyrics_bytes;
 use super::parse_lrc_with_options;
 use super::provider::{
     collect_provider_results, duration_ms_from_seconds_u64, parse_duration_text_ms,
-    score_candidate, DurationUnit, LyricsProvider, LyricsSearchInput, LyricsSearchResult,
-    ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport, MIGU_DISPLAY_NAME,
+    score_candidate, DurationUnit, LyricsSearchInput, LyricsSearchResult, ProviderError,
+    ProviderErrorKind, ProviderFuture, ProviderSearchReport, MIGU_DISPLAY_NAME,
 };
 
 #[derive(Debug, Deserialize)]
@@ -69,7 +70,7 @@ struct ListenSong {
 
 pub struct MiguProvider;
 
-impl LyricsProvider for MiguProvider {
+impl MiguProvider {
     fn id(&self) -> &'static str {
         "migu"
     }
@@ -84,11 +85,9 @@ impl LyricsProvider for MiguProvider {
         input: &'a LyricsSearchInput,
     ) -> ProviderFuture<'a, ProviderSearchReport> {
         Box::pin(async move {
-            let mut url =
-                reqwest::Url::parse("https://c.musicapp.migu.cn/v1.0/content/search_all.do")
-                    .map_err(|error| {
-                        self.error(ProviderErrorKind::InvalidResponse, error.to_string())
-                    })?;
+            let mut url = reqwest::Url::parse(endpoints::SEARCH).map_err(|error| {
+                self.error(ProviderErrorKind::InvalidResponse, error.to_string())
+            })?;
             url.query_pairs_mut()
                 .append_pair(
                     "text",
@@ -234,11 +233,8 @@ impl MiguProvider {
             return Ok(None);
         }
 
-        let mut url =
-            reqwest::Url::parse("https://app.c.nf.migu.cn/MIGUM3.0/strategy/pc/listen/v1.0")
-                .map_err(|error| {
-                    self.error(ProviderErrorKind::InvalidResponse, error.to_string())
-                })?;
+        let mut url = reqwest::Url::parse(endpoints::DETAIL)
+            .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
         url.query_pairs_mut()
             .append_pair("scene", "")
             .append_pair("netType", "01")

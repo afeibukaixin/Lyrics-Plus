@@ -5,8 +5,7 @@ use tauri::Emitter;
 
 use crate::lyrics::provider::{
     has_identity_conflict, LyricsSearchInput, LyricsSearchResult, ProviderOrderMode,
-    ProviderStatus, DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE, MAX_AUTOMATIC_FETCH_CANDIDATES,
-    MAX_INTERACTIVE_FETCH_CANDIDATES,
+    ProviderStatus, DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
 };
 use crate::lyrics::LyricsDocument;
 use crate::state::AppState;
@@ -21,7 +20,6 @@ use super::ranking::{
     sort_analyzed_candidates,
 };
 
-const MAX_RANK_DIAGNOSTIC_RESULTS: usize = 24;
 const PROVIDER_STATUSES_EVENT: &str = "lyrics://provider-statuses";
 static NEXT_UNTRACKED_RUN_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
@@ -283,13 +281,7 @@ async fn perform_lyrics_search_inner(
                 .search_with_cache(
                     &state.http,
                     input,
-                    !matches!(intent, LyricsSearchIntent::Automatic),
-                    matches!(intent, LyricsSearchIntent::Automatic),
-                    if matches!(intent, LyricsSearchIntent::Automatic) {
-                        MAX_AUTOMATIC_FETCH_CANDIDATES
-                    } else {
-                        MAX_INTERACTIVE_FETCH_CANDIDATES
-                    },
+                    matches!(intent, LyricsSearchIntent::Manual),
                 )
                 .await;
             let elapsed = started.elapsed();
@@ -473,24 +465,6 @@ async fn perform_lyrics_search_inner(
         candidates.len(),
     );
     let sorted_count = candidates.len();
-    let selected_index = auto_apply_candidate.as_ref().and_then(|selected| {
-        candidates.iter().position(|candidate| {
-            candidate.result.provider_id == selected.provider_id
-                && candidate.result.id == selected.id
-        })
-    });
-    if let Some(selected_index) = selected_index {
-        if selected_index >= MAX_RANK_DIAGNOSTIC_RESULTS {
-            let selected = candidates.remove(selected_index);
-            candidates.truncate(MAX_RANK_DIAGNOSTIC_RESULTS.saturating_sub(1));
-            candidates.push(selected);
-        } else {
-            candidates.truncate(MAX_RANK_DIAGNOSTIC_RESULTS);
-        }
-    } else {
-        candidates.truncate(MAX_RANK_DIAGNOSTIC_RESULTS);
-    }
-    let returned_count = candidates.len();
     let score_band = if prefer_capabilities {
         f64::from(capability_preference_tolerance) / 100.0
     } else {
@@ -501,10 +475,9 @@ async fn perform_lyrics_search_inner(
         .map(|candidate| candidate.result.score)
         .unwrap_or_default();
     log::debug!(
-        "lyrics.rank search title={:?} artist={:?} intent={intent:?} mode={mode:?} prefer_capabilities={prefer_capabilities} capability_tolerance_percent={capability_preference_tolerance} score_band={score_band:.4} secondary_display={secondary_display:?} auto_apply_threshold_percent={auto_apply_threshold} auto_decision_stable={auto_decision_stable} local_candidates={local_count} online_candidates={online_count} analyzed={analyzed_count} deduplicated={deduplicated_count} sorted={sorted_count} returned={returned_count} omitted={} auto_apply={auto_apply} provider_order={provider_order:?}",
+        "lyrics.rank search title={:?} artist={:?} intent={intent:?} mode={mode:?} prefer_capabilities={prefer_capabilities} capability_tolerance_percent={capability_preference_tolerance} score_band={score_band:.4} secondary_display={secondary_display:?} auto_apply_threshold_percent={auto_apply_threshold} auto_decision_stable={auto_decision_stable} local_candidates={local_count} online_candidates={online_count} analyzed={analyzed_count} deduplicated={deduplicated_count} sorted={sorted_count} auto_apply={auto_apply} provider_order={provider_order:?}",
         input.title,
         input.artist,
-        sorted_count.saturating_sub(returned_count),
     );
     log_ranked_search(
         &candidates,
@@ -641,7 +614,6 @@ pub(crate) async fn search_lyrics_for_session(
     }
 
     let request_key = LyricsSearchRequestKey::new(&input);
-    let reuse_completed = matches!(intent, LyricsSearchIntent::Automatic);
     let (activation, request_id, flight, should_debounce) = {
         let mut session = state
             .lyrics_search_session
@@ -651,12 +623,16 @@ pub(crate) async fn search_lyrics_for_session(
             return Err("当前歌曲已发生变化".into());
         }
         let same_request = session.request_key.as_ref() == Some(&request_key);
-        if reuse_completed && same_request {
+        // 自动搜索只复用相同条件；快速窗口刷新则复用当前歌曲最近一次搜索，
+        // 包括手动条件、空结果和失败，避免每次开窗重复请求歌词源。
+        let reuse_current = matches!(intent, LyricsSearchIntent::Refresh)
+            || (matches!(intent, LyricsSearchIntent::Automatic) && same_request);
+        if reuse_current {
             if let Some(completed) = &session.completed {
                 return completed.clone();
             }
         }
-        if reuse_completed && same_request {
+        if reuse_current {
             if let Some(flight) = &session.in_flight {
                 (
                     session.activation,
@@ -666,6 +642,7 @@ pub(crate) async fn search_lyrics_for_session(
                 )
             } else {
                 session.request_id = session.request_id.wrapping_add(1);
+                session.request_key = Some(request_key.clone());
                 session.completed = None;
                 let flight = Arc::new(LyricsSearchFlight::new());
                 session.in_flight = Some(flight.clone());
@@ -729,7 +706,7 @@ pub(crate) async fn search_lyrics_for_session(
     if session.activation != activation || session.request_id != request_id {
         return Err(LYRICS_SEARCH_INVALIDATED.into());
     }
-    // 只有最初持有本次搜索 flight 的调用方负责广播，避免同一轮自动搜索的并发复用方重复发送事件。
+    // 只有最初持有本次搜索 flight 的调用方负责广播，避免同一轮搜索的并发复用方重复发送事件。
     let should_publish_provider_statuses = session
         .in_flight
         .as_ref()

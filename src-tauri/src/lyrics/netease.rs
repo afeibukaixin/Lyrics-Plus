@@ -1,12 +1,13 @@
-use futures::future::join_all;
+use super::endpoints::netease as endpoints;
+#[cfg(test)]
+use super::provider::collect_provider_results;
 use serde::Deserialize;
 
 use super::parse_lrc_with_options;
 use super::provider::{
-    collect_provider_results, score_candidate, version_tags_from_title, LyricsProvider,
-    LyricsSearchInput, LyricsSearchResult, ProviderCandidate, ProviderCandidateReport,
-    ProviderCapabilities, ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport,
-    NETEASE_DISPLAY_NAME,
+    version_tags_from_title, LyricsProvider, LyricsSearchInput, LyricsSearchResult,
+    ProviderCandidate, ProviderCandidateReport, ProviderCapabilities, ProviderError,
+    ProviderErrorKind, ProviderFuture, NETEASE_DISPLAY_NAME,
 };
 
 #[derive(Debug, Deserialize)]
@@ -75,55 +76,6 @@ impl LyricsProvider for NeteaseProvider {
         NETEASE_DISPLAY_NAME
     }
 
-    fn search<'a>(
-        &'a self,
-        client: &'a reqwest::Client,
-        input: &'a LyricsSearchInput,
-    ) -> ProviderFuture<'a, ProviderSearchReport> {
-        Box::pin(async move {
-            let songs = self.search_songs(client, input).await?;
-            let mut candidates = songs
-                .into_iter()
-                .map(|song| {
-                    let mut result = LyricsSearchResult {
-                        id: song.id.to_string(),
-                        provider_id: self.id().into(),
-                        title: song.name,
-                        artist: song
-                            .artists
-                            .into_iter()
-                            .map(|artist| artist.name)
-                            .collect::<Vec<_>>()
-                            .join(" / "),
-                        album: song.album.map(|album| album.name),
-                        duration_ms: song.duration,
-                        source: self.display_name().into(),
-                        synced: true,
-                        has_translation: false,
-                        has_word_timing: false,
-                        has_romanization: false,
-                        score: 0.0,
-                        lyrics: String::new(),
-                    };
-                    result.score = score_candidate(input, &result);
-                    result
-                })
-                .collect::<Vec<_>>();
-            candidates.sort_by(|left, right| right.score.total_cmp(&left.score));
-            candidates.truncate(5);
-
-            let details = join_all(
-                candidates
-                    .iter()
-                    .map(|candidate| self.fetch_detail(client, &candidate.id)),
-            )
-            .await;
-            collect_provider_results(candidates.into_iter().zip(details).map(
-                |(candidate, detail)| detail.map(|detail| result_from_detail(candidate, detail)),
-            ))
-        })
-    }
-
     fn search_candidates<'a>(
         &'a self,
         client: &'a reqwest::Client,
@@ -173,7 +125,6 @@ fn candidate_from_song(song: NeteaseSong) -> ProviderCandidate {
         },
         source: NETEASE_DISPLAY_NAME.into(),
         lookup_key: None,
-        legacy_result: None,
     }
 }
 
@@ -224,7 +175,7 @@ impl NeteaseProvider {
         client: &reqwest::Client,
         input: &LyricsSearchInput,
     ) -> Result<Vec<NeteaseSong>, ProviderError> {
-        let mut url = reqwest::Url::parse("https://music.163.com/api/cloudsearch/pc")
+        let mut url = reqwest::Url::parse(endpoints::SEARCH)
             .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
         url.query_pairs_mut()
             .append_pair(
@@ -238,7 +189,7 @@ impl NeteaseProvider {
             .append_pair("limit", "100");
         let response = client
             .get(url)
-            .header("Referer", "https://music.163.com/")
+            .header("Referer", endpoints::REFERER)
             .send()
             .await
             .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;
@@ -264,29 +215,7 @@ impl NeteaseProvider {
         client: &reqwest::Client,
         id: &str,
     ) -> Result<LyricsEnvelope, ProviderError> {
-        match self.fetch_detail_at(client, id, "api/song/lyric/v1").await {
-            Ok(detail) => Ok(detail),
-            Err(error)
-                if matches!(
-                    &error.kind,
-                    ProviderErrorKind::Network
-                        | ProviderErrorKind::Http
-                        | ProviderErrorKind::InvalidResponse
-                ) && error.status_code != Some(429) =>
-            {
-                self.fetch_detail_at(client, id, "api/song/lyric").await
-            }
-            Err(error) => Err(error),
-        }
-    }
-
-    async fn fetch_detail_at(
-        &self,
-        client: &reqwest::Client,
-        id: &str,
-        endpoint: &str,
-    ) -> Result<LyricsEnvelope, ProviderError> {
-        let mut url = reqwest::Url::parse(&format!("https://music.163.com/{endpoint}"))
+        let mut url = reqwest::Url::parse(endpoints::LYRIC)
             .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
         url.query_pairs_mut()
             .append_pair("id", id)
@@ -297,7 +226,7 @@ impl NeteaseProvider {
             .append_pair("rv", "1");
         let response = client
             .get(url)
-            .header("Referer", "https://music.163.com/")
+            .header("Referer", endpoints::REFERER)
             .send()
             .await
             .map_err(|error| self.error(ProviderErrorKind::Network, error.to_string()))?;

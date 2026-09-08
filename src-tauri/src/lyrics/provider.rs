@@ -27,19 +27,9 @@ pub const AMLL_DISPLAY_NAME: &str = "AMLL TTML";
 pub const MIGU_DISPLAY_NAME: &str = "Migu";
 pub const MUSIXMATCH_DISPLAY_NAME: &str = "Musixmatch";
 pub const QISHUI_DISPLAY_NAME: &str = "Qishui";
-pub const DEFAULT_AMLL_BASE_URL: &str = "https://api.amll.dev";
-/// 后台自动搜索最多检查的正文候选数；5 条只作为首批可展示结果目标。
-pub(crate) const MAX_AUTOMATIC_FETCH_CANDIDATES: usize = 24;
-/// 自动搜索在决策稳定后，至少尽量保留的可展示正文数量。
-pub(crate) const MIN_AUTOMATIC_FETCH_RESULTS: usize = 5;
-/// 交互搜索允许用户比较更多版本，但最终列表仍有统一上限。
-pub(crate) const MAX_INTERACTIVE_FETCH_CANDIDATES: usize = 24;
+pub use super::endpoints::amll_ttml::DEFAULT_BASE as DEFAULT_AMLL_BASE_URL;
+use super::endpoints::amll_ttml::LEGACY_BASES as LEGACY_AMLL_BASE_URLS;
 const MIN_LOCAL_TITLE_SIMILARITY: f64 = 0.6;
-const LEGACY_AMLL_BASE_URLS: [&str; 3] = [
-    "https://amlldb.bikonoo.com",
-    "https://cdn.jsdelivr.net/gh/Steve-xmh/amll-ttml-db@main",
-    "https://github.com/amll-dev/amll-ttml-db/raw/refs/heads/main",
-];
 
 include!("provider_types.rs");
 include!("provider_settings.rs");

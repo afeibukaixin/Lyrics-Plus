@@ -5,20 +5,19 @@ use std::time::{Duration, Instant};
 use futures::future::join_all;
 use futures::stream::{self, StreamExt};
 
-use crate::lyrics::{lyrics_quality_report, parse_lrc_with_options, semantic_fingerprint};
+use crate::lyrics::{parse_lrc_with_options, semantic_fingerprint};
 
 use super::super::{
-    exact_provider_identity, has_identity_conflict,
-    prepare_title_filter_keywords_with_normalization, score_candidate, title_matches,
+    exact_provider_identity, prepare_title_filter_keywords_with_normalization, score_candidate,
+    title_matches,
     LyricsProvider, LyricsSearchInput, LyricsSearchResult, ProviderCandidate,
     ProviderCandidateReport, ProviderError, ProviderErrorKind, ProviderHealth, ProviderOrderMode,
     ProviderSearchOutcome, ProviderSearchReport, ProviderSettings, ProviderStatusDetail,
-    ScoringSettings, DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE, MIN_AUTOMATIC_FETCH_RESULTS,
+    ScoringSettings, DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE,
 };
 use super::ProviderRegistry;
 
 const MAX_PROVIDER_CONCURRENCY: usize = 4;
-const MAX_METADATA_CANDIDATES_PER_PROVIDER: usize = 10;
 
 struct CandidateWork<'a> {
     provider: &'a dyn LyricsProvider,
@@ -48,8 +47,6 @@ pub(super) async fn search_once(
     client: &reqwest::Client,
     input: &LyricsSearchInput,
     settings: ProviderSettings,
-    automatic: bool,
-    fetch_limit: usize,
 ) -> Result<ProviderSearchOutcome, String> {
     let priority = settings
         .providers
@@ -129,9 +126,11 @@ pub(super) async fn search_once(
             Ok(Ok(mut report)) => {
                 retain_valid_provider_candidates(provider.id(), &mut report.candidates);
                 retain_title_matching_provider_candidates(scoring_input, &mut report.candidates);
-                report
-                    .candidates
-                    .truncate(MAX_METADATA_CANDIDATES_PER_PROVIDER);
+                report.candidates.sort_by(|left, right| {
+                    let left_score = score_candidate(scoring_input, &left.metadata_result());
+                    let right_score = score_candidate(scoring_input, &right.metadata_result());
+                    right_score.total_cmp(&left_score)
+                });
                 let (health, detail) = report_status(&report);
                 if let Some(warning) = &report.warning {
                     log::debug!(
@@ -146,15 +145,20 @@ pub(super) async fn search_once(
                     registry.record_success(provider.id());
                 }
                 registry.record_status(provider, health, detail);
-                candidates.extend(report.candidates.into_iter().map(|candidate| {
-                    let mut metadata = candidate.metadata_result();
-                    metadata.score = score_candidate(scoring_input, &metadata);
-                    CandidateWork {
-                        provider,
-                        candidate,
-                        score: metadata.score,
-                    }
-                }));
+                let provider_candidates = report
+                    .candidates
+                    .into_iter()
+                    .map(|candidate| {
+                        let mut metadata = candidate.metadata_result();
+                        metadata.score = score_candidate(scoring_input, &metadata);
+                        CandidateWork {
+                            provider,
+                            candidate,
+                            score: metadata.score,
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                candidates.extend(provider_candidates);
             }
             Ok(Err(error)) => {
                 errors.push(error.to_string());
@@ -228,19 +232,12 @@ pub(super) async fn search_once(
     let mut fetch_indices = exact_indices;
     fetch_indices.extend(remaining_indices);
     let mut results = Vec::new();
-    let mut scheduled_fetches = 0;
     let mut next_fetch_index = 0;
-    let mut auto_decision_stable = !automatic;
     while next_fetch_index < fetch_indices.len() {
-        let remaining = fetch_limit.saturating_sub(scheduled_fetches);
-        if remaining == 0 {
-            break;
-        }
         let batch_end =
-            (next_fetch_index + remaining.min(MAX_PROVIDER_CONCURRENCY)).min(fetch_indices.len());
+            (next_fetch_index + MAX_PROVIDER_CONCURRENCY).min(fetch_indices.len());
         let batch = &fetch_indices[next_fetch_index..batch_end];
         next_fetch_index = batch_end;
-        scheduled_fetches += batch.len();
         let jobs = batch.iter().map(|index| {
             let work = &candidates[*index];
             async move {
@@ -316,30 +313,6 @@ pub(super) async fn search_once(
             }
         }
         deduplicate_fetched_results(&mut results);
-        if automatic
-            && should_stop_automatic_fetch(
-                input,
-                &settings,
-                &candidates,
-                &fetch_indices,
-                next_fetch_index,
-                &results,
-            )
-        {
-            auto_decision_stable = true;
-            break;
-        }
-    }
-
-    if automatic && !auto_decision_stable {
-        auto_decision_stable = should_stop_automatic_fetch(
-            input,
-            &settings,
-            &candidates,
-            &fetch_indices,
-            next_fetch_index,
-            &results,
-        );
     }
 
     deduplicate_fetched_results(&mut results);
@@ -381,7 +354,7 @@ pub(super) async fn search_once(
         results,
         statuses: registry.statuses_for(&enabled_ids),
         provider_elapsed_ms,
-        auto_decision_stable,
+        auto_decision_stable: true,
         auto_apply_threshold: settings.auto_apply_threshold,
         prefer_capabilities: settings.prefer_capabilities,
         capability_preference_tolerance: settings.capability_preference_tolerance,
@@ -399,7 +372,7 @@ fn duration_millis(duration: Duration) -> u64 {
     duration.as_millis().min(u128::from(u64::MAX)) as u64
 }
 
-fn provider_timeout(registry: &ProviderRegistry, provider_id: &str) -> Duration {
+pub(super) fn provider_timeout(registry: &ProviderRegistry, provider_id: &str) -> Duration {
     super::provider_manifests()
         .into_iter()
         .find(|manifest| manifest.id == provider_id)
@@ -440,60 +413,6 @@ fn retain_title_matching_provider_candidates(
         }
         matches
     });
-}
-
-fn is_auto_eligible_result(
-    input: &LyricsSearchInput,
-    settings: &ProviderSettings,
-    result: &LyricsSearchResult,
-) -> bool {
-    result.score * 100.0 >= f64::from(settings.auto_apply_threshold)
-        && result.synced
-        && !has_identity_conflict(input, result)
-        && parse_lrc_with_options(&result.lyrics, &result.source, false)
-            .ok()
-            .is_some_and(|document| lyrics_quality_report(&document).auto_applicable)
-}
-
-fn should_stop_automatic_fetch(
-    input: &LyricsSearchInput,
-    settings: &ProviderSettings,
-    candidates: &[CandidateWork<'_>],
-    fetch_indices: &[usize],
-    next_fetch_index: usize,
-    results: &[LyricsSearchResult],
-) -> bool {
-    let has_eligible = results
-        .iter()
-        .any(|result| is_auto_eligible_result(input, settings, result));
-    let enough_preview_results = results.len() >= MIN_AUTOMATIC_FETCH_RESULTS;
-    let exhausted = next_fetch_index >= fetch_indices.len();
-    if exhausted {
-        return true;
-    }
-    if !has_eligible || !enough_preview_results {
-        return false;
-    }
-    match settings.mode {
-        ProviderOrderMode::Strict => true,
-        ProviderOrderMode::Smart => {
-            let Some(top_score) = candidates
-                .iter()
-                .map(|candidate| candidate.score)
-                .max_by(|left, right| left.total_cmp(right))
-            else {
-                return true;
-            };
-            let score_band = if settings.prefer_capabilities {
-                f64::from(settings.capability_preference_tolerance) / 100.0
-            } else {
-                f64::from(DEFAULT_CAPABILITY_PREFERENCE_TOLERANCE) / 100.0
-            };
-            !fetch_indices[next_fetch_index..]
-                .iter()
-                .any(|index| top_score - candidates[*index].score <= score_band + f64::EPSILON)
-        }
-    }
 }
 
 /// 只让带有来源标识和来源内歌曲标识的候选进入统一搜索结果。
@@ -565,7 +484,7 @@ fn report_status(report: &ProviderCandidateReport) -> (ProviderHealth, ProviderS
     )
 }
 
-pub(super) fn legacy_report_status(
+pub(super) fn fetched_report_status(
     report: &ProviderSearchReport,
 ) -> (ProviderHealth, ProviderStatusDetail) {
     if let Some(warning) = &report.warning {
@@ -591,9 +510,7 @@ impl ProviderRegistry {
         client: &reqwest::Client,
         input: &LyricsSearchInput,
         settings: ProviderSettings,
-        automatic: bool,
-        fetch_limit: usize,
     ) -> Result<ProviderSearchOutcome, String> {
-        search_once(self, client, input, settings, automatic, fetch_limit).await
+        search_once(self, client, input, settings).await
     }
 }

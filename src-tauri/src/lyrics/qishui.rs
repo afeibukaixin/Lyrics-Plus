@@ -1,21 +1,19 @@
+use super::endpoints::qishui as endpoints;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use futures::future::join_all;
 use serde::Deserialize;
 use serde_json::Value;
 
 use super::parse_lrc_with_options;
 use super::provider::{
-    collect_provider_results, version_tags_from_title, LyricsProvider, LyricsSearchInput,
-    LyricsSearchResult, ProviderCandidate, ProviderCandidateReport, ProviderCapabilities,
-    ProviderError, ProviderErrorKind, ProviderFuture, ProviderSearchReport, QISHUI_DISPLAY_NAME,
+    version_tags_from_title, LyricsProvider, LyricsSearchInput, LyricsSearchResult,
+    ProviderCandidate, ProviderCandidateReport, ProviderCapabilities, ProviderError,
+    ProviderErrorKind, ProviderFuture, QISHUI_DISPLAY_NAME,
 };
 
 pub(crate) const QISHUI_PROVIDER_ID: &str = "qishui";
 
-const SEARCH_ENDPOINT: &str = "https://api.qishui.com/luna/search/track";
-const DETAIL_ENDPOINT: &str = "https://beta-luna.douyin.com/luna/h5/seo_track";
 const SEARCH_USER_AGENT: &str =
     "com.luna.music/100198030 (Linux; U; Android 15; zh_CN_#Hans; ABR-AL80; Build/V417IR;tt-ok/3.12.13.19)";
 const WEB_USER_AGENT: &str =
@@ -137,24 +135,6 @@ impl LyricsProvider for QishuiProvider {
         QISHUI_DISPLAY_NAME
     }
 
-    fn search<'a>(
-        &'a self,
-        client: &'a reqwest::Client,
-        input: &'a LyricsSearchInput,
-    ) -> ProviderFuture<'a, ProviderSearchReport> {
-        Box::pin(async move {
-            let report = self.search_candidates(client, input).await?;
-            let candidates = report.candidates.into_iter().collect::<Vec<_>>();
-            let fetched = join_all(
-                candidates
-                    .iter()
-                    .map(|candidate| self.fetch(client, input, candidate)),
-            )
-            .await;
-            collect_provider_results(fetched)
-        })
-    }
-
     fn search_candidates<'a>(
         &'a self,
         client: &'a reqwest::Client,
@@ -217,7 +197,7 @@ impl QishuiProvider {
         client: &reqwest::Client,
         input: &LyricsSearchInput,
     ) -> Result<Vec<SodaTrack>, ProviderError> {
-        let mut url = reqwest::Url::parse(SEARCH_ENDPOINT)
+        let mut url = reqwest::Url::parse(endpoints::SEARCH)
             .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
         {
             let mut query = url.query_pairs_mut();
@@ -311,7 +291,7 @@ impl QishuiProvider {
         if provider_item_id.is_empty() {
             return Err(self.error(ProviderErrorKind::InvalidResponse, "汽水音乐歌曲 ID 为空"));
         }
-        let mut url = reqwest::Url::parse(DETAIL_ENDPOINT)
+        let mut url = reqwest::Url::parse(endpoints::DETAIL)
             .map_err(|error| self.error(ProviderErrorKind::InvalidResponse, error.to_string()))?;
         url.query_pairs_mut()
             .append_pair("track_id", provider_item_id)
@@ -386,7 +366,6 @@ impl QishuiProvider {
             },
             source: self.display_name().into(),
             lookup_key: None,
-            legacy_result: None,
         })
     }
 
