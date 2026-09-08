@@ -34,7 +34,7 @@ export const enUS = {
     copyrightOwnerBody: "Rights in lyrics and other music-related content belong to their respective authors, publishers, or other lawful rightsholders.",
     copyrightScopeBody: "Lyrics Plus does not own, sell, or grant rights to that content. It only provides software features for searching, parsing, caching, importing, and displaying it. Free or open-source software does not make third-party content free to copy, distribute, or use.",
     onlineTitle: "Online Services and Data",
-    onlineDataBody: "When an online lyrics source is enabled, matching information such as track title, artist, album, and duration is sent to the relevant third-party service.",
+    onlineDataBody: "When an online lyrics source is enabled, matching information such as track title, artist, album, and duration is sent to the relevant third-party service. If anonymous usage analytics is enabled, feature counts, app version, platform, and a random anonymous install ID are also sent; no song content is included, and you can turn it off at any time in About.",
     onlineServiceBody: "Each provider determines its service content, availability, accuracy, authorization scope, and data-handling rules. This project is not affiliated with, an agent of, or endorsed by any media player, content platform, or content rightsholder.",
     responsibilityTitle: "Your Responsibilities",
     responsibilityBody: "Use this software only as permitted by applicable law and the relevant service terms. Do not copy, distribute, sell, publicly display, or commercially exploit lyrics or other protected content without authorization.",
@@ -193,6 +193,7 @@ export const enUS = {
       project: "Open Source Project", projectHint: "Lyrics Plus is free and open-source software released under the MIT License.", links: { github: "GitHub Repository", releases: "Releases", issues: "Report an Issue" },
       community: "Community & Support", qqGroup: "QQ Group: {{number}}", joinQqGroup: "Join QQ Group",
       license: "License & Copyright", licenseHint: "The application code uses the MIT License. Lyrics and other music content belong to their respective rightsholders.",
+      privacyTitle: "Privacy & Anonymous Analytics", telemetry: "Send anonymous usage analytics", telemetryHint: "Only feature counts, app version, platform, and a random anonymous ID are sent. Song titles, artists, lyrics, file paths, and logs are not included. You can turn it off at any time; disabling it clears the local queue and ID.", telemetryData: "Analytics is sent through the project's Cloudflare Worker to Axiom to understand feature usage and lyrics-provider reliability.",
       advancedTools: "Advanced tools", advancedToolsHint: "Debug logs and JSONC configuration are intended for troubleshooting and advanced users.",
     },
     lyrics: {

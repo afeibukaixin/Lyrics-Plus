@@ -3,6 +3,28 @@ pub fn get_app_config(state: State<'_, AppState>) -> AppConfig {
     state.config.snapshot()
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TelemetrySettings {
+    pub enabled: bool,
+}
+
+#[tauri::command]
+pub fn get_telemetry_settings(state: State<'_, AppState>) -> TelemetrySettings {
+    TelemetrySettings {
+        enabled: state.telemetry.is_enabled(),
+    }
+}
+
+#[tauri::command]
+pub fn set_telemetry_enabled(
+    enabled: bool,
+    state: State<'_, AppState>,
+) -> Result<TelemetrySettings, String> {
+    state.telemetry.set_enabled(enabled)?;
+    Ok(TelemetrySettings { enabled })
+}
+
 #[tauri::command]
 pub fn get_legal_notice_status(state: State<'_, AppState>) -> Result<LegalNoticeStatus, String> {
     Ok(LegalNoticeStatus {

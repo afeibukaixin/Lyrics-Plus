@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppConfig } from "../../../features/config/AppConfigProvider";
 import { useUpdates } from "../../../features/update/UpdateProvider";
-import { messageOf } from "../../../shared/api";
+import { api, isTauriRuntime, messageOf } from "../../../shared/api";
 import { useSettingsContext } from "../shared/SettingsContext";
 import styles from "../settings.module.scss";
 import { PageHeader, SettingsSection, ToggleRow } from "../shared/components";
@@ -51,6 +51,20 @@ export default function AboutSettingsPage() {
   const { t } = useTranslation();
   const busy = status === "checking" || status === "downloading" || status === "installing";
   const [qqGroup, setQqGroup] = useState<QqGroupConfig | null>(null);
+  const [telemetryEnabled, setTelemetryEnabled] = useState<boolean | null>(null);
+  const [savingTelemetry, setSavingTelemetry] = useState(false);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) {
+      setTelemetryEnabled(true);
+      return;
+    }
+    let active = true;
+    void api.getTelemetrySettings()
+      .then(({ enabled }) => { if (active) setTelemetryEnabled(enabled); })
+      .catch(() => { if (active) setTelemetryEnabled(null); });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -114,6 +128,22 @@ export default function AboutSettingsPage() {
           {links.map(([key, url]) => <Button variant="outline" size="sm" key={key} onClick={() => open(url)}>{t(`settings.about.links.${key}`)}</Button>)}
         </div>
         <p className={styles.cardHint}>{t("settings.about.licenseHint")}</p>
+      </SettingsSection>
+      <SettingsSection id="about-privacy" title={t("settings.about.privacyTitle")}>
+        <ToggleRow
+          label={t("settings.about.telemetry")}
+          description={t("settings.about.telemetryHint")}
+          value={telemetryEnabled ?? false}
+          disabled={telemetryEnabled === null || savingTelemetry}
+          onChange={(enabled) => {
+            setSavingTelemetry(true);
+            void api.setTelemetryEnabled(enabled)
+              .then(({ enabled: saved }) => setTelemetryEnabled(saved))
+              .catch((value) => setError(messageOf(value)))
+              .finally(() => setSavingTelemetry(false));
+          }}
+        />
+        <p className={styles.cardHint}>{t("settings.about.telemetryData")}</p>
       </SettingsSection>
       {qqGroup && (
         <SettingsSection id="about-community" title={t("settings.about.community")}>

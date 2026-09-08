@@ -13,6 +13,7 @@ mod player_lifecycle;
 mod runtime_model;
 mod state;
 mod storage;
+mod telemetry;
 mod ui_update;
 mod windows;
 
@@ -72,7 +73,7 @@ struct TrayMenuState {
     quit: MenuItem<tauri::Wry>,
 }
 
-pub(crate) const LEGAL_NOTICE_VERSION: u16 = 1;
+pub(crate) const LEGAL_NOTICE_VERSION: u16 = 2;
 pub(crate) const LEGAL_NOTICE_PREFERENCE: &str = "legal.notice.acceptedVersion";
 mod app_runtime;
 pub(crate) use app_runtime::{

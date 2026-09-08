@@ -17,6 +17,10 @@ export type SettingsResetResponse = {
   playerSelection: PlayerSelection;
 };
 
+export type TelemetrySettings = {
+  enabled: boolean;
+};
+
 export type AppConfig = {
   schemaVersion: number;
   app: {

@@ -9,6 +9,7 @@ use crate::player::{
 };
 use crate::runtime_model::{NotchLayoutMetrics, OverlaySettings};
 use crate::storage::Storage;
+use crate::telemetry::TelemetryService;
 use crate::ui_update::UiUpdateManager;
 use crate::OverlayPlacementState;
 
@@ -56,6 +57,7 @@ pub struct AppState {
     pub(crate) webview_surface_lifecycle: Arc<Mutex<WebviewSurfaceLifecycle>>,
     pub storage: Arc<Storage>,
     pub config: Arc<ConfigStore>,
+    pub telemetry: Arc<TelemetryService>,
     pub providers: Arc<ProviderRegistry>,
     pub system_media: Arc<SystemMediaService>,
     pub http: reqwest::Client,

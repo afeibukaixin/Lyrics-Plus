@@ -10,6 +10,7 @@ import type {
   RegisteredApplication,
   SystemMediaFilterMode,
   ThemePreference,
+  TelemetrySettings,
 } from "./types";
 
 export const applicationApi = {
@@ -18,6 +19,9 @@ export const applicationApi = {
     invoke<void>("show_lyrics_style_settings", { mode }),
   showQuickLyricsWindow: () => invoke<void>("show_quick_lyrics_window"),
   getAppConfig: () => invoke<AppConfig>("get_app_config"),
+  getTelemetrySettings: () => invoke<TelemetrySettings>("get_telemetry_settings"),
+  setTelemetryEnabled: (enabled: boolean) =>
+    invoke<TelemetrySettings>("set_telemetry_enabled", { enabled }),
   setTheme: (theme: ThemePreference) => invoke<AppConfig>("set_theme", { theme }),
   resolveSystemMediaApplications: (paths: string[]) =>
     invoke<RegisteredApplication[]>("resolve_system_media_applications", { paths }),

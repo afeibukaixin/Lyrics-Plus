@@ -34,7 +34,7 @@ export const koKR = {
     copyrightOwnerBody: "가사와 기타 음악 관련 콘텐츠의 권리는 각 저자, 출판사 또는 기타 합법적인 권리자에게 있습니다.",
     copyrightScopeBody: "Lyrics Plus는 해당 콘텐츠를 소유, 판매하거나 권리를 부여하지 않습니다. 검색, 파싱, 캐시, 가져오기 및 표시 기능만 제공합니다. 무료 또는 오픈 소스 소프트웨어라고 해서 제3자 콘텐츠를 자유롭게 복사, 배포 또는 사용할 수 있는 것은 아닙니다.",
     onlineTitle: "온라인 서비스 및 데이터",
-    onlineDataBody: "온라인 가사 소스를 활성화하면 곡 제목, 아티스트, 앨범, 재생 시간 등의 매칭 정보가 해당 제3자 서비스로 전송됩니다.",
+    onlineDataBody: "온라인 가사 소스를 활성화하면 곡 제목, 아티스트, 앨범, 재생 시간 등의 매칭 정보가 해당 제3자 서비스로 전송됩니다. 익명 사용 통계를 활성화하면 기능 사용 횟수, 앱 버전, 플랫폼 및 무작위 익명 설치 ID도 전송됩니다. 곡 내용은 포함되지 않으며 정보 페이지에서 언제든지 끌 수 있습니다.",
     onlineServiceBody: "각 제공업체가 서비스 콘텐츠, 이용 가능성, 정확성, 권한 범위 및 데이터 처리 규칙을 정합니다. 이 프로젝트는 어떤 미디어 플레이어, 콘텐츠 플랫폼 또는 콘텐츠 권리자와도 제휴, 대리 또는 공식 보증 관계가 없습니다.",
     responsibilityTitle: "사용자의 책임",
     responsibilityBody: "관련 법률과 서비스 약관에서 허용하는 범위 내에서만 이 소프트웨어를 사용하십시오. 허가 없이 가사나 기타 보호되는 콘텐츠를 복사, 배포, 판매, 공개 표시 또는 상업적으로 이용하지 마십시오.",
@@ -193,6 +193,7 @@ export const koKR = {
       project: "오픈 소스 프로젝트", projectHint: "Lyrics Plus는 MIT License로 배포되는 무료 오픈 소스 소프트웨어입니다.", links: { github: "GitHub 저장소", releases: "릴리스", issues: "문제 신고" },
       community: "커뮤니티 및 지원", qqGroup: "QQ 그룹: {{number}}", joinQqGroup: "QQ 그룹 참여",
       license: "라이선스 및 저작권", licenseHint: "애플리케이션 코드는 MIT License를 사용합니다. 가사 및 기타 음악 콘텐츠는 각 권리자에게 있습니다.",
+      privacyTitle: "개인정보 및 익명 통계", telemetry: "익명 사용 통계 전송", telemetryHint: "기능 사용 횟수, 앱 버전, 플랫폼 및 무작위 익명 ID만 전송합니다. 곡 제목, 아티스트, 가사, 파일 경로와 로그는 포함되지 않습니다. 언제든지 끌 수 있으며 끄면 로컬 큐와 ID가 삭제됩니다.", telemetryData: "통계는 프로젝트의 Cloudflare Worker를 통해 Axiom으로 전송되며 기능 사용 현황과 가사 제공업체 안정성을 파악하는 데 사용됩니다.",
       advancedTools: "고급 도구", advancedToolsHint: "디버그 로그와 JSONC 구성은 문제 해결 및 고급 사용자용입니다.",
     },
     lyrics: {

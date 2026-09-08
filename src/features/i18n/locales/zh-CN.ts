@@ -32,7 +32,7 @@ export const zhCN = {
     copyrightOwnerBody: "歌词及其他音乐相关内容的权利归相应作者、发行方或其他合法权利人所有。",
     copyrightScopeBody: "Lyrics Plus 不拥有、出售或授予这些内容的版权，仅提供检索、解析、缓存、导入和展示等软件功能。软件免费或开源，不代表第三方内容可以被自由复制、传播或使用。",
     onlineTitle: "在线服务与数据",
-    onlineDataBody: "启用在线歌词源时，歌曲标题、歌手、专辑和时长等用于匹配歌词的信息会发送给相应的第三方服务。",
+    onlineDataBody: "启用在线歌词源时，歌曲标题、歌手、专辑和时长等用于匹配歌词的信息会发送给相应的第三方服务。若开启匿名使用统计，还会发送不含歌曲内容的功能使用次数、应用版本和匿名安装标识；可随时在关于页面关闭。",
     onlineServiceBody: "第三方服务的内容、可用性、准确性、授权范围和数据处理规则由其提供方决定。本项目与任何播放器、内容平台或内容权利人不存在隶属、代理或背书关系。",
     responsibilityTitle: "使用责任",
     responsibilityBody: "请仅在法律法规和相关服务条款允许的范围内使用本软件，不要未经授权复制、传播、出售、公开展示或商业利用歌词及其他受保护内容。",
@@ -190,6 +190,7 @@ export const zhCN = {
       project: "开源项目", projectHint: "Lyrics Plus 是采用 MIT License 发布的免费开源项目。", links: { github: "GitHub 项目", releases: "版本发布", issues: "问题反馈" },
       community: "交流与支持", qqGroup: "QQ群：{{number}}", joinQqGroup: "申请加群",
       license: "许可与版权", licenseHint: "应用代码采用 MIT License；歌词和其他音乐内容的权利归相应权利人所有。",
+      privacyTitle: "隐私与匿名统计", telemetry: "发送匿名使用统计", telemetryHint: "只发送功能使用次数、应用版本、系统平台和随机匿名标识，不包含歌曲名、歌手、歌词、文件路径或日志。可随时关闭，关闭后会清除本机统计队列和匿名标识。", telemetryData: "统计通过项目自己的 Cloudflare Worker 转发到 Axiom，仅用于了解功能使用情况和歌词源稳定性。",
       advancedTools: "高级工具", advancedToolsHint: "调试日志和 JSONC 配置面向故障排查与高级用户。",
     },
     lyrics: {

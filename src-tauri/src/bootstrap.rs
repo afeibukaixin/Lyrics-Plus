@@ -25,7 +25,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_macos_fps::init())
         .setup(|app| {
-            let storage = storage::Storage::new(app.handle())?;
+            let storage = Arc::new(storage::Storage::new(app.handle())?);
             let notice_accepted = legal_notice_accepted(&storage).unwrap_or(false);
             let app_dir = app.path().app_data_dir()?;
             let ui_update = Arc::new(
@@ -70,6 +70,19 @@ pub fn run() {
             overlay_style.vertical_max_height = geometry.vertical_max_height;
             let initial_toolbar_placement =
                 ToolbarPlacement::for_orientation(overlay_style.orientation);
+            let http = reqwest::Client::builder()
+                .user_agent(concat!(
+                    "Lyrics Plus/",
+                    env!("CARGO_PKG_VERSION"),
+                    " (https://github.com/afeibukaixin/Lyrics-Plus)"
+                ))
+                .timeout(Duration::from_secs(8))
+                .build()
+                .map_err(|error| error.to_string())?;
+            let telemetry = Arc::new(crate::telemetry::TelemetryService::new(
+                storage.clone(),
+                http.clone(),
+            ));
             app.manage(AppState {
                 runtime_started: Mutex::new(false),
                 selection: Arc::new(RwLock::new(selection)),
@@ -92,8 +105,9 @@ pub fn run() {
                 notch_layout_metrics: Arc::new(RwLock::new(NotchLayoutMetrics::default())),
                 notch_visibility: Arc::new(Mutex::new(NotchVisibilityState::default())),
                 webview_surface_lifecycle: Arc::new(Mutex::new(Default::default())),
-                storage: Arc::new(storage),
+                storage,
                 config,
+                telemetry,
                 providers: Arc::new(
                     lyrics::provider::ProviderRegistry::new_with_app_dir(
                         provider_settings,
@@ -102,15 +116,7 @@ pub fn run() {
                     .map_err(std::io::Error::other)?,
                 ),
                 system_media: Arc::new(SystemMediaService::default()),
-                http: reqwest::Client::builder()
-                    .user_agent(concat!(
-                        "Lyrics Plus/",
-                        env!("CARGO_PKG_VERSION"),
-                        " (https://github.com/afeibukaixin/Lyrics-Plus)"
-                    ))
-                    .timeout(Duration::from_secs(8))
-                    .build()
-                    .map_err(|error| error.to_string())?,
+                http,
                 ui_update,
             });
 
@@ -262,6 +268,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_legal_notice_status,
             commands::accept_legal_notice,
+            commands::get_telemetry_settings,
+            commands::set_telemetry_enabled,
             commands::quit_application,
             commands::get_playback_snapshot,
             commands::control_playback,

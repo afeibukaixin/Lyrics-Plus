@@ -29,6 +29,7 @@ pub(crate) fn activate_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     }
 
     *started = true;
+    state.telemetry.activate();
     crate::commands::start_library_scan(app);
     if let Err(error) = crate::reconcile_overlay_visibility(app) {
         log::warn!("Failed to reconcile overlay visibility at activation: {error}");

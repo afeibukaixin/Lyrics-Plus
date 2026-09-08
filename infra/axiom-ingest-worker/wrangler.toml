@@ -1,0 +1,7 @@
+name = "lyrics-plus-axiom-ingest"
+main = "src/index.ts"
+compatibility_date = "2026-09-07"
+
+[vars]
+ALLOWED_ORIGIN = "*"
+

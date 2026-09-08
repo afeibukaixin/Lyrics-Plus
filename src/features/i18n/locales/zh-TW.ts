@@ -34,7 +34,7 @@ export const zhTW = {
     copyrightOwnerBody: "歌詞及其他音樂相關內容的權利，歸相應作者、發行方或其他合法權利人所有。",
     copyrightScopeBody: "Lyrics Plus 不擁有、出售或授予這些內容的著作權，僅提供檢索、解析、快取、匯入和顯示等軟體功能。軟體免費或開源，不代表第三方內容可以被自由複製、傳播或使用。",
     onlineTitle: "線上服務與資料",
-    onlineDataBody: "啟用線上歌詞來源時，歌曲標題、歌手、專輯和長度等用於比對歌詞的資訊會傳送給相應的第三方服務。",
+    onlineDataBody: "啟用線上歌詞來源時，歌曲標題、歌手、專輯和長度等用於比對歌詞的資訊會傳送給相應的第三方服務。若啟用匿名使用統計，還會傳送功能使用次數、應用程式版本、平台和隨機匿名安裝 ID；不包含歌曲內容，並可隨時在關於頁面關閉。",
     onlineServiceBody: "第三方服務的內容、可用性、準確性、授權範圍和資料處理規則由其提供方決定。本專案與任何播放器、內容平台或內容權利人不存在隸屬、代理或背書關係。",
     responsibilityTitle: "使用責任",
     responsibilityBody: "請僅在法律法規和相關服務條款允許的範圍內使用本軟體，不要未經授權複製、傳播、出售、公開展示或商業利用歌詞及其他受保護內容。",
@@ -186,7 +186,7 @@ export const zhTW = {
       status: { checking: "正在檢查更新…", available: "發現新版本 {{version}}，本次已暫不安裝。", downloading: "正在下載更新…", installing: "正在安裝更新…", ready: "更新已安裝，重新啟動後生效。", latest: "目前已是最新版本。", error: "更新失敗。", idle: "" },
       project: "開源專案", projectHint: "Lyrics Plus 是採用 MIT License 發布的免費開源專案。", links: { github: "GitHub 專案", releases: "版本發布", issues: "問題回報" },
       community: "交流與支援", qqGroup: "QQ群：{{number}}", joinQqGroup: "申請加入群組",
-      license: "授權與著作權", licenseHint: "應用程式碼採用 MIT License；歌詞和其他音樂內容的權利歸相應權利人所有。", advancedTools: "進階工具", advancedToolsHint: "除錯記錄與 JSONC 設定供疑難排解及進階使用者使用。",
+      license: "授權與著作權", licenseHint: "應用程式碼採用 MIT License；歌詞和其他音樂內容的權利歸相應權利人所有。", privacyTitle: "隱私與匿名統計", telemetry: "傳送匿名使用統計", telemetryHint: "只會傳送功能使用次數、應用程式版本、平台及隨機匿名 ID，不包含歌曲名稱、歌手、歌詞、檔案路徑或記錄。可隨時關閉；關閉後會清除本機佇列和 ID。", telemetryData: "統計會經由專案的 Cloudflare Worker 傳送到 Axiom，只用於了解功能使用情況和歌詞來源穩定性。", advancedTools: "進階工具", advancedToolsHint: "除錯記錄與 JSONC 設定供疑難排解及進階使用者使用。",
     },
     lyrics: {
       title: "歌詞與搜尋", description: "達到設定相似度的同步歌詞會自動套用；其他結果可在快速切換視窗中預覽。",
