@@ -5,10 +5,10 @@ mod language;
 mod lyrics;
 #[cfg(target_os = "macos")]
 mod macos_status_item;
-mod overlay_surface;
 mod overlay_model;
 mod overlay_placement;
 mod overlay_pointer;
+mod overlay_surface;
 mod player;
 mod player_lifecycle;
 mod runtime_model;
@@ -22,10 +22,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use config::ConfigStore;
-use language::UiLanguage;
-pub(crate) use overlay_model::{
-    OverlayBackground, OverlayBackgroundMode, OverlayOrientation, OverlayStyleSettings,
-};
+pub(crate) use overlay_model::{OverlayOrientation, OverlayStyleSettings};
 pub use overlay_placement::ToolbarPlacement;
 #[cfg(test)]
 use overlay_placement::{

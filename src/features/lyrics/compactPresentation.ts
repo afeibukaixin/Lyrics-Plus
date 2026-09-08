@@ -69,7 +69,8 @@ function auxiliaryKinds(
       presentation.showRomanization ? "romanization" : null,
     ].filter((kind): kind is "translation" | "romanization" => kind !== null),
   );
-  return [preferred, fallback].filter((kind, index, kinds) => (
+  const orderedKinds: SupportingLyricsPriority[] = [preferred, fallback];
+  return orderedKinds.filter((kind, index, kinds) => (
     enabled.has(kind) && kinds.indexOf(kind) === index
   ));
 }

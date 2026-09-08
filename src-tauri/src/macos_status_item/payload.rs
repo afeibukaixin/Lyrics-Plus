@@ -334,8 +334,7 @@ pub(super) fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
                             inactive_color.clone(),
                             highlight_color.clone(),
                         );
-                        let mut supporting = None;
-                        let mut try_translation = || {
+                        let try_translation = || {
                             if !compact.show_translation {
                                 return None;
                             }
@@ -348,7 +347,7 @@ pub(super) fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
                                 })
                                 .map(|line| (line, RenderLineKind::Translation, translation_region))
                         };
-                        let mut try_romanization = || {
+                        let try_romanization = || {
                             if !compact.show_romanization {
                                 return None;
                             }
@@ -361,7 +360,7 @@ pub(super) fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
                                 })
                                 .map(|line| (line, RenderLineKind::Romanization, None))
                         };
-                        supporting = match compact.supporting_priority {
+                        let supporting = match compact.supporting_priority {
                             SupportingLyricsPriority::Translation => {
                                 try_translation().or_else(try_romanization)
                             }

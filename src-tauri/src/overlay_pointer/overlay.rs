@@ -1,6 +1,5 @@
 use std::time::{Duration, Instant};
 
-use crate::overlay_surface::{HORIZONTAL_OVERLAY_SURFACE_INSET, VERTICAL_OVERLAY_SURFACE_INSET};
 use crate::overlay_model::OverlayOrientation;
 use crate::overlay_placement::{
     NotchPointerSamplePayload, NOTCH_POINTER_SAMPLE_EVENT, OVERLAY_HOVER_EVENT,
@@ -10,6 +9,7 @@ use crate::overlay_placement::{
 use crate::overlay_pointer::geometry::{
     point_in_window_bounds, should_hover_overlay, stable_overlay_hover, unlock_handle_position,
 };
+use crate::overlay_surface::{HORIZONTAL_OVERLAY_SURFACE_INSET, VERTICAL_OVERLAY_SURFACE_INSET};
 use crate::AppState;
 use tauri::{Emitter, Manager};
 

@@ -1,5 +1,5 @@
-use crate::overlay_surface::{HORIZONTAL_OVERLAY_SURFACE_INSET, VERTICAL_OVERLAY_SURFACE_INSET};
 use crate::overlay_model::OverlayOrientation;
+use crate::overlay_surface::{HORIZONTAL_OVERLAY_SURFACE_INSET, VERTICAL_OVERLAY_SURFACE_INSET};
 
 use super::state::ToolbarPlacement;
 

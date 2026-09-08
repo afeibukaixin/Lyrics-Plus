@@ -201,8 +201,7 @@ impl AudioVisualizerProcessor {
         }
 
         let target_ceiling =
-            (peak_db + CEILING_HEADROOM_DB)
-                .clamp(MIN_DYNAMIC_CEILING_DB, MAX_DYNAMIC_CEILING_DB);
+            (peak_db + CEILING_HEADROOM_DB).clamp(MIN_DYNAMIC_CEILING_DB, MAX_DYNAMIC_CEILING_DB);
         let ceiling_smoothing = if target_ceiling > self.adaptive_ceiling_db {
             ATTACK_SMOOTHING
         } else {

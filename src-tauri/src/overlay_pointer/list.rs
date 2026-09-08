@@ -86,9 +86,7 @@ pub(crate) fn sync_list_unlock_handle(app: &tauri::AppHandle) {
         list.outer_position(),
         list.outer_size(),
     ) {
-        (Ok(cursor), Ok(position), Ok(size)) => {
-            point_in_window_bounds(cursor, position, size)
-        }
+        (Ok(cursor), Ok(position), Ok(size)) => point_in_window_bounds(cursor, position, size),
         _ => true,
     };
     if cursor_inside {

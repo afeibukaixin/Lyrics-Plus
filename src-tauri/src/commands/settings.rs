@@ -344,7 +344,7 @@ pub fn reset_settings_section(
                 .write()
                 .unwrap_or_else(|error| error.into_inner()) = style.clone();
 
-            if let Some(window) = app.get_webview_window("lyrics-overlay") {
+            if app.get_webview_window("lyrics-overlay").is_some() {
                 crate::reset_overlay_toolbar_placement(&app, style.orientation);
             }
             app.emit("overlay://style", &style)
