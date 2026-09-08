@@ -711,7 +711,7 @@
   height: var(--notch-top-inset);
   min-height: 0;
   padding-block: 4px;
-  padding-inline: max(12px, calc(var(--notch-radius) - 4px));
+  padding-inline: max(6px, calc(var(--notch-radius) - 10px));
 }
 
 .shell:not([data-has-notch]) .metadata[data-inline-lyrics="true"] {
