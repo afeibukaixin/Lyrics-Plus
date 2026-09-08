@@ -84,11 +84,8 @@
 }
 
 .shell[data-background-mode="transparent"] .header {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  border-bottom: 0;
+  // 透明模式保留标题栏和边框占位，避免切换背景时改变歌词区域的位置与高度。
+  border-bottom-color: transparent;
   background: transparent;
   opacity: 1;
   transform: none;
