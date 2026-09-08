@@ -160,6 +160,7 @@ pub(super) async fn perform_lyrics_search(
         started,
     )
     .await;
+    let search_duration_ms = duration_ms(started.elapsed());
     match &result {
         Ok(response) => {
             let selected = response
@@ -208,6 +209,10 @@ pub(super) async fn perform_lyrics_search(
                 started.elapsed(),
                 response.results.len(),
             );
+            // 统计实际执行的搜索；并发复用与已完成结果复用不会再次进入这里。
+            state
+                .telemetry
+                .track_search(intent, response, search_duration_ms);
         }
         Err(error) => {
             let final_started = Instant::now();

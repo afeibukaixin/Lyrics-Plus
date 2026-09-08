@@ -208,12 +208,7 @@ pub async fn search_lyrics_v2(
     intent: LyricsSearchIntent,
     state: State<'_, AppState>,
 ) -> Result<SearchResponse, String> {
-    let started = std::time::Instant::now();
-    let response = search_lyrics_for_session(app, &state, &track_key, input, intent).await?;
-    state
-        .telemetry
-        .track_search(intent, &response, started.elapsed().as_millis() as u64);
-    Ok(response)
+    search_lyrics_for_session(app, &state, &track_key, input, intent).await
 }
 
 #[tauri::command]
