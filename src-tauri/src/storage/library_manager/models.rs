@@ -105,7 +105,24 @@ pub struct LibraryLyricSummary {
     pub source_count: u64,
     pub file_size: u64,
     pub status: String,
+    #[serde(default)]
+    pub can_cleanup: bool,
     pub content_fingerprint: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryLyricBatchFailure {
+    pub asset_id: i64,
+    pub error: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClearCandidateLyricsResult {
+    pub processed_assets: u64,
+    pub removed_bindings: u64,
+    pub failures: Vec<LibraryLyricBatchFailure>,
 }
 
 #[derive(Debug, Clone, Serialize)]

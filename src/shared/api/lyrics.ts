@@ -16,6 +16,7 @@ import type {
   LyricSimilarityGroup,
   UnboundCleanupPreview,
   UnboundCleanupResult,
+  ClearCandidateLyricsResult,
   LyricsDocument,
   LyricsLoadResponse,
   LyricsContext,
@@ -53,8 +54,12 @@ export const lyricsApi = {
     invoke<LibraryPage<SongSimilarityPair>>("list_library_song_similarity", { page, pageSize }),
   dismissLibrarySongSimilarity: (leftRecordingId: number, rightRecordingId: number) =>
     invoke<void>("dismiss_library_song_similarity", { leftRecordingId, rightRecordingId }),
-  mergeLibrarySong: (recordingId: number, candidateRecordingId: number) =>
-    invoke<LibrarySongDetail>("merge_library_song", { input: { recordingId, candidateRecordingId } }),
+  mergeLibrarySong: (recordingId: number, candidateRecordingId: number, manualOverride = false) =>
+    invoke<LibrarySongDetail>("merge_library_song", {
+      input: { recordingId, candidateRecordingId, manualOverride },
+    }),
+  deleteLibrarySong: (recordingId: number) =>
+    invoke<string[]>("delete_library_song", { recordingId }),
   splitLibrarySong: (recordingId: number, observationId: number, inheritCurrentLyrics = false) =>
     invoke<LibrarySongDetail>("split_library_song", {
       input: { recordingId, observationId, inheritCurrentLyrics },
@@ -94,6 +99,8 @@ export const lyricsApi = {
     invoke<void>("merge_library_lyrics", {
       input: { keeperAssetId, redundantAssetIds },
     }),
+  clearLibraryLyricCandidates: (assetIds: number[]) =>
+    invoke<ClearCandidateLyricsResult>("clear_library_lyric_candidates", { assetIds }),
   previewUnboundLyricsCleanup: (page = 1, pageSize = 20) =>
     invoke<UnboundCleanupPreview>("preview_unbound_lyrics_cleanup", { page, pageSize }),
   cleanupUnboundLyrics: (
@@ -104,6 +111,8 @@ export const lyricsApi = {
   ) => invoke<UnboundCleanupResult>("cleanup_unbound_lyrics", {
     selectionMode, assetIds, excludedAssetIds, revision,
   }),
+  cleanupSelectedUnboundLyrics: (assetIds: number[]) =>
+    invoke<UnboundCleanupResult>("cleanup_selected_unbound_lyrics", { assetIds }),
   deleteLibraryLyricSource: (assetId: number, sourceId: number) =>
     invoke<LibraryLyricDetail>("delete_library_lyric_source", { assetId, sourceId }),
   getCachedLyrics: (trackKey: string) =>

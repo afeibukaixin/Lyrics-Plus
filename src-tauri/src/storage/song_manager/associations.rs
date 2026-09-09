@@ -3,7 +3,7 @@ use super::{
 };
 use crate::lyrics::provider::{version_tags_from_title, ProviderSettings};
 use crate::storage::{load_observations, Storage};
-use rusqlite::OptionalExtension;
+use rusqlite::{OptionalExtension, TransactionBehavior};
 
 impl Storage {
     /// 将候选歌曲组关联到当前歌曲，所有平台关系移动在同一事务内完成。
@@ -21,7 +21,8 @@ impl Storage {
             .lock()
             .unwrap_or_else(|error| error.into_inner());
         let transaction = connection
-            .transaction()
+            // 候选校验后还会写入；预先申请写锁，避免 WAL 读事务升级时撞上后台索引写入。
+            .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| format!("开始关联歌曲失败：{error}"))?;
         // 事务内重新校验候选，避免详情打开后候选已发生变化仍执行旧操作。
         let candidates = collect_song_association_candidates_for_target(
@@ -46,106 +47,63 @@ impl Storage {
                 |row| row.get::<_, i64>(0),
             )
             .map_err(|error| format!("读取当前歌曲失败：{error}"))?;
-        let current_lyrics = load_default_lyric_binding(&transaction, current_recording_id)?;
-        let candidate_lyrics = load_default_lyric_binding(&transaction, candidate.recording_id)?;
-
-        normalize_platform_lyrics(&transaction, current_recording_id)?;
-        normalize_platform_lyrics(&transaction, candidate.recording_id)?;
-        merge_lyric_bindings(&transaction, current_recording_id, candidate.recording_id)?;
-        transaction
-            .execute(
-                "UPDATE track_observations
-                 SET recording_id=?2, split_from_recording_id=NULL, observed_at=unixepoch()
-                 WHERE recording_id=?1",
-                rusqlite::params![candidate.recording_id, current_recording_id],
-            )
-            .map_err(|error| format!("迁移歌曲平台关系失败：{error}"))?;
-        // 选择任意其他候选后，当前独立版本与原歌曲的恢复关系一并解除。
-        // 候选为原歌曲时也必须清除该标记，避免删除来源实体后留下悬空外键。
-        transaction
-            .execute(
-                "UPDATE track_observations
-                 SET split_from_recording_id=NULL
-                 WHERE recording_id=?1",
-                rusqlite::params![current_recording_id],
-            )
-            .map_err(|error| format!("清除独立歌曲来源关系失败：{error}"))?;
-        move_external_ids(&transaction, candidate.recording_id, current_recording_id)?;
-        // 只确认当前及候选各平台观察对应的精确 ID；ISRC 或歌词来源等
-        // 其他外部证据继续保留原确认状态，避免关联操作扩大确认范围。
-        relink_external_id(
+        let (view, _) = merge_recordings(
             &transaction,
-            platform,
-            track_key,
             current_recording_id,
-            true,
+            candidate.recording_id,
         )?;
-        for observation in load_observations(&transaction, current_recording_id)? {
-            relink_external_id(
-                &transaction,
-                &observation.platform,
-                &observation.track_key,
-                current_recording_id,
-                true,
-            )?;
-        }
-        transaction
-            .execute(
-                "UPDATE lyrics_search_runs SET recording_id=?2 WHERE recording_id=?1",
-                rusqlite::params![candidate.recording_id, current_recording_id],
-            )
-            .map_err(|error| format!("迁移歌词搜索身份失败：{error}"))?;
-
-        // 当前歌曲已有歌词时保留它；当前没有而候选有默认歌词时采用候选歌词。
-        if current_lyrics.is_none() && candidate_lyrics.is_some() {
-            set_shared_lyrics_default(
-                &transaction,
-                current_recording_id,
-                candidate_lyrics.as_ref(),
-            )?;
-        }
-        move_platform_overrides(&transaction, candidate.recording_id, current_recording_id)?;
-        // 合并会改变保留歌曲的身份内容，之前涉及两端的“保持分开”判断需要重新审核。
-        transaction
-            .execute(
-                "DELETE FROM song_similarity_ignores
-                 WHERE left_recording_id IN (?1, ?2) OR right_recording_id IN (?1, ?2)",
-                rusqlite::params![current_recording_id, candidate.recording_id],
-            )
-            .map_err(|error| format!("清理相似歌曲忽略记录失败：{error}"))?;
-        // 候选歌曲可能曾经作为其他独立版本的来源；候选实体清理前解除这些旧来源引用，
-        // 避免留下悬空的 split_from_recording_id。
-        transaction
-            .execute(
-                "UPDATE track_observations
-                 SET split_from_recording_id=NULL
-                 WHERE split_from_recording_id=?1",
-                rusqlite::params![candidate.recording_id],
-            )
-            .map_err(|error| format!("清理候选歌曲来源关系失败：{error}"))?;
-        transaction
-            .execute(
-                "DELETE FROM recording_lyric_bindings WHERE recording_id=?1",
-                rusqlite::params![candidate.recording_id],
-            )
-            .map_err(|error| format!("清理候选歌曲歌词绑定失败：{error}"))?;
-        transaction
-            .execute(
-                "DELETE FROM recording_artist_credits WHERE recording_id=?1",
-                rusqlite::params![candidate.recording_id],
-            )
-            .map_err(|error| format!("清理候选歌曲署名失败：{error}"))?;
-        transaction
-            .execute(
-                "DELETE FROM recordings WHERE recording_id=?1",
-                rusqlite::params![candidate.recording_id],
-            )
-            .map_err(|error| format!("清理空歌曲实体失败：{error}"))?;
-        let view = recording_view(&transaction, current_recording_id)?;
         transaction
             .commit()
             .map_err(|error| format!("提交歌曲关联失败：{error}"))?;
         Ok(view)
+    }
+
+    /// 合并资料库中的两首歌曲。手动覆盖仅跳过候选与同平台冲突校验，事务迁移规则保持一致。
+    pub(crate) fn merge_library_song_recordings(
+        &self,
+        target_recording_id: i64,
+        source_recording_id: i64,
+        manual_override: bool,
+        settings: &ProviderSettings,
+    ) -> Result<(RecordingView, Vec<String>), String> {
+        if target_recording_id == source_recording_id {
+            return Err("不能将歌曲合并到自身".into());
+        }
+        let mut connection = self
+            .connection
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| format!("开始合并歌曲失败：{error}"))?;
+        recording_view(&transaction, target_recording_id)?;
+        recording_view(&transaction, source_recording_id)?;
+
+        if !manual_override {
+            let observation = load_observations(&transaction, target_recording_id)?
+                .into_iter()
+                .next()
+                .ok_or_else(|| "歌曲没有可用于合并的平台观察".to_string())?;
+            let candidate = collect_song_association_candidates_for_target(
+                &transaction,
+                &observation.platform,
+                &observation.track_key,
+                settings,
+                Some(source_recording_id),
+            )?
+            .into_iter()
+            .find(|candidate| candidate.recording_id == source_recording_id)
+            .ok_or_else(|| "候选歌曲已不存在或不满足关联条件，请刷新后重试".to_string())?;
+            if !candidate.can_associate {
+                return Err("存在同平台曲目冲突，请先移出多余曲目".into());
+            }
+        }
+
+        let result = merge_recordings(&transaction, target_recording_id, source_recording_id)?;
+        transaction
+            .commit()
+            .map_err(|error| format!("提交歌曲合并失败：{error}"))?;
+        Ok(result)
     }
 
     /// 将当前播放器曲目拆到新 Recording，并记录来源以便后续恢复。
@@ -321,6 +279,92 @@ impl Storage {
             .map_err(|error| format!("提交歌曲拆分失败：{error}"))?;
         Ok(view)
     }
+}
+
+fn merge_recordings(
+    transaction: &rusqlite::Transaction<'_>,
+    target_recording_id: i64,
+    source_recording_id: i64,
+) -> Result<(RecordingView, Vec<String>), String> {
+    let target_lyrics = load_default_lyric_binding(transaction, target_recording_id)?;
+    let source_lyrics = load_default_lyric_binding(transaction, source_recording_id)?;
+    let affected_track_keys = load_observations(transaction, target_recording_id)?
+        .into_iter()
+        .chain(load_observations(transaction, source_recording_id)?)
+        .map(|observation| observation.track_key)
+        .collect::<Vec<_>>();
+
+    normalize_platform_lyrics(transaction, target_recording_id)?;
+    normalize_platform_lyrics(transaction, source_recording_id)?;
+    merge_lyric_bindings(transaction, target_recording_id, source_recording_id)?;
+    transaction
+        .execute(
+            "UPDATE track_observations
+             SET recording_id=?2, split_from_recording_id=NULL, observed_at=unixepoch()
+             WHERE recording_id=?1",
+            rusqlite::params![source_recording_id, target_recording_id],
+        )
+        .map_err(|error| format!("迁移歌曲平台关系失败：{error}"))?;
+    transaction
+        .execute(
+            "UPDATE track_observations SET split_from_recording_id=NULL WHERE recording_id=?1",
+            rusqlite::params![target_recording_id],
+        )
+        .map_err(|error| format!("清除独立歌曲来源关系失败：{error}"))?;
+    move_external_ids(transaction, source_recording_id, target_recording_id)?;
+    // 每个来源观察的精确平台 ID 都要保留，包括同一平台下的多个曲目 ID。
+    for observation in load_observations(transaction, target_recording_id)? {
+        relink_external_id(
+            transaction,
+            &observation.platform,
+            &observation.track_key,
+            target_recording_id,
+            true,
+        )?;
+    }
+    transaction
+        .execute(
+            "UPDATE lyrics_search_runs SET recording_id=?2 WHERE recording_id=?1",
+            rusqlite::params![source_recording_id, target_recording_id],
+        )
+        .map_err(|error| format!("迁移歌词搜索身份失败：{error}"))?;
+    if target_lyrics.is_none() && source_lyrics.is_some() {
+        set_shared_lyrics_default(transaction, target_recording_id, source_lyrics.as_ref())?;
+    }
+    move_platform_overrides(transaction, source_recording_id, target_recording_id)?;
+    transaction
+        .execute(
+            "DELETE FROM song_similarity_ignores
+             WHERE left_recording_id IN (?1, ?2) OR right_recording_id IN (?1, ?2)",
+            rusqlite::params![target_recording_id, source_recording_id],
+        )
+        .map_err(|error| format!("清理相似歌曲忽略记录失败：{error}"))?;
+    transaction
+        .execute(
+            "UPDATE track_observations SET split_from_recording_id=NULL
+             WHERE split_from_recording_id=?1",
+            rusqlite::params![source_recording_id],
+        )
+        .map_err(|error| format!("清理候选歌曲来源关系失败：{error}"))?;
+    transaction
+        .execute(
+            "DELETE FROM recording_lyric_bindings WHERE recording_id=?1",
+            rusqlite::params![source_recording_id],
+        )
+        .map_err(|error| format!("清理候选歌曲歌词绑定失败：{error}"))?;
+    transaction
+        .execute(
+            "DELETE FROM recording_artist_credits WHERE recording_id=?1",
+            rusqlite::params![source_recording_id],
+        )
+        .map_err(|error| format!("清理候选歌曲署名失败：{error}"))?;
+    transaction
+        .execute(
+            "DELETE FROM recordings WHERE recording_id=?1",
+            rusqlite::params![source_recording_id],
+        )
+        .map_err(|error| format!("清理空歌曲实体失败：{error}"))?;
+    Ok((recording_view(transaction, target_recording_id)?, affected_track_keys))
 }
 
 pub(super) fn relink_external_id(

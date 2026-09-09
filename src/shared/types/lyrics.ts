@@ -258,7 +258,19 @@ export type LibraryLyricSummary = {
   sourceCount: number;
   fileSize: number;
   status: LibraryLyricStatus;
+  canCleanup: boolean;
   contentFingerprint: string;
+};
+
+export type LibraryLyricBatchFailure = {
+  assetId: number;
+  error: string;
+};
+
+export type ClearCandidateLyricsResult = {
+  processedAssets: number;
+  removedBindings: number;
+  failures: LibraryLyricBatchFailure[];
 };
 
 export type LibraryArtistSummary = {

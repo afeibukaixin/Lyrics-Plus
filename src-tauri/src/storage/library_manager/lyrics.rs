@@ -7,6 +7,7 @@ use super::super::{
     load_artist_credits, load_asset, lyric_asset_content_paths, LyricAsset, Storage,
     EXTERNAL_ROOT_ID,
 };
+use super::cleanup::asset_can_cleanup;
 use super::index::{normalized_library_search_value, search_lyric_index_page};
 use super::models::{
     LibraryLyricDetail, LibraryLyricPage, LibraryLyricRecording, LibraryLyricSource,
@@ -354,6 +355,7 @@ pub(super) fn library_lyric_summary(
         source_count: source_count.max(if asset.relative_path.is_some() { 1 } else { 0 }) as u64,
         file_size,
         status: status.into(),
+        can_cleanup: status == "unbound" && asset_can_cleanup(connection, asset_id),
         content_fingerprint: asset.content_fingerprint,
     }))
 }
@@ -456,12 +458,19 @@ pub(super) fn library_lyric_summaries(
                     "unbound"
                 }
                 .into(),
+                can_cleanup: false,
                 content_fingerprint: row.get(16)?,
             })
         })
         .map_err(|error| format!("读取歌词资料库集合摘要失败：{error}"))?
         .collect::<rusqlite::Result<Vec<_>>>()
         .map_err(|error| format!("解析歌词资料库集合摘要失败：{error}"))?;
+    let mut summaries = summaries;
+    for summary in &mut summaries {
+        if summary.status == "unbound" {
+            summary.can_cleanup = asset_can_cleanup(connection, summary.asset_id);
+        }
+    }
     Ok(summaries)
 }
 

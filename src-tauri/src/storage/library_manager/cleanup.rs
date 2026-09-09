@@ -89,6 +89,11 @@ fn deletable_asset_sources(
         .collect())
 }
 
+pub(super) fn asset_can_cleanup(connection: &Connection, asset_id: i64) -> bool {
+    asset_is_unbound(connection, asset_id)
+        && deletable_asset_sources(connection, asset_id).is_ok_and(|sources| !sources.is_empty())
+}
+
 fn unbound_cleanup_candidates(connection: &Connection) -> Result<(Vec<i64>, u64, u64), String> {
     let mut statement = connection
         .prepare(
@@ -236,6 +241,27 @@ impl Storage {
         for asset_id in &selected_ids {
             results.push(self.cleanup_unbound_lyric(*asset_id));
         }
+        let deleted_files = results.iter().map(|item| item.deleted_files).sum();
+        let released_bytes = results.iter().map(|item| item.released_bytes).sum();
+        results.retain(|item| item.error.is_some());
+        Ok(UnboundCleanupResult {
+            items: results,
+            deleted_files,
+            released_bytes,
+        })
+    }
+
+    pub fn cleanup_selected_unbound_lyrics(
+        &self,
+        asset_ids: &[i64],
+    ) -> Result<UnboundCleanupResult, String> {
+        let mut seen = HashSet::new();
+        let mut results = asset_ids
+            .iter()
+            .copied()
+            .filter(|asset_id| seen.insert(*asset_id))
+            .map(|asset_id| self.cleanup_unbound_lyric(asset_id))
+            .collect::<Vec<_>>();
         let deleted_files = results.iter().map(|item| item.deleted_files).sum();
         let released_bytes = results.iter().map(|item| item.released_bytes).sum();
         results.retain(|item| item.error.is_some());

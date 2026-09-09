@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { TFunction } from "i18next";
-import { Bubbles, Check, Link2, Search, Trash2 } from "lucide-react";
-import { useNavigate } from "react-router";
+import { Check, Link2, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -21,19 +20,26 @@ import { lyricsApi } from "@/shared/api/lyrics";
 import { messageOf } from "@/shared/api";
 import { findAlignedAuxiliaryLine } from "@/features/lyrics/useLyrics/display";
 import type { LyricsDocument } from "@/shared/types/lyrics";
-import type { LibraryLyricDetail, LibraryLyricPage, LibraryLyricSource, LibraryLyricStatus, LibrarySongSummary, LibraryLyricSummary, LyricSimilarityGroup, UnboundCleanupPreview } from "@/shared/types/lyrics";
-import { ConfirmAction, formatBytes, LibraryDetailHeader, LibraryDetailSection, LibraryRelationItem, LibraryRelationList, LibraryState, LibraryToolbar, PageControls, TruncatedText } from "./shared";
+import type { LibraryLyricDetail, LibraryLyricPage, LibraryLyricSource, LibraryLyricStatus, LibrarySongSummary, LibraryLyricSummary, LyricSimilarityGroup } from "@/shared/types/lyrics";
+import { ConfirmAction, formatBytes, LibraryDetailHeader, LibraryDetailSection, LibraryRelationItem, LibraryRelationList, LibraryState, LibraryToolbar, PageControls, TruncatedText, useLibraryNavigation } from "./shared";
 import styles from "./library.module.scss";
 
 const lyricStatuses: Array<LibraryLyricStatus | "all"> = ["all", "inUse", "candidate", "unbound"];
 const lyricSourceKinds = ["all", "managed", "cache", "local", "legacy"] as const;
 
-export default function LyricsLibrary({ detailId, onStatusCountsChange }: {
+export default function LyricsLibrary({ detailId, onStatusCountsChange, similarityOpen, onSimilarityClose }: {
   detailId: number | null;
   onStatusCountsChange: (counts: Record<LibraryLyricStatus, number>) => void;
+  similarityOpen: boolean;
+  onSimilarityClose: () => void;
 }) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const navigation = useLibraryNavigation({
+    section: "lyrics",
+    sectionLabel: t("library.manager.tabs.lyrics"),
+    detailsLabel: t("library.manager.details"),
+    detailId: null,
+  });
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<LibraryLyricStatus | "all">("all");
   const [sourceKind, setSourceKind] = useState<(typeof lyricSourceKinds)[number]>("all");
@@ -41,15 +47,10 @@ export default function LyricsLibrary({ detailId, onStatusCountsChange }: {
   const [pageSize, setPageSize] = useState(20);
   const [data, setData] = useState<LibraryLyricPage | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [cleanupSelection, setCleanupSelection] = useState<Set<number>>(new Set());
-  const [cleanupExcluded, setCleanupExcluded] = useState<Set<number>>(new Set());
-  const [cleanupSelectionMode, setCleanupSelectionMode] = useState<"selected" | "allExcept">("allExcept");
-  const [cleanupPageSize, setCleanupPageSize] = useState(20);
-  const [similarOpen, setSimilarOpen] = useState(false);
-  const [cleanup, setCleanup] = useState<UnboundCleanupPreview | null>(null);
-  const [cleanupOpen, setCleanupOpen] = useState(false);
+  const [batchBusy, setBatchBusy] = useState(false);
   const [error, setError] = useState("");
   const requestSequence = useRef(0);
+  const batchBusyRef = useRef(false);
 
   const refresh = () => {
     const sequence = ++requestSequence.current;
@@ -65,48 +66,62 @@ export default function LyricsLibrary({ detailId, onStatusCountsChange }: {
     return () => window.clearTimeout(timer);
   }, [query, status, sourceKind, page, pageSize]);
   useEffect(() => {
+    setSelected(new Set());
+  }, [query, status, sourceKind, page, pageSize]);
+  useEffect(() => {
     if (detailId !== null) return;
     if (data) onStatusCountsChange(data.statusCounts);
   }, [data, detailId, onStatusCountsChange]);
 
-  if (detailId) return <LyricDetail assetId={detailId} onBack={() => navigate("/settings/library/lyrics")} />;
-  if (similarOpen) return <SimilarityQueue onBack={() => { setSimilarOpen(false); void refresh(); }} />;
-  const visibleIds = data?.items.map((item) => item.assetId) ?? [];
+  if (detailId) return <LyricDetail assetId={detailId} />;
+  if (similarityOpen) return <SimilarityQueue onBack={() => { onSimilarityClose(); void refresh(); }} />;
+  const selectionEnabled = status === "candidate" || status === "unbound";
+  const visibleIds = data?.items
+    .filter((item) => status === "candidate" || (status === "unbound" && item.canCleanup))
+    .map((item) => item.assetId) ?? [];
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
 
-  const openCleanup = async () => {
+  const clearCandidates = async () => {
+    if (batchBusy || batchBusyRef.current || !selected.size) return;
+    batchBusyRef.current = true;
+    setBatchBusy(true);
     try {
-      const value = await lyricsApi.previewUnboundLyricsCleanup(1, cleanupPageSize);
-      setCleanup(value);
-      const selectedCleanupIds = [...selected];
-      setCleanupSelectionMode(selectedCleanupIds.length ? "selected" : "allExcept");
-      setCleanupSelection(new Set(selectedCleanupIds));
-      setCleanupExcluded(new Set());
-      setCleanupOpen(true);
-    }
-    catch (reason) { toast.error(messageOf(reason)); }
+      const result = await lyricsApi.clearLibraryLyricCandidates([...selected]);
+      toast.success(t("library.manager.candidatesCleared", { count: result.processedAssets, bindings: result.removedBindings }));
+      result.failures.forEach((item) => toast.error(`#${item.assetId}: ${item.error}`));
+      setSelected(new Set());
+      await refresh();
+    } catch (reason) { toast.error(messageOf(reason)); }
+    finally { batchBusyRef.current = false; setBatchBusy(false); }
   };
-  const runCleanup = async () => {
-    if (!cleanup) return;
+  const cleanupSelected = async () => {
+    if (batchBusy || batchBusyRef.current || !selected.size) return;
+    batchBusyRef.current = true;
+    setBatchBusy(true);
     try {
-      const result = await lyricsApi.cleanupUnboundLyrics(
-        cleanupSelectionMode,
-        [...cleanupSelection],
-        [...cleanupExcluded],
-        cleanup.revision,
-      );
-      const failures = result.items.filter((item) => item.error);
+      const result = await lyricsApi.cleanupSelectedUnboundLyrics([...selected]);
       toast.success(t("library.manager.cleanupDone", { count: result.deletedFiles, size: formatBytes(result.releasedBytes) }));
-      failures.forEach((item) => toast.error(`#${item.assetId}: ${t("errors.command")}`));
-      setCleanupOpen(false); setSelected(new Set()); await refresh();
+      result.items.forEach((item) => toast.error(`#${item.assetId}: ${item.error ?? t("errors.command")}`));
+      setSelected(new Set());
+      await refresh();
     } catch (reason) { toast.error(messageOf(reason)); }
+    finally { batchBusyRef.current = false; setBatchBusy(false); }
   };
-  const loadCleanupPage = async (nextPage: number, nextPageSize: number) => {
-    try {
-      const value = await lyricsApi.previewUnboundLyricsCleanup(nextPage, nextPageSize);
-      setCleanup(value); setCleanupPageSize(value.pageSize);
-    } catch (reason) { toast.error(messageOf(reason)); }
-  };
+  const batchActions = selected.size > 0 && status === "candidate" ? <ConfirmAction
+    title={t("library.manager.clearCandidatesTitle")}
+    description={t("library.manager.clearCandidatesDescription", { count: selected.size })}
+    label={t("library.manager.clearCandidates", { count: selected.size })}
+    triggerVariant="destructive"
+    disabled={batchBusy}
+    onConfirm={clearCandidates}
+  /> : selected.size > 0 && status === "unbound" ? <ConfirmAction
+    title={t("library.manager.cleanupSelectedTitle")}
+    description={t("library.manager.cleanupSelectedDescription", { count: selected.size })}
+    label={t("library.manager.cleanupSelected", { count: selected.size })}
+    triggerVariant="destructive"
+    disabled={batchBusy}
+    onConfirm={cleanupSelected}
+  /> : null;
 
   return (
     <div className={styles.workspace}>
@@ -115,14 +130,15 @@ export default function LyricsLibrary({ detailId, onStatusCountsChange }: {
           query={query}
           onQueryChange={(value) => { setQuery(value); setPage(1); }}
           filters={<><Select value={status} onValueChange={(value) => { setStatus(value as typeof status); setPage(1); }}><SelectTrigger><SelectValue>{t(`library.manager.status.${status}`)}</SelectValue></SelectTrigger><SelectContent><SelectGroup>{lyricStatuses.map((value) => <SelectItem value={value} key={value}>{t(`library.manager.status.${value}`)}</SelectItem>)}</SelectGroup></SelectContent></Select><Select value={sourceKind} onValueChange={(value) => { setSourceKind(value as typeof sourceKind); setPage(1); }}><SelectTrigger><SelectValue>{t(`library.manager.source.${sourceKind}`)}</SelectValue></SelectTrigger><SelectContent><SelectGroup>{lyricSourceKinds.map((value) => <SelectItem value={value} key={value}>{t(`library.manager.source.${value}`)}</SelectItem>)}</SelectGroup></SelectContent></Select></>}
-          actions={<><Button size="sm" variant="outline" onClick={() => setSimilarOpen(true)}><Bubbles data-icon="inline-start" />{t("library.manager.similarLyrics")}</Button><Button size="sm" variant="destructive" onClick={() => void openCleanup()}><Trash2 data-icon="inline-start" />{t("library.manager.cleanup")}</Button></>}
         />
         <CardContent className={styles.tableContent}>
-        {error ? <LibraryState state="error" message={error} /> : data === null ? <LibraryState state="loading" message={t("library.manager.loading")} /> : data.items.length ? <Table className={`${styles.fixedTable} ${styles.lyricsTable} ${styles.dataTable}`}><TableHeader><TableRow><TableHead className={styles.selectionColumn}><Checkbox checked={allVisibleSelected} onCheckedChange={(checked) => setSelected(checked ? new Set(visibleIds) : new Set())} aria-label={t("library.manager.selectAll")} /></TableHead><TableHead>{t("library.manager.lyric")}</TableHead><TableHead>{t("library.manager.statusLabel")}</TableHead><TableHead>{t("library.manager.capabilities")}</TableHead><TableHead className={styles.numericColumn}>{t("library.manager.size")}</TableHead><TableHead className={styles.actionColumn}>{t("library.manager.actions")}</TableHead></TableRow></TableHeader><TableBody>{data.items.map((item) => <TableRow key={item.assetId} data-state={selected.has(item.assetId) ? "selected" : undefined}><TableCell className={styles.selectionColumn}><Checkbox checked={selected.has(item.assetId)} onCheckedChange={(checked) => setSelected((current) => { const next = new Set(current); if (checked) next.add(item.assetId); else next.delete(item.assetId); return next; })} aria-label={item.title} /></TableCell><TableCell className={styles.primaryCell}><TruncatedText variant="title">{item.title}</TruncatedText><TruncatedText variant="meta">{`${item.artist} · ${item.sourceName}`}</TruncatedText></TableCell><TableCell><StatusBadge item={item} t={t} /></TableCell><TableCell><div className={styles.badges}>{item.hasWordTiming ? <Badge variant="outline">{t("common.feature.wordTiming")}</Badge> : null}{item.hasTranslation ? <Badge variant="outline">{t("common.feature.translation")}</Badge> : null}{item.hasRomanization ? <Badge variant="outline">{t("common.feature.romanization")}</Badge> : null}</div></TableCell><TableCell className={styles.numericColumn}><TruncatedText>{formatBytes(item.fileSize)}</TruncatedText></TableCell><TableCell className={styles.actionColumn}><Button size="sm" variant="outline" onClick={() => navigate(`/settings/library/lyrics/${item.assetId}`)}>{t("library.manager.details")}</Button></TableCell></TableRow>)}</TableBody></Table> : <LibraryState state="empty" message={t("library.manager.emptyLyrics")} />}
+        {error ? <LibraryState state="error" message={error} /> : data === null ? <LibraryState state="loading" message={t("library.manager.loading")} /> : data.items.length ? <Table data-selection={selectionEnabled ? "true" : "false"} className={`${styles.fixedTable} ${styles.lyricsTable} ${styles.dataTable}`}><TableHeader><TableRow>{selectionEnabled ? <TableHead className={styles.selectionColumn}>{visibleIds.length ? <Checkbox checked={allVisibleSelected} onCheckedChange={(checked) => setSelected(checked ? new Set(visibleIds) : new Set())} aria-label={t("library.manager.selectAll")} /> : null}</TableHead> : null}<TableHead>{t("library.manager.lyric")}</TableHead><TableHead>{t("library.manager.statusLabel")}</TableHead><TableHead>{t("library.manager.capabilities")}</TableHead><TableHead className={`${styles.numericColumn} ${styles.fileSizeColumn}`}>{t("library.manager.size")}</TableHead><TableHead className={styles.actionColumn}>{t("library.manager.actions")}</TableHead></TableRow></TableHeader><TableBody>{data.items.map((item) => {
+          const selectable = status === "candidate" || (status === "unbound" && item.canCleanup);
+          return <TableRow key={item.assetId} data-state={selected.has(item.assetId) ? "selected" : undefined}>{selectionEnabled ? <TableCell className={styles.selectionColumn}>{selectable ? <Checkbox checked={selected.has(item.assetId)} onCheckedChange={(checked) => setSelected((current) => { const next = new Set(current); if (checked) next.add(item.assetId); else next.delete(item.assetId); return next; })} aria-label={item.title} /> : null}</TableCell> : null}<TableCell className={styles.primaryCell}><TruncatedText variant="title">{item.title}</TruncatedText><TruncatedText variant="meta">{`${item.artist} · ${item.sourceName}`}</TruncatedText></TableCell><TableCell><StatusBadge item={item} t={t} /></TableCell><TableCell><div className={styles.badges}>{item.hasWordTiming ? <Badge variant="outline">{t("common.feature.wordTiming")}</Badge> : null}{item.hasTranslation ? <Badge variant="outline">{t("common.feature.translation")}</Badge> : null}{item.hasRomanization ? <Badge variant="outline">{t("common.feature.romanization")}</Badge> : null}</div></TableCell><TableCell className={`${styles.numericColumn} ${styles.fileSizeColumn}`}>{formatBytes(item.fileSize)}</TableCell><TableCell className={styles.actionColumn}><Button size="sm" variant="outline" onClick={() => navigation.openDetail("lyrics", item.assetId, item.title)}>{t("library.manager.details")}</Button></TableCell></TableRow>;
+        })}</TableBody></Table> : <LibraryState state="empty" message={t("library.manager.emptyLyrics")} />}
         </CardContent>
-        {data ? <PageControls page={data.page} pageSize={data.pageSize} total={data.total} onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} /> : null}
+        {data ? <PageControls page={data.page} pageSize={data.pageSize} total={data.total} actions={batchActions} onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} /> : null}
       </Card>
-      <Dialog open={cleanupOpen} onOpenChange={setCleanupOpen}><DialogContent><DialogHeader><DialogTitle>{t("library.manager.cleanupTitle")}</DialogTitle><DialogDescription>{cleanup ? t("library.manager.cleanupDescription", { count: cleanup.fileCount, size: formatBytes(cleanup.totalSize) }) : ""}</DialogDescription></DialogHeader><ItemGroup className={styles.dialogItemList}>{cleanup?.items.map((item) => { const checked = cleanupSelectionMode === "allExcept" ? !cleanupExcluded.has(item.assetId) : cleanupSelection.has(item.assetId); return <Item render={<label />} variant="outline" className={styles.checkboxItem} data-selected={checked} key={item.assetId}><Checkbox checked={checked} onCheckedChange={(value) => { const enabled = value === true; if (cleanupSelectionMode === "allExcept") setCleanupExcluded((current) => { const next = new Set(current); if (enabled) next.delete(item.assetId); else next.add(item.assetId); return next; }); else setCleanupSelection((current) => { const next = new Set(current); if (enabled) next.add(item.assetId); else next.delete(item.assetId); return next; }); }} /><ItemContent><ItemTitle>{item.title}</ItemTitle><ItemDescription>{formatBytes(item.fileSize)}</ItemDescription></ItemContent></Item>; })}</ItemGroup>{cleanup ? <PageControls compact page={cleanup.page} pageSize={cleanup.pageSize} total={cleanup.total} onPageChange={(value) => void loadCleanupPage(value, cleanupPageSize)} onPageSizeChange={(value) => void loadCleanupPage(1, value)} /> : null}<DialogFooter><Button variant="outline" onClick={() => setCleanupOpen(false)}>{t("common.actions.cancel")}</Button><Button variant="destructive" disabled={cleanupSelectionMode === "selected" ? !cleanupSelection.size : Boolean(cleanup && cleanupExcluded.size >= cleanup.total)} onClick={() => void runCleanup()}>{t("library.manager.confirmCleanup")}</Button></DialogFooter></DialogContent></Dialog>
     </div>
   );
 }
@@ -132,19 +148,26 @@ function StatusBadge({ item, t }: { item: LibraryLyricSummary; t: TFunction }) {
   return <span className={styles.badges}><Badge variant={variant}>{t(`library.manager.status.${item.status}`)}</Badge>{!item.available ? <Badge variant="destructive">{t("library.manager.unavailable")}</Badge> : null}</span>;
 }
 
-function LyricDetail({ assetId, onBack }: { assetId: number; onBack: () => void }) {
+function LyricDetail({ assetId }: { assetId: number }) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [detail, setDetail] = useState<LibraryLyricDetail | null>(null);
   const [bindOpen, setBindOpen] = useState(false);
   const [formattedPreview, setFormattedPreview] = useState(true);
   const [error, setError] = useState("");
+  const navigation = useLibraryNavigation({
+    section: "lyrics",
+    sectionLabel: t("library.manager.tabs.lyrics"),
+    detailsLabel: t("library.manager.details"),
+    detailId: assetId,
+    detailLabel: detail?.summary.title,
+  });
+  const onBack = navigation.back;
   const refresh = () => lyricsApi.getLibraryLyric(assetId).then((value) => { setDetail(value); setError(""); }).catch((reason) => setError(messageOf(reason)));
   useEffect(() => { void refresh(); }, [assetId]);
   const unbind = async (recordingId: number) => { try { await lyricsApi.unbindLibraryLyric(recordingId, assetId); await refresh(); toast.success(t("library.manager.unbound")); } catch (reason) { toast.error(messageOf(reason)); } };
   const removeSource = async (sourceId: number) => { try { setDetail(await lyricsApi.deleteLibraryLyricSource(assetId, sourceId)); toast.success(t("library.manager.sourceDeleted")); } catch (reason) { toast.error(messageOf(reason)); } };
-  if (!detail) return <Card className={`${styles.panel} ${styles.detailPanel}`}><LibraryDetailHeader title={t("library.manager.details")} onBack={onBack} /><CardContent><LibraryState state={error ? "error" : "loading"} message={error || t("library.manager.loading")} /></CardContent></Card>;
-  return <Card className={`${styles.panel} ${styles.detailPanel}`}><LibraryDetailHeader title={detail.summary.title} description={`${detail.summary.artist} · ${detail.summary.sourceName}`} status={<StatusBadge item={detail.summary} t={t} />} actions={<Button size="sm" variant="default" onClick={() => setBindOpen(true)}><Link2 data-icon="inline-start" />{t("library.manager.bindSong")}</Button>} onBack={onBack} /><CardContent className={styles.detailBody}>{error ? <LibraryState state="error" message={error} /> : null}<div className={`${styles.metadataGrid} ${styles.lyricMetadataGrid}`}><div><span>{t("library.manager.format")}</span><strong>{detail.summary.originalFormat} · {detail.summary.language}</strong></div><div><span>{t("library.manager.capabilities")}</span><strong>{[detail.summary.hasWordTiming && t("common.feature.wordTiming"), detail.summary.hasTranslation && t("common.feature.translation"), detail.summary.hasRomanization && t("common.feature.romanization")].filter(Boolean).join(" / ") || t("common.feature.plainText")}</strong></div><div><span>{t("library.manager.fingerprint")}</span><strong>{detail.summary.contentFingerprint.slice(0, 16)}…</strong></div></div><LibraryDetailSection title={t("library.manager.boundSongs")}>{detail.recordings.length ? <LibraryRelationList>{detail.recordings.map((song) => <LibraryRelationItem key={song.recordingId} title={song.title} description={`${song.artists.join(" / ")} · ${song.isDefault ? t("library.manager.defaultLyric") : t("library.manager.candidateLyric")}`} actions={<><Button size="sm" variant="outline" onClick={() => navigate(`/settings/library/songs/${song.recordingId}`)}>{t("library.manager.openSong")}</Button><ConfirmAction title={t("library.manager.unbindTitle")} description={t("library.manager.unbindDescription")} label={t("library.manager.unbind")} triggerVariant="destructive" onConfirm={() => unbind(song.recordingId)} /></>} />)}</LibraryRelationList> : <LibraryState state="empty" message={t("library.manager.noBoundSongs")} />}</LibraryDetailSection><LibraryDetailSection title={t("library.manager.physicalSources")}><LibraryRelationList>{detail.sources.map((source, index) => <LibraryRelationItem key={source.sourceId ?? index} title={source.sourceName} description={`${source.rootName || source.sourceKind} · ${source.relativePath || t("library.manager.memorySource")} · ${formatBytes(source.fileSize)}`} actions={<LyricSourceAction detail={detail} source={source} onRemove={removeSource} t={t} />} />)}</LibraryRelationList></LibraryDetailSection><LibraryDetailSection title={t("library.manager.lyricPreview")} actions={<PreviewModeSwitch formatted={formattedPreview} onCheckedChange={setFormattedPreview} t={t} />}><LyricsPreview document={detail.document} formatted={formattedPreview} t={t} /></LibraryDetailSection></CardContent><BindSongDialog open={bindOpen} onOpenChange={setBindOpen} assetId={assetId} onBound={() => void refresh()} /></Card>;
+  if (!detail) return <Card className={`${styles.panel} ${styles.detailPanel}`}><LibraryDetailHeader title={t("library.manager.details")} breadcrumbs={navigation.breadcrumbs} onBack={onBack} /><CardContent><LibraryState state={error ? "error" : "loading"} message={error || t("library.manager.loading")} /></CardContent></Card>;
+  return <Card className={`${styles.panel} ${styles.detailPanel}`}><LibraryDetailHeader title={detail.summary.title} description={`${detail.summary.artist} · ${detail.summary.sourceName}`} status={<StatusBadge item={detail.summary} t={t} />} actions={<Button size="sm" variant="default" onClick={() => setBindOpen(true)}><Link2 data-icon="inline-start" />{t("library.manager.bindSong")}</Button>} breadcrumbs={navigation.breadcrumbs} onBack={onBack} /><CardContent className={styles.detailBody}>{error ? <LibraryState state="error" message={error} /> : null}<div className={`${styles.metadataGrid} ${styles.lyricMetadataGrid}`}><div><span>{t("library.manager.format")}</span><strong>{detail.summary.originalFormat} · {detail.summary.language}</strong></div><div><span>{t("library.manager.capabilities")}</span><strong>{[detail.summary.hasWordTiming && t("common.feature.wordTiming"), detail.summary.hasTranslation && t("common.feature.translation"), detail.summary.hasRomanization && t("common.feature.romanization")].filter(Boolean).join(" / ") || t("common.feature.plainText")}</strong></div><div><span>{t("library.manager.fingerprint")}</span><strong>{detail.summary.contentFingerprint.slice(0, 16)}…</strong></div></div><LibraryDetailSection title={t("library.manager.boundSongs")}>{detail.recordings.length ? <LibraryRelationList>{detail.recordings.map((song) => <LibraryRelationItem key={song.recordingId} title={song.title} description={`${song.artists.join(" / ")} · ${song.isDefault ? t("library.manager.defaultLyric") : t("library.manager.candidateLyric")}`} actions={<><Button size="sm" variant="outline" onClick={() => navigation.openDetail("songs", song.recordingId, song.title)}>{t("library.manager.openSong")}</Button><ConfirmAction title={t("library.manager.unbindTitle")} description={t("library.manager.unbindDescription")} label={t("library.manager.unbind")} triggerVariant="destructive" onConfirm={() => unbind(song.recordingId)} /></>} />)}</LibraryRelationList> : <LibraryState state="empty" message={t("library.manager.noBoundSongs")} />}</LibraryDetailSection><LibraryDetailSection title={t("library.manager.physicalSources")}><LibraryRelationList>{detail.sources.map((source, index) => <LibraryRelationItem key={source.sourceId ?? index} title={source.sourceName} description={`${source.rootName || source.sourceKind} · ${source.relativePath || t("library.manager.memorySource")} · ${formatBytes(source.fileSize)}`} actions={<LyricSourceAction detail={detail} source={source} onRemove={removeSource} t={t} />} />)}</LibraryRelationList></LibraryDetailSection><LibraryDetailSection title={t("library.manager.lyricPreview")} actions={<PreviewModeSwitch formatted={formattedPreview} onCheckedChange={setFormattedPreview} t={t} />}><LyricsPreview document={detail.document} formatted={formattedPreview} t={t} /></LibraryDetailSection></CardContent><BindSongDialog open={bindOpen} onOpenChange={setBindOpen} assetId={assetId} onBound={() => void refresh()} /></Card>;
 }
 
 function LyricSourceAction({ detail, source, onRemove, t }: {

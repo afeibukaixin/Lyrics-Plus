@@ -10,8 +10,8 @@ mod song_similarity;
 mod songs;
 
 pub use models::{
-    LibraryArtistDetail, LibraryArtistSummary, LibraryIndexStatus, LibraryLyricDetail,
-    LibraryLyricPage, LibraryLyricSimilarityPage, LibraryPage, LibrarySongDetail,
-    LibrarySongSummary, LyricSimilarityGroup, SongSimilarityPair, UnboundCleanupPreview,
-    UnboundCleanupResult,
+    ClearCandidateLyricsResult, LibraryArtistDetail, LibraryArtistSummary, LibraryIndexStatus,
+    LibraryLyricDetail, LibraryLyricPage, LibraryLyricSimilarityPage, LibraryPage,
+    LibrarySongDetail, LibrarySongSummary, LyricSimilarityGroup, SongSimilarityPair,
+    UnboundCleanupPreview, UnboundCleanupResult,
 };

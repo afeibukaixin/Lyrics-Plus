@@ -48,10 +48,10 @@ include!("search_runs.rs");
 include!("v2_views.rs");
 mod library_manager;
 pub use library_manager::{
-    LibraryArtistDetail, LibraryArtistSummary, LibraryIndexStatus, LibraryLyricDetail,
-    LibraryLyricPage, LibraryLyricSimilarityPage, LibraryPage, LibrarySongDetail,
-    LibrarySongSummary, LyricSimilarityGroup, SongSimilarityPair, UnboundCleanupPreview,
-    UnboundCleanupResult,
+    ClearCandidateLyricsResult, LibraryArtistDetail, LibraryArtistSummary, LibraryIndexStatus,
+    LibraryLyricDetail, LibraryLyricPage, LibraryLyricSimilarityPage, LibraryPage,
+    LibrarySongDetail, LibrarySongSummary, LyricSimilarityGroup, SongSimilarityPair,
+    UnboundCleanupPreview, UnboundCleanupResult,
 };
 
 #[cfg(test)]

@@ -72,6 +72,8 @@ pub struct MergeLibraryLyricsInput {
 pub struct MergeLibrarySongInput {
     pub recording_id: i64,
     pub candidate_recording_id: i64,
+    #[serde(default)]
+    pub manual_override: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -352,21 +354,33 @@ pub fn merge_library_song(
     input: MergeLibrarySongInput,
     state: State<'_, AppState>,
 ) -> Result<crate::storage::LibrarySongDetail, String> {
-    let detail = state.storage.library_song_detail(input.recording_id)?;
-    let observation = detail
-        .recording
-        .observations
-        .first()
-        .ok_or_else(|| "歌曲没有可用于合并的平台观察".to_string())?;
     let settings = state.providers.settings_view().settings;
-    state.storage.associate_song_candidate(
-        &observation.platform,
-        &observation.track_key,
+    let (_, track_keys) = state.storage.merge_library_song_recordings(
+        input.recording_id,
         input.candidate_recording_id,
+        input.manual_override,
         &settings,
     )?;
-    publish_song_management_change(&app, &state, &observation.track_key);
+    for track_key in track_keys {
+        publish_song_management_change(&app, &state, &track_key);
+    }
     state.storage.library_song_detail(input.recording_id)
+}
+
+#[tauri::command]
+pub fn delete_library_song(
+    app: tauri::AppHandle,
+    recording_id: i64,
+    state: State<'_, AppState>,
+) -> Result<Vec<String>, String> {
+    let track_keys = state.storage.delete_library_song(recording_id)?;
+    for track_key in &track_keys {
+        set_runtime_document_if_active(&app, track_key, None);
+        if let Err(error) = app.emit("lyrics://changed", track_key) {
+            log::warn!("歌曲已删除，发送刷新通知失败：{error}");
+        }
+    }
+    Ok(track_keys)
 }
 
 #[tauri::command]
@@ -543,6 +557,14 @@ pub fn merge_library_lyrics(
 }
 
 #[tauri::command]
+pub fn clear_library_lyric_candidates(
+    asset_ids: Vec<i64>,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::ClearCandidateLyricsResult, String> {
+    state.storage.clear_library_lyric_candidates(&asset_ids)
+}
+
+#[tauri::command]
 pub fn preview_unbound_lyrics_cleanup(
     page: u64,
     page_size: u64,
@@ -567,6 +589,14 @@ pub fn cleanup_unbound_lyrics(
         &excluded_asset_ids,
         &revision,
     )
+}
+
+#[tauri::command]
+pub fn cleanup_selected_unbound_lyrics(
+    asset_ids: Vec<i64>,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::UnboundCleanupResult, String> {
+    state.storage.cleanup_selected_unbound_lyrics(&asset_ids)
 }
 
 #[tauri::command]

@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 
 use super::super::{
     load_artist_credits, load_asset, load_bindings, load_external_identifiers, load_observations,
@@ -94,6 +94,86 @@ impl Storage {
             bindings,
             platform_overrides,
         })
+    }
+
+    /// 删除歌曲身份及其关系，但保留歌词资源、物理文件和歌词搜索历史。
+    pub fn delete_library_song(&self, recording_id: i64) -> Result<Vec<String>, String> {
+        let mut connection = self
+            .connection
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| format!("开始删除歌曲失败：{error}"))?;
+        let track_keys = {
+            let mut statement = transaction
+                .prepare(
+                    "SELECT track_key FROM track_observations
+                     WHERE recording_id=?1 ORDER BY observation_id",
+                )
+                .map_err(|error| format!("准备读取歌曲来源失败：{error}"))?;
+            let track_keys = statement
+                .query_map(params![recording_id], |row| row.get::<_, String>(0))
+                .map_err(|error| format!("读取歌曲来源失败：{error}"))?
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .map_err(|error| format!("解析歌曲来源失败：{error}"))?;
+            track_keys
+        };
+        let exists = transaction
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM recordings WHERE recording_id=?1)",
+                params![recording_id],
+                |row| row.get::<_, bool>(0),
+            )
+            .map_err(|error| format!("读取待删除歌曲失败：{error}"))?;
+        if !exists {
+            return Err("歌曲实体不存在".into());
+        }
+
+        transaction
+            .execute(
+                "UPDATE track_observations SET split_from_recording_id=NULL
+                 WHERE split_from_recording_id=?1",
+                params![recording_id],
+            )
+            .map_err(|error| format!("清理歌曲拆分关系失败：{error}"))?;
+        transaction
+            .execute(
+                "UPDATE lyrics_search_runs SET recording_id=NULL WHERE recording_id=?1",
+                params![recording_id],
+            )
+            .map_err(|error| format!("保留歌词搜索历史失败：{error}"))?;
+        for (table, label) in [
+            ("platform_lyric_overrides", "平台歌词覆盖"),
+            ("recording_lyric_bindings", "歌词绑定"),
+            ("recording_external_ids", "外部标识"),
+            ("recording_artist_credits", "歌手署名"),
+            ("track_observations", "来源观察"),
+        ] {
+            transaction
+                .execute(
+                    &format!("DELETE FROM {table} WHERE recording_id=?1"),
+                    params![recording_id],
+                )
+                .map_err(|error| format!("清理歌曲{label}失败：{error}"))?;
+        }
+        transaction
+            .execute(
+                "DELETE FROM song_similarity_ignores
+                 WHERE left_recording_id=?1 OR right_recording_id=?1",
+                params![recording_id],
+            )
+            .map_err(|error| format!("清理相似歌曲忽略记录失败：{error}"))?;
+        transaction
+            .execute(
+                "DELETE FROM recordings WHERE recording_id=?1",
+                params![recording_id],
+            )
+            .map_err(|error| format!("删除歌曲实体失败：{error}"))?;
+        transaction
+            .commit()
+            .map_err(|error| format!("提交歌曲删除失败：{error}"))?;
+        Ok(track_keys)
     }
 }
 

@@ -1,21 +1,194 @@
-import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, MoreHorizontal, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useLocation, useNavigate } from "react-router";
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button, type ButtonProps } from "@/components/ui/button";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator, BreadcrumbList } from "@/components/ui/breadcrumb";
 import { CardAction, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import styles from "./library.module.scss";
 
 const libraryPageSizes = [20, 50, 100] as const;
 type PageItem = number | "start-ellipsis" | "end-ellipsis";
+
+export const librarySections = ["songs", "lyrics", "artists"] as const;
+export type LibrarySection = (typeof librarySections)[number];
+
+export type LibraryTrailEntry = {
+  section: LibrarySection;
+  id: number | null;
+  label: string;
+  to: string;
+};
+
+export type LibraryNavigationState = {
+  libraryTrail: LibraryTrailEntry[];
+};
+
+export type LibraryBreadcrumbItem = {
+  key: string;
+  label: string;
+  current?: boolean;
+  onClick?: () => void;
+};
+
+type OpenLibraryDetailOptions = {
+  replace?: boolean;
+  replaceCurrent?: boolean;
+};
+
+type LibraryNavigationOptions = {
+  section: LibrarySection;
+  sectionLabel: string;
+  detailsLabel: string;
+  detailId: number | null;
+  detailLabel?: string;
+  detailPath?: string;
+};
+
+const libraryRootPath = "/settings/library";
+
+function libraryListPath(section: LibrarySection) {
+  return `${libraryRootPath}/${section}`;
+}
+
+function libraryDetailPath(section: LibrarySection, id: number) {
+  return `${libraryListPath(section)}/${id}`;
+}
+
+function isLibrarySection(value: unknown): value is LibrarySection {
+  return typeof value === "string" && librarySections.includes(value as LibrarySection);
+}
+
+function isSafeLibraryId(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+function isLibraryTrailEntry(value: unknown): value is LibraryTrailEntry {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Partial<LibraryTrailEntry>;
+  const validId = item.id === null || isSafeLibraryId(item.id);
+  return isLibrarySection(item.section)
+    && validId
+    && typeof item.label === "string"
+    && item.label.trim().length > 0
+    && typeof item.to === "string"
+    && item.to.startsWith(`${libraryRootPath}/`);
+}
+
+function readLibraryTrail(state: unknown): LibraryTrailEntry[] {
+  if (!state || typeof state !== "object") return [];
+  const value = (state as Partial<LibraryNavigationState>).libraryTrail;
+  if (!Array.isArray(value)) return [];
+  return value.filter(isLibraryTrailEntry).map((item) => ({
+    section: item.section,
+    id: item.id,
+    label: item.label.trim(),
+    to: item.to,
+  }));
+}
+
+function libraryTrailKey(entry: Pick<LibraryTrailEntry, "section" | "id">) {
+  return `${entry.section}:${entry.id ?? "list"}`;
+}
+
+function stateForLibraryTrail(trail: LibraryTrailEntry[]): LibraryNavigationState | undefined {
+  return trail.length ? { libraryTrail: trail } : undefined;
+}
+
+export function useLibraryNavigation({
+  section,
+  sectionLabel,
+  detailsLabel,
+  detailId,
+  detailLabel,
+  detailPath,
+}: LibraryNavigationOptions) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const routeTrail = useMemo(() => readLibraryTrail(location.state), [location.state]);
+  const listEntry = useMemo<LibraryTrailEntry>(() => ({
+    section,
+    id: null,
+    label: sectionLabel,
+    to: libraryListPath(section),
+  }), [section, sectionLabel]);
+  const contextTrail = routeTrail.length ? routeTrail : [listEntry];
+  const currentEntry = detailId !== null && isSafeLibraryId(detailId) ? {
+    section,
+    id: detailId,
+    label: detailLabel?.trim() || detailsLabel,
+    to: detailPath ?? libraryDetailPath(section, detailId),
+  } satisfies LibraryTrailEntry : null;
+  const parentTrail = currentEntry
+    ? contextTrail.filter((entry) => libraryTrailKey(entry) !== libraryTrailKey(currentEntry))
+    : contextTrail;
+
+  const navigateWithTrail = useCallback((to: string, trail: LibraryTrailEntry[], replace = true) => {
+    const state = stateForLibraryTrail(trail);
+    navigate(to, state ? { replace, state } : { replace });
+  }, [navigate]);
+
+  const back = useCallback(() => {
+    const parent = parentTrail[parentTrail.length - 1];
+    if (!parent) {
+      navigateWithTrail(libraryListPath(section), []);
+      return;
+    }
+    navigateWithTrail(parent.to, parentTrail.slice(0, -1));
+  }, [navigateWithTrail, parentTrail, section]);
+
+  const openDetail = useCallback((
+    targetSection: LibrarySection,
+    targetId: number,
+    targetLabel: string,
+    options: OpenLibraryDetailOptions = {},
+  ) => {
+    if (!isSafeLibraryId(targetId)) return;
+    const target: LibraryTrailEntry = {
+      section: targetSection,
+      id: targetId,
+      label: targetLabel.trim() || detailsLabel,
+      to: libraryDetailPath(targetSection, targetId),
+    };
+    const fullTrail = options.replaceCurrent || !currentEntry
+      ? parentTrail
+      : [...parentTrail, currentEntry];
+    const existingIndex = fullTrail.findIndex((entry) => libraryTrailKey(entry) === libraryTrailKey(target));
+    const targetTrail = existingIndex >= 0 ? fullTrail.slice(0, existingIndex) : fullTrail;
+    navigateWithTrail(target.to, targetTrail, options.replace ?? false);
+  }, [currentEntry, detailsLabel, navigateWithTrail, parentTrail]);
+
+  const breadcrumbs = useMemo<LibraryBreadcrumbItem[]>(() => {
+    const items: LibraryBreadcrumbItem[] = [];
+    parentTrail.forEach((entry, index) => {
+      items.push({
+        key: libraryTrailKey(entry),
+        label: entry.label,
+        onClick: () => navigateWithTrail(entry.to, parentTrail.slice(0, index)),
+      });
+    });
+    if (currentEntry) {
+      items.push({
+        key: libraryTrailKey(currentEntry),
+        label: currentEntry.label,
+        current: true,
+      });
+    }
+    return items;
+  }, [currentEntry, navigateWithTrail, parentTrail]);
+
+  return { back, breadcrumbs, openDetail, trail: parentTrail };
+}
 
 type TruncatedTextVariant = "title" | "meta" | "body";
 
@@ -63,11 +236,10 @@ function visiblePageItems(page: number, totalPages: number): PageItem[] {
   return [1, "start-ellipsis", page - 1, page, page + 1, "end-ellipsis", totalPages];
 }
 
-export function LibraryToolbar({ query, onQueryChange, filters, actions }: {
+export function LibraryToolbar({ query, onQueryChange, filters }: {
   query: string;
   onQueryChange: (value: string) => void;
   filters?: ReactNode;
-  actions?: ReactNode;
 }) {
   const { t } = useTranslation();
 
@@ -85,17 +257,17 @@ export function LibraryToolbar({ query, onQueryChange, filters, actions }: {
             placeholder={t("library.manager.searchPlaceholder")}
           />
         </InputGroup>
-        {filters ? <div className={styles.toolbarFilters}>{filters}</div> : null}
       </div>
-      {actions ? <div className={styles.toolbarActions}>{actions}</div> : null}
+      {filters ? <div className={styles.toolbarFilters}>{filters}</div> : null}
     </CardHeader>
   );
 }
 
-export function PageControls({ page, pageSize, total, onPageChange, onPageSizeChange, compact = false }: {
+export function PageControls({ page, pageSize, total, actions, onPageChange, onPageSizeChange, compact = false }: {
   page: number;
   pageSize: number;
   total: number;
+  actions?: ReactNode;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   compact?: boolean;
@@ -105,7 +277,10 @@ export function PageControls({ page, pageSize, total, onPageChange, onPageSizeCh
   const pageItems = visiblePageItems(page, totalPages);
   const content = (
     <>
-      <span>{t("library.manager.pageSummary", { page, totalPages, total })}</span>
+      <div className={styles.paginationLeading}>
+        <span>{t("library.manager.pageSummary", { page, totalPages, total })}</span>
+        {actions ? <div className={styles.paginationActions}>{actions}</div> : null}
+      </div>
       <div className={styles.paginationControls}>
         <Select value={String(pageSize)} onValueChange={(value) => { if (value !== null) onPageSizeChange(Number(value)); }}>
           <SelectTrigger className={styles.pageSizeTrigger} aria-label={t("library.manager.itemsPerPage")}><SelectValue /></SelectTrigger>
@@ -150,7 +325,7 @@ export function ConfirmAction({ title, description, label, onConfirm, triggerVar
         <AlertDialogHeader><AlertDialogTitle>{title}</AlertDialogTitle><AlertDialogDescription>{description}</AlertDialogDescription></AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{t("common.actions.cancel")}</AlertDialogCancel>
-          <AlertDialogAction variant={confirmVariant} onClick={() => void onConfirm()}>{label}</AlertDialogAction>
+          <AlertDialogAction disabled={disabled} variant={confirmVariant} onClick={() => void onConfirm()}>{label}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -172,19 +347,57 @@ export function LibraryState({ state, message }: {
   );
 }
 
-export function LibraryDetailHeader({ title, description, status, actions, onBack }: {
+export function LibraryBreadcrumbs({ items }: { items: LibraryBreadcrumbItem[] }) {
+  const { t } = useTranslation();
+  return (
+    <Breadcrumb className={styles.breadcrumb} aria-label={t("library.manager.breadcrumbLabel")}>
+      <BreadcrumbList>
+        {items.map((item, index) => (
+          <Fragment key={item.key}>
+            {index > 0 ? <BreadcrumbSeparator /> : null}
+            <BreadcrumbItem>
+              {item.current ? (
+                <BreadcrumbPage title={item.label}>{item.label}</BreadcrumbPage>
+              ) : (
+                <BreadcrumbLink
+                  render={<button type="button" />}
+                  title={item.label}
+                  onClick={item.onClick}
+                >
+                  {item.label}
+                </BreadcrumbLink>
+              )}
+            </BreadcrumbItem>
+          </Fragment>
+        ))}
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
+}
+
+export function LibraryDetailHeader({ title, description, status, actions, onBack, breadcrumbs }: {
   title: ReactNode;
   description?: ReactNode;
   status?: ReactNode;
   actions?: ReactNode;
   onBack: () => void;
+  breadcrumbs?: LibraryBreadcrumbItem[];
 }) {
   const { t } = useTranslation();
+  const hasBreadcrumbs = Boolean(breadcrumbs?.length);
   return (
     <CardHeader className={styles.detailHeader}>
-      <Button type="button" variant="ghost" size="sm" className={styles.backButton} onClick={onBack}>
-        <ArrowLeft data-icon="inline-start" />{t("library.manager.back")}
-      </Button>
+      <div className={styles.detailNavigation}>
+        <Button type="button" variant="ghost" size="sm" className={styles.backButton} onClick={onBack}>
+          <ArrowLeft data-icon="inline-start" />{t("library.manager.back")}
+        </Button>
+        {hasBreadcrumbs ? (
+          <>
+            <Separator className={styles.detailNavigationSeparator} orientation="vertical" aria-hidden="true" />
+            <LibraryBreadcrumbs items={breadcrumbs!} />
+          </>
+        ) : null}
+      </div>
       <div className={styles.detailTitleRow}>
         <CardTitle>{title}</CardTitle>
         {status}

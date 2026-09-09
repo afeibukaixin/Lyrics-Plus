@@ -13,16 +13,18 @@
 .workspace { display: grid; grid-template-columns: minmax(0, 1fr); }
 .sectionBar { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .sectionSummary { min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.sectionActions { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.sectionActions > [data-slot="button"] { margin-left: auto; }
 
 .panel { min-width: 0; min-height: 0; height: 100%; overflow: hidden; border: 1px solid var(--border); box-shadow: none; }
 .panel.listPanel, .panel.queuePanel, .panel.detailPanel { gap: 0; padding-block: 0; }
 .listPanel, .queuePanel, .detailPanel { background: var(--card); }
-.toolbar { min-width: 0; display: flex; flex-flow: row wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 10px 12px; border-bottom: 1px solid var(--library-line); background: var(--card); }
-.toolbarSearchRow, .toolbarFilters, .toolbarActions { min-width: 0; display: flex; align-items: center; gap: 8px; }
-.toolbarSearchRow { flex: 1 1 34rem; flex-wrap: wrap; }
-.toolbarFilters, .toolbarActions { flex: none; }
+.toolbar { min-width: 0; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--library-line); background: var(--card); }
+.toolbarSearchRow, .toolbarFilters { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.toolbarSearchRow { flex: 0 1 18rem; }
+.toolbarFilters { flex: none; }
 .toolbarFilters > [data-slot="select-trigger"] { min-width: 9rem; }
-.searchBox { width: min(100%, 360px); min-width: 16rem; flex: 0 1 360px; }
+.searchBox { width: min(100%, 18rem); min-width: 14rem; flex: 0 1 18rem; }
 
 .tableContent { min-width: 0; min-height: 0; flex: 1 1 auto; display: flex; padding: 0; overflow: hidden; }
 .tableContent > [data-slot="table-container"] { min-width: 0; min-height: 0; flex: 1 1 auto; overflow-x: hidden; overflow-y: auto; }
@@ -39,12 +41,17 @@
 .songsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(1) { width: 46%; }
 .songsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(n + 2) { width: 13%; }
 .songsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(5) { width: 15%; }
-.lyricsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(1) { width: 5%; }
-.lyricsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(2) { width: 32%; }
-.lyricsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(3) { width: 15%; }
-.lyricsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(4) { width: 24%; }
-.lyricsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(5) { width: 11%; }
-.lyricsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(6) { width: 13%; }
+.lyricsTable[data-selection="true"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(1) { width: 5%; }
+.lyricsTable[data-selection="true"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(2) { width: 29%; }
+.lyricsTable[data-selection="true"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(3) { width: 15%; }
+.lyricsTable[data-selection="true"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(4) { width: 24%; }
+.lyricsTable[data-selection="true"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(5) { width: 14%; }
+.lyricsTable[data-selection="true"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(6) { width: 13%; }
+.lyricsTable[data-selection="false"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(1) { width: 34%; }
+.lyricsTable[data-selection="false"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(2) { width: 15%; }
+.lyricsTable[data-selection="false"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(3) { width: 24%; }
+.lyricsTable[data-selection="false"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(4) { width: 14%; }
+.lyricsTable[data-selection="false"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(5) { width: 13%; }
 .artistsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(1) { width: 28%; }
 .artistsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(2) { width: 26%; }
 .artistsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(3) { width: 12%; }
@@ -53,6 +60,7 @@
 .primaryCell { min-width: 0; overflow: hidden; }
 .selectionColumn { text-align: center; }
 .numericColumn { text-align: right; font-variant-numeric: tabular-nums; }
+.fileSizeColumn { white-space: nowrap; }
 .actionColumn { width: 1%; text-align: right; }
 .truncatedText { display: block; width: 100%; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .truncatedText[data-variant="meta"] { margin-top: 2px; color: var(--muted-foreground); font-size: .75rem; }
@@ -63,15 +71,25 @@
 
 .pagination { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 52px; padding: 8px 12px; border-top: 1px solid var(--library-line); background: var(--muted); color: var(--muted-foreground); font-size: .75rem; }
 .pagination[data-compact="true"] { --library-line: var(--border); border: 1px solid var(--library-line); border-radius: var(--radius-lg); background: var(--card); }
+.paginationLeading, .paginationActions { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.paginationLeading { flex: 1 1 auto; flex-wrap: wrap; }
+.paginationActions { flex-wrap: wrap; }
 .paginationControls, .pageButtons { display: flex; align-items: center; gap: 6px; }
-.paginationControls { min-width: 0; flex-wrap: wrap; justify-content: flex-end; }
+.paginationControls { min-width: 0; flex: none; flex-wrap: wrap; justify-content: flex-end; }
 .pageSizeTrigger { min-width: 6.75rem; }
 .pageEllipsis { display: grid; width: 32px; height: 32px; place-items: center; }
 .pageEllipsis svg { width: 16px; height: 16px; }
 
 .detailHeader { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: repeat(3, auto); align-items: start; gap: 6px 16px; padding: 16px; border-bottom: 1px solid var(--library-line); background: var(--card); }
 .detailHeader > [data-slot="card-action"] { grid-column: 2; grid-row: 2 / span 2; align-self: center; }
-.backButton { width: fit-content; margin-left: -8px; grid-column: 1 / -1; grid-row: 1; }
+.detailNavigation { min-width: 0; grid-column: 1 / -1; grid-row: 1; display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 8px; }
+.detailNavigationSeparator { width: 1px; height: 1.25rem; align-self: center; }
+.backButton { width: fit-content; margin-left: -8px; }
+.breadcrumb { min-width: 0; overflow: visible; }
+.breadcrumb [data-slot="breadcrumb-list"] { min-width: 0; flex-wrap: wrap; overflow: visible; }
+.breadcrumb [data-slot="breadcrumb-item"] { min-width: 0; }
+.breadcrumb [data-slot="breadcrumb-link"], .breadcrumb [data-slot="breadcrumb-page"] { min-width: 0; max-width: min(28rem, 35vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.breadcrumb [data-slot="breadcrumb-link"] { border: 0; padding: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 .detailTitleRow { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; grid-column: 1; grid-row: 2; }
 .detailTitleRow [data-slot="card-title"] { min-width: 0; overflow-wrap: anywhere; font-size: 1.35rem; }
 .detailHeader > [data-slot="card-description"] { min-width: 0; grid-column: 1; grid-row: 3; overflow-wrap: anywhere; }
@@ -82,6 +100,7 @@
 .metadataGrid > div { min-width: 0; padding: 12px; border-radius: var(--radius-lg); background: var(--library-surface); }
 .metadataGrid > div > span { display: block; color: var(--muted-foreground); font-size: .75rem; }
 .metadataGrid > div > strong { display: block; margin-top: 4px; overflow-wrap: anywhere; }
+.externalIdentifiers > span { display: block; }
 
 .detailSection { min-width: 0; height: max-content; display: grid; gap: 10px; padding: 2px 0; overflow: visible; }
 .detailSectionHeader { min-width: 0; min-height: 36px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding-inline: 2px; }
@@ -137,16 +156,24 @@
 @container library-page (max-width: 40rem) {
   .sectionBar { align-items: flex-start; flex-wrap: wrap; }
   .sectionSummary { width: 100%; justify-content: flex-start; }
-  .toolbarSearchRow { align-items: stretch; }
-  .searchBox { width: 100%; min-width: 0; flex: 1 1 100%; }
-  .toolbarFilters, .toolbarActions { width: 100%; flex-wrap: wrap; justify-content: stretch; }
-  .toolbarFilters > *, .toolbarActions > * { flex: 1; }
+  .sectionActions { width: 100%; }
   .pagination { align-items: flex-start; flex-wrap: wrap; }
-  .paginationControls { width: 100%; justify-content: space-between; }
+  .paginationLeading, .paginationControls { width: 100%; }
+  .paginationControls { justify-content: space-between; }
+}
+
+@container library-page (max-width: 36rem) {
+  .toolbar { align-items: stretch; flex-wrap: wrap; }
+  .toolbarSearchRow, .toolbarFilters { width: 100%; }
+  .toolbarSearchRow { flex: 1 1 100%; }
+  .searchBox { width: 100%; min-width: 0; flex: 1 1 100%; }
+  .toolbarFilters { flex-wrap: wrap; }
+  .toolbarFilters > [data-slot="select-trigger"] { flex: 1 1 9rem; min-width: 0; }
   .pageButtons { flex-wrap: wrap; justify-content: flex-end; }
   .detailHeader { grid-template-columns: minmax(0, 1fr); }
   .detailHeader > [data-slot="card-action"] { grid-column: 1; grid-row: auto; justify-self: stretch; }
   .detailHeader > [data-slot="card-action"] > * { width: 100%; }
+  .breadcrumb [data-slot="breadcrumb-link"], .breadcrumb [data-slot="breadcrumb-page"] { max-width: 100%; }
   .metadataGrid { grid-template-columns: 1fr; }
   .relation [data-slot="item-actions"] { width: 100%; justify-content: flex-end; }
   .songSimilarityChoices, .songSimilarityDetailsActions { grid-template-columns: 1fr; }

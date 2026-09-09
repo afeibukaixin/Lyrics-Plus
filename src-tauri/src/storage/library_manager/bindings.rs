@@ -1,6 +1,9 @@
-use rusqlite::{params, OptionalExtension};
+use std::collections::HashSet;
+
+use rusqlite::{params, OptionalExtension, TransactionBehavior};
 
 use super::super::Storage;
+use super::models::{ClearCandidateLyricsResult, LibraryLyricBatchFailure};
 
 impl Storage {
     pub fn bind_library_lyric(
@@ -86,5 +89,68 @@ impl Storage {
         transaction
             .commit()
             .map_err(|error| format!("提交歌词解绑失败：{error}"))
+    }
+
+    pub fn clear_library_lyric_candidates(
+        &self,
+        asset_ids: &[i64],
+    ) -> Result<ClearCandidateLyricsResult, String> {
+        let mut connection = self
+            .connection
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| format!("开始批量解除候选歌词失败：{error}"))?;
+        let mut processed_assets = 0_u64;
+        let mut removed_bindings = 0_u64;
+        let mut failures = Vec::new();
+        let mut seen = HashSet::new();
+
+        for asset_id in asset_ids.iter().copied().filter(|asset_id| *asset_id > 0) {
+            if !seen.insert(asset_id) {
+                continue;
+            }
+            let (binding_count, default_count) = transaction
+                .query_row(
+                    "SELECT COUNT(*), COALESCE(SUM(is_default), 0)
+                     FROM recording_lyric_bindings WHERE asset_id=?1",
+                    params![asset_id],
+                    |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+                )
+                .map_err(|error| format!("读取候选歌词绑定失败：{error}"))?;
+            let override_count = transaction
+                .query_row(
+                    "SELECT COUNT(*) FROM platform_lyric_overrides WHERE asset_id=?1",
+                    params![asset_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map_err(|error| format!("读取候选歌词平台使用状态失败：{error}"))?;
+            if binding_count <= 0 || default_count > 0 || override_count > 0 {
+                failures.push(LibraryLyricBatchFailure {
+                    asset_id,
+                    error: "歌词已不再是仅候选状态，未解除绑定".into(),
+                });
+                continue;
+            }
+            let removed = transaction
+                .execute(
+                    "DELETE FROM recording_lyric_bindings
+                     WHERE asset_id=?1 AND is_default=0",
+                    params![asset_id],
+                )
+                .map_err(|error| format!("解除候选歌词绑定失败：{error}"))?;
+            processed_assets += 1;
+            removed_bindings += removed as u64;
+        }
+
+        transaction
+            .commit()
+            .map_err(|error| format!("提交批量候选歌词解绑失败：{error}"))?;
+        Ok(ClearCandidateLyricsResult {
+            processed_assets,
+            removed_bindings,
+            failures,
+        })
     }
 }
