@@ -255,7 +255,7 @@ export const jaJP = {
       saveApply: "保存して適用", saving: "保存中…", export: "設定をエクスポート", openDirectory: "設定フォルダーを開く",
       savedNotice: "設定を保存して適用しました。公式コメントと項目順は保持されています。", exportedNotice: "設定をエクスポートしました。",
       changed: "元の設定が変更されました。続行する前に再読み込みしてください。", validating: "JSONC を検証中…",
-      validSave: "設定は有効で、保存できます。", validCurrent: "現在の設定は有効です", invalid: "設定が無効です。検証にはデフォルト設定を使用します。",
+      validSave: "設定は有効で、保存できます", validCurrent: "現在の設定は有効です", invalid: "設定が無効です。検証にはデフォルト設定を使用します。",
       location: "{{line}} 行 {{column}} 列：{{message}}", myConfig: "自分の設定", unsaved: "未保存の変更", saved: "保存済み",
       myConfigAria: "自分の JSONC 設定", placeholder: "JSONC 設定を入力",
       fallback: "現在の下書きは無効です。検証は完全にデフォルトにフォールバックしますが、実行中のアプリは最後に有効だった設定を保持します。",

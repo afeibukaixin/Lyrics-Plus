@@ -255,7 +255,7 @@ export const koKR = {
       saveApply: "저장 및 적용", saving: "저장 중…", export: "구성 내보내기", openDirectory: "구성 폴더 열기",
       savedNotice: "구성을 저장하고 적용했습니다. 공식 주석과 필드 순서를 유지했습니다.", exportedNotice: "구성을 내보냈습니다.",
       changed: "기본 구성이 변경되었습니다. 계속하기 전에 다시 불러오세요.", validating: "JSONC 검증 중…",
-      validSave: "구성이 유효하며 저장할 수 있습니다.", validCurrent: "현재 구성이 유효합니다", invalid: "구성이 유효하지 않습니다. 검증에는 기본 구성을 사용합니다.",
+      validSave: "구성이 유효하며 저장할 수 있습니다", validCurrent: "현재 구성이 유효합니다", invalid: "구성이 유효하지 않습니다. 검증에는 기본 구성을 사용합니다.",
       location: "{{line}}행, {{column}}열: {{message}}", myConfig: "내 구성", unsaved: "저장되지 않은 변경 사항", saved: "저장됨",
       myConfigAria: "내 JSONC 구성", placeholder: "여기에 JSONC 구성을 입력하세요",
       fallback: "현재 초안이 유효하지 않습니다. 검증은 완전히 기본값으로 대체되며 실행 중인 앱은 마지막으로 유효한 구성을 유지합니다.",

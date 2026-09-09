@@ -252,7 +252,7 @@ export const zhCN = {
       saveApply: "保存并应用", saving: "保存中…", export: "导出配置", openDirectory: "打开配置目录",
       savedNotice: "配置已保存并立即应用。官方注释和字段顺序已保持一致。", exportedNotice: "配置已导出。",
       changed: "底层配置已变化，请重新载入后继续编辑。", validating: "正在验证 JSONC…",
-      validSave: "配置有效，可以保存。", validCurrent: "当前配置有效", invalid: "配置无效，校验结果将使用默认配置。",
+      validSave: "配置有效，可以保存", validCurrent: "当前配置有效", invalid: "配置无效，校验结果将使用默认配置。",
       location: "第 {{line}} 行，第 {{column}} 列：{{message}}", myConfig: "我的配置", unsaved: "有未保存修改", saved: "已保存",
       myConfigAria: "我的 JSONC 配置", placeholder: "在这里输入 JSONC 配置",
       fallback: "当前草稿无效：校验结果将整体回退到默认值，运行中的应用仍保持最后一次有效配置。",

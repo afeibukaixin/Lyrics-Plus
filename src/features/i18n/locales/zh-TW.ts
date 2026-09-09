@@ -247,7 +247,7 @@ export const zhTW = {
       saveApply: "儲存並套用", saving: "儲存中…", export: "匯出設定檔", openDirectory: "開啟設定檔資料夾",
       savedNotice: "設定已儲存並立即套用。官方註解和欄位順序已保持一致。", exportedNotice: "設定檔已匯出。",
       changed: "底層設定已變更，請重新載入後再繼續編輯。", validating: "正在驗證 JSONC…",
-      validSave: "設定有效，可以儲存。", validCurrent: "目前設定有效", invalid: "設定無效，驗證結果將使用預設設定。",
+      validSave: "設定有效，可以儲存", validCurrent: "目前設定有效", invalid: "設定無效，驗證結果將使用預設設定。",
       location: "第 {{line}} 行，第 {{column}} 欄：{{message}}", myConfig: "我的設定", unsaved: "有尚未儲存的變更", saved: "已儲存",
       myConfigAria: "我的 JSONC 設定", placeholder: "在此輸入 JSONC 設定",
       fallback: "目前草稿無效：驗證結果將完全回復為預設值，執行中的應用程式仍會保留上一次有效設定。",

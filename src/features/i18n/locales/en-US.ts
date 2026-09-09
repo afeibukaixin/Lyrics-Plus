@@ -254,7 +254,7 @@ export const enUS = {
       saveApply: "Save & Apply", saving: "Saving…", export: "Export Configuration", openDirectory: "Open Configuration Directory",
       savedNotice: "Configuration saved and applied. Official comments and field order were preserved.", exportedNotice: "Configuration exported.",
       changed: "The underlying configuration changed. Reload before continuing.", validating: "Validating JSONC…",
-      validSave: "Configuration is valid and ready to save.", validCurrent: "The current configuration is valid", invalid: "The configuration is invalid; validation uses the default configuration.",
+      validSave: "Configuration is valid and ready to save", validCurrent: "The current configuration is valid", invalid: "The configuration is invalid; validation uses the default configuration.",
       location: "Line {{line}}, column {{column}}: {{message}}", myConfig: "My Configuration", unsaved: "Unsaved changes", saved: "Saved",
       myConfigAria: "My JSONC configuration", placeholder: "Enter JSONC configuration here",
       fallback: "The current draft is invalid. Validation falls back entirely to defaults, while the running app keeps its last valid configuration.",

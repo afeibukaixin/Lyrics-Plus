@@ -14,7 +14,7 @@
 .updateProgressIndicator { stroke: var(--primary); }
 .updateStatusValue { color: var(--primary); font-size: .5rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
 @keyframes update-status-spin { to { transform: rotate(360deg); } }
-.content { min-height: 0; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 48px var(--settings-content-padding-inline); }
+.content { min-height: 0; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 24px var(--settings-content-padding-inline); }
 .configPage { min-height: 0; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
 
 .settingsPage { min-width: 0; }
@@ -178,7 +178,7 @@
 
 @media (max-width: 840px) {
   .sidebarTriggerRow { left: 10px; align-items: flex-start; transform: none; }
-  .content { padding: 48px 24px 40px; }
+  .content { padding: 24px var(--settings-content-padding-inline); }
   .settingRow { align-items: flex-start; }
   .rangeControl { width: min(280px, 55%); }
   .rangePairControl { width: min(280px, 55%); }

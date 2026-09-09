@@ -192,12 +192,11 @@ export default function ConfigEditor({ onApplied, setError, setNotice }: Props) 
   return (
     <section className={styles.editorShell}>
       <div className={styles.toolbar}>
-        <div>
+        <div className={styles.utilityActions}>
           <Button variant="ghost" size="sm" onClick={() => void exportConfig()}>{t("settings.config.export")}</Button>
           <Button variant="ghost" size="sm" onClick={() => void api.revealConfigDirectory().catch((value) => setError(messageOf(value)))}>{t("settings.config.openDirectory")}</Button>
           <Button variant="destructive" size="sm" onClick={openFactoryReset}>{t("settings.config.factoryResetAction")}</Button>
         </div>
-        <Badge variant="outline" data-kind={status.kind} aria-live="polite">{status.text}</Badge>
         <div className={styles.actions}>
           <Button variant="outline" size="sm" onClick={() => void reload()}>{t("common.actions.reload")}</Button>
           <Button variant="outline" size="sm" disabled={!data} onClick={() => data && changeDraft(data.defaultJsonc)}>{t("common.actions.resetDefault")}</Button>
@@ -207,7 +206,14 @@ export default function ConfigEditor({ onApplied, setError, setNotice }: Props) 
 
       <div className={styles.editor}>
         <Card className={cn(styles.panel, "gap-0 py-0")} data-invalid={!validation?.valid || conflict}>
-          <CardHeader className="border-b pt-(--card-spacing)"><CardTitle>{t("settings.config.myConfig")}</CardTitle></CardHeader>
+          <CardHeader className="border-b pt-(--card-spacing)">
+            <div className={styles.panelHeading}>
+              <CardTitle>{t("settings.config.myConfig")}</CardTitle>
+              <Badge className={styles.status} variant="outline" data-kind={status.kind} aria-live="polite">
+                {status.text}
+              </Badge>
+            </div>
+          </CardHeader>
           <CardContent className="grid min-h-0 px-0">
             <Field data-invalid={!validation?.valid || conflict} className={styles.codeFrame}>
               <pre ref={userLineNumbers} aria-hidden className={styles.lineNumbers}>{userLines}</pre>
