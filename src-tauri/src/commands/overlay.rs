@@ -523,6 +523,15 @@ pub fn show_lyrics_style_settings(
 }
 
 #[tauri::command]
+pub fn show_library_song(app: tauri::AppHandle, recording_id: i64) -> Result<(), String> {
+    if recording_id <= 0 {
+        return Err("歌曲标识无效".into());
+    }
+    let route = format!("#/settings/library/songs/{recording_id}");
+    crate::show_main_window_at(&app, Some(&route))
+}
+
+#[tauri::command]
 pub fn show_quick_lyrics_window(app: tauri::AppHandle) -> Result<(), String> {
     crate::show_quick_lyrics_window(&app)
 }

@@ -131,6 +131,7 @@
 .detailsSection:last-child { border-bottom: 0; }
 .detailsSection h2 { margin: 0; font-size: .875rem; font-weight: 600; }
 .detailsSectionHeading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.detailsDiagnosticsTitle { margin: 2px 0 0; font-size: .75rem; font-weight: 600; }
 .detailsGrid { display: grid; grid-template-columns: minmax(86px, .5fr) minmax(0, 1.5fr); gap: 5px 10px; font-size: .75rem; }
 .detailsGrid > span { color: var(--muted-foreground); }
 .detailsGrid > strong { min-width: 0; overflow-wrap: anywhere; font-weight: 500; }
@@ -172,8 +173,11 @@
 .detailsTimelineShared, .detailsTimelineGroupRows { min-width: 0; display: grid; gap: 0; }
 .detailsTimelineGroup { position: relative; display: grid; grid-template-columns: var(--timeline-rail-column) minmax(0, 1fr); min-width: 0; }
 .detailsTimelineGroupRail { position: relative; justify-self: center; width: 2px; min-height: 100%; background: var(--timeline-line); overflow: hidden; }
-.detailsTimelineGroupRailFill { position: absolute; inset: 0; transform: scaleY(0); transform-origin: top; background: var(--primary); }
-.detailsTimelineGroupRailGlow { position: absolute; inset: -4px -1px auto; height: 12px; border-radius: 999px; background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--primary) 88%, white), transparent); }
+.detailsTimelineGroupRailFill { position: absolute; inset: 0; transform: scaleY(0); transform-origin: top; background: var(--primary); transition: transform .28s ease-out, background-color .2s ease-out; }
+.detailsTimelineGroup[data-group-status="running"] .detailsTimelineGroupRailFill,
+.detailsTimelineGroup[data-group-status="completed"] .detailsTimelineGroupRailFill,
+.detailsTimelineGroup[data-group-status="waiting"] .detailsTimelineGroupRailFill,
+.detailsTimelineGroup[data-group-status="failed"] .detailsTimelineGroupRailFill { transform: scaleY(1); }
 .detailsTimelineGroupRows .detailsStage::before { content: ""; position: absolute; top: 50%; left: -9px; width: 18px; height: 2px; transform: translateY(-50%); background: var(--timeline-line); }
 .detailsTimelineGroupRows .detailsStage[data-status="running"]::before { background: var(--primary); }
 .detailsTimelineGroupRows .detailsStage[data-status="completed"]::before { background: var(--success); }
@@ -193,11 +197,14 @@
 .detailsStage[data-status="failed"] .detailsStageRail::before { background: var(--destructive); }
 .detailsStage i { position: relative; z-index: 2; width: 8px; height: 8px; flex: none; border: 2px solid var(--border); border-radius: 50%; background: var(--background); box-sizing: border-box; }
 .detailsStageConnector { position: absolute; z-index: 1; top: 50%; bottom: 0; left: 50%; width: 2px; transform: translateX(-50%); background: var(--timeline-line); overflow: hidden; }
-.detailsStageConnectorFill { position: absolute; inset: 0; transform: scaleY(0); transform-origin: top; background: var(--primary); }
+.detailsStageConnectorFill { position: absolute; inset: 0; transform: scaleY(0); transform-origin: top; background: var(--primary); transition: transform .28s ease-out, background-color .2s ease-out; }
+.detailsStageConnector[data-timeline-connector="running"] .detailsStageConnectorFill,
+.detailsStageConnector[data-timeline-connector="completed"] .detailsStageConnectorFill,
+.detailsStageConnector[data-timeline-connector="waiting"] .detailsStageConnectorFill,
+.detailsStageConnector[data-timeline-connector="failed"] .detailsStageConnectorFill { transform: scaleY(1); }
 .detailsStageConnector[data-timeline-connector="completed"] .detailsStageConnectorFill { background: var(--success); }
 .detailsStageConnector[data-timeline-connector="waiting"] .detailsStageConnectorFill { background: var(--warning); }
 .detailsStageConnector[data-timeline-connector="failed"] .detailsStageConnectorFill { background: var(--destructive); }
-.detailsStageConnectorGlow { position: absolute; inset: -4px -1px auto; height: 12px; border-radius: 999px; background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--primary) 88%, white), transparent); }
 .detailsStageLabel { min-width: 0; overflow-wrap: anywhere; font-size: .75rem; line-height: 1.3; }
 .detailsStageMeta { min-width: 0; min-height: 1em; color: var(--muted-foreground); font-size: .6875rem; font-variant-numeric: tabular-nums; line-height: 1.3; overflow-wrap: anywhere; text-align: right; white-space: nowrap; }
 .detailsStageMetric { display: inline-flex; min-width: 0; }
@@ -212,6 +219,9 @@
 .detailsStage[data-status="failed"] i { border-color: var(--destructive); background: var(--destructive); }
 .detailsStage[data-status="skipped"] { color: var(--muted-foreground); opacity: .52; }
 .detailsStage[data-status="skipped"] i { border-style: dashed; background: transparent; }
+@media (prefers-reduced-motion: reduce) {
+  .detailsTimelineGroupRailFill, .detailsStageConnectorFill { transition: none; }
+}
 .detailsCandidates { display: grid; gap: 6px; }
 .detailsCandidateGroup { display: grid; gap: 5px; }
 .detailsCandidateGroup h3 { margin: 4px 2px 0; color: var(--muted-foreground); font-size: .6875rem; font-weight: 600; }

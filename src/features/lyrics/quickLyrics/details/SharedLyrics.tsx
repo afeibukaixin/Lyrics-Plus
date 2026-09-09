@@ -1,6 +1,7 @@
-import { Unlink, Upload } from "lucide-react";
+import { LibraryBig, Unlink, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { api } from "@/shared/api";
 import { assetPath } from "./helpers";
 import type { SongManagerViewProps } from "./useSongManager";
 import styles from "../../QuickLyricsWindow.module.scss";
@@ -23,6 +24,7 @@ export function SharedLyrics({ context, t, currentAsset, assetCapabilities, curr
                 <p className={styles.detailsHint}>{t("quickLyrics.details.currentPlatformOffset", { defaultValue: t("quickLyrics.details.offset") })}: {currentOffset}ms</p>
               </>}
               <div className={styles.detailsActions}>
+                <Button variant="secondary" size="sm" disabled={busyAction !== null} onClick={() => void api.showLibrarySong(context.recording.recordingId)}><LibraryBig />{t("quickLyrics.details.manageInLibrary")}</Button>
                 <Button variant="secondary" size="sm" disabled={busyAction !== null} onClick={() => void lyrics.changeOffset(-100).then(refresh)}>-100ms</Button>
                 <Button variant="secondary" size="sm" disabled={busyAction !== null} onClick={() => void lyrics.changeOffset(100).then(refresh)}>+100ms</Button>
                 <Button variant="ghost" size="sm" disabled={busyAction !== null || !lyrics.document} onClick={() => void runAction("unlink", lyrics.remove)}><Unlink />{t("quickLyrics.details.unlink")}</Button>

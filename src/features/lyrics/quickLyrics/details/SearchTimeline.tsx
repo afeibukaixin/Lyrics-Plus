@@ -150,26 +150,11 @@ export function scoreReasons(candidate: ReturnType<typeof resultTrace>, t: TFunc
 
 type SearchStageMetricProps = {
   item: StageProgressSnapshot;
-  t: TFunction;
 };
 
-function SearchStageMetric({ item, t }: SearchStageMetricProps) {
+function SearchStageMetric({ item }: SearchStageMetricProps) {
   const rootRef = useRef<HTMLSpanElement>(null);
   const metricRef = useRef<HTMLSpanElement>(null);
-  const reducedMotionRef = useRef(false);
-  const displayStateRef = useRef<{ elapsedMs: number; candidateCount: number } | null>(null);
-  const displayRunIdRef = useRef<string | null>(null);
-
-  useGSAP(() => {
-    const media = gsap.matchMedia();
-    media.add({
-      reduceMotion: "(prefers-reduced-motion: reduce)",
-      allowMotion: "(prefers-reduced-motion: no-preference)",
-    }, (context) => {
-      reducedMotionRef.current = Boolean(context.conditions?.reduceMotion);
-    });
-    return () => media.revert();
-  }, { scope: rootRef });
 
   useGSAP(() => {
     const metric = metricRef.current;
@@ -177,19 +162,6 @@ function SearchStageMetric({ item, t }: SearchStageMetricProps) {
 
     const isRunning = item.status === "running";
     const startedAtMs = item.startedAtMs ?? item.receivedAtMs - item.elapsedMs;
-    if (displayRunIdRef.current !== item.runId) {
-      displayRunIdRef.current = item.runId;
-      displayStateRef.current = null;
-    }
-    const previousState = displayStateRef.current;
-    const state = {
-      elapsedMs: isRunning
-        ? Math.max(item.elapsedMs, Date.now() - startedAtMs)
-        : previousState?.elapsedMs ?? item.elapsedMs,
-      candidateCount: isRunning
-        ? item.candidateCount
-        : previousState?.candidateCount ?? item.candidateCount,
-    };
     let lastRunningPaintAt = 0;
     const render = (force = false) => {
       const now = Date.now();
@@ -197,9 +169,8 @@ function SearchStageMetric({ item, t }: SearchStageMetricProps) {
       if (isRunning) lastRunningPaintAt = now;
       const elapsed = isRunning
         ? Math.max(item.elapsedMs, now - startedAtMs)
-        : state.elapsedMs;
-      displayStateRef.current = { elapsedMs: elapsed, candidateCount: state.candidateCount };
-      metric.textContent = `${Math.max(0, Math.round(state.candidateCount))} ${t("quickLyrics.details.candidates")} · ${formatSeconds(elapsed)}`;
+        : item.elapsedMs;
+      metric.textContent = formatSeconds(elapsed);
     };
 
     render(true);
@@ -208,32 +179,14 @@ function SearchStageMetric({ item, t }: SearchStageMetricProps) {
       gsap.ticker.add(tick);
       return () => gsap.ticker.remove(tick);
     }
-    if (reducedMotionRef.current) {
-      state.elapsedMs = item.elapsedMs;
-      state.candidateCount = item.candidateCount;
-      render();
-      return;
-    }
-
-    const tween = gsap.to(state, {
-      elapsedMs: item.elapsedMs,
-      candidateCount: item.candidateCount,
-      duration: 0.28,
-      ease: "power1.out",
-      overwrite: "auto",
-      onUpdate: render,
-    });
-    return () => tween.kill();
   }, {
     dependencies: [
       item.runId,
       item.stage,
       item.status,
       item.elapsedMs,
-      item.candidateCount,
       item.startedAtMs,
       item.receivedAtMs,
-      t,
     ],
     scope: rootRef,
     revertOnUpdate: true,
@@ -274,13 +227,12 @@ function TimelineStage({
       <span className={styles.detailsStageRail} aria-hidden="true">
         <i />
         {connectorVisible && <span className={styles.detailsStageConnector} data-timeline-connector={connectorStatus}>
-          <span className={styles.detailsStageConnectorFill} data-timeline-connector-fill={connectorStatus} />
-          <span className={styles.detailsStageConnectorGlow} data-timeline-glow="true" />
+          <span className={styles.detailsStageConnectorFill} />
         </span>}
       </span>
       <span className={styles.detailsStageLabel}>{label}</span>
       <span className={styles.detailsStageMeta}>
-        {hasMetric && item ? <SearchStageMetric item={item} t={t} /> : status === "skipped" ? t("quickLyrics.details.skipped") : null}
+        {hasMetric && item ? <SearchStageMetric item={item} /> : status === "skipped" ? t("quickLyrics.details.skipped") : null}
       </span>
     </div>
   );
@@ -336,7 +288,6 @@ export function SearchTimeline({ trace, progress, stageHistory, t }: SearchTimel
   const outcomeStage = OUTCOME_STAGES.find((stage) => items[stage] !== null) ?? null;
   const outcomeStatus = outcomeStage ? statuses[outcomeStage] : "pending";
   const statusSignature = SEARCH_STAGES.map((stage) => `${stage}:${statuses[stage]}`).join("|");
-  const animate = Boolean(progress) || trace?.status === "running";
 
   useGSAP(() => {
     const media = gsap.matchMedia();
@@ -353,58 +304,11 @@ export function SearchTimeline({ trace, progress, stageHistory, t }: SearchTimel
     const root = rootRef.current;
     if (!root) return;
     const stageNodes = gsap.utils.toArray<HTMLElement>("[data-timeline-stage]", root);
-    const connectorNodes = gsap.utils.toArray<HTMLElement>("[data-timeline-connector-fill]", root);
-    const groupRailFills = gsap.utils.toArray<HTMLElement>("[data-timeline-group-fill]", root);
-    const connectorGlows = gsap.utils.toArray<HTMLElement>("[data-timeline-glow]", root);
-    const groupRailGlows = gsap.utils.toArray<HTMLElement>("[data-timeline-group-glow]", root);
     const runningDots = stageNodes
       .filter((node) => node.dataset.status === "running")
       .map((node) => node.querySelector("i"))
       .filter((node): node is HTMLElement => node instanceof HTMLElement);
-    const visibleConnectors = connectorNodes.filter((node) => node.dataset.timelineConnectorFill !== "pending");
-    const flowingGlows = connectorGlows.filter((node) => node.parentElement?.dataset.timelineConnector === "running");
-    const flowingGroupGlows = groupRailGlows.filter((node) => node.parentElement?.parentElement?.dataset.groupStatus === "running");
-    const visibleGroupRails = groupRailFills.filter((node) => node.dataset.timelineGroupFill !== "pending");
-
-    const connectorTarget = (node: HTMLElement) => node.dataset.timelineConnectorFill === "completed"
-      || node.dataset.timelineConnectorFill === "running"
-      || node.dataset.timelineConnectorFill === "waiting"
-      || node.dataset.timelineConnectorFill === "failed";
-    gsap.set(connectorNodes, { scaleY: 0 });
-    gsap.set(groupRailFills, { scaleY: 0 });
-    gsap.set(connectorGlows, { y: "-120%", autoAlpha: 0 });
-    gsap.set(groupRailGlows, { y: "-120%", autoAlpha: 0 });
-    if (!animate || reducedMotionRef.current) {
-      gsap.set(connectorNodes.filter(connectorTarget), { scaleY: 1 });
-      gsap.set(visibleGroupRails, { scaleY: 1 });
-      gsap.set(stageNodes, { clearProps: "transform,opacity,visibility" });
-      return;
-    }
-
-    gsap.fromTo(stageNodes, { autoAlpha: 0.72, y: 4, scale: 0.92 }, {
-      autoAlpha: 1,
-      y: 0,
-      scale: 1,
-      duration: 0.28,
-      ease: "power2.out",
-      stagger: 0.035,
-      overwrite: "auto",
-    });
-    gsap.to(visibleGroupRails, {
-      scaleY: 1,
-      duration: 0.42,
-      ease: "power2.out",
-      stagger: 0.08,
-      overwrite: "auto",
-    });
-    gsap.to(visibleConnectors.filter(connectorTarget), {
-      scaleY: 1,
-      duration: 0.42,
-      ease: "power2.out",
-      stagger: 0.045,
-      overwrite: "auto",
-    });
-    if (runningDots.length > 0) {
+    if (!reducedMotionRef.current && runningDots.length > 0) {
       gsap.to(runningDots, {
         scale: 1.3,
         repeat: -1,
@@ -414,27 +318,8 @@ export function SearchTimeline({ trace, progress, stageHistory, t }: SearchTimel
         stagger: 0.06,
       });
     }
-    if (flowingGlows.length > 0) {
-      gsap.set(flowingGlows, { autoAlpha: 0.9, y: "-120%" });
-      gsap.to(flowingGlows, {
-        y: "120%",
-        repeat: -1,
-        duration: 1.05,
-        ease: "none",
-        stagger: 0.12,
-      });
-    }
-    if (flowingGroupGlows.length > 0) {
-      gsap.set(flowingGroupGlows, { autoAlpha: 0.9, y: "-120%" });
-      gsap.to(flowingGroupGlows, {
-        y: "120%",
-        repeat: -1,
-        duration: 1.05,
-        ease: "none",
-      });
-    }
   }, {
-    dependencies: [activeRunId, statusSignature, animate],
+    dependencies: [activeRunId, statusSignature],
     scope: rootRef,
     revertOnUpdate: true,
   });
@@ -456,7 +341,7 @@ export function SearchTimeline({ trace, progress, stageHistory, t }: SearchTimel
         ))}
       </div>
       <div className={styles.detailsTimelineGroup} data-group-status={parallelStatus}>
-        <span className={styles.detailsTimelineGroupRail} aria-hidden="true"><span className={styles.detailsTimelineGroupRailFill} data-timeline-group-fill={parallelStatus} /><span className={styles.detailsTimelineGroupRailGlow} data-timeline-group-glow="true" /></span>
+        <span className={styles.detailsTimelineGroupRail} aria-hidden="true"><span className={styles.detailsTimelineGroupRailFill} /></span>
         <div className={styles.detailsTimelineGroupRows}>
           {SEARCH_TIMELINE.parallel.map((stage) => (
             <TimelineStage

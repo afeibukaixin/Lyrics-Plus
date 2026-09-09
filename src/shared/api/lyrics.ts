@@ -217,6 +217,8 @@ export const lyricsApi = {
     invoke<void>("set_lyrics_offset_v2", { trackKey, offsetMs }),
   removeLyricsAssociation: (trackKey: string) =>
     invoke<void>("clear_lyrics_binding", { trackKey }),
+  showLibrarySong: (recordingId: number) =>
+    invoke<void>("show_library_song", { recordingId }),
   getSongAssociationCandidates: (trackKey: string, platform: string) =>
     invoke<SongAssociationCandidate[]>("get_song_association_candidates", { trackKey, platform }),
   associateSongCandidate: (

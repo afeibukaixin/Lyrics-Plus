@@ -11,8 +11,9 @@ export function SearchDetails({ context, t, busyAction, lyrics, handleSearch, tr
             <section className={styles.detailsSection}>
               <div className={styles.detailsSectionHeading}><h2>{t("quickLyrics.details.searchTrace")}</h2><Button variant="secondary" size="sm" disabled={busyAction !== null || lyrics.searching} onClick={() => void handleSearch()}><RefreshCw />{t("quickLyrics.details.searchAgain")}</Button></div>
               <p className={styles.detailsHint}>{t("quickLyrics.details.searchTraceHint")}</p>
+              <h3 className={styles.detailsDiagnosticsTitle}>{t("quickLyrics.details.diagnostics")}</h3>
               <SearchTimeline trace={trace} progress={progress} stageHistory={stageHistory} t={t} />
-              <p className={styles.detailsHint}>{stageLabel}{progress ? ` · ${progress.candidateCount} ${t("quickLyrics.details.candidates")}` : ""}</p>
+              <p className={styles.detailsHint}>{stageLabel}</p>
               {trace?.providers.length ? <div className={styles.detailsProviders}>{trace.providers.map((provider) => <div key={provider.providerId}><span>{provider.providerId}</span><span>{provider.status} · {provider.candidateCount} · {timingAvailable ? formatSeconds(provider.elapsedMs) : "—"}</span></div>)}</div> : null}
               {candidateGroups.length > 0 && <div className={styles.detailsCandidates}>{candidateGroups.map(([version, results]) => <div className={styles.detailsCandidateGroup} key={version}><h3>{version}</h3>{results.map((result) => {
                 const candidate = resultTrace(result, trace);

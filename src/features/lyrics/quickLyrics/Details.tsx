@@ -6,12 +6,8 @@ import type { QuickLyricsDetailsProps } from "./details/helpers";
 import { useSongManager } from "./details/useSongManager";
 import { formatSeconds } from "./details/SearchTimeline";
 import { SongInformation } from "./details/SongInformation";
-import { AssociatedPlatforms } from "./details/AssociatedPlatforms";
-import { AssociationCandidates } from "./details/AssociationCandidates";
 import { SharedLyrics } from "./details/SharedLyrics";
 import { SearchDetails } from "./details/SearchDetails";
-import { DetachPlatformDialog } from "./details/DetachPlatformDialog";
-import { AssociateSongDialog } from "./details/AssociateSongDialog";
 import styles from "../QuickLyricsWindow.module.scss";
 
 export function QuickLyricsDetails(props: QuickLyricsDetailsProps) {
@@ -30,8 +26,6 @@ export function QuickLyricsDetails(props: QuickLyricsDetailsProps) {
           {error && <div className={styles.detailsError} role="alert">{error}<Button variant="ghost" size="icon-sm" onClick={() => setError(null)} aria-label={t("common.actions.close")}><X /></Button></div>}
           {!trackKey || !context ? <div className={styles.detailsEmpty}>{t("quickLyrics.details.noContext")}</div> : <div className={styles.detailsBody}>
             <SongInformation {...view} />
-            <AssociatedPlatforms {...view} />
-            <AssociationCandidates {...view} />
             <SharedLyrics {...view} />
             <SearchDetails {...view} />
           </div>}
@@ -42,7 +36,5 @@ export function QuickLyricsDetails(props: QuickLyricsDetailsProps) {
         </SheetFooter>
       </SheetContent>
     </Sheet>
-    <DetachPlatformDialog {...view} />
-    <AssociateSongDialog {...view} />
   </>;
 }

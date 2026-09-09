@@ -6,6 +6,16 @@ import { createTauriListenerCleanup } from "@/shared/tauriEvent";
 import type { ArtistCredit, LyricsContext, LyricsSearchProgress, LyricsSearchResult, LyricsSearchTrace, SongAssociationCandidate, TrackObservation } from "@/shared/types";
 import { type QuickLyricsDetailsProps, type RecordingAction, type DetachLyricsMode, normalizeArtistName, resultTrace } from "./helpers";
 import { type StageProgressSnapshot, historyFromTrace, progressFromEvent } from "./SearchTimeline";
+
+const rememberIgnoredRun = (ignoredRunIds: Set<string>, runId: string | null) => {
+  if (!runId) return;
+  ignoredRunIds.add(runId);
+  if (ignoredRunIds.size > 16) {
+    const oldestRunId = ignoredRunIds.values().next().value;
+    if (oldestRunId) ignoredRunIds.delete(oldestRunId);
+  }
+};
+
 export function useSongManager({
   open,
   playback,
@@ -27,6 +37,7 @@ export function useSongManager({
   const [associationCandidate, setAssociationCandidate] = useState<SongAssociationCandidate | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const runIdRef = useRef<string | null>(null);
+  const ignoredRunIdsRef = useRef<Set<string>>(new Set());
   const trackKeyRef = useRef<string | null>(lyrics.trackKey);
   const trackKey = lyrics.trackKey;
 
@@ -50,6 +61,7 @@ export function useSongManager({
       if (runIdRef.current && nextTrace && nextTrace.runId !== runIdRef.current) return;
       setTrace(nextTrace);
       if (nextTrace) {
+        ignoredRunIdsRef.current.delete(nextTrace.runId);
         runIdRef.current = nextTrace.runId;
         setStageHistory((previous) => {
           const nextHistory = historyFromTrace(nextTrace);
@@ -98,12 +110,16 @@ export function useSongManager({
   }, [open, trackKey, context, busyAction]);
 
   useEffect(() => {
-    if (!open || !trackKey || !isTauriRuntime()) return;
+    // 搜索进度与详情抽屉的开关解耦，确保抽屉关闭时也不会丢失实时阶段事件。
+    if (!trackKey || !isTauriRuntime()) return;
     return createTauriListenerCleanup(
       listen<LyricsSearchProgress>("lyrics-search-progress", ({ payload }) => {
+        if (ignoredRunIdsRef.current.has(payload.runId)) return;
+        if (!runIdRef.current && payload.stage !== "identify") return;
         if (runIdRef.current && runIdRef.current !== payload.runId) {
           // 只有新一轮的首个节点可以切换 runId；旧一轮晚到的完成事件直接丢弃。
           if (payload.stage !== "identify") return;
+          rememberIgnoredRun(ignoredRunIdsRef.current, runIdRef.current);
           setTrace(null);
           setProgress(null);
           setStageHistory({});
@@ -132,16 +148,10 @@ export function useSongManager({
         }
       }),
     );
-  }, [open, trackKey]);
+  }, [trackKey]);
 
   useEffect(() => {
-    if (!open) {
-      // 关闭面板后不保留“本次实时动画”标记；重新打开时只从摘要恢复。
-      setProgress(null);
-    }
-  }, [open]);
-
-  useEffect(() => {
+    rememberIgnoredRun(ignoredRunIdsRef.current, runIdRef.current);
     trackKeyRef.current = trackKey;
     setContext(null);
     setTrace(null);
