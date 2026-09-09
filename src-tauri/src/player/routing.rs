@@ -79,19 +79,11 @@ pub(super) fn query_auto_player(
         match system.source_app_bundle_id.as_deref() {
             Some("com.apple.Music") => {
                 let music = query(PlayerKind::AppleMusic);
-                return if music.is_playing {
-                    (music, Some(PlayerKind::AppleMusic))
-                } else {
-                    (system, Some(PlayerKind::System))
-                };
+                return (music, Some(PlayerKind::AppleMusic));
             }
             Some("com.spotify.client") => {
                 let spotify = query(PlayerKind::Spotify);
-                return if spotify.is_playing {
-                    (spotify, Some(PlayerKind::Spotify))
-                } else {
-                    (system, Some(PlayerKind::System))
-                };
+                return (spotify, Some(PlayerKind::Spotify));
             }
             _ => {
                 let system = filter_system_source(
