@@ -12,6 +12,9 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
                 Some(("  ", ConfigComment::SchemaVersion))
             }
             line if line.starts_with("    \"theme\":") => Some(("    ", ConfigComment::Theme)),
+            line if line.starts_with("    \"uiFontFamily\":") => {
+                Some(("    ", ConfigComment::UiFontFamily))
+            }
             line if line.starts_with("    \"language\":") => {
                 Some(("    ", ConfigComment::Language))
             }

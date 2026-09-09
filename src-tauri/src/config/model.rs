@@ -20,6 +20,7 @@ impl Default for AppConfig {
 #[serde(default, rename_all = "camelCase")]
 pub struct AppPreferences {
     pub theme: ThemePreference,
+    pub ui_font_family: Option<String>,
     pub language: LanguagePreference,
     pub player_selection: PlayerSelection,
     pub system_media_filter_mode: SystemMediaFilterMode,
@@ -37,6 +38,7 @@ impl Default for AppPreferences {
     fn default() -> Self {
         Self {
             theme: ThemePreference::Dark,
+            ui_font_family: None,
             language: LanguagePreference::default(),
             player_selection: PlayerSelection::Auto,
             system_media_filter_mode: SystemMediaFilterMode::Allowlist,
@@ -951,6 +953,12 @@ impl AppConfig {
             ));
         }
         self.schema_version = CONFIG_SCHEMA_VERSION;
+        if let Some(ui_font_family) = self.app.ui_font_family.as_mut() {
+            *ui_font_family = ui_font_family.trim().to_owned();
+            if ui_font_family.is_empty() {
+                return Err("应用界面字体不能为空".into());
+            }
+        }
         self.lyrics.base_appearance.font_family =
             self.lyrics.base_appearance.font_family.trim().to_owned();
         if self.lyrics.base_appearance.font_family.is_empty() {

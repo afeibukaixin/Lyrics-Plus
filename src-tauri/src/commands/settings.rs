@@ -441,6 +441,7 @@ pub fn reset_settings_section(
             update_global_shortcuts(&app, GlobalShortcutSettings::default())?;
             state.config.update(|config| {
                 config.app.theme = ThemePreference::Dark;
+                config.app.ui_font_family = None;
                 config.app.language = LanguagePreference::default();
                 config.app.silent_startup = false;
                 config.app.lyrics_windows_show_on_all_spaces = false;

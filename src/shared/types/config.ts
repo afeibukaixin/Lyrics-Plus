@@ -25,6 +25,7 @@ export type AppConfig = {
   schemaVersion: number;
   app: {
     theme: ThemePreference;
+    uiFontFamily: string | null;
     language: string;
     playerSelection: PlayerSelection;
     systemMediaFilterMode: SystemMediaFilterMode;

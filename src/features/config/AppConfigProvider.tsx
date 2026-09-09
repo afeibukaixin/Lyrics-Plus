@@ -1,4 +1,4 @@
-import { useContext, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { isTauriRuntime } from "../../shared/api";
 import { useConfigActions } from "./provider/actions";
@@ -33,6 +33,18 @@ export function AppConfigProvider({
   });
 
   useConfigSubscription(windowType, setConfig, setLoaded, notchPreferencesWriteRef);
+  // Keep the UI-only font override on each WebView root; null restores the stylesheet default.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (config.app.uiFontFamily === null) {
+      root.style.removeProperty("--font-family-sans");
+    } else {
+      root.style.setProperty("--font-family-sans", config.app.uiFontFamily);
+    }
+    return () => {
+      root.style.removeProperty("--font-family-sans");
+    };
+  }, [config.app.uiFontFamily]);
   const resolvedTheme = useResolvedTheme(config.app.theme);
   const actions = useConfigActions(
     config,

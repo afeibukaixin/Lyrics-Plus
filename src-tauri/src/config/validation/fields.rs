@@ -277,6 +277,16 @@ pub(super) fn validate_field_types_and_options(
         "theme",
         &["system", "light", "dark"],
     )?;
+    if let Some(candidate) = value.pointer("/app/uiFontFamily") {
+        if !candidate.is_null() {
+            let ui_font_family = candidate.as_str().ok_or_else(|| {
+                error_at_key(raw, "uiFontFamily", "uiFontFamily 必须是字符串或 null")
+            })?;
+            if ui_font_family.trim().is_empty() {
+                return Err(error_at_key(raw, "uiFontFamily", "uiFontFamily 不能为空"));
+            }
+        }
+    }
     validate_string_option(
         value,
         raw,
