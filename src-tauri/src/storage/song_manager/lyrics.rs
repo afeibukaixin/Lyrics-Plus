@@ -50,50 +50,88 @@ pub(super) fn lyric_content_similarity(
     }
 }
 
-pub(super) fn load_lyric_asset_content(
+pub(in crate::storage) fn load_lyric_asset_content(
     connection: &rusqlite::Connection,
     asset_id: i64,
 ) -> Option<(String, String)> {
-    let (fingerprint, root_id, relative_path, root_path) = connection
+    let (fingerprint, paths) = lyric_asset_content_paths(connection, asset_id)?;
+    for path in paths {
+        if let Ok(raw) = fs::read_to_string(path) {
+            return Some((fingerprint, raw));
+        }
+    }
+    None
+}
+
+/// 只在数据库锁内解析可用路径，实际文件 IO 由调用方在释放锁后执行。
+pub(in crate::storage) fn lyric_asset_content_paths(
+    connection: &rusqlite::Connection,
+    asset_id: i64,
+) -> Option<(String, Vec<PathBuf>)> {
+    let fingerprint = connection
         .query_row(
-            "SELECT asset.content_fingerprint, asset.root_dir_id, asset.relative_path,
-                    root.path
-             FROM lyric_assets AS asset
-             LEFT JOIN library_roots AS root ON root.root_id=asset.root_dir_id
-             WHERE asset.asset_id=?1 AND asset.available=1",
+            "SELECT content_fingerprint FROM lyric_assets WHERE asset_id=?1 AND available=1",
             rusqlite::params![asset_id],
-            |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, Option<String>>(1)?,
-                    row.get::<_, Option<String>>(2)?,
-                    row.get::<_, Option<String>>(3)?,
-                ))
-            },
+            |row| row.get::<_, String>(0),
         )
         .optional()
         .ok()
         .flatten()?;
-    let relative_path = relative_path?;
-    let path = if root_id.as_deref() == Some(EXTERNAL_ROOT_ID) {
-        PathBuf::from(relative_path)
-    } else {
-        let root_path = PathBuf::from(root_path?);
-        let relative = std::path::Path::new(&relative_path);
-        if relative.is_absolute() {
-            return None;
-        }
-        let path = root_path.join(relative);
-        if !path.starts_with(&root_path) {
-            return None;
-        }
-        path
-    };
-    let raw = fs::read_to_string(path).ok()?;
-    Some((fingerprint, raw))
+    let mut statement = connection
+        .prepare(
+            "SELECT root_id, relative_path, root_path FROM (
+           SELECT 0 AS priority, asset.root_dir_id AS root_id,
+                  asset.relative_path AS relative_path, root.path AS root_path
+           FROM lyric_assets AS asset
+           LEFT JOIN library_roots AS root ON root.root_id=asset.root_dir_id
+           WHERE asset.asset_id=?1
+           UNION ALL
+           SELECT 1, source.root_dir_id, source.relative_path, root.path
+           FROM lyric_asset_sources AS source
+           LEFT JOIN library_roots AS root ON root.root_id=source.root_dir_id
+           WHERE source.asset_id=?1 AND source.available=1
+         ) WHERE relative_path IS NOT NULL ORDER BY priority",
+        )
+        .ok()?;
+    let paths = statement
+        .query_map(rusqlite::params![asset_id], |row| {
+            Ok((
+                row.get::<_, Option<String>>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+            ))
+        })
+        .ok()?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .ok()?;
+    let paths = paths
+        .into_iter()
+        .filter_map(|(root_id, relative_path, root_path)| {
+            let path = if root_id.as_deref() == Some(EXTERNAL_ROOT_ID) {
+                PathBuf::from(relative_path)
+            } else {
+                let root_path = root_path?;
+                let root_path = PathBuf::from(root_path);
+                let relative = std::path::Path::new(&relative_path);
+                if relative.is_absolute()
+                    || relative.components().any(|component| {
+                        !matches!(
+                            component,
+                            std::path::Component::Normal(_) | std::path::Component::CurDir
+                        )
+                    })
+                {
+                    return None;
+                }
+                root_path.join(relative)
+            };
+            Some(path)
+        })
+        .collect();
+    Some((fingerprint, paths))
 }
 
-pub(super) fn normalize_lyric_content(raw: &str) -> String {
+pub(in crate::storage) fn normalize_lyric_content(raw: &str) -> String {
     // 优先使用项目解析器提取正文，逐字时间轴、TTML 标签和格式元数据不参与比较。
     if let Ok(document) = crate::lyrics::parse_lrc_with_options(raw, "identity", false) {
         let text = document

@@ -108,6 +108,8 @@ impl Storage {
             &artists,
             input.album.as_deref(),
             input.duration_ms,
+            None,
+            None,
         )
     }
 
@@ -255,6 +257,7 @@ impl Storage {
         let Some((observation, recording)) = connection
             .query_row(
                 "SELECT observation.observation_id, observation.track_key, observation.platform,
+                        observation.source_app_bundle_id, observation.source_app_name,
                         observation.raw_title, observation.raw_artists_json, observation.raw_album,
                         observation.duration_ms, observation.observed_at, observation.recording_id,
                         observation.split_from_recording_id,
@@ -268,27 +271,29 @@ impl Storage {
                  LIMIT 1",
                 rusqlite::params![observed_track_key, canonical_track_key],
                 |row| {
-                    let title = row.get::<_, String>(10)?;
-                    let version_tags_json = row.get::<_, String>(13)?;
+                    let title = row.get::<_, String>(12)?;
+                    let version_tags_json = row.get::<_, String>(15)?;
                     let version_tags = recording_version_tags(&version_tags_json, &title);
                     Ok((
                         TrackObservation {
                             observation_id: row.get(0)?,
                             track_key: row.get(1)?,
                             platform: row.get(2)?,
-                            raw_title: row.get(3)?,
-                            raw_artists: parse_json_vec(row.get::<_, String>(4)?),
-                            raw_album: row.get(5)?,
-                            duration_ms: row.get::<_, Option<i64>>(6)?.and_then(to_u64),
-                            observed_at: row.get(7)?,
-                            recording_id: row.get(8)?,
-                            split_from_recording_id: row.get(9)?,
+                            source_app_bundle_id: row.get(3)?,
+                            source_app_name: row.get(4)?,
+                            raw_title: row.get(5)?,
+                            raw_artists: parse_json_vec(row.get::<_, String>(6)?),
+                            raw_album: row.get(7)?,
+                            duration_ms: row.get::<_, Option<i64>>(8)?.and_then(to_u64),
+                            observed_at: row.get(9)?,
+                            recording_id: row.get(10)?,
+                            split_from_recording_id: row.get(11)?,
                         },
                         (
-                            row.get::<_, i64>(8)?,
+                            row.get::<_, i64>(10)?,
                             title,
-                            row.get::<_, Option<String>>(11)?,
-                            row.get::<_, Option<i64>>(12)?.and_then(to_u64),
+                            row.get::<_, Option<String>>(13)?,
+                            row.get::<_, Option<i64>>(14)?.and_then(to_u64),
                             version_tags,
                         ),
                     ))
@@ -363,7 +368,7 @@ impl Storage {
         }))
     }
 
-    /// 解绑共用歌词也保留资源与各平台偏移，禁止旧绑定回退。
+    /// 解除当前生效歌词与歌曲的实际关系；资源文件留待资料库手动清理。
     pub fn clear_lyrics_binding(&self, track_key: &str) -> Result<(), String> {
         let platform = platform_from_track_key(track_key);
         let mut connection = self
@@ -382,14 +387,49 @@ impl Storage {
             .optional()
             .map_err(|error| format!("读取歌曲失败：{error}"))?;
         if let Some(recording_id) = recording_id {
-            song_manager::normalize_platform_lyrics(&transaction, recording_id)?;
+            let override_asset_id = transaction
+                .query_row(
+                    "SELECT asset_id FROM platform_lyric_overrides
+                     WHERE recording_id=?1 AND platform=?2",
+                    rusqlite::params![recording_id, platform],
+                    |row| row.get::<_, Option<i64>>(0),
+                )
+                .optional()
+                .map_err(|error| format!("读取平台歌词覆盖失败：{error}"))?
+                .flatten();
+            let default_asset_id = transaction
+                .query_row(
+                    "SELECT asset_id FROM recording_lyric_bindings
+                     WHERE recording_id=?1 AND is_default=1 LIMIT 1",
+                    rusqlite::params![recording_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .optional()
+                .map_err(|error| format!("读取歌曲默认歌词失败：{error}"))?;
+            let asset_id = override_asset_id.or(default_asset_id);
             transaction
                 .execute(
-                    "UPDATE recording_lyric_bindings SET is_default=0, updated_at=unixepoch()
-                 WHERE recording_id=?1",
-                    rusqlite::params![recording_id],
+                    "DELETE FROM platform_lyric_overrides
+                 WHERE recording_id=?1 AND platform=?2",
+                    rusqlite::params![recording_id, platform],
                 )
-                .map_err(|error| format!("解绑歌曲共用歌词失败：{error}"))?;
+                .map_err(|error| format!("解除平台歌词覆盖失败：{error}"))?;
+            if let Some(asset_id) = asset_id {
+                transaction
+                    .execute(
+                        "DELETE FROM platform_lyric_overrides
+                     WHERE recording_id=?1 AND asset_id=?2",
+                        rusqlite::params![recording_id, asset_id],
+                    )
+                    .map_err(|error| format!("解除歌词平台关系失败：{error}"))?;
+                transaction
+                    .execute(
+                        "DELETE FROM recording_lyric_bindings
+                     WHERE recording_id=?1 AND asset_id=?2",
+                        rusqlite::params![recording_id, asset_id],
+                    )
+                    .map_err(|error| format!("解除歌曲歌词绑定失败：{error}"))?;
+            }
         }
         transaction
             .commit()
@@ -553,7 +593,7 @@ fn load_observations(
         .prepare(
             "SELECT observation_id, track_key, platform, raw_title, raw_artists_json,
                     raw_album, duration_ms, observed_at, recording_id,
-                    split_from_recording_id
+                    split_from_recording_id, source_app_bundle_id, source_app_name
              FROM track_observations WHERE recording_id=?1
              ORDER BY observed_at DESC, observation_id DESC",
         )
@@ -564,6 +604,8 @@ fn load_observations(
                 observation_id: row.get(0)?,
                 track_key: row.get(1)?,
                 platform: row.get(2)?,
+                source_app_bundle_id: row.get(10)?,
+                source_app_name: row.get(11)?,
                 raw_title: row.get(3)?,
                 raw_artists: parse_json_vec(row.get::<_, String>(4)?),
                 raw_album: row.get(5)?,

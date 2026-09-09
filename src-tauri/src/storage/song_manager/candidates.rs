@@ -24,11 +24,59 @@ impl Storage {
 }
 
 /// 同一事务中也使用这个查询，保证展示规则与写入校验一致。
-pub(super) fn collect_song_association_candidates(
+pub(in crate::storage) fn collect_song_association_candidates(
     connection: &rusqlite::Connection,
     platform: &str,
     track_key: &str,
     settings: &ProviderSettings,
+) -> Result<Vec<SongAssociationCandidate>, String> {
+    collect_song_association_candidates_filtered(
+        connection, platform, track_key, settings, None, None,
+    )
+}
+
+pub(in crate::storage) fn collect_song_association_candidates_for_target(
+    connection: &rusqlite::Connection,
+    platform: &str,
+    track_key: &str,
+    settings: &ProviderSettings,
+    target_recording_id: Option<i64>,
+) -> Result<Vec<SongAssociationCandidate>, String> {
+    let target_recording_ids = target_recording_id.map(|id| vec![id]);
+    collect_song_association_candidates_filtered(
+        connection,
+        platform,
+        track_key,
+        settings,
+        target_recording_ids.as_deref(),
+        None,
+    )
+}
+
+pub(in crate::storage) fn collect_song_association_candidates_for_targets(
+    connection: &rusqlite::Connection,
+    platform: &str,
+    track_key: &str,
+    settings: &ProviderSettings,
+    target_recording_ids: &[i64],
+) -> Result<Vec<SongAssociationCandidate>, String> {
+    collect_song_association_candidates_filtered(
+        connection,
+        platform,
+        track_key,
+        settings,
+        Some(target_recording_ids),
+        None,
+    )
+}
+
+fn collect_song_association_candidates_filtered(
+    connection: &rusqlite::Connection,
+    platform: &str,
+    track_key: &str,
+    settings: &ProviderSettings,
+    target_recording_ids: Option<&[i64]>,
+    after_recording_id: Option<i64>,
 ) -> Result<Vec<SongAssociationCandidate>, String> {
     let current_id = connection
         .query_row(
@@ -51,16 +99,25 @@ pub(super) fn collect_song_association_candidates(
     current_tags.sort();
     current_tags.dedup();
     // 只遍历已经观察到的本地歌曲，不截断在最近 200 首，避免漏掉历史原关联/ISRC。
-    let candidate_ids = {
+    let candidate_ids = if let Some(target_recording_ids) = target_recording_ids {
+        target_recording_ids
+            .iter()
+            .copied()
+            .filter(|id| *id != current_id)
+            .collect()
+    } else {
         let mut statement = connection
             .prepare(
                 "SELECT recording_id FROM recordings WHERE recording_id != ?1
+             AND (?2 IS NULL OR recording_id > ?2)
              AND EXISTS (SELECT 1 FROM track_observations
                          WHERE track_observations.recording_id=recordings.recording_id)",
             )
             .map_err(|error| format!("准备歌曲候选失败：{error}"))?;
         let rows = statement
-            .query_map(rusqlite::params![current_id], |row| row.get::<_, i64>(0))
+            .query_map(rusqlite::params![current_id, after_recording_id], |row| {
+                row.get::<_, i64>(0)
+            })
             .map_err(|error| format!("读取歌曲候选失败：{error}"))?
             .collect::<rusqlite::Result<Vec<_>>>()
             .map_err(|error| format!("解析歌曲候选失败：{error}"))?;
@@ -182,7 +239,8 @@ pub(super) fn collect_song_association_candidates(
         let platform_conflict = current_observations
             .iter()
             .chain(&observations)
-            .any(|item| !platforms.insert(item.platform.as_str()));
+            .filter(|item| !item.platform.eq_ignore_ascii_case("system"))
+            .any(|item| !platforms.insert(item.platform.to_ascii_lowercase()));
         if platform_conflict {
             conflicts.push("platform".into());
         }

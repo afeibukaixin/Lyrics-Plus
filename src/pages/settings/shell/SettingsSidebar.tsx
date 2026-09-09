@@ -44,7 +44,7 @@ export function SettingsSidebar({
                 const Icon = item.icon;
                 return (
                   <SidebarMenuItem key={item.to}>
-                    <SidebarMenuButton render={<NavLink to={item.to} />} isActive={locationPathname === item.to} tooltip={item.label}>
+                    <SidebarMenuButton render={<NavLink to={item.to} />} isActive={locationPathname === item.to || locationPathname.startsWith(`${item.to.split("/songs")[0]}/`)} tooltip={item.label}>
                       <Icon aria-hidden="true" /><span>{item.label}</span>
                     </SidebarMenuButton>
                     {item.warning && <SidebarMenuBadge><TriangleAlert role="img" aria-label={t("settings.player.attentionStatus")} className="text-warning" /></SidebarMenuBadge>}

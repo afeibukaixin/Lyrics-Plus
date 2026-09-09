@@ -1,0 +1,154 @@
+.page {
+  --library-line: var(--border);
+  --library-surface: color-mix(in srgb, var(--muted) 56%, var(--card));
+  width: 100%; height: 100%; min-width: 0; min-height: 0;
+  display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 10px;
+  overflow: hidden; container: library-page / inline-size;
+}
+.page[data-detail="true"], .page:has(.queuePanel) { grid-template-rows: minmax(0, 1fr); gap: 0; }
+.page[data-detail="true"] > header, .page[data-detail="true"] > .sectionBar,
+.page:has(.queuePanel) > header, .page:has(.queuePanel) > .sectionBar { display: none; }
+.page > header { margin-bottom: 0; }
+.libraryContent, .workspace { min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
+.workspace { display: grid; grid-template-columns: minmax(0, 1fr); }
+.sectionBar { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sectionSummary { min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+
+.panel { min-width: 0; min-height: 0; height: 100%; overflow: hidden; border: 1px solid var(--border); box-shadow: none; }
+.panel.listPanel, .panel.queuePanel, .panel.detailPanel { gap: 0; padding-block: 0; }
+.listPanel, .queuePanel, .detailPanel { background: var(--card); }
+.toolbar { min-width: 0; display: flex; flex-flow: row wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 10px 12px; border-bottom: 1px solid var(--library-line); background: var(--card); }
+.toolbarSearchRow, .toolbarFilters, .toolbarActions { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.toolbarSearchRow { flex: 1 1 34rem; flex-wrap: wrap; }
+.toolbarFilters, .toolbarActions { flex: none; }
+.toolbarFilters > [data-slot="select-trigger"] { min-width: 9rem; }
+.searchBox { width: min(100%, 360px); min-width: 16rem; flex: 0 1 360px; }
+
+.tableContent { min-width: 0; min-height: 0; flex: 1 1 auto; display: flex; padding: 0; overflow: hidden; }
+.tableContent > [data-slot="table-container"] { min-width: 0; min-height: 0; flex: 1 1 auto; overflow-x: hidden; overflow-y: auto; }
+.dataTable { width: 100%; min-width: 0; max-width: 100%; table-layout: fixed; background: var(--card); }
+.dataTable [data-slot="table-header"] { position: sticky; z-index: 1; top: 0; background: var(--muted); }
+.dataTable [data-slot="table-row"] { border-color: var(--library-line); }
+.dataTable [data-slot="table-body"] [data-slot="table-row"] { height: 58px; background: var(--card); }
+.dataTable [data-slot="table-body"] [data-slot="table-row"]:hover { background: var(--muted); }
+.dataTable [data-slot="table-body"] [data-slot="table-row"][data-state="selected"] { background: color-mix(in srgb, var(--primary) 10%, var(--card)); }
+.fixedTable [data-slot="table-cell"] { overflow: hidden; text-overflow: ellipsis; }
+.fixedTable :is([data-slot="table-head"], [data-slot="table-cell"]) { padding-inline: 12px; }
+.fixedTable :is([data-slot="table-head"], [data-slot="table-cell"]):first-child { padding-left: 16px; }
+.fixedTable :is([data-slot="table-head"], [data-slot="table-cell"]):last-child { padding-right: 16px; }
+.songsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(1) { width: 46%; }
+.songsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(n + 2) { width: 13%; }
+.songsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(5) { width: 15%; }
+.lyricsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(1) { width: 5%; }
+.lyricsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(2) { width: 32%; }
+.lyricsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(3) { width: 15%; }
+.lyricsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(4) { width: 24%; }
+.lyricsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(5) { width: 11%; }
+.lyricsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(6) { width: 13%; }
+.artistsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(1) { width: 28%; }
+.artistsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(2) { width: 26%; }
+.artistsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(3) { width: 12%; }
+.artistsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(4) { width: 21%; }
+.artistsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(5) { width: 13%; }
+.primaryCell { min-width: 0; overflow: hidden; }
+.selectionColumn { text-align: center; }
+.numericColumn { text-align: right; font-variant-numeric: tabular-nums; }
+.actionColumn { width: 1%; text-align: right; }
+.truncatedText { display: block; width: 100%; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.truncatedText[data-variant="meta"] { margin-top: 2px; color: var(--muted-foreground); font-size: .75rem; }
+.truncatedTooltip { overflow-wrap: anywhere; }
+.badges { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tableAliasBadges { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; white-space: normal; }
+.tableAliasBadge { min-width: 0; max-width: 100%; }
+
+.pagination { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 52px; padding: 8px 12px; border-top: 1px solid var(--library-line); background: var(--muted); color: var(--muted-foreground); font-size: .75rem; }
+.pagination[data-compact="true"] { --library-line: var(--border); border: 1px solid var(--library-line); border-radius: var(--radius-lg); background: var(--card); }
+.paginationControls, .pageButtons { display: flex; align-items: center; gap: 6px; }
+.paginationControls { min-width: 0; flex-wrap: wrap; justify-content: flex-end; }
+.pageSizeTrigger { min-width: 6.75rem; }
+.pageEllipsis { display: grid; width: 32px; height: 32px; place-items: center; }
+.pageEllipsis svg { width: 16px; height: 16px; }
+
+.detailHeader { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: repeat(3, auto); align-items: start; gap: 6px 16px; padding: 16px; border-bottom: 1px solid var(--library-line); background: var(--card); }
+.detailHeader > [data-slot="card-action"] { grid-column: 2; grid-row: 2 / span 2; align-self: center; }
+.backButton { width: fit-content; margin-left: -8px; grid-column: 1 / -1; grid-row: 1; }
+.detailTitleRow { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; grid-column: 1; grid-row: 2; }
+.detailTitleRow [data-slot="card-title"] { min-width: 0; overflow-wrap: anywhere; font-size: 1.35rem; }
+.detailHeader > [data-slot="card-description"] { min-width: 0; grid-column: 1; grid-row: 3; overflow-wrap: anywhere; }
+.detailBody, .similarity { min-height: 0; flex: 1 1 auto; display: grid; grid-auto-rows: max-content; align-content: start; gap: 16px; padding: 16px; overflow-x: hidden; overflow-y: auto; }
+.detailBody { gap: 22px; }
+.metadataGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.lyricMetadataGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.metadataGrid > div { min-width: 0; padding: 12px; border-radius: var(--radius-lg); background: var(--library-surface); }
+.metadataGrid > div > span { display: block; color: var(--muted-foreground); font-size: .75rem; }
+.metadataGrid > div > strong { display: block; margin-top: 4px; overflow-wrap: anywhere; }
+
+.detailSection { min-width: 0; height: max-content; display: grid; gap: 10px; padding: 2px 0; overflow: visible; }
+.detailSectionHeader { min-width: 0; min-height: 36px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding-inline: 2px; }
+.detailSectionTitle { min-width: 0; margin: 0; font-size: .9rem; font-weight: 600; overflow-wrap: anywhere; }
+.detailSectionActions { flex: none; }
+.detailSectionContent { min-width: 0; display: grid; gap: 10px; }
+.relationList { gap: 8px; }
+.relation { border: 0; border-radius: var(--radius-lg); }
+.relation [data-slot="item-title"], .relation [data-slot="item-description"] { max-width: 100%; overflow-wrap: anywhere; }
+.relationActions { flex: none; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.section { display: grid; gap: 12px; padding: 2px 0 18px; border-bottom: 1px solid var(--library-line); }
+.section:last-child { padding-bottom: 0; border-bottom: 0; }
+.sectionHeader { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.section h3 { margin: 0; font-size: .9rem; font-weight: 600; }
+.previewModeSwitch { display: inline-flex; flex: none; align-items: center; gap: 8px; color: var(--muted-foreground); font-size: .75rem; }
+.libraryState { min-height: 160px; padding: 24px; }
+.stateAlert { margin: 12px; align-self: start; }
+
+.lyricsText { margin: 0; padding: 14px; overflow: visible; border-radius: var(--radius-lg); background: var(--library-surface); white-space: pre-wrap; font: .8rem/1.65 var(--font-family-mono); }
+.formattedLyrics { display: grid; gap: 10px; white-space: normal; font-family: inherit; }
+.formattedLyricsRow { display: grid; gap: 2px; }
+.formattedLyricsRow span { overflow-wrap: anywhere; }
+.originalLyricsLine { color: var(--foreground); font-size: .85rem; font-weight: 500; }
+.romanizationLyricsLine, .translationLyricsLine { color: var(--muted-foreground); font-size: .75rem; }
+.compactLyricsText { max-height: 180px; overflow: auto; }
+.formRow { display: flex; gap: 8px; }
+.formRow input { flex: 1; }
+.badges button { display: inline-flex; margin-left: 4px; }
+.badges button svg { width: 12px; height: 12px; }
+
+.similarityGrid { width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); align-items: stretch; gap: 8px; }
+.similarityItem, .songSimilarityChoice { position: relative; min-width: 0; height: auto; display: grid; justify-items: start; align-content: start; gap: 8px; padding: 12px 38px 12px 12px; border-color: var(--library-line); background: var(--card); white-space: normal; text-align: left; }
+.similarityItem:is([data-state="on"], [aria-pressed="true"]), .songSimilarityChoice:is([data-state="on"], [aria-pressed="true"]) { border-color: var(--library-line); background: var(--card); }
+.similaritySelectionIcon { position: absolute; top: 12px; right: 12px; color: var(--foreground); }
+.similarityItem .lyricsText { max-height: 180px; margin: 0; padding: 0; border: 0; overflow: auto; background: transparent; color: var(--muted-foreground); font: .72rem/1.5 var(--font-family-mono); }
+.similarityItem .formattedLyrics { gap: 8px; font-family: inherit; }
+.songSimilarityChoices { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 8px; }
+.songSimilarityChoice { gap: 5px; }
+.songSimilarityChoice > span:not([data-slot="badge"]) { min-width: 0; max-width: 100%; overflow-wrap: anywhere; color: var(--muted-foreground); font-size: .75rem; }
+.songSimilarityChoice > .songSimilarityTitle { color: var(--foreground); font-size: .9rem; font-weight: 600; }
+.songSimilarityDetailsActions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.songSimilarityDetailsActions > button { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.songSimilarityEvidence { display: grid; gap: 8px; padding: 10px 12px; border-radius: var(--radius-lg); background: var(--library-surface); }
+.songSimilarityEvidence > p { margin: 0; color: var(--muted-foreground); font-size: .75rem; }
+
+.dialogItemList, .selectableItem, .checkboxItem { --library-line: var(--border); }
+.dialogItemList { max-height: 280px; overflow: auto; gap: 6px; }
+.selectableItem, .checkboxItem { border-color: var(--library-line); background: var(--card); cursor: pointer; }
+.selectableItem:hover, .checkboxItem:hover { background: var(--muted); }
+.selectableItem[data-selected="true"], .checkboxItem[data-selected="true"] { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, var(--card)); }
+.checkRowSelectionIcon { width: 16px; height: 16px; flex: none; color: var(--primary); }
+
+@container library-page (max-width: 40rem) {
+  .sectionBar { align-items: flex-start; flex-wrap: wrap; }
+  .sectionSummary { width: 100%; justify-content: flex-start; }
+  .toolbarSearchRow { align-items: stretch; }
+  .searchBox { width: 100%; min-width: 0; flex: 1 1 100%; }
+  .toolbarFilters, .toolbarActions { width: 100%; flex-wrap: wrap; justify-content: stretch; }
+  .toolbarFilters > *, .toolbarActions > * { flex: 1; }
+  .pagination { align-items: flex-start; flex-wrap: wrap; }
+  .paginationControls { width: 100%; justify-content: space-between; }
+  .pageButtons { flex-wrap: wrap; justify-content: flex-end; }
+  .detailHeader { grid-template-columns: minmax(0, 1fr); }
+  .detailHeader > [data-slot="card-action"] { grid-column: 1; grid-row: auto; justify-self: stretch; }
+  .detailHeader > [data-slot="card-action"] > * { width: 100%; }
+  .metadataGrid { grid-template-columns: 1fr; }
+  .relation [data-slot="item-actions"] { width: 100%; justify-content: flex-end; }
+  .songSimilarityChoices, .songSimilarityDetailsActions { grid-template-columns: 1fr; }
+  .formRow { align-items: stretch; flex-direction: column; }
+}

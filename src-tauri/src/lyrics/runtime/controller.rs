@@ -225,6 +225,8 @@ fn sync_lyrics_runtime_inner(app: &tauri::AppHandle, playback: &PlaybackSnapshot
                 std::slice::from_ref(&artist),
                 playback.album.as_deref(),
                 playback.duration_ms,
+                playback.source_app_bundle_id.as_deref(),
+                playback.source_app_name.as_deref(),
             ) {
                 log::warn!("记录当前播放录音观察失败：{error}");
             }

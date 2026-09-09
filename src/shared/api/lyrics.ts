@@ -2,6 +2,20 @@ import { invoke } from "./core";
 import type {
   LibraryScanStatus,
   LibraryRootView,
+  LibraryPage,
+  LibraryIndexStatus,
+  LibrarySongSummary,
+  LibrarySongDetail,
+  SongSimilarityPair,
+  LibraryLyricPage,
+  LibraryLyricSimilarityPage,
+  LibraryLyricStatus,
+  LibraryLyricDetail,
+  LibraryArtistSummary,
+  LibraryArtistDetail,
+  LyricSimilarityGroup,
+  UnboundCleanupPreview,
+  UnboundCleanupResult,
   LyricsDocument,
   LyricsLoadResponse,
   LyricsContext,
@@ -25,6 +39,73 @@ import type {
 } from "./types";
 
 export const lyricsApi = {
+  getLibraryIndexStatus: () =>
+    invoke<LibraryIndexStatus>("get_library_index_status"),
+  listLibrarySongs: (query = "", page = 1, pageSize = 20) =>
+    invoke<LibraryPage<LibrarySongSummary>>("list_library_songs", { query, page, pageSize }),
+  getLibrarySong: (recordingId: number) =>
+    invoke<LibrarySongDetail>("get_library_song", { recordingId }),
+  getLibrarySongCandidates: (recordingId: number) =>
+    invoke<SongAssociationCandidate[]>("get_library_song_candidates", { recordingId }),
+  analyzeLibrarySongSimilarity: () =>
+    invoke<SongSimilarityPair[]>("analyze_library_song_similarity"),
+  listLibrarySongSimilarity: (page = 1, pageSize = 20) =>
+    invoke<LibraryPage<SongSimilarityPair>>("list_library_song_similarity", { page, pageSize }),
+  dismissLibrarySongSimilarity: (leftRecordingId: number, rightRecordingId: number) =>
+    invoke<void>("dismiss_library_song_similarity", { leftRecordingId, rightRecordingId }),
+  mergeLibrarySong: (recordingId: number, candidateRecordingId: number) =>
+    invoke<LibrarySongDetail>("merge_library_song", { input: { recordingId, candidateRecordingId } }),
+  splitLibrarySong: (recordingId: number, observationId: number, inheritCurrentLyrics = false) =>
+    invoke<LibrarySongDetail>("split_library_song", {
+      input: { recordingId, observationId, inheritCurrentLyrics },
+    }),
+  listLibraryLyrics: (
+    query = "",
+    status: LibraryLyricStatus | null = null,
+    sourceKind: string | null = null,
+    page = 1,
+    pageSize = 20,
+  ) => invoke<LibraryLyricPage>("list_library_lyrics", {
+    query, status, sourceKind, page, pageSize,
+  }),
+  getLibraryLyric: (assetId: number) =>
+    invoke<LibraryLyricDetail>("get_library_lyric", { assetId }),
+  bindLibraryLyric: (recordingId: number, assetId: number, replaceDefault = false) =>
+    invoke<LibrarySongDetail>("bind_library_lyric", {
+      input: { recordingId, assetId, replaceDefault },
+    }),
+  unbindLibraryLyric: (recordingId: number, assetId: number) =>
+    invoke<LibrarySongDetail>("unbind_library_lyric", { input: { recordingId, assetId } }),
+  listLibraryArtists: (query = "", page = 1, pageSize = 20) =>
+    invoke<LibraryPage<LibraryArtistSummary>>("list_library_artists", { query, page, pageSize }),
+  getLibraryArtist: (artistId: number) =>
+    invoke<LibraryArtistDetail>("get_library_artist", { artistId }),
+  updateLibraryArtistName: (artistId: number, name: string) =>
+    invoke<LibraryArtistDetail>("update_library_artist_name", { input: { artistId, name } }),
+  setLibraryArtistAlias: (artistId: number, alias: string, confirmed: boolean) =>
+    invoke<LibraryArtistDetail>("set_library_artist_alias", { input: { artistId, alias, confirmed } }),
+  analyzeLibraryLyricSimilarity: () =>
+    invoke<LyricSimilarityGroup[]>("analyze_library_lyric_similarity"),
+  listLibraryLyricSimilarity: (page = 1, pageSize = 20) =>
+    invoke<LibraryLyricSimilarityPage>("list_library_lyric_similarity", { page, pageSize }),
+  dismissLibraryLyricSimilarity: (assetIds: number[]) =>
+    invoke<void>("dismiss_library_lyric_similarity", { assetIds }),
+  mergeLibraryLyrics: (keeperAssetId: number, redundantAssetIds: number[]) =>
+    invoke<void>("merge_library_lyrics", {
+      input: { keeperAssetId, redundantAssetIds },
+    }),
+  previewUnboundLyricsCleanup: (page = 1, pageSize = 20) =>
+    invoke<UnboundCleanupPreview>("preview_unbound_lyrics_cleanup", { page, pageSize }),
+  cleanupUnboundLyrics: (
+    selectionMode: "selected" | "allExcept",
+    assetIds: number[],
+    excludedAssetIds: number[],
+    revision: string,
+  ) => invoke<UnboundCleanupResult>("cleanup_unbound_lyrics", {
+    selectionMode, assetIds, excludedAssetIds, revision,
+  }),
+  deleteLibraryLyricSource: (assetId: number, sourceId: number) =>
+    invoke<LibraryLyricDetail>("delete_library_lyric_source", { assetId, sourceId }),
   getCachedLyrics: (trackKey: string) =>
     invoke<LyricsLoadResponse>("get_cached_lyrics", { trackKey }),
   getCompletedLyricsSearch: (trackKey: string) =>

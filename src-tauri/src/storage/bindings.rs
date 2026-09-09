@@ -97,6 +97,8 @@ impl Storage {
             &artists,
             album,
             duration_ms,
+            None,
+            None,
         )?;
         let fingerprint = content_hash(raw);
         let (root_dir_id, relative_path) = self.asset_location(path);
@@ -476,6 +478,8 @@ impl Storage {
                 &artists,
                 None,
                 binding_duration_from_track_key(&track_key),
+                None,
+                None,
             )?;
         }
         let (legacy_count, migrated_count) = {

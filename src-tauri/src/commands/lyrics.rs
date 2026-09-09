@@ -30,6 +30,58 @@ pub struct SetArtistAliasConfirmationInput {
     pub confirmed: bool,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BindLibraryLyricInput {
+    pub recording_id: i64,
+    pub asset_id: i64,
+    pub replace_default: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryLyricRelationInput {
+    pub recording_id: i64,
+    pub asset_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryArtistNameInput {
+    pub artist_id: i64,
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryArtistAliasInput {
+    pub artist_id: i64,
+    pub alias: String,
+    pub confirmed: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MergeLibraryLyricsInput {
+    pub keeper_asset_id: i64,
+    pub redundant_asset_ids: Vec<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MergeLibrarySongInput {
+    pub recording_id: i64,
+    pub candidate_recording_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SplitLibrarySongInput {
+    pub recording_id: i64,
+    pub observation_id: i64,
+    pub inherit_current_lyrics: bool,
+}
+
 #[cfg(test)]
 fn prefer_candidate_capabilities(
     results: &mut [LyricsSearchResult],
@@ -196,6 +248,337 @@ pub fn get_current_lyrics_context(
     state: State<'_, AppState>,
 ) -> Result<Option<crate::storage::LyricsContext>, String> {
     state.storage.current_lyrics_context(&track_key)
+}
+
+#[tauri::command]
+pub fn list_library_songs(
+    query: Option<String>,
+    page: Option<u64>,
+    page_size: Option<u64>,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::LibraryPage<crate::storage::LibrarySongSummary>, String> {
+    let started = std::time::Instant::now();
+    let result = state.storage.list_library_songs(
+        query.as_deref().unwrap_or_default(),
+        page.unwrap_or(1),
+        page_size.unwrap_or(20),
+    );
+    if let Ok(page) = &result {
+        log::debug!(
+            "资料库歌曲列表：rows={} total={} elapsed_ms={}",
+            page.items.len(),
+            page.total,
+            started.elapsed().as_millis()
+        );
+    }
+    result
+}
+
+#[tauri::command]
+pub fn get_library_index_status(
+    state: State<'_, AppState>,
+) -> Result<crate::storage::LibraryIndexStatus, String> {
+    state.storage.library_index_status()
+}
+
+#[tauri::command]
+pub fn get_library_song(
+    recording_id: i64,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::LibrarySongDetail, String> {
+    state.storage.library_song_detail(recording_id)
+}
+
+#[tauri::command]
+pub fn get_library_song_candidates(
+    recording_id: i64,
+    state: State<'_, AppState>,
+) -> Result<Vec<SongAssociationCandidate>, String> {
+    let detail = state.storage.library_song_detail(recording_id)?;
+    let observation = detail
+        .recording
+        .observations
+        .first()
+        .ok_or_else(|| "歌曲没有可用于匹配的平台观察".to_string())?;
+    let settings = state.providers.settings_view().settings;
+    state.storage.song_association_candidates(
+        &observation.platform,
+        &observation.track_key,
+        &settings,
+    )
+}
+
+#[tauri::command]
+pub fn analyze_library_song_similarity(
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::storage::SongSimilarityPair>, String> {
+    let settings = state.providers.settings_view().settings;
+    state.storage.analyze_library_song_similarity(&settings)
+}
+
+#[tauri::command]
+pub fn list_library_song_similarity(
+    app: tauri::AppHandle,
+    page: Option<u64>,
+    page_size: Option<u64>,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::LibraryPage<crate::storage::SongSimilarityPair>, String> {
+    let settings = state.providers.settings_view().settings;
+    let result = state.storage.list_library_song_similarity(
+        page.unwrap_or(1),
+        page_size.unwrap_or(20),
+        &settings,
+    );
+    if let Ok(status) = state.storage.library_index_status() {
+        let _ = app.emit("lyrics://library-index-changed", status);
+    }
+    result
+}
+
+#[tauri::command]
+pub fn dismiss_library_song_similarity(
+    left_recording_id: i64,
+    right_recording_id: i64,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    state
+        .storage
+        .dismiss_library_song_similarity(left_recording_id, right_recording_id)
+}
+
+#[tauri::command]
+pub fn merge_library_song(
+    app: tauri::AppHandle,
+    input: MergeLibrarySongInput,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::LibrarySongDetail, String> {
+    let detail = state.storage.library_song_detail(input.recording_id)?;
+    let observation = detail
+        .recording
+        .observations
+        .first()
+        .ok_or_else(|| "歌曲没有可用于合并的平台观察".to_string())?;
+    let settings = state.providers.settings_view().settings;
+    state.storage.associate_song_candidate(
+        &observation.platform,
+        &observation.track_key,
+        input.candidate_recording_id,
+        &settings,
+    )?;
+    publish_song_management_change(&app, &state, &observation.track_key);
+    state.storage.library_song_detail(input.recording_id)
+}
+
+#[tauri::command]
+pub fn split_library_song(
+    app: tauri::AppHandle,
+    input: SplitLibrarySongInput,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::LibrarySongDetail, String> {
+    let detail = state.storage.library_song_detail(input.recording_id)?;
+    let observation = detail
+        .recording
+        .observations
+        .iter()
+        .find(|item| item.observation_id == input.observation_id)
+        .ok_or_else(|| "平台曲目不属于指定歌曲".to_string())?;
+    state.storage.detach_platform_track(
+        &observation.platform,
+        &observation.track_key,
+        input.inherit_current_lyrics,
+    )?;
+    publish_song_management_change(&app, &state, &observation.track_key);
+    state.storage.library_song_detail(input.recording_id)
+}
+
+#[tauri::command]
+pub fn list_library_lyrics(
+    query: Option<String>,
+    status: Option<String>,
+    source_kind: Option<String>,
+    page: Option<u64>,
+    page_size: Option<u64>,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::LibraryLyricPage, String> {
+    let started = std::time::Instant::now();
+    let result = state.storage.list_library_lyrics(
+        query.as_deref().unwrap_or_default(),
+        status.as_deref(),
+        source_kind.as_deref(),
+        page.unwrap_or(1),
+        page_size.unwrap_or(20),
+    );
+    if let Ok(page) = &result {
+        log::debug!(
+            "资料库歌词列表：rows={} total={} elapsed_ms={}",
+            page.items.len(),
+            page.total,
+            started.elapsed().as_millis()
+        );
+    }
+    result
+}
+
+#[tauri::command]
+pub fn get_library_lyric(
+    asset_id: i64,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::LibraryLyricDetail, String> {
+    state.storage.library_lyric_detail(asset_id)
+}
+
+#[tauri::command]
+pub fn bind_library_lyric(
+    input: BindLibraryLyricInput,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::LibrarySongDetail, String> {
+    state
+        .storage
+        .bind_library_lyric(input.recording_id, input.asset_id, input.replace_default)?;
+    state.storage.library_song_detail(input.recording_id)
+}
+
+#[tauri::command]
+pub fn unbind_library_lyric(
+    input: LibraryLyricRelationInput,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::LibrarySongDetail, String> {
+    state
+        .storage
+        .unbind_library_lyric(input.recording_id, input.asset_id)?;
+    state.storage.library_song_detail(input.recording_id)
+}
+
+#[tauri::command]
+pub fn list_library_artists(
+    query: Option<String>,
+    page: Option<u64>,
+    page_size: Option<u64>,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::LibraryPage<crate::storage::LibraryArtistSummary>, String> {
+    let started = std::time::Instant::now();
+    let result = state.storage.list_library_artists(
+        query.as_deref().unwrap_or_default(),
+        page.unwrap_or(1),
+        page_size.unwrap_or(20),
+    );
+    if let Ok(page) = &result {
+        log::debug!(
+            "资料库歌手列表：rows={} total={} elapsed_ms={}",
+            page.items.len(),
+            page.total,
+            started.elapsed().as_millis()
+        );
+    }
+    result
+}
+
+#[tauri::command]
+pub fn get_library_artist(
+    artist_id: i64,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::LibraryArtistDetail, String> {
+    state.storage.library_artist_detail(artist_id)
+}
+
+#[tauri::command]
+pub fn update_library_artist_name(
+    input: LibraryArtistNameInput,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::LibraryArtistDetail, String> {
+    state
+        .storage
+        .update_library_artist_name(input.artist_id, &input.name)
+}
+
+#[tauri::command]
+pub fn set_library_artist_alias(
+    input: LibraryArtistAliasInput,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::LibraryArtistDetail, String> {
+    state
+        .storage
+        .set_library_artist_alias(input.artist_id, &input.alias, input.confirmed)
+}
+
+#[tauri::command]
+pub fn analyze_library_lyric_similarity(
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::storage::LyricSimilarityGroup>, String> {
+    state.storage.analyze_library_lyric_similarity()
+}
+
+#[tauri::command]
+pub fn list_library_lyric_similarity(
+    app: tauri::AppHandle,
+    page: Option<u64>,
+    page_size: Option<u64>,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::LibraryLyricSimilarityPage, String> {
+    let result = state
+        .storage
+        .list_library_lyric_similarity(page.unwrap_or(1), page_size.unwrap_or(20));
+    if let Ok(status) = state.storage.library_index_status() {
+        let _ = app.emit("lyrics://library-index-changed", status);
+    }
+    result
+}
+
+#[tauri::command]
+pub fn dismiss_library_lyric_similarity(
+    asset_ids: Vec<i64>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    state.storage.dismiss_library_lyric_similarity(&asset_ids)
+}
+
+#[tauri::command]
+pub fn merge_library_lyrics(
+    input: MergeLibraryLyricsInput,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    state
+        .storage
+        .merge_library_lyrics(input.keeper_asset_id, &input.redundant_asset_ids)
+}
+
+#[tauri::command]
+pub fn preview_unbound_lyrics_cleanup(
+    page: u64,
+    page_size: u64,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::UnboundCleanupPreview, String> {
+    state
+        .storage
+        .preview_unbound_lyrics_cleanup(page, page_size)
+}
+
+#[tauri::command]
+pub fn cleanup_unbound_lyrics(
+    selection_mode: String,
+    asset_ids: Vec<i64>,
+    excluded_asset_ids: Vec<i64>,
+    revision: String,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::UnboundCleanupResult, String> {
+    state.storage.cleanup_unbound_lyrics(
+        &selection_mode,
+        &asset_ids,
+        &excluded_asset_ids,
+        &revision,
+    )
+}
+
+#[tauri::command]
+pub fn delete_library_lyric_source(
+    asset_id: i64,
+    source_id: i64,
+    state: State<'_, AppState>,
+) -> Result<crate::storage::LibraryLyricDetail, String> {
+    state
+        .storage
+        .delete_library_lyric_source(asset_id, source_id)?;
+    state.storage.library_lyric_detail(asset_id)
 }
 
 #[tauri::command]

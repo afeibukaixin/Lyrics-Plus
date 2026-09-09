@@ -6,10 +6,11 @@ import {
   FileJson,
   Info,
   LoaderCircle,
+  LibraryBig,
   Monitor,
   MonitorUp,
   Moon,
-  Music2,
+  ScrollText,
   Palette,
   RotateCw,
   Settings2,
@@ -27,7 +28,8 @@ export const themeCycle: readonly ThemePreference[] = ["dark", "light", "system"
 export function buildSettingsNavigation(t: TFunction, playerHasWarning: boolean) {
   const primaryNavigation: SettingsNavigationItem[] = [
     { to: "/settings/style", label: t("settings.shell.nav.style"), icon: Palette },
-    { to: "/settings/lyrics", label: t("settings.shell.nav.lyrics"), icon: Music2 },
+    { to: "/settings/lyrics", label: t("settings.shell.nav.lyrics"), icon: ScrollText },
+    { to: "/settings/library/songs", label: t("settings.shell.nav.library"), icon: LibraryBig },
     { to: "/settings/player", label: t("settings.shell.nav.player"), icon: MonitorUp, warning: playerHasWarning },
     { to: "/settings/application", label: t("settings.shell.nav.application"), icon: Settings2 },
     { to: "/settings/about", label: t("settings.shell.nav.about"), icon: Info },

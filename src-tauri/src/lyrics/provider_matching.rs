@@ -221,6 +221,32 @@ fn normalized_title_variants(
     metadata_variants(&filtered, scoring.normalize_chinese, japanese)
 }
 
+/// 相似歌曲倒排预筛使用与最终评分完全相同的标题规范化结果。
+pub(crate) fn association_title_index_variants(
+    value: &str,
+    settings: &ProviderSettings,
+) -> Result<Vec<String>, String> {
+    let scoring = recording_scoring_settings(settings, Vec::new())?;
+    let mut variants = normalized_title_variants(value, &scoring, false);
+    variants.extend(normalized_title_variants(value, &scoring, true));
+    variants.sort();
+    variants.dedup();
+    Ok(variants)
+}
+
+pub(crate) fn association_title_similarity(
+    left: &str,
+    right: &str,
+    settings: &ProviderSettings,
+) -> Result<f64, String> {
+    let scoring = recording_scoring_settings(settings, Vec::new())?;
+    let japanese = metadata_is_japanese(left, "", None) || metadata_is_japanese(right, "", None);
+    Ok(best_similarity(
+        &normalized_title_variants(left, &scoring, japanese),
+        &normalized_title_variants(right, &scoring, japanese),
+    ))
+}
+
 fn best_similarity(expected: &[String], actual: &[String]) -> f64 {
     expected
         .iter()

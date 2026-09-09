@@ -1,4 +1,5 @@
 import type { AppTranslationResource } from "../resourceTypes";
+import { libraryManagerZhTW } from "./libraryManagerTranslations";
 
 export const zhTW = {
   common: {
@@ -67,7 +68,7 @@ export const zhTW = {
   library: {
     loadingDirectory: "正在讀取歌詞資料夾…", openFolder: "開啟歌詞資料夾",
     changing: "切換中…", changeFolder: "變更資料夾", chooseFolder: "選擇歌詞資料夾",
-    rawLrc: "原始歌詞",
+    rawLrc: "原始歌詞", manager: libraryManagerZhTW,
   },
   quickLyrics: {
     title: "快速切換歌詞", noTrack: "目前沒有歌曲正在播放",
@@ -143,7 +144,7 @@ export const zhTW = {
     shell: {
       navigation: "設定分類", onThisPage: "本頁目錄", closeToast: "關閉", advanced: "進階工具", resetTitle: "恢復分類預設設定",
       nav: {
-        style: "樣式", display: "顯示與互動", lyrics: "歌詞", player: "播放器",
+        style: "樣式", display: "顯示與互動", lyrics: "歌詞", library: "資料庫", player: "播放器",
         application: "應用程式", debug: "偵錯紀錄", config: "設定檔", about: "關於與更新",
       },
       resetConfirm: "將恢復此分類的預設設定。歌詞庫和歌曲連結不會刪除。",

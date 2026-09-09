@@ -1,4 +1,5 @@
 import type { AppTranslationResource } from "../resourceTypes";
+import { libraryManagerJa } from "./libraryManagerTranslations";
 
 export const jaJP = {
   common: {
@@ -67,7 +68,7 @@ export const jaJP = {
   library: {
     loadingDirectory: "歌詞フォルダーを読み込み中…", openFolder: "歌詞フォルダーを開く",
     changing: "変更中…", changeFolder: "フォルダーを変更", chooseFolder: "歌詞フォルダーを選択",
-    rawLrc: "生の歌詞",
+    rawLrc: "生の歌詞", manager: libraryManagerJa,
   },
   quickLyrics: {
     title: "クイック歌詞切替", noTrack: "再生中の曲はありません",
@@ -142,7 +143,7 @@ export const jaJP = {
     shell: {
       navigation: "設定カテゴリー", onThisPage: "このページ", closeToast: "閉じる", advanced: "高度なツール", resetTitle: "カテゴリーのデフォルトに戻す",
       nav: {
-        style: "スタイル", display: "表示と操作", lyrics: "歌詞", player: "プレーヤー",
+        style: "スタイル", display: "表示と操作", lyrics: "歌詞", library: "ライブラリ", player: "プレーヤー",
         application: "アプリケーション", debug: "デバッグログ", config: "設定ファイル", about: "情報とアップデート",
       },
       resetConfirm: "このカテゴリーをデフォルトに戻します。歌詞ライブラリと曲のリンクは削除されません。",

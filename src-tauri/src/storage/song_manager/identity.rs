@@ -17,6 +17,8 @@ impl Storage {
         artists: &[String],
         album: Option<&str>,
         duration_ms: Option<u64>,
+        source_app_bundle_id: Option<&str>,
+        source_app_name: Option<&str>,
     ) -> Result<i64, String> {
         let track_key = track_key.trim();
         let platform = platform.trim();
@@ -36,6 +38,18 @@ impl Storage {
             .map(|value| value.min(i64::MAX as u64) as i64)
             .filter(|value| *value >= 0);
         let album = album.map(str::trim).filter(|value| !value.is_empty());
+        let (source_app_bundle_id, source_app_name) = if platform.eq_ignore_ascii_case("system") {
+            let bundle_id = source_app_bundle_id
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .or_else(|| system_source_bundle_id_from_track_key(track_key));
+            let app_name = source_app_name
+                .map(str::trim)
+                .filter(|value| !value.is_empty());
+            (bundle_id, app_name)
+        } else {
+            (None, None)
+        };
         let external = external_id
             .map(str::trim)
             .filter(|value| !value.is_empty())
@@ -103,14 +117,18 @@ impl Storage {
             .execute(
                 "INSERT INTO track_observations
                    (track_key, platform, raw_title, raw_artists_json, raw_album, duration_ms,
-                    recording_id, observed_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, unixepoch())
+                    recording_id, observed_at, source_app_bundle_id, source_app_name)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, unixepoch(), ?8, ?9)
                  ON CONFLICT(platform, track_key) DO UPDATE SET
                    raw_title=excluded.raw_title,
                    raw_artists_json=excluded.raw_artists_json,
                    raw_album=excluded.raw_album,
                    duration_ms=excluded.duration_ms,
                    recording_id=excluded.recording_id,
+                   source_app_bundle_id=COALESCE(excluded.source_app_bundle_id,
+                                                 track_observations.source_app_bundle_id),
+                   source_app_name=COALESCE(excluded.source_app_name,
+                                            track_observations.source_app_name),
                    observed_at=unixepoch()",
                 rusqlite::params![
                     track_key,
@@ -119,7 +137,9 @@ impl Storage {
                     raw_artists_json,
                     album,
                     duration_ms,
-                    recording_id
+                    recording_id,
+                    source_app_bundle_id,
+                    source_app_name
                 ],
             )
             .map_err(|error| format!("保存歌曲观察失败：{error}"))?;
@@ -145,6 +165,14 @@ impl Storage {
     }
 }
 
+fn system_source_bundle_id_from_track_key(track_key: &str) -> Option<&str> {
+    track_key
+        .strip_prefix("system:system:")
+        .and_then(|value| value.split_once('|'))
+        .map(|(value, _)| value.trim())
+        .filter(|value| !value.is_empty())
+}
+
 pub(in crate::storage) fn confirmed_artist_aliases(
     connection: &rusqlite::Connection,
 ) -> Result<Vec<(String, String)>, String> {
@@ -168,7 +196,7 @@ pub(in crate::storage) fn confirmed_artist_aliases(
 }
 
 /// 将已确认别名视为无方向边，并展开为可传递的全局歌手等价组。
-pub(super) fn confirmed_artist_alias_groups(
+pub(in crate::storage) fn confirmed_artist_alias_groups(
     connection: &rusqlite::Connection,
 ) -> Result<Vec<Vec<String>>, String> {
     let mut statement = connection
@@ -532,7 +560,7 @@ pub(super) fn validate_recording_action_part<'a>(
     }
 }
 
-pub(super) fn recording_view(
+pub(in crate::storage) fn recording_view(
     connection: &rusqlite::Connection,
     recording_id: i64,
 ) -> Result<RecordingView, String> {

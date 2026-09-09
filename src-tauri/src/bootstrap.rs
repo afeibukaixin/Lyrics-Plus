@@ -84,6 +84,10 @@ pub fn run() {
                 storage.clone(),
                 http.clone(),
             ));
+            let library_index_storage = storage.clone();
+            let library_index_app = app.handle().clone();
+            let library_progress_storage = storage.clone();
+            let library_progress_app = app.handle().clone();
             app.manage(AppState {
                 runtime_started: Mutex::new(false),
                 selection: Arc::new(RwLock::new(selection)),
@@ -119,6 +123,53 @@ pub fn run() {
                 system_media: Arc::new(SystemMediaService::default()),
                 http,
                 ui_update,
+            });
+
+            tauri::async_runtime::spawn(async move {
+                let mut interval = tokio::time::interval(Duration::from_millis(500));
+                loop {
+                    interval.tick().await;
+                    let Ok(status) = library_progress_storage.library_index_status() else {
+                        continue;
+                    };
+                    if status.indexes.iter().any(|item| item.phase == "building") {
+                        let _ = library_progress_app
+                            .emit("lyrics://library-index-progress", status);
+                    }
+                }
+            });
+
+            tauri::async_runtime::spawn(async move {
+                let mut interval = tokio::time::interval(Duration::from_secs(1));
+                loop {
+                    interval.tick().await;
+                    let storage = library_index_storage.clone();
+                    let current_status = storage.library_index_status().ok();
+                    let had_pending = current_status
+                        .and_then(|status| {
+                            status
+                                .indexes
+                                .into_iter()
+                                .find(|item| item.index_kind == "search")
+                        })
+                        .is_some_and(|status| status.pending > 0);
+                    if !had_pending {
+                        continue;
+                    }
+                    let result = tauri::async_runtime::spawn_blocking(move || {
+                        storage.rebuild_library_search_index()
+                    })
+                    .await;
+                    if let Ok(Err(error)) = result {
+                        log::warn!("资料库搜索索引后台构建失败：{error}");
+                    }
+                    if let Some(state) = library_index_app.try_state::<AppState>() {
+                        if let Ok(status) = state.storage.library_index_status() {
+                            let _ = library_index_app
+                                .emit("lyrics://library-index-changed", status);
+                        }
+                    }
+                }
             });
 
             if let Err(error) = player_lifecycle::sync_service(app.handle(), &configured.app) {
@@ -285,6 +336,30 @@ pub fn run() {
             commands::get_completed_lyrics_search,
             commands::get_lyrics_search_trace,
             commands::get_current_lyrics_context,
+            commands::list_library_songs,
+            commands::get_library_index_status,
+            commands::get_library_song,
+            commands::get_library_song_candidates,
+            commands::analyze_library_song_similarity,
+            commands::list_library_song_similarity,
+            commands::dismiss_library_song_similarity,
+            commands::merge_library_song,
+            commands::split_library_song,
+            commands::list_library_lyrics,
+            commands::get_library_lyric,
+            commands::bind_library_lyric,
+            commands::unbind_library_lyric,
+            commands::list_library_artists,
+            commands::get_library_artist,
+            commands::update_library_artist_name,
+            commands::set_library_artist_alias,
+            commands::analyze_library_lyric_similarity,
+            commands::list_library_lyric_similarity,
+            commands::dismiss_library_lyric_similarity,
+            commands::merge_library_lyrics,
+            commands::preview_unbound_lyrics_cleanup,
+            commands::cleanup_unbound_lyrics,
+            commands::delete_library_lyric_source,
             commands::set_artist_alias_confirmation,
             commands::search_lyrics_v2,
             commands::get_provider_settings,
@@ -336,6 +411,7 @@ pub fn run() {
             commands::set_notch_pointer_interactive,
             commands::show_main_window,
             commands::show_lyrics_style_settings,
+            commands::show_library_song,
             commands::show_quick_lyrics_window,
             commands::get_app_config,
             commands::set_theme,

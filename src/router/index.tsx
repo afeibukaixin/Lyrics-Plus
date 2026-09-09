@@ -8,6 +8,7 @@ import ApplicationSettingsPage from "../pages/settings/application/ApplicationSe
 import DebugSettingsPage from "../pages/settings/debug/DebugSettingsPage";
 import ConfigSettingsPage from "../pages/settings/config/ConfigSettingsPage";
 import AboutSettingsPage from "../pages/settings/about/AboutSettingsPage";
+import LibraryPage from "../pages/settings/library/LibraryPage";
 import { lastSettingsSection } from "./settingsRoute";
 
 function SettingsIndexRedirect() {
@@ -31,6 +32,9 @@ const router = createHashRouter([
           { path: "style", element: <StyleSettingsPage /> },
           { path: "display", element: <Navigate to="/settings/style" replace /> },
           { path: "lyrics", element: <LyricsSettingsPage /> },
+          { path: "library", element: <Navigate to="/settings/library/songs" replace /> },
+          { path: "library/:section", element: <LibraryPage /> },
+          { path: "library/:section/:id", element: <LibraryPage /> },
           { path: "player", element: <PlayerSettingsPage /> },
           { path: "application", element: <ApplicationSettingsPage /> },
           { path: "debug", element: <DebugSettingsPage /> },

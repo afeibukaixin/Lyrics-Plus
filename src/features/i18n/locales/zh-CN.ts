@@ -1,3 +1,5 @@
+import { libraryManagerZhCN } from "./libraryManagerTranslations";
+
 export const zhCN = {
   common: {
     language: { system: "跟随系统" },
@@ -65,7 +67,7 @@ export const zhCN = {
   library: {
     loadingDirectory: "正在读取歌词目录…", openFolder: "打开歌词目录",
     changing: "切换中…", changeFolder: "修改目录", chooseFolder: "选择歌词目录",
-    rawLrc: "原始歌词",
+    rawLrc: "原始歌词", manager: libraryManagerZhCN,
   },
   quickLyrics: {
     title: "快速切换歌词", noTrack: "没有正在播放的歌曲",
@@ -139,7 +141,7 @@ export const zhCN = {
     shell: {
       navigation: "设置分类", onThisPage: "本页目录", closeToast: "关闭", advanced: "高级工具", resetTitle: "恢复分类默认设置",
       nav: {
-        style: "样式", display: "显示与交互", lyrics: "歌词", player: "播放器",
+        style: "样式", display: "显示与交互", lyrics: "歌词", library: "资料库", player: "播放器",
         application: "应用", debug: "调试日志", config: "配置", about: "关于与更新",
       },
       resetConfirm: "将恢复此分类的默认设置。歌词库和歌曲关联不会删除。",

@@ -7,7 +7,6 @@ use std::sync::{Mutex, RwLock};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use tauri::{AppHandle, Manager};
 
 use crate::lyrics::encoding::decode_lyrics_bytes;
 use crate::lyrics::provider::{
@@ -28,14 +27,18 @@ pub(super) fn is_user_owned_source(source: &str) -> bool {
 }
 
 include!("models.rs");
-include!("database.rs");
+mod database;
 include!("lyrics.rs");
 include!("associations.rs");
 include!("preferences.rs");
 include!("helpers.rs");
 include!("aliases.rs");
 mod song_manager;
-use song_manager::recording_version_tags;
+use song_manager::{
+    artist_alias_ids_for_removal, confirmed_artist_alias_groups, equivalent_artist_names,
+    lyric_asset_content_paths, normalize_lyric_content, normalized_artist_alias,
+    normalized_identity_artist, recording_version_tags, recording_view,
+};
 pub use song_manager::{
     ExternalIdentifier, RecordingView, SongAssociationCandidate, TrackObservation,
 };
@@ -43,6 +46,13 @@ include!("bindings.rs");
 include!("roots.rs");
 include!("search_runs.rs");
 include!("v2_views.rs");
+mod library_manager;
+pub use library_manager::{
+    LibraryArtistDetail, LibraryArtistSummary, LibraryIndexStatus, LibraryLyricDetail,
+    LibraryLyricPage, LibraryLyricSimilarityPage, LibraryPage, LibrarySongDetail,
+    LibrarySongSummary, LyricSimilarityGroup, SongSimilarityPair, UnboundCleanupPreview,
+    UnboundCleanupResult,
+};
 
 #[cfg(test)]
 include!("tests.rs");

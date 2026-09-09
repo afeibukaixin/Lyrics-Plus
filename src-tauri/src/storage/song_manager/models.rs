@@ -1,5 +1,5 @@
-use serde::Serialize;
-#[derive(Debug, Clone, serde::Serialize)]
+use serde::{Deserialize, Serialize};
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalIdentifier {
     pub external_id: i64,
@@ -10,12 +10,16 @@ pub struct ExternalIdentifier {
     pub confirmed: bool,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TrackObservation {
     pub observation_id: i64,
     pub track_key: String,
     pub platform: String,
+    #[serde(default)]
+    pub source_app_bundle_id: Option<String>,
+    #[serde(default)]
+    pub source_app_name: Option<String>,
     pub raw_title: String,
     pub raw_artists: Vec<String>,
     pub raw_album: Option<String>,
@@ -25,7 +29,7 @@ pub struct TrackObservation {
     pub split_from_recording_id: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordingView {
     pub recording_id: i64,
@@ -35,7 +39,7 @@ pub struct RecordingView {
     pub version_tags: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SongAssociationCandidate {
     pub kind: SongCandidateKind,
@@ -65,7 +69,7 @@ pub struct SongAssociationCandidate {
     pub match_reasons: Vec<String>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
 pub enum SongCandidateKind {
     Metadata,
@@ -73,7 +77,7 @@ pub enum SongCandidateKind {
     OriginalRelation,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssociationGates {
     pub title: bool,

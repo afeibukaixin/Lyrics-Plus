@@ -1,5 +1,5 @@
 const STORAGE_KEY = "lyrics-plus.last-settings-section";
-const PRIMARY_SECTIONS = new Set(["style", "lyrics", "player", "application", "about"]);
+const PRIMARY_SECTIONS = new Set(["style", "lyrics", "library", "player", "application", "about"]);
 
 export function lastSettingsSection() {
   try {
@@ -11,7 +11,7 @@ export function lastSettingsSection() {
 }
 
 export function rememberSettingsPath(pathname: string) {
-  const section = pathname.match(/^\/settings\/([^/]+)$/)?.[1];
+  const section = pathname.match(/^\/settings\/([^/]+)/)?.[1];
   if (!section || !PRIMARY_SECTIONS.has(section)) return;
   try {
     window.localStorage.setItem(STORAGE_KEY, section);

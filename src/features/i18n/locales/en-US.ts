@@ -1,4 +1,5 @@
 import type { AppTranslationResource } from "../resourceTypes";
+import { libraryManagerEn } from "./libraryManagerTranslations";
 
 export const enUS = {
   common: {
@@ -67,7 +68,7 @@ export const enUS = {
   library: {
     loadingDirectory: "Loading lyrics directory…", openFolder: "Open lyrics directory",
     changing: "Changing…", changeFolder: "Change directory", chooseFolder: "Choose lyrics directory",
-    rawLrc: "Raw Lyrics",
+    rawLrc: "Raw Lyrics", manager: libraryManagerEn,
   },
   quickLyrics: {
     title: "Quick Lyrics Switcher", noTrack: "Nothing is playing",
@@ -142,7 +143,7 @@ export const enUS = {
     shell: {
       navigation: "Settings categories", onThisPage: "On this page", closeToast: "Close", advanced: "Advanced tools", resetTitle: "Restore category defaults",
       nav: {
-        style: "Style", display: "Display & Interaction", lyrics: "Lyrics", player: "Player",
+        style: "Style", display: "Display & Interaction", lyrics: "Lyrics", library: "Library", player: "Player",
         application: "Application", debug: "Debug Logs", config: "Configuration", about: "About & Updates",
       },
       resetConfirm: "This category will be restored to its defaults. The lyrics library and track links will not be deleted.",

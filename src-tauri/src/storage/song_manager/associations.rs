@@ -1,4 +1,6 @@
-use super::{candidates::collect_song_association_candidates, identity::*, lyrics::*, models::*};
+use super::{
+    candidates::collect_song_association_candidates_for_target, identity::*, lyrics::*, models::*,
+};
 use crate::lyrics::provider::{version_tags_from_title, ProviderSettings};
 use crate::storage::{load_observations, Storage};
 use rusqlite::OptionalExtension;
@@ -22,8 +24,13 @@ impl Storage {
             .transaction()
             .map_err(|error| format!("开始关联歌曲失败：{error}"))?;
         // 事务内重新校验候选，避免详情打开后候选已发生变化仍执行旧操作。
-        let candidates =
-            collect_song_association_candidates(&transaction, platform, track_key, settings)?;
+        let candidates = collect_song_association_candidates_for_target(
+            &transaction,
+            platform,
+            track_key,
+            settings,
+            Some(candidate_recording_id),
+        )?;
         let candidate = candidates
             .into_iter()
             .find(|candidate| candidate.recording_id == candidate_recording_id)
@@ -98,6 +105,14 @@ impl Storage {
             )?;
         }
         move_platform_overrides(&transaction, candidate.recording_id, current_recording_id)?;
+        // 合并会改变保留歌曲的身份内容，之前涉及两端的“保持分开”判断需要重新审核。
+        transaction
+            .execute(
+                "DELETE FROM song_similarity_ignores
+                 WHERE left_recording_id IN (?1, ?2) OR right_recording_id IN (?1, ?2)",
+                rusqlite::params![current_recording_id, candidate.recording_id],
+            )
+            .map_err(|error| format!("清理相似歌曲忽略记录失败：{error}"))?;
         // 候选歌曲可能曾经作为其他独立版本的来源；候选实体清理前解除这些旧来源引用，
         // 避免留下悬空的 split_from_recording_id。
         transaction

@@ -66,6 +66,8 @@ export type TrackObservation = {
   observationId: number;
   trackKey: string;
   platform: string;
+  sourceAppBundleId: string | null;
+  sourceAppName: string | null;
   rawTitle: string;
   rawArtists: string[];
   rawAlbum: string | null;
@@ -73,6 +75,13 @@ export type TrackObservation = {
   observedAt: number;
   recordingId: number;
   splitFromRecordingId: number | null;
+};
+
+export type LibrarySongSource = {
+  platform: string;
+  sourceAppBundleId: string | null;
+  sourceAppName: string | null;
+  observationCount: number;
 };
 
 export type SongAssociationCandidate = {
@@ -178,6 +187,158 @@ export type LibraryRootView = {
   unavailableCount: number;
   lastScanAt: number | null;
   lastError: string | null;
+};
+
+export type LibraryPage<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type LibraryIndexEntry = {
+  indexKind: "search" | "artist" | "song_similarity" | "lyric_similarity";
+  phase: "building" | "ready" | "error";
+  processed: number;
+  total: number;
+  pending: number;
+  revision: number;
+  error: string | null;
+};
+
+export type LibraryIndexStatus = {
+  indexes: LibraryIndexEntry[];
+};
+
+export type LibrarySongSummary = {
+  recordingId: number;
+  title: string;
+  artists: string[];
+  album: string | null;
+  durationMs: number | null;
+  versionTags: string[];
+  sourceCount: number;
+  sources: LibrarySongSource[];
+  lyricCount: number;
+  defaultLyric: string | null;
+};
+
+export type SongSimilarityPair = {
+  pairId: string;
+  songs: [LibrarySongSummary, LibrarySongSummary];
+  recommendedRecordingId: number;
+  evidenceSourceRecordingId: number;
+  evidence: SongAssociationCandidate;
+};
+
+export type LibraryLyricStatus = "inUse" | "candidate" | "unbound";
+
+export type LibraryLyricPage = LibraryPage<LibraryLyricSummary> & {
+  statusCounts: Record<LibraryLyricStatus, number>;
+};
+
+export type LibraryLyricSimilarityPage = LibraryPage<LyricSimilarityGroup> & {
+  previews: Record<number, LyricsDocument | null>;
+};
+
+export type LibraryLyricSummary = {
+  assetId: number;
+  title: string;
+  artist: string;
+  sourceName: string;
+  sourceKind: LyricAsset["sourceKind"];
+  originalFormat: string;
+  language: string;
+  hasWordTiming: boolean;
+  hasTranslation: boolean;
+  hasRomanization: boolean;
+  available: boolean;
+  activeCount: number;
+  bindingCount: number;
+  sourceCount: number;
+  fileSize: number;
+  status: LibraryLyricStatus;
+  contentFingerprint: string;
+};
+
+export type LibraryArtistSummary = {
+  artistId: number;
+  canonicalName: string;
+  aliases: string[];
+  songCount: number;
+  rawNames: string[];
+};
+
+export type LibrarySongDetail = {
+  recording: RecordingIdentity;
+  bindings: LyricsBinding[];
+  platformOverrides: PlatformLyricOverride[];
+};
+
+export type LibraryLyricSource = {
+  sourceId: number | null;
+  sourceKind: LyricAsset["sourceKind"];
+  sourceName: string;
+  rootId: string | null;
+  rootName: string | null;
+  relativePath: string | null;
+  available: boolean;
+  writable: boolean;
+  fileSize: number;
+};
+
+export type LibraryLyricRecording = {
+  recordingId: number;
+  title: string;
+  artists: string[];
+  isDefault: boolean;
+  offsetMs: number;
+};
+
+export type LibraryLyricDetail = {
+  summary: LibraryLyricSummary;
+  asset: LyricAsset;
+  sources: LibraryLyricSource[];
+  recordings: LibraryLyricRecording[];
+  document: LyricsDocument | null;
+};
+
+export type LibraryArtistDetail = {
+  summary: LibraryArtistSummary;
+  songs: LibrarySongSummary[];
+};
+
+export type LyricSimilarityGroup = {
+  groupId: string;
+  score: number;
+  highSimilarity: boolean;
+  recommendedAssetId: number;
+  durationWarning: boolean;
+  versionWarning: boolean;
+  items: LibraryLyricSummary[];
+};
+
+export type UnboundCleanupPreview = {
+  items: LibraryLyricSummary[];
+  total: number;
+  page: number;
+  pageSize: number;
+  fileCount: number;
+  totalSize: number;
+  revision: string;
+};
+
+export type CleanupItemResult = {
+  assetId: number;
+  deletedFiles: number;
+  releasedBytes: number;
+  error: string | null;
+};
+
+export type UnboundCleanupResult = {
+  items: CleanupItemResult[];
+  deletedFiles: number;
+  releasedBytes: number;
 };
 
 export type LyricsRuntimeStatus = "idle" | "loading" | "ready" | "not_found" | "error";

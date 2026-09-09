@@ -1,4 +1,5 @@
 import type { AppTranslationResource } from "../resourceTypes";
+import { libraryManagerKo } from "./libraryManagerTranslations";
 
 export const koKR = {
   common: {
@@ -67,7 +68,7 @@ export const koKR = {
   library: {
     loadingDirectory: "가사 폴더 불러오는 중…", openFolder: "가사 폴더 열기",
     changing: "변경 중…", changeFolder: "폴더 변경", chooseFolder: "가사 폴더 선택",
-    rawLrc: "원본 가사",
+    rawLrc: "원본 가사", manager: libraryManagerKo,
   },
   quickLyrics: {
     title: "빠른 가사 전환", noTrack: "재생 중인 곡이 없습니다",
@@ -142,7 +143,7 @@ export const koKR = {
     shell: {
       navigation: "설정 카테고리", onThisPage: "이 페이지", closeToast: "닫기", advanced: "고급 도구", resetTitle: "카테고리 기본값 복원",
       nav: {
-        style: "스타일", display: "표시 및 상호 작용", lyrics: "가사", player: "플레이어",
+        style: "스타일", display: "표시 및 상호 작용", lyrics: "가사", library: "라이브러리", player: "플레이어",
         application: "애플리케이션", debug: "디버그 로그", config: "구성", about: "정보 및 업데이트",
       },
       resetConfirm: "이 카테고리를 기본값으로 복원합니다. 가사 라이브러리와 트랙 링크는 삭제되지 않습니다.",
