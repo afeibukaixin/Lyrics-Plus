@@ -1,11 +1,13 @@
 <div align="center">
   <h1>Lyrics Plus</h1>
   <p>A simple, synchronized lyrics companion for macOS.</p>
-  <p><strong>macOS 13+ · Apple Silicon & Intel · MIT License</strong></p>
+  <p>
+    <a href="https://github.com/afeibukaixin/Lyrics-Plus/releases/latest"><img src="https://img.shields.io/github/v/release/afeibukaixin/Lyrics-Plus?style=flat-square" alt="Latest release"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/github/license/afeibukaixin/Lyrics-Plus?style=flat-square" alt="MIT License"></a>
+    <a href="https://qm.qq.com/q/KDcSY7Yhii"><img src="https://img.shields.io/badge/QQ%20Group-1045190390-12B7F5?style=flat-square&logo=qq&logoColor=white" alt="QQ Group 1045190390"></a>
+  </p>
   <p><a href="README_ZH.md">简体中文</a> · English</p>
 </div>
-
-> **Community:** Join the [QQ Group 1045190390](https://qm.qq.com/q/KDcSY7Yhii) for discussion and support.
 
 Lyrics Plus is a free and open-source macOS app that follows your music player and keeps lyrics in sync with the current track and playback position. It is built with Tauri 2, React, TypeScript, and Rust.
 

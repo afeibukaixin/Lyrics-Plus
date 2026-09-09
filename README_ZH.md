@@ -1,11 +1,13 @@
 <div align="center">
   <h1>Lyrics Plus</h1>
   <p>简洁的 macOS 同步歌词工具。</p>
-  <p><strong>macOS 13+ · Apple Silicon 与 Intel · MIT License</strong></p>
+  <p>
+    <a href="https://github.com/afeibukaixin/Lyrics-Plus/releases/latest"><img src="https://img.shields.io/github/v/release/afeibukaixin/Lyrics-Plus?style=flat-square" alt="最新版本"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/github/license/afeibukaixin/Lyrics-Plus?style=flat-square" alt="MIT License"></a>
+    <a href="https://qm.qq.com/q/KDcSY7Yhii"><img src="https://img.shields.io/badge/QQ%20%E7%BE%A4-1045190390-12B7F5?style=flat-square&logo=qq&logoColor=white" alt="QQ 群 1045190390"></a>
+  </p>
   <p>简体中文 · <a href="README.md">English</a></p>
 </div>
-
-> **社区交流：** 欢迎加入 [QQ 群 1045190390](https://qm.qq.com/q/KDcSY7Yhii) 交流与获取支持。
 
 Lyrics Plus 是一款免费开源的 macOS 应用，会跟随音乐播放器，让歌词与当前歌曲和播放进度保持同步。项目使用 Tauri 2、React、TypeScript 和 Rust 构建。
 
