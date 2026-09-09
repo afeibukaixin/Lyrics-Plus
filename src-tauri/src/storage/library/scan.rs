@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde::Serialize;
 
 use super::super::{content_hash, Storage};
@@ -44,6 +44,7 @@ pub struct LibraryScanStatus {
 pub(in crate::storage) struct LibraryScanCoordinator {
     generation: AtomicU64,
     status: Mutex<LibraryScanStatus>,
+    execution: Mutex<()>,
 }
 
 impl LibraryScanCoordinator {
@@ -66,6 +67,7 @@ impl LibraryScanCoordinator {
                 first_failure: None,
                 error: None,
             }),
+            execution: Mutex::new(()),
         }
     }
 
@@ -281,6 +283,12 @@ impl Storage {
         root_id: &str,
         mut publish: impl FnMut(&LibraryScanStatus),
     ) -> Result<bool, String> {
+        // 新扫描可以取消旧代次，但必须等旧任务释放事务后再访问索引库。
+        let _execution_guard = self
+            .scanner
+            .execution
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
         let snapshot = self.library_scan_status();
         if snapshot.scan_id != scan_id {
             return Ok(false);
@@ -318,7 +326,7 @@ impl Storage {
                 return Ok(false);
             }
             let transaction = connection
-                .transaction()
+                .transaction_with_behavior(TransactionBehavior::Immediate)
                 .map_err(|error| format!("开始歌词索引事务失败：{error}"))?;
             let mut batch_added = 0_u64;
             let mut batch_updated = 0_u64;
@@ -347,7 +355,11 @@ impl Storage {
                                  WHERE content_path=?1",
                                 params![path_string],
                             )
-                            .map_err(|error| format!("标记不可用歌词索引失败：{error}"))?;
+                            .map_err(|mark_error| {
+                                format!(
+                                    "处理歌词文件失败：{error}；标记不可用歌词索引失败：{mark_error}"
+                                )
+                            })?;
                     }
                 }
             }

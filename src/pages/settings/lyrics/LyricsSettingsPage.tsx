@@ -86,6 +86,7 @@ export default function LyricsSettingsPage() {
   const [savingTitleFilters, setSavingTitleFilters] = useState(false);
   const [libraryDir, setLibraryDir] = useState<string | null>(null);
   const [scanStatus, setScanStatus] = useState<LibraryScanStatus | null>(null);
+  const [startingScanPath, setStartingScanPath] = useState<string | null>(null);
   const [changingDirectory, setChangingDirectory] = useState(false);
   const [providerConfig, setProviderConfig] = useState<"musixmatch" | "amll_ttml" | null>(null);
   const [musixmatchTokenDraft, setMusixmatchTokenDraft] = useState("");
@@ -156,6 +157,7 @@ export default function LyricsSettingsPage() {
     const selected = await open({ directory: true, multiple: false, defaultPath: libraryDir ?? undefined, title: t("library.chooseFolder") });
     if (!selected) return;
     setChangingDirectory(true);
+    setStartingScanPath(selected);
     setError(null);
     try {
       const status = await api.setLyricsDirectory(selected);
@@ -165,6 +167,7 @@ export default function LyricsSettingsPage() {
       setError(messageOf(error));
     } finally {
       setChangingDirectory(false);
+      setStartingScanPath(null);
     }
   };
 
@@ -178,6 +181,7 @@ export default function LyricsSettingsPage() {
     const selected = await open({ directory: true, multiple: false, title: t("settings.lyrics.chooseLocalRoot") });
     if (!selected || Array.isArray(selected)) return;
     setAddingLibraryRoot(true);
+    setStartingScanPath(selected);
     setError(null);
     try {
       const root = await api.addLibraryRoot(selected);
@@ -186,10 +190,13 @@ export default function LyricsSettingsPage() {
       setError(messageOf(error));
     } finally {
       setAddingLibraryRoot(false);
+      setStartingScanPath(null);
     }
   };
 
   const toggleLibraryRoot = async (root: LibraryRootView) => {
+    const startsScan = !root.enabled;
+    if (startsScan) setStartingScanPath(root.path);
     setError(null);
     try {
       const next = await api.setLibraryRootEnabled(root.rootId, !root.enabled);
@@ -199,6 +206,8 @@ export default function LyricsSettingsPage() {
       }
     } catch (error) {
       setError(messageOf(error));
+    } finally {
+      if (startsScan) setStartingScanPath(null);
     }
   };
 
@@ -214,11 +223,14 @@ export default function LyricsSettingsPage() {
   };
 
   const rescanRoot = async (root: LibraryRootView) => {
+    setStartingScanPath(root.path);
     setError(null);
     try {
       setScanStatus(await api.rescanLibraryRoot(root.rootId));
     } catch (error) {
       setError(messageOf(error));
+    } finally {
+      setStartingScanPath(null);
     }
   };
 
@@ -362,6 +374,9 @@ export default function LyricsSettingsPage() {
   const scanProgress = scanStatus?.phase === "indexing" && scanStatus.total
     ? Math.round(scanStatus.processed / scanStatus.total * 100)
     : 0;
+  const scanInProgress = scanStatus?.phase === "discovering" || scanStatus?.phase === "indexing";
+  const isScanning = startingScanPath !== null || scanInProgress;
+  const activeScanPath = startingScanPath ?? (scanInProgress ? scanStatus?.libraryDir ?? null : null);
   const providerManifests = providerView?.manifests ?? [];
   const providerPreferences = providerView?.settings.providers ?? [];
   const providerEntries = providerPreferences.map((provider, index) => ({
@@ -431,17 +446,17 @@ export default function LyricsSettingsPage() {
         <p className={styles.directoryPath} title={libraryDir ?? undefined}>{libraryDir ?? t("library.loadingDirectory")}</p>
         <div className={styles.buttonRow}>
           <Button variant="secondary" size="sm" disabled={!libraryDir} onClick={() => void api.openLyricsDirectory().catch((error) => setError(messageOf(error)))}>{t("library.openFolder")}</Button>
-          <Button variant="secondary" size="sm" disabled={changingDirectory} onClick={() => void changeDirectory()}>{changingDirectory ? t("library.changing") : t("library.changeFolder")}</Button>
+          <Button variant="secondary" size="sm" disabled={changingDirectory || isScanning} onClick={() => void changeDirectory()}>{changingDirectory ? t("library.changing") : t("library.changeFolder")}</Button>
         </div>
         {scanStatusTargetExists && isManagedScan && scanStatusView}
       </div>
       <div className={styles.directoryBlock}>
-        <div className={styles.sectionSubheading}><strong>{t("settings.lyrics.localRoots")}</strong><Button variant="secondary" size="sm" disabled={addingLibraryRoot} onClick={() => void addLocalRoot()}><FolderPlus data-icon="inline-start" />{addingLibraryRoot ? t("settings.lyrics.addingLocalRoot") : t("settings.lyrics.addLocalRoot")}</Button></div>
+        <div className={styles.sectionSubheading}><strong>{t("settings.lyrics.localRoots")}</strong><Button variant="secondary" size="sm" disabled={addingLibraryRoot || isScanning} onClick={() => void addLocalRoot()}><FolderPlus data-icon="inline-start" />{addingLibraryRoot ? t("settings.lyrics.addingLocalRoot") : t("settings.lyrics.addLocalRoot")}</Button></div>
         {scanStatusTargetExists && !isManagedScan && scanStatusView}
         <div className={styles.libraryRoots}>
         {libraryRoots.filter((root) => root.rootKind === "local").map((root) => <Item variant="muted" className={styles.libraryRoot} key={root.rootId}>
           <ItemContent><ItemTitle>{root.displayName}</ItemTitle><ItemDescription title={root.path}>{root.path}<br />{t("settings.lyrics.rootStats", { files: root.fileCount, unavailable: root.unavailableCount })}{root.lastScanAt ? ` · ${new Date(root.lastScanAt * 1000).toLocaleString()}` : ""}</ItemDescription>{root.lastError && <small role="alert">{root.lastError}</small>}</ItemContent>
-          <ItemActions><Switch aria-label={root.displayName} checked={root.enabled} onCheckedChange={() => void toggleLibraryRoot(root)} /><Button variant="ghost" size="icon-sm" disabled={!root.enabled} onClick={() => void rescanRoot(root)} aria-label={t("settings.lyrics.rescanRoot")}><RefreshCw /></Button><Button variant="ghost" size="icon-sm" onClick={() => void removeLibraryRoot(root)} aria-label={t("settings.lyrics.removeRoot")}><Trash2 /></Button></ItemActions>
+          <ItemActions><Switch aria-label={root.displayName} checked={root.enabled} disabled={isScanning} onCheckedChange={() => void toggleLibraryRoot(root)} /><Button variant="ghost" size="icon-sm" disabled={!root.enabled || isScanning} onClick={() => void rescanRoot(root)} aria-label={t("settings.lyrics.rescanRoot")}><RefreshCw className={activeScanPath === root.path ? "animate-spin" : undefined} /></Button><Button variant="ghost" size="icon-sm" disabled={isScanning} onClick={() => void removeLibraryRoot(root)} aria-label={t("settings.lyrics.removeRoot")}><Trash2 /></Button></ItemActions>
         </Item>)}
         </div>
       </div>
