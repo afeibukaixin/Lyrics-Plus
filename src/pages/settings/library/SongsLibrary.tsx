@@ -97,13 +97,13 @@ export default function SongsLibrary({ detailId, similarityOpen, onSimilarityClo
         />
         <CardContent className={styles.tableContent}>
         {loadingError ? <LibraryState state="error" message={loadingError} /> : data === null ? <LibraryState state="loading" message={t("library.manager.loading")} /> : data.items.length ? (
-          <Table className={`${styles.fixedTable} ${styles.songsTable} ${styles.dataTable}`}>
-            <TableHeader><TableRow><TableHead>{t("library.manager.song")}</TableHead><TableHead className={styles.numericColumn}>{t("library.manager.sources")}</TableHead><TableHead className={styles.numericColumn}>{t("library.manager.lyricsCount")}</TableHead><TableHead className={styles.numericColumn}>{t("library.manager.duration")}</TableHead><TableHead className={styles.actionColumn}>{t("library.manager.actions")}</TableHead></TableRow></TableHeader>
+          <Table className={`${styles.adaptiveTable} ${styles.dataTable}`}>
+            <TableHeader><TableRow><TableHead className={styles.growColumn}>{t("library.manager.song")}</TableHead><TableHead className={`${styles.numericColumn} ${styles.compactColumn}`}>{t("library.manager.sources")}</TableHead><TableHead className={`${styles.numericColumn} ${styles.compactColumn}`}>{t("library.manager.lyricsCount")}</TableHead><TableHead className={`${styles.numericColumn} ${styles.compactColumn}`}>{t("library.manager.duration")}</TableHead><TableHead className={`${styles.actionColumn} ${styles.compactColumn}`}>{t("library.manager.actions")}</TableHead></TableRow></TableHeader>
             <TableBody>{data.items.map((song) => (
               <TableRow key={song.recordingId}>
-                <TableCell className={styles.primaryCell}><TruncatedText variant="title">{song.title}</TruncatedText><TruncatedText variant="meta">{song.artists.join(" / ") || "—"}</TruncatedText></TableCell>
-                <TableCell className={styles.numericColumn}><TruncatedText>{String(song.sourceCount)}</TruncatedText></TableCell><TableCell className={styles.numericColumn}><TruncatedText>{String(song.lyricCount)}</TruncatedText></TableCell><TableCell className={styles.numericColumn}><TruncatedText>{formatDuration(song.durationMs)}</TruncatedText></TableCell>
-                <TableCell className={styles.actionColumn}><Button size="sm" variant="outline" onClick={() => navigation.openDetail("songs", song.recordingId, song.title)}>{t("library.manager.details")}</Button></TableCell>
+                <TableCell className={`${styles.primaryCell} ${styles.growColumn}`}><TruncatedText variant="title">{song.title}</TruncatedText><TruncatedText variant="meta">{song.artists.join(" / ") || "—"}</TruncatedText></TableCell>
+                <TableCell className={`${styles.numericColumn} ${styles.compactColumn}`}>{song.sourceCount}</TableCell><TableCell className={`${styles.numericColumn} ${styles.compactColumn}`}>{song.lyricCount}</TableCell><TableCell className={`${styles.numericColumn} ${styles.compactColumn}`}>{formatDuration(song.durationMs)}</TableCell>
+                <TableCell className={`${styles.actionColumn} ${styles.compactColumn}`}><Button size="sm" variant="outline" onClick={() => navigation.openDetail("songs", song.recordingId, song.title)}>{t("library.manager.details")}</Button></TableCell>
               </TableRow>
             ))}</TableBody>
           </Table>

@@ -49,7 +49,7 @@ export default function LibraryPage() {
             navigate(`/settings/library/${String(value)}`);
           }}
         >
-          <TabsList aria-label={t("library.manager.tabsLabel")}>
+          <TabsList className={styles.sectionTabs} aria-label={t("library.manager.tabsLabel")}>
             <TabsTrigger value="songs"><Music2 data-icon="inline-start" />{t("library.manager.tabs.songs")}</TabsTrigger>
             <TabsTrigger value="lyrics"><ScrollText data-icon="inline-start" />{t("library.manager.tabs.lyrics")}</TabsTrigger>
             <TabsTrigger value="artists"><Mic2 data-icon="inline-start" />{t("library.manager.tabs.artists")}</TabsTrigger>

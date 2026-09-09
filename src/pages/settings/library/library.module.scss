@@ -12,6 +12,8 @@
 .libraryContent, .workspace { min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
 .workspace { display: grid; grid-template-columns: minmax(0, 1fr); }
 .sectionBar { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sectionTabs [data-slot="tabs-trigger"][data-active] { border-color: color-mix(in srgb, var(--foreground) 16%, transparent); }
+:global(.dark) .sectionTabs [data-slot="tabs-trigger"][data-active] { background: var(--background); color: var(--foreground); }
 .sectionSummary { min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .sectionActions { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .sectionActions > [data-slot="button"] { margin-left: auto; }
@@ -28,40 +30,23 @@
 
 .tableContent { min-width: 0; min-height: 0; flex: 1 1 auto; display: flex; padding: 0; overflow: hidden; }
 .tableContent > [data-slot="table-container"] { min-width: 0; min-height: 0; flex: 1 1 auto; overflow-x: hidden; overflow-y: auto; }
-.dataTable { width: 100%; min-width: 0; max-width: 100%; table-layout: fixed; background: var(--card); }
+.dataTable { width: 100%; min-width: 0; max-width: 100%; table-layout: auto; background: var(--card); }
 .dataTable [data-slot="table-header"] { position: sticky; z-index: 1; top: 0; background: var(--muted); }
 .dataTable [data-slot="table-row"] { border-color: var(--library-line); }
 .dataTable [data-slot="table-body"] [data-slot="table-row"] { height: 58px; background: var(--card); }
 .dataTable [data-slot="table-body"] [data-slot="table-row"]:hover { background: var(--muted); }
 .dataTable [data-slot="table-body"] [data-slot="table-row"][data-state="selected"] { background: color-mix(in srgb, var(--primary) 10%, var(--card)); }
-.fixedTable [data-slot="table-cell"] { overflow: hidden; text-overflow: ellipsis; }
-.fixedTable :is([data-slot="table-head"], [data-slot="table-cell"]) { padding-inline: 12px; }
-.fixedTable :is([data-slot="table-head"], [data-slot="table-cell"]):first-child { padding-left: 16px; }
-.fixedTable :is([data-slot="table-head"], [data-slot="table-cell"]):last-child { padding-right: 16px; }
-.songsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(1) { width: 46%; }
-.songsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(n + 2) { width: 13%; }
-.songsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(5) { width: 15%; }
-.lyricsTable[data-selection="true"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(1) { width: 5%; }
-.lyricsTable[data-selection="true"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(2) { width: 29%; }
-.lyricsTable[data-selection="true"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(3) { width: 15%; }
-.lyricsTable[data-selection="true"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(4) { width: 24%; }
-.lyricsTable[data-selection="true"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(5) { width: 14%; }
-.lyricsTable[data-selection="true"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(6) { width: 13%; }
-.lyricsTable[data-selection="false"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(1) { width: 34%; }
-.lyricsTable[data-selection="false"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(2) { width: 15%; }
-.lyricsTable[data-selection="false"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(3) { width: 24%; }
-.lyricsTable[data-selection="false"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(4) { width: 14%; }
-.lyricsTable[data-selection="false"] :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(5) { width: 13%; }
-.artistsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(1) { width: 28%; }
-.artistsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(2) { width: 26%; }
-.artistsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(3) { width: 12%; }
-.artistsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(4) { width: 21%; }
-.artistsTable :is([data-slot="table-head"], [data-slot="table-cell"]):nth-child(5) { width: 13%; }
+.adaptiveTable :is([data-slot="table-head"], [data-slot="table-cell"]) { min-width: 0; padding-inline: 12px; }
+.adaptiveTable [data-slot="table-cell"] { overflow: visible; }
+.adaptiveTable :is([data-slot="table-head"], [data-slot="table-cell"]):first-child { padding-left: 16px; }
+.adaptiveTable :is([data-slot="table-head"], [data-slot="table-cell"]):last-child { padding-right: 16px; }
+.growColumn { min-width: 0; }
+.compactColumn { width: max-content; min-width: max-content; white-space: nowrap; }
 .primaryCell { min-width: 0; overflow: hidden; }
 .selectionColumn { text-align: center; }
 .numericColumn { text-align: right; font-variant-numeric: tabular-nums; }
 .fileSizeColumn { white-space: nowrap; }
-.actionColumn { width: 1%; text-align: right; }
+.actionColumn { text-align: right; white-space: nowrap; }
 .truncatedText { display: block; width: 100%; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .truncatedText[data-variant="meta"] { margin-top: 2px; color: var(--muted-foreground); font-size: .75rem; }
 .truncatedTooltip { overflow-wrap: anywhere; }
