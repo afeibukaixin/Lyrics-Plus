@@ -7,7 +7,7 @@ use super::platform::{
 use crate::{AppState, NotchLayoutMetrics};
 
 #[cfg(target_os = "macos")]
-fn screen_notch_layout(monitor: &tauri::Monitor) -> NotchLayoutMetrics {
+pub(crate) fn screen_notch_layout(monitor: &tauri::Monitor) -> NotchLayoutMetrics {
     use objc2::MainThreadMarker;
     use objc2_app_kit::NSScreen;
     use objc2_core_graphics::{CGDisplayBounds, CGDisplayPixelsHigh, CGDisplayPixelsWide};
@@ -91,7 +91,7 @@ fn screen_notch_layout(monitor: &tauri::Monitor) -> NotchLayoutMetrics {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn screen_notch_layout(_monitor: &tauri::Monitor) -> NotchLayoutMetrics {
+pub(crate) fn screen_notch_layout(_monitor: &tauri::Monitor) -> NotchLayoutMetrics {
     NotchLayoutMetrics::default()
 }
 

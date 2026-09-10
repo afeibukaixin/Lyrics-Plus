@@ -31,7 +31,9 @@ import {
 import {
   COLLAPSED_HEIGHT_FALLBACK,
   EXPANDED_HEIGHT_FALLBACK,
+  notchCompactSlotSize,
   notchCollapsedHeightFloor,
+  notchMinimumWidth,
   notchSlotPadding,
   NOTCH_MAX_WIDTH,
   NOTCH_SLOT_VERTICAL_PADDING,
@@ -110,7 +112,11 @@ export default function NotchLyricsWindow() {
     right: { top: "#ffffff", middle: "#ffffff", bottom: "#ffffff" },
   };
   const { registerSpectrumNode } = useNotchSpectrum(usesSpectrum && playback.active);
-  const effectiveWidth = previewValues?.maxWidth ?? appearance.maxWidth;
+  const minimumWidth = notchMinimumWidth(layout);
+  const effectiveWidth = Math.min(
+    NOTCH_MAX_WIDTH,
+    Math.max(minimumWidth, previewValues?.maxWidth ?? appearance.maxWidth),
+  );
   const effectiveExpandedMaxWidth = Math.min(
     NOTCH_MAX_WIDTH,
     Math.max(
@@ -121,10 +127,7 @@ export default function NotchLyricsWindow() {
   const resolvedTopInset = resolvedNotchTopInset(layout);
   const collapsedHeightFloor = notchCollapsedHeightFloor(layout);
   const slotPadding = notchSlotPadding(appearance.borderRadius);
-  const compactSlotSize = Math.max(
-    0,
-    Math.min(30, resolvedTopInset - NOTCH_SLOT_VERTICAL_PADDING * 2),
-  );
+  const compactSlotSize = notchCompactSlotSize(layout);
   const marqueePaused = previewActive || widthMotionActive || visibilityMotionActive;
   const expandedPlayerActive = islandState !== "collapsed";
   const {
@@ -188,6 +191,10 @@ export default function NotchLyricsWindow() {
   );
   const supportingLine = supportingLines[0];
   const supportingIsNext = supportingResolvedLine?.kind === "next";
+  const previewDoubleLineAlternating = notch.showLyrics
+    && notch.presentation.layout === "double"
+    && notch.presentation.doubleLineMode === "alternating"
+    && supportingIsNext;
   const supportingLineElement = supportingLine && (
     <div className={styles.supportingLine} data-empty={!supportingLine.line.text.trim() || undefined} data-kind={supportingLine.kind} key={`${supportingLine.kind}:${supportingLine.line.startMs}:${supportingLine.line.text}`}>
       <OverflowText
@@ -443,6 +450,7 @@ export default function NotchLyricsWindow() {
                     previewLine={notch.showLyrics ? previewLine : null}
                     previewSupportingLine={notch.showLyrics ? previewSupportingLine : null}
                     previewDoubleLine={notch.showLyrics && notch.presentation.layout === "double" && Boolean(previewLine)}
+                    previewDoubleLineAlternating={previewDoubleLineAlternating}
                     previewDoubleLineReversed={notch.showLyrics && notch.presentation.layout === "double" && doubleLineOrder === "reversed"}
                     previewMaxDurationMs={previewLyricMarqueeTimeLimitMs}
                     previewOffsetMs={offsetMs}

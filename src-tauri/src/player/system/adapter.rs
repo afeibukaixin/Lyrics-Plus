@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use media_remote::{Controller, NowPlayingPerl, Subscription};
 use serde_json::Value;
+use tokio::sync::Notify;
 
 use super::super::{run_with_timeout, PlaybackAction};
 use super::metadata::{milliseconds, timed_info, TimedInfo};
@@ -17,6 +18,7 @@ pub(super) struct AdapterClient {
     pub(super) player: NowPlayingPerl,
     pub(super) latest: Arc<RwLock<Option<TimedInfo>>>,
     pub(super) resync_requested: Arc<AtomicBool>,
+    pub(super) playback_changed: Arc<Notify>,
     pub(super) script_path: PathBuf,
     pub(super) framework_path: PathBuf,
 }
@@ -29,12 +31,15 @@ pub(super) fn initialize() -> Result<AdapterClient, String> {
     let latest_for_listener = latest.clone();
     let resync_requested = Arc::new(AtomicBool::new(true));
     let resync_for_listener = resync_requested.clone();
+    let playback_changed = Arc::new(Notify::new());
+    let playback_changed_for_listener = playback_changed.clone();
     player.subscribe(move |info| {
         let next = info.as_ref().cloned().and_then(timed_info);
         *latest_for_listener
             .write()
             .unwrap_or_else(|error| error.into_inner()) = next;
         resync_for_listener.store(true, Ordering::SeqCst);
+        playback_changed_for_listener.notify_one();
     });
     // 适配器的 get 脚本仍用于刷新精确进度；固定版本并定位它刚创建的临时目录，避免自行维护资源副本。
     let directory = adapter_directories()
@@ -63,6 +68,7 @@ pub(super) fn initialize() -> Result<AdapterClient, String> {
         player,
         latest,
         resync_requested,
+        playback_changed,
         script_path,
         framework_path,
     })

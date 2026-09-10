@@ -48,6 +48,7 @@ export function useKaraokeSweepTimeline({
   positionRef.current = positionMs;
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   const timelineOriginRef = useRef(lineStartMs);
+  const playingRef = useRef(playing);
   const [reducedMotion, setReducedMotion] = useReducedMotion();
   const wordsSignature = useMemo(
     () => words.map((word) => `${word.startMs}:${word.endMs}:${word.text}`).join("\u001f"),
@@ -123,6 +124,8 @@ export function useKaraokeSweepTimeline({
   });
 
   useEffect(() => {
+    const wasPlaying = playingRef.current;
+    playingRef.current = playing;
     const timeline = timelineRef.current;
     if (!timeline) return;
     const desiredTime = getTimelineTime(
@@ -131,6 +134,10 @@ export function useKaraokeSweepTimeline({
       timeline.duration(),
     );
     if (!playing || reducedMotion) {
+      if (!playing && wasPlaying) {
+        timeline.pause();
+        return;
+      }
       timeline.pause(desiredTime);
       return;
     }

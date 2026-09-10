@@ -14,7 +14,9 @@ pub(crate) use lifecycle::{
     set_surface_runtime_state, surface_is_destroying, SurfaceRuntimeState,
 };
 pub(crate) use list_lyrics::{apply_list_lyrics_window_lock, reset_list_lyrics_window_size};
-pub(crate) use notch::{notch_monitor_id, notch_window_position, set_window_frame};
+pub(crate) use notch::{
+    notch_monitor_id, notch_window_position, screen_notch_layout, set_window_frame,
+};
 pub(crate) use overlay::create_overlay;
 #[cfg(test)]
 pub(crate) use overlay::initial_overlay_dimensions;

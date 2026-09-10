@@ -8,6 +8,7 @@ import {
   EXPANDED_HEIGHT_FALLBACK,
   islandRadii,
   notchCollapsedHeightFloor,
+  notchMinimumWidth,
   NOTCH_MAX_WIDTH,
   NOTCH_TOP_CORNER_MAX_RADIUS,
   physicalSizeMatches,
@@ -172,7 +173,13 @@ export function useNotchWindowGeometry({
     const expandedContent = toolbarRevealRef.current;
     if (!compactContent || !expandedContent) return;
     const preview = previewValuesRef.current;
-    const collapsedWidth = collapsedWidthOverride ?? preview?.maxWidth ?? appearance.maxWidth;
+    const collapsedWidth = Math.min(
+      NOTCH_MAX_WIDTH,
+      Math.max(
+        notchMinimumWidth(layout),
+        collapsedWidthOverride ?? preview?.maxWidth ?? appearance.maxWidth,
+      ),
+    );
     const expandedMaxWidth = Math.min(
       NOTCH_MAX_WIDTH,
       Math.max(
@@ -191,7 +198,7 @@ export function useNotchWindowGeometry({
       return;
     }
     applyMeasuredDimensions(nextDimensions);
-  }, [appearance.expandedMaxWidth, appearance.maxWidth, applyMeasuredDimensions, contentRef, layout.hasNotch, layout.topInset, pendingDimensionsRef, previewValuesRef, toolbarRevealRef, widthMotionActiveRef]);
+  }, [appearance.expandedMaxWidth, appearance.maxWidth, applyMeasuredDimensions, contentRef, layout.centerGapWidth, layout.hasNotch, layout.topInset, pendingDimensionsRef, previewValuesRef, toolbarRevealRef, widthMotionActiveRef]);
 
   useLayoutEffect(() => {
     if (!previewActiveRef.current) fitWindow();

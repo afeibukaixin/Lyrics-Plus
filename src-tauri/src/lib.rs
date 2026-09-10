@@ -87,7 +87,7 @@ pub(crate) use windows::{
     cancel_surface_destroy, configure_web_content_process_handler, create_overlay,
     handle_surface_destroyed, hide_surface, is_managed_surface_label, notch_monitor_id,
     notch_window_position, position_auxiliary_lyrics_window_default, prepare_surface_show,
-    reconcile_auxiliary_lyrics_windows, refresh_overlay_mouse_tracking,
+    reconcile_auxiliary_lyrics_windows, refresh_overlay_mouse_tracking, screen_notch_layout,
     reset_list_lyrics_window_size, schedule_surface_destroy, set_surface_runtime_state,
     set_window_frame, show_quick_lyrics_window, surface_is_destroying, sync_lyrics_surfaces,
     toggle_quick_lyrics_window, SurfaceRuntimeState,

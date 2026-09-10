@@ -7,6 +7,7 @@ import { api, isTauriRuntime } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
 import { useAppConfig } from "../config/AppConfigProvider";
 import { useAppLanguage } from "../i18n/I18nProvider";
+import { useSurfaceActivity } from "../window/useSurfaceActivity";
 import {
   checkForUpdate,
   closeUpdate,
@@ -64,6 +65,7 @@ export function useUpdateController(): UpdateController {
   const { config, loaded } = useAppConfig();
   const { language } = useAppLanguage();
   const { t } = useTranslation();
+  const surfaceActive = useSurfaceActivity();
   const updateRef = useRef<Update | null>(null);
   const busy = useRef(false);
   const autoChecked = useRef(false);
@@ -302,10 +304,14 @@ export function useUpdateController(): UpdateController {
   }, [releasePendingUpdate, runCheck]);
 
   useEffect(() => {
+    if (!surfaceActive) {
+      autoChecked.current = false;
+      return;
+    }
     if (updatePreview || !loaded || autoChecked.current || !config.app.autoCheckUpdates) return;
     autoChecked.current = true;
     void runCheck(false);
-  }, [config.app.autoCheckUpdates, loaded, runCheck]);
+  }, [config.app.autoCheckUpdates, loaded, runCheck, surfaceActive]);
 
   const percentage = totalBytes && totalBytes > 0
     ? Math.min(100, Math.round((downloadedBytes / totalBytes) * 100))

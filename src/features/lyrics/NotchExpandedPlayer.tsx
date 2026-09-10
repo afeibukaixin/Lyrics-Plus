@@ -35,6 +35,7 @@ export function ExpandedPlayer({
   previewLine,
   previewSupportingLine,
   previewDoubleLine,
+  previewDoubleLineAlternating,
   previewDoubleLineReversed,
   previewMaxDurationMs,
   previewOffsetMs,
@@ -48,6 +49,7 @@ export function ExpandedPlayer({
   previewLine: LyricsLine | null;
   previewSupportingLine: ExpandedPreviewSupportingLine | null;
   previewDoubleLine: boolean;
+  previewDoubleLineAlternating: boolean;
   previewDoubleLineReversed: boolean;
   previewMaxDurationMs: number | null;
   previewOffsetMs: number;
@@ -150,6 +152,7 @@ export function ExpandedPlayer({
       {previewLine && (
         <div
           className={styles.playerLyricsPreview}
+          data-double-line-mode={previewDoubleLineAlternating ? "alternating" : undefined}
           data-line-order={previewDoubleLineReversed ? "reversed" : "normal"}
         >
           <div className={styles.playerLyricsCurrent}>

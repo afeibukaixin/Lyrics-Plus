@@ -27,6 +27,9 @@ pub struct LyricsMonitor {
     pub width: u32,
     pub height: u32,
     pub is_primary: bool,
+    pub has_notch: bool,
+    pub top_inset: f64,
+    pub center_gap_width: f64,
 }
 
 #[derive(Debug, Deserialize)]

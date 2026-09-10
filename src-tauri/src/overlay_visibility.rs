@@ -2,6 +2,46 @@ fn should_show_overlay(visible: bool, hide_when_not_playing: bool, is_playing: b
     visible && (!hide_when_not_playing || is_playing)
 }
 
+/// 暂停期间固定同一首歌的进度，避免播放器轮询返回较早位置时歌词高光回弹。
+fn preserve_paused_position(
+    previous: &player::PlaybackSnapshot,
+    next: &mut player::PlaybackSnapshot,
+) {
+    if next.is_playing
+        || !next.is_running
+        || next.error_code.is_some()
+        || commands::playback_track_key(previous).is_none()
+        || commands::playback_track_key(previous) != commands::playback_track_key(next)
+    {
+        return;
+    }
+
+    let Some(position_ms) = previous.position_ms else {
+        return;
+    };
+    let estimated_position_ms = if previous.is_playing {
+        position_ms.saturating_add(
+            next.observed_at_ms
+                .saturating_sub(previous.observed_at_ms),
+        )
+    } else {
+        position_ms
+    };
+    let duration_ms = next.duration_ms.or(previous.duration_ms);
+    let position_ms = if previous.is_playing {
+        next.position_ms
+            .unwrap_or(estimated_position_ms)
+            .max(estimated_position_ms)
+    } else {
+        position_ms
+    };
+    next.position_ms = Some(
+        duration_ms
+            .map(|duration| position_ms.min(duration))
+            .unwrap_or(position_ms),
+    );
+}
+
 pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<bool, String> {
     let state = app.state::<AppState>();
     let configured = state.config.snapshot();
@@ -103,11 +143,12 @@ fn start_player_monitor(app: tauri::AppHandle) {
                 })
                 .unwrap_or_default();
 
-            let (snapshot, next_auto_player) = tauri::async_runtime::spawn_blocking(move || {
+            let query_system_media = system_media.clone();
+            let (mut snapshot, next_auto_player) = tauri::async_runtime::spawn_blocking(move || {
                 query_selected_player(
                     selection,
                     previous_auto_player,
-                    &system_media,
+                    &query_system_media,
                     system_media_filter_mode,
                     &system_media_applications,
                 )
@@ -124,10 +165,12 @@ fn start_player_monitor(app: tauri::AppHandle) {
             });
 
             if let Some(state) = app.try_state::<AppState>() {
-                *state
+                let mut last_snapshot = state
                     .last_snapshot
                     .write()
-                    .unwrap_or_else(|e| e.into_inner()) = snapshot.clone();
+                    .unwrap_or_else(|e| e.into_inner());
+                preserve_paused_position(&last_snapshot, &mut snapshot);
+                *last_snapshot = snapshot.clone();
                 *state.auto_player.write().unwrap_or_else(|e| e.into_inner()) = next_auto_player;
                 state.spectrum.sync_snapshot(&app, &snapshot);
                 state.status_bar_wake.notify_one();
@@ -157,12 +200,19 @@ fn start_player_monitor(app: tauri::AppHandle) {
                         .and_then(|window| window.is_visible().ok())
                         .unwrap_or(false)
                 });
-            tokio::time::sleep(Duration::from_millis(if any_window_visible {
+            let refresh_delay = Duration::from_millis(if any_window_visible {
                 750
             } else {
                 2_000
-            }))
-            .await;
+            });
+            if let Some(playback_changed) = system_media.playback_change_notifier() {
+                tokio::select! {
+                    _ = playback_changed.notified() => {}
+                    _ = tokio::time::sleep(refresh_delay) => {}
+                }
+            } else {
+                tokio::time::sleep(refresh_delay).await;
+            }
         }
     });
 }

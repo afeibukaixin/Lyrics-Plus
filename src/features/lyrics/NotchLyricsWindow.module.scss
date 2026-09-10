@@ -101,7 +101,10 @@
   display: grid;
   position: relative;
   min-height: max(32px, var(--notch-top-inset));
-  grid-template-columns: minmax(30px, 1fr) var(--notch-center-gap) minmax(30px, 1fr);
+  grid-template-columns:
+    minmax(var(--notch-compact-slot-size), 1fr)
+    var(--notch-center-gap)
+    minmax(var(--notch-compact-slot-size), 1fr);
   align-items: center;
   column-gap: 8px;
   padding: 0 var(--notch-slot-padding);
@@ -531,6 +534,11 @@
 
 .playerLyricsSupportingPreview[data-kind="romanization"] {
   color: var(--notch-romanization-color);
+}
+
+.playerLyricsPreview[data-double-line-mode="alternating"] .playerLyricsCurrent .overflowViewport,
+.playerLyricsPreview[data-double-line-mode="alternating"] .playerLyricsSupportingPreview {
+  min-height: calc(var(--notch-font-size) + 2px);
 }
 
 .playerLyricsSupportingPreview[data-empty="true"] {
