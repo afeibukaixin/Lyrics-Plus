@@ -5,8 +5,9 @@ export const NOTCH_TOP_CORNER_MAX_RADIUS = 15;
 export const COLLAPSED_HEIGHT_FALLBACK = 30;
 export const EXPANDED_HEIGHT_FALLBACK = 180;
 export const NON_NOTCH_TOP_INSET_FALLBACK = 30;
-// 无刘海屏菜单栏底部包含一个视觉分隔像素，补齐收起态岛体的底边。
-export const NON_NOTCH_MENU_BAR_EDGE_COMPENSATION = 1;
+
+const MIN_NOTCH_SLOT_PADDING = 4;
+const NOTCH_SLOT_PADDING_RADIUS_STEP = 1 / 6;
 
 export function resolvedNotchTopInset(layout: NotchLayoutMetrics) {
   return Number.isFinite(layout.topInset) && layout.topInset > 0
@@ -16,16 +17,15 @@ export function resolvedNotchTopInset(layout: NotchLayoutMetrics) {
 
 export function notchCollapsedHeightFloor(layout: NotchLayoutMetrics) {
   const topInset = resolvedNotchTopInset(layout);
-  return layout.hasNotch
-    ? Math.max(COLLAPSED_HEIGHT_FALLBACK, topInset)
-    : topInset + NON_NOTCH_MENU_BAR_EDGE_COMPENSATION;
+  return layout.hasNotch ? Math.max(COLLAPSED_HEIGHT_FALLBACK, topInset) : topInset;
 }
 
 export function notchSlotPadding(borderRadius: number) {
   const radius = Number.isFinite(borderRadius)
     ? Math.min(20, Math.max(0, borderRadius))
     : 0;
-  return 8 + radius * 0.3;
+  // 以 12px 默认圆角对应 6px 留白为锚点，让圆角调整连续影响槽位位置和尺寸。
+  return MIN_NOTCH_SLOT_PADDING + radius * NOTCH_SLOT_PADDING_RADIUS_STEP;
 }
 
 export const emptyLayout: NotchLayoutMetrics = {

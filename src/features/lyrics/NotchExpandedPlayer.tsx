@@ -148,7 +148,12 @@ export function ExpandedPlayer({
               maxDurationMs={previewMaxDurationMs}
               paused={marqueePaused}
             >
-              <KaraokeLine line={previewLine} positionMs={previewPositionMs} karaokeStyle={karaokeStyle} />
+              <KaraokeLine
+                line={previewLine}
+                playing={playback.active && playback.snapshot.isPlaying}
+                positionMs={previewPositionMs}
+                karaokeStyle={karaokeStyle}
+              />
             </OverflowText>
           </div>
           {previewDoubleLine && (

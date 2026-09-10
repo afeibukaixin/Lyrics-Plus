@@ -1,37 +1,53 @@
-import type { CSSProperties } from "react";
+import { useMemo, useRef } from "react";
 import type { LyricsLine, OverlayStyle } from "../../shared/types";
+import { KaraokeWord, useKaraokeSweepTimeline } from "../lyrics/KaraokeWord";
 import styles from "./Overlay.module.scss";
 
-export function OverlayKaraokeLine({ line, fallback, positionMs, style }: {
+const karaokeWordClasses = {
+  word: styles.karaokeWord,
+  base: styles.karaokeWordBase,
+  fill: styles.karaokeWordFill,
+  fillText: styles.karaokeWordFillText,
+};
+
+export function OverlayKaraokeLine({ line, fallback, positionMs, style, playing }: {
   line: LyricsLine | null;
   fallback: string;
   positionMs: number;
   style: OverlayStyle;
+  playing: boolean;
 }) {
   const text = line ? line.text : fallback;
-  const words = line?.words?.filter((word) => word.text.length > 0) ?? [];
+  const words = useMemo(
+    () => line?.words?.filter((word) => word.text.length > 0) ?? [],
+    [line?.words],
+  );
+  const scopeRef = useRef<HTMLSpanElement>(null);
+  useKaraokeSweepTimeline({
+    enabled: style.karaokeStyle === "sweep",
+    lineStartMs: line?.startMs ?? 0,
+    playing,
+    positionMs,
+    scopeRef,
+    words,
+  });
+
   if (words.length === 0) return <span>{text || "\u00a0"}</span>;
   return (
-    <span className={styles.karaokeText} data-karaoke={style.karaokeStyle}>
+    <span ref={scopeRef} className={styles.karaokeText} data-karaoke={style.karaokeStyle}>
       {words.map((word, index) => {
         const duration = Math.max(0, word.endMs - word.startMs);
-        const progress = positionMs <= word.startMs
-          ? 0
-          : duration === 0 || positionMs >= word.endMs
-            ? 100
-            : ((positionMs - word.startMs) / duration) * 100;
         const current = positionMs >= word.startMs && positionMs < word.endMs;
+        const complete = positionMs >= word.endMs || (duration === 0 && positionMs >= word.startMs);
         return (
-          <span
-            className={styles.karaokeWord}
-            data-complete={positionMs >= word.endMs || (duration === 0 && positionMs >= word.startMs)}
-            data-current={current}
+          <KaraokeWord
+            axis={style.orientation === "vertical" ? "y" : "x"}
+            classes={karaokeWordClasses}
+            complete={complete}
             key={`${word.startMs}-${index}`}
-            style={{ "--word-progress": `${progress}%` } as CSSProperties}
-          >
-            <span className={styles.karaokeWordBase}>{word.text}</span>
-            <span aria-hidden="true" className={styles.karaokeWordFill}>{word.text}</span>
-          </span>
+            current={current}
+            text={word.text}
+          />
         );
       })}
     </span>

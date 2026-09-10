@@ -104,18 +104,36 @@
   grid-area: 1 / 1; white-space: pre; color: var(--inactive-color);
 }
 .karaokeWordFill {
-  color: var(--active-color); clip-path: inset(0 calc(100% - var(--word-progress)) 0 0);
+  display: block;
+  position: relative; align-self: start; justify-self: start;
+  width: 100%; height: 100%;
+  -webkit-mask-image: linear-gradient(#000 0 0); mask-image: linear-gradient(#000 0 0);
+  -webkit-mask-position: left top; mask-position: left top;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-size: var(--karaoke-progress, 0%) 100%; mask-size: var(--karaoke-progress, 0%) 100%;
+  color: var(--active-color);
+  pointer-events: none;
   -webkit-text-stroke: 0 transparent;
-  transition: clip-path .08s linear;
 }
-.karaokeWord[data-current="true"] .karaokeWordFill { will-change: clip-path; }
-.overlay[data-orientation="vertical"] .karaokeWordFill {
-  clip-path: inset(0 0 calc(100% - var(--word-progress)) 0);
+.karaokeWordFill[data-karaoke-axis="y"] {
+  -webkit-mask-size: 100% var(--karaoke-progress, 0%); mask-size: 100% var(--karaoke-progress, 0%);
 }
-.karaokeText[data-karaoke="highlight"] .karaokeWordFill { clip-path: inset(0); }
-.karaokeText[data-karaoke="bounce"] .karaokeWordFill { clip-path: inset(0 100% 0 0); }
+.karaokeWordFillText {
+  position: absolute; inset: 0 auto auto 0; display: block;
+  width: max-content; height: 100%; color: var(--active-color); white-space: pre;
+  -webkit-text-stroke: 0 transparent;
+}
+.karaokeWordFill[data-karaoke-axis="y"] .karaokeWordFillText {
+  width: 100%; height: max-content;
+}
+.karaokeText[data-karaoke="highlight"] .karaokeWordFill,
 .karaokeText[data-karaoke="bounce"] .karaokeWord[data-complete="true"] .karaokeWordFill,
-.karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] .karaokeWordFill { clip-path: inset(0); }
+.karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] .karaokeWordFill {
+  -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
+}
+.karaokeText[data-karaoke="sweep"] .karaokeWord[data-current="true"] .karaokeWordFill {
+  will-change: mask-size;
+}
 .karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] {
   display: inline-grid; animation: word-bounce .42s ease-out both;
 }

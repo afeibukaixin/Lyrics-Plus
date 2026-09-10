@@ -38,6 +38,8 @@ import {
 } from "./NotchLyricsLayout";
 import styles from "./NotchLyricsWindow.module.scss";
 
+const COMPACT_SLOT_VERTICAL_PADDING = 6;
+
 export default function NotchLyricsWindow() {
   const { t } = useTranslation();
   const { config, setLyricsDisplayPreferences } = useAppConfig();
@@ -113,8 +115,11 @@ export default function NotchLyricsWindow() {
   );
   const resolvedTopInset = resolvedNotchTopInset(layout);
   const collapsedHeightFloor = notchCollapsedHeightFloor(layout);
-  const compactSlotSize = Math.max(0, Math.min(30, resolvedTopInset - 8));
   const slotPadding = notchSlotPadding(appearance.borderRadius);
+  const compactSlotSize = Math.max(
+    0,
+    Math.min(30, resolvedTopInset - COMPACT_SLOT_VERTICAL_PADDING * 2),
+  );
   const marqueePaused = previewActive || widthMotionActive || visibilityMotionActive;
   const {
     changeLyricsOffset,
@@ -166,7 +171,12 @@ export default function NotchLyricsWindow() {
         paused={marqueePaused}
       >
         {primaryLine
-          ? <KaraokeLine line={primaryLine} positionMs={playback.positionMs + offsetMs} karaokeStyle={appearance.karaokeStyle} />
+          ? <KaraokeLine
+            line={primaryLine}
+            playing={playback.active && playback.snapshot.isPlaying}
+            positionMs={playback.positionMs + offsetMs}
+            karaokeStyle={appearance.karaokeStyle}
+          />
           : primaryText}
       </OverflowText>
     </div>
@@ -372,6 +382,7 @@ export default function NotchLyricsWindow() {
         "--notch-expanded-min-height": `${EXPANDED_HEIGHT_FALLBACK}px`,
         "--notch-expanded-height": `${Math.max(COLLAPSED_HEIGHT_FALLBACK, expandedHeight)}px`,
         "--notch-top-inset": `${resolvedTopInset}px`,
+        "--notch-slot-vertical-padding": `${COMPACT_SLOT_VERTICAL_PADDING}px`,
         "--notch-compact-slot-size": `${compactSlotSize}px`,
         "--notch-center-gap": `${layout.centerGapWidth}px`,
       } as CSSProperties}
