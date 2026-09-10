@@ -4,14 +4,14 @@
       "schemaVersion": 1,
       "appVersion": "2.2.13",
       "coreApiVersion": 1,
-      "revision": 1,
-      "uiVersion": "2.2.13-ui.1",
-      "releaseNotes": "Lyrics Plus UI 2.2.13-ui.1\n\n修复资料库歌曲、歌词与歌手列表的长文本溢出。名称超出可用宽度时显示省略号，并通过 Tooltip 查看完整内容；固定信息列宽度，避免被长文本顶出。",
-      "publishedAt": "2026-09-10T01:23:24.051Z",
-      "url": "https://github.com/afeibukaixin/Lyrics-Plus/releases/download/ui-v2.2.13-r1/lyrics-plus-ui-2.2.13-ui.1.zip",
-      "size": 1694851,
-      "sha256": "ce3477d1bb7988c3d297e13985af0319dec936a8f6ecddf96204c55b0d0ba3cb",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMFZtVkhUUmFzNEYzTnZCSThrRUsvNkgveXFVRmQrc1ZhcjBiMTREMFlkSGVFdFJpangyR2w0NlRwMm9hSURqaElnOVVDbTJzeS8xZzkzR3p4dmlEeGFzMHA0QVAwU1F3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MDAzNDAzCWZpbGU6bHlyaWNzLXBsdXMtdWktMi4yLjEzLXVpLjEuemlwCkZ2a3Jkam0wbG5jalhJUVNZQnNiRlFDaC9pRzRjOVFGckprSWt3OHpBcHF3c1VmS1U4c3hsQVR1a1NPWW5IbURpM2c1bW1QUzkwcUdlTUs5amZCa0JRPT0K"
+      "revision": 2,
+      "uiVersion": "2.2.13-ui.2",
+      "releaseNotes": "Lyrics Plus UI 2.2.13-ui.2\n\n统一资料库歌手名称与别名编辑控件的尺寸和布局，并修复歌词列表选择框及其交互区域被裁切的问题。",
+      "publishedAt": "2026-09-10T03:54:05.374Z",
+      "url": "https://github.com/afeibukaixin/Lyrics-Plus/releases/download/ui-v2.2.13-r2/lyrics-plus-ui-2.2.13-ui.2.zip",
+      "size": 1694980,
+      "sha256": "702ebd4c657ff824e4c32361e6503405a6a0e82106cc632e141e28320e14e247",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMFZtVkhUUmFzNEpqclNBTVZaeTFQNEtweVFRbnRmS2ZCRTdySjVSR0dVeUUrOGYwZDU3eGNXUUZxdlhDdU9FdFlQaTRaNEdTdUQwUldJb2ZMTnBsRHIzT2FlTFVibFFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MDEyNDQ1CWZpbGU6bHlyaWNzLXBsdXMtdWktMi4yLjEzLXVpLjIuemlwCno5Mmd0TFZhK0hIeFJuUk1kbEFpdHJ6TDJNVGFzNXVwOTFWallZQ05kTnA4K0dXajQ3SDlURGlOc0VzSTl4ZUZvVXVJNCsvTFErNjZnYm13b2lPUUFRPT0K"
     }
   ]
 }
