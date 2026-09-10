@@ -737,10 +737,6 @@
   mask-size: 100% 100%;
 }
 
-.karaokeText[data-karaoke="sweep"] .karaokeWord[data-current="true"] .karaokeWordFill {
-  will-change: mask-size;
-}
-
 .shell:not([data-has-notch]) .metadata {
   grid-template-columns: minmax(30px, 1fr) 24px minmax(30px, 1fr);
   height: var(--notch-top-inset);

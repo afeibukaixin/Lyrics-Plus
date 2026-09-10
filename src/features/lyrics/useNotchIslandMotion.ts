@@ -130,6 +130,8 @@ export function useNotchIslandMotion({
 
   const setNotchPointerInteractive = useCallback((interactive: boolean) => {
     if (!isTauriRuntime()) return;
+    // 原生 hover 以固定频率采样；目标未变化时不要持续扩展 Promise 链。
+    if (requestedPointerInteractiveRef.current === interactive) return;
     requestedPointerInteractiveRef.current = interactive;
     // 串行处理并在执行前读取最新目标，避免快速进出岛体时过期请求反复切换穿透状态。
     pointerInteractionQueueRef.current = pointerInteractionQueueRef.current
