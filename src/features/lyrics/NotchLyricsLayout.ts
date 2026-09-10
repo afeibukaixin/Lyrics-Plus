@@ -6,8 +6,11 @@ export const COLLAPSED_HEIGHT_FALLBACK = 30;
 export const EXPANDED_HEIGHT_FALLBACK = 180;
 export const NON_NOTCH_TOP_INSET_FALLBACK = 30;
 
-const MIN_NOTCH_SLOT_PADDING = 4;
-const NOTCH_SLOT_PADDING_RADIUS_STEP = 1 / 6;
+const NOTCH_SLOT_MIN_HORIZONTAL_PADDING = 4;
+const NOTCH_SLOT_RADIUS_ANCHOR = 12;
+const NOTCH_SLOT_RADIUS_MAX = 20;
+const NOTCH_CORNER_DIAGONAL_INSET = 1 - Math.SQRT1_2;
+export const NOTCH_SLOT_VERTICAL_PADDING = 6;
 
 export function resolvedNotchTopInset(layout: NotchLayoutMetrics) {
   return Number.isFinite(layout.topInset) && layout.topInset > 0
@@ -22,10 +25,12 @@ export function notchCollapsedHeightFloor(layout: NotchLayoutMetrics) {
 
 export function notchSlotPadding(borderRadius: number) {
   const radius = Number.isFinite(borderRadius)
-    ? Math.min(20, Math.max(0, borderRadius))
+    ? Math.min(NOTCH_SLOT_RADIUS_MAX, Math.max(0, borderRadius))
     : 0;
-  // 以 12px 默认圆角对应 6px 留白为锚点，让圆角调整连续影响槽位位置和尺寸。
-  return MIN_NOTCH_SLOT_PADDING + radius * NOTCH_SLOT_PADDING_RADIUS_STEP;
+  // 按圆角在 45° 方向的内收投影补偿横向位置，默认 12px 仍与纵向保持 6px。
+  const curvedPadding = NOTCH_SLOT_VERTICAL_PADDING
+    + (radius - NOTCH_SLOT_RADIUS_ANCHOR) * NOTCH_CORNER_DIAGONAL_INSET;
+  return Math.max(NOTCH_SLOT_MIN_HORIZONTAL_PADDING, curvedPadding);
 }
 
 export const emptyLayout: NotchLayoutMetrics = {

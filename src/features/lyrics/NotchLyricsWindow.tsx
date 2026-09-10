@@ -34,11 +34,10 @@ import {
   notchCollapsedHeightFloor,
   notchSlotPadding,
   NOTCH_MAX_WIDTH,
+  NOTCH_SLOT_VERTICAL_PADDING,
   resolvedNotchTopInset,
 } from "./NotchLyricsLayout";
 import styles from "./NotchLyricsWindow.module.scss";
-
-const COMPACT_SLOT_VERTICAL_PADDING = 6;
 
 export default function NotchLyricsWindow() {
   const { t } = useTranslation();
@@ -118,7 +117,7 @@ export default function NotchLyricsWindow() {
   const slotPadding = notchSlotPadding(appearance.borderRadius);
   const compactSlotSize = Math.max(
     0,
-    Math.min(30, resolvedTopInset - COMPACT_SLOT_VERTICAL_PADDING * 2),
+    Math.min(30, resolvedTopInset - NOTCH_SLOT_VERTICAL_PADDING * 2),
   );
   const marqueePaused = previewActive || widthMotionActive || visibilityMotionActive;
   const {
@@ -382,7 +381,7 @@ export default function NotchLyricsWindow() {
         "--notch-expanded-min-height": `${EXPANDED_HEIGHT_FALLBACK}px`,
         "--notch-expanded-height": `${Math.max(COLLAPSED_HEIGHT_FALLBACK, expandedHeight)}px`,
         "--notch-top-inset": `${resolvedTopInset}px`,
-        "--notch-slot-vertical-padding": `${COMPACT_SLOT_VERTICAL_PADDING}px`,
+        "--notch-slot-vertical-padding": `${NOTCH_SLOT_VERTICAL_PADDING}px`,
         "--notch-compact-slot-size": `${compactSlotSize}px`,
         "--notch-center-gap": `${layout.centerGapWidth}px`,
       } as CSSProperties}
