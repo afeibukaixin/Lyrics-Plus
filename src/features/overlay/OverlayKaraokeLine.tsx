@@ -24,6 +24,7 @@ export function OverlayKaraokeLine({ line, fallback, positionMs, style, playing 
   );
   const scopeRef = useRef<HTMLSpanElement>(null);
   useKaraokeSweepTimeline({
+    axis: style.orientation === "vertical" ? "y" : "x",
     enabled: style.karaokeStyle === "sweep",
     lineStartMs: line?.startMs ?? 0,
     playing,

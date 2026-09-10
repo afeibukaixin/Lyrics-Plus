@@ -22,6 +22,7 @@ export function KaraokeLine({ line, positionMs, karaokeStyle, playing }: {
   );
   const scopeRef = useRef<HTMLSpanElement>(null);
   useKaraokeSweepTimeline({
+    axis: "x",
     enabled: karaokeStyle === "sweep",
     lineStartMs: line.startMs,
     playing,

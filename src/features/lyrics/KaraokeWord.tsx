@@ -24,6 +24,7 @@ type KaraokeWordProps = {
 };
 
 type KaraokeSweepTimelineOptions = {
+  axis: "x" | "y";
   scopeRef: RefObject<HTMLElement | null>;
   lineStartMs: number;
   positionMs: number;
@@ -33,10 +34,11 @@ type KaraokeSweepTimelineOptions = {
 };
 
 /**
- * 按歌词行创建一个稳定的扫光时间轴。时间轴只更新 mask 进度，不参与 React 的
+ * 按歌词行创建一个稳定的扫光时间轴。时间轴只更新文字裁剪区域，不参与 React 的
  * 100ms 状态刷新；拖动或播放器校时产生较大偏差时才重新定位。
  */
 export function useKaraokeSweepTimeline({
+  axis,
   scopeRef,
   lineStartMs,
   positionMs,
@@ -73,6 +75,11 @@ export function useKaraokeSweepTimeline({
 
     const fills = Array.from(scope.querySelectorAll<HTMLElement>(KARAOKE_FILL_SELECTOR));
     const timeline = gsap.timeline({ paused: true });
+    // 四个方向都显式使用百分比，避免 GSAP 生成缺少单位的无效中间帧。
+    const initialClipPath = axis === "y"
+      ? "inset(0% 0% 100% 0%)"
+      : "inset(0% 100% 0% 0%)";
+    const completeClipPath = "inset(0% 0% 0% 0%)";
     const timelineOriginMs = Math.min(
       lineStartMs,
       ...words.map((word) => word.startMs),
@@ -80,21 +87,23 @@ export function useKaraokeSweepTimeline({
     timelineOriginRef.current = timelineOriginMs;
 
     fills.forEach((fill, index) => {
-      fill.style.setProperty("--karaoke-progress", "0%");
+      gsap.set(fill, { clipPath: initialClipPath });
       const word = words[index];
       if (!word) return;
       const startSeconds = Math.max(0, (word.startMs - timelineOriginMs) / 1_000);
       const durationSeconds = Math.max(0, word.endMs - word.startMs) / 1_000;
       if (durationSeconds === 0) {
-        timeline.set(fill, { "--karaoke-progress": "100%" }, startSeconds);
+        timeline.set(fill, { clipPath: completeClipPath }, startSeconds);
         return;
       }
-      timeline.to(
+      timeline.fromTo(
         fill,
+        { clipPath: initialClipPath },
         {
-          "--karaoke-progress": "100%",
+          clipPath: completeClipPath,
           duration: durationSeconds,
           ease: "none",
+          immediateRender: false,
         },
         startSeconds,
       );
@@ -115,10 +124,10 @@ export function useKaraokeSweepTimeline({
       timelineRef.current = null;
       timelineOriginRef.current = lineStartMs;
       timeline.kill();
-      fills.forEach((fill) => fill.style.removeProperty("--karaoke-progress"));
+      fills.forEach((fill) => fill.style.removeProperty("clip-path"));
     };
   }, {
-    dependencies: [enabled, lineStartMs, scopeRef, wordsSignature],
+    dependencies: [axis, enabled, lineStartMs, scopeRef, wordsSignature],
     scope: scopeRef,
     revertOnUpdate: true,
   });

@@ -706,21 +706,13 @@
   justify-self: start;
   width: 100%;
   height: 100%;
-  -webkit-mask-image: linear-gradient(#000 0 0);
-  mask-image: linear-gradient(#000 0 0);
-  -webkit-mask-position: left top;
-  mask-position: left top;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-size: var(--karaoke-progress, 0%) 100%;
-  mask-size: var(--karaoke-progress, 0%) 100%;
+  clip-path: inset(0% 100% 0% 0%);
   color: var(--notch-active-color);
   pointer-events: none;
 }
 
 .karaokeWordFill[data-karaoke-axis="y"] {
-  -webkit-mask-size: 100% var(--karaoke-progress, 0%);
-  mask-size: 100% var(--karaoke-progress, 0%);
+  clip-path: inset(0% 0% 100% 0%);
 }
 
 .karaokeWordFillText {
@@ -741,8 +733,7 @@
 .karaokeText[data-karaoke="highlight"] .karaokeWordFill,
 .karaokeText[data-karaoke="bounce"] .karaokeWord[data-complete="true"] .karaokeWordFill,
 .karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] .karaokeWordFill {
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
+  clip-path: inset(0% 0% 0% 0%);
 }
 
 .shell:not([data-has-notch]) .metadata {
