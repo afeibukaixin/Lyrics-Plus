@@ -37,13 +37,13 @@
 .dataTable [data-slot="table-body"] [data-slot="table-row"]:hover { background: var(--muted); }
 .dataTable [data-slot="table-body"] [data-slot="table-row"][data-state="selected"] { background: color-mix(in srgb, var(--primary) 10%, var(--card)); }
 .adaptiveTable :is([data-slot="table-head"], [data-slot="table-cell"]) { min-width: 0; padding-inline: 12px; }
-.adaptiveTable [data-slot="table-cell"] { overflow: hidden; }
+.adaptiveTable [data-slot="table-cell"]:not(.selectionColumn) { overflow: hidden; }
 .adaptiveTable :is([data-slot="table-head"], [data-slot="table-cell"]):first-child { padding-left: 16px; }
 .adaptiveTable :is([data-slot="table-head"], [data-slot="table-cell"]):last-child { padding-right: 16px; }
 .growColumn { min-width: 0; }
 .compactColumn { min-width: 0; white-space: nowrap; }
 .primaryCell { min-width: 0; overflow: hidden; }
-.selectionColumn { text-align: center; }
+.selectionColumn { overflow: visible; text-align: center; }
 .numericColumn { text-align: right; font-variant-numeric: tabular-nums; }
 .fileSizeColumn { white-space: nowrap; }
 .actionColumn { text-align: right; white-space: nowrap; }
@@ -52,13 +52,13 @@
 .songLyricsColumn { width: 9%; }
 .songDurationColumn { width: 12%; }
 .songActionsColumn { width: 11%; }
-.lyricSelectionColumn { width: 4%; }
+.lyricSelectionColumn { width: 3rem; }
 .lyricTitleColumn { width: 42%; }
 .lyricStatusColumn { width: 14%; }
 .lyricCapabilitiesColumn { width: 22%; }
 .lyricSizeColumn { width: 11%; }
 .lyricActionsColumn { width: 11%; }
-.dataTable[data-selection="true"] .lyricTitleColumn { width: 38%; }
+.dataTable[data-selection="true"] .lyricTitleColumn { width: calc(42% - 3rem); }
 .artistNameColumn { width: 28%; }
 .artistAliasesColumn { width: 23%; }
 .artistSongCountColumn { width: 10%; }
