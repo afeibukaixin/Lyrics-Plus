@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties } from "react";
+import { useCallback, useMemo, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { LyricsLine } from "../../shared/types";
 import { isMacTauriRuntime } from "../../shared/tauriEvent";
@@ -18,8 +18,13 @@ import styles from "./LyricsListWindow.module.scss";
 export default function LyricsListWindow() {
   const { t } = useTranslation();
   const { config, setLyricsDisplayPreferences, setListLyricsLocked } = useAppConfig();
-  const playback = usePlayback();
-  const lyrics = useLyricsPresentation(playback.snapshot, playback.positionMs, playback.active);
+  const playback = usePlayback({ trackPosition: false });
+  const lyrics = useLyricsPresentation(
+    playback.snapshot,
+    playback.positionMs,
+    playback.active,
+    { timing: "line" },
+  );
   const options = config.lyrics.displays.listWindow;
   const locked = options.locked;
   const appearance = options.appearance;
@@ -60,11 +65,11 @@ export default function LyricsListWindow() {
   const title = playback.snapshot.title ?? t("lyricsList.noTrack");
   const artist = playback.snapshot.artist ?? t("lyricsList.waiting");
 
-  const seekToLine = (line: LyricsLine) => {
+  const seekToLine = useCallback((line: LyricsLine) => {
     const positionMs = Math.max(0, Math.round(line.startMs - offsetMs));
     void playback.seekTo(positionMs).catch(() => undefined);
     following.resumeFollowing();
-  };
+  }, [following.resumeFollowing, offsetMs, playback.seekTo]);
 
   return (
     <main

@@ -1064,7 +1064,8 @@ impl AppConfig {
             .expanded_border_radius
             .clamp(0.0, 24.0);
         notch_appearance.top_border_radius = notch_appearance.top_border_radius.clamp(0.0, 15.0);
-        notch_appearance.max_width = notch_appearance.max_width.clamp(320, 640);
+        // 配置只保留原生窗口允许的技术下限；实际安全下限由当前显示器的刘海几何决定。
+        notch_appearance.max_width = notch_appearance.max_width.clamp(120, 640);
         notch_appearance.expanded_max_width = notch_appearance
             .expanded_max_width
             .clamp(440, 640)

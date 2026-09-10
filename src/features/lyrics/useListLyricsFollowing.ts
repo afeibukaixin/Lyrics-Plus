@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type UseListLyricsFollowingOptions = {
   trackKey: string | null;
@@ -24,17 +24,17 @@ export function useListLyricsFollowing({
     });
   }, [following, activeIndex]);
 
-  const pauseFollowing = () => {
+  const pauseFollowing = useCallback(() => {
     if (hasLines) setFollowing(false);
-  };
+  }, [hasLines]);
 
-  const resumeFollowing = () => {
+  const resumeFollowing = useCallback(() => {
     setFollowing(true);
     requestAnimationFrame(() => activeRef.current?.scrollIntoView({
       block: "center",
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
     }));
-  };
+  }, []);
 
   return {
     activeRef,

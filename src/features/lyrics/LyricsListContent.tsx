@@ -1,6 +1,6 @@
 import type { TFunction } from "i18next";
 import { ArrowDownToLine, Music2, Search } from "lucide-react";
-import type { RefObject } from "react";
+import { memo, type RefObject } from "react";
 import type { LyricsLine, LyricsRuntimeStatus, ListLyricsLineOrder } from "../../shared/types";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -45,7 +45,7 @@ function sectionBreakScale(lines: LyricsLine[], index: number): number | null {
     : 1;
 }
 
-export function LyricsListContent({
+export const LyricsListContent = memo(function LyricsListContent({
   t,
   lines,
   auxiliary,
@@ -127,4 +127,4 @@ export function LyricsListContent({
       )}
     </Empty>
   );
-}
+});

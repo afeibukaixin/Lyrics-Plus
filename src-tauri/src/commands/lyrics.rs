@@ -680,12 +680,16 @@ pub fn get_lyrics_monitors(app: tauri::AppHandle) -> Result<Vec<LyricsMonitor>, 
                 .map(|monitor| {
                     let id = crate::notch_monitor_id(&monitor);
                     let size = monitor.size();
+                    let layout = crate::screen_notch_layout(&monitor);
                     LyricsMonitor {
                         is_primary: primary_id.as_deref() == Some(id.as_str()),
                         id,
                         name: monitor.name().cloned().unwrap_or_default(),
                         width: size.width,
                         height: size.height,
+                        has_notch: layout.has_notch,
+                        top_inset: layout.top_inset,
+                        center_gap_width: layout.center_gap_width,
                     }
                 })
                 .collect()

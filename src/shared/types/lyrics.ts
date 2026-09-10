@@ -585,6 +585,9 @@ export type LyricsMonitor = {
   width: number;
   height: number;
   isPrimary: boolean;
+  hasNotch: boolean;
+  topInset: number;
+  centerGapWidth: number;
 };
 
 export type LyricsDisplayPreferences = {

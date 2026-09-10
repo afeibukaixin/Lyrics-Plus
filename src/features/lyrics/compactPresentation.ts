@@ -10,7 +10,7 @@ import type {
   SupportingLyricsPriority,
 } from "../../shared/types";
 import { findAlignedAuxiliaryLine } from "./useLyrics/display";
-import { useLyricsPresentation } from "./useLyricsPresentation";
+import { useLyricsPresentation, type LyricsTimingMode } from "./useLyricsPresentation";
 
 export type CompactLyricsLineKind = "fallback" | "primary" | "next" | "translation" | "romanization";
 
@@ -241,6 +241,7 @@ type CompactLyricsHookOptions = {
   snapshot: PlaybackSnapshot;
   positionMs: number;
   active?: boolean;
+  timing?: LyricsTimingMode;
   presentation: CompactLyricsPresentation;
   title?: string | null;
   artist?: string | null;
@@ -252,13 +253,14 @@ export function useCompactLyricsPresentation({
   snapshot,
   positionMs,
   active = true,
+  timing = "continuous",
   presentation,
   title = snapshot.title,
   artist = snapshot.artist,
   primaryLinePosition = "first",
   offsetErrorMessage,
 }: CompactLyricsHookOptions) {
-  const runtime = useLyricsPresentation(snapshot, positionMs, active);
+  const runtime = useLyricsPresentation(snapshot, positionMs, active, { timing });
   const offset = useCompactLyricsOffset({
     trackKey: runtime.trackKey,
     hasDocument: Boolean(runtime.document),
@@ -267,7 +269,7 @@ export function useCompactLyricsPresentation({
   });
   const resolved = resolveCompactLyricsPresentation({
     document: runtime.document,
-    positionMs,
+    positionMs: runtime.positionMs,
     title,
     artist,
     presentation,

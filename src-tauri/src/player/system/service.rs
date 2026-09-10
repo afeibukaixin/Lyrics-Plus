@@ -4,6 +4,7 @@ use super::super::{
     automation, PlaybackAction, PlaybackArtwork, PlaybackErrorCode, PlaybackSnapshot, PlayerKind,
 };
 use super::{adapter, artwork, metadata};
+use tokio::sync::Notify;
 
 pub struct SystemMediaService {
     player: OnceLock<Result<adapter::AdapterClient, String>>,
@@ -25,6 +26,12 @@ impl SystemMediaService {
             .get_or_init(adapter::initialize)
             .as_ref()
             .map_err(Clone::clone)
+    }
+
+    pub(crate) fn playback_change_notifier(&self) -> Option<std::sync::Arc<Notify>> {
+        self.player()
+            .ok()
+            .map(|player| player.playback_changed.clone())
     }
 
     pub fn snapshot(&self) -> PlaybackSnapshot {

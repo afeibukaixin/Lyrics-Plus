@@ -40,6 +40,7 @@ export default function Overlay() {
     lockOverlay,
     lyrics,
     openSettings,
+    playback,
     setLyricsOffset,
     setSettings,
     setStyle,
@@ -311,7 +312,14 @@ export default function Overlay() {
               "--marquee-duration": `${marqueeMetrics[0]?.duration ?? DEFAULT_MARQUEE_DURATION_SECONDS}s`,
             } as React.CSSProperties}
           >
-            <OverlayKaraokeLine key={primaryLineKey} line={lyrics.currentLine} fallback={primaryText} positionMs={lyrics.adjustedPositionMs} style={style} />
+            <OverlayKaraokeLine
+              key={primaryLineKey}
+              line={lyrics.currentLine}
+              fallback={primaryText}
+              playing={playback.active && playback.snapshot.isPlaying}
+              positionMs={lyrics.adjustedPositionMs}
+              style={style}
+            />
           </div>
           {supportingLines.map((line, index) => (
             <div

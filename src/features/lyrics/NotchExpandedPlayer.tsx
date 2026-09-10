@@ -5,6 +5,7 @@ import appIconUrl from "../../../src-tauri/icons/128x128@2x.png";
 import { ToolbarIconButton } from "@/components/ui/toolbar-icon-button";
 import { Slider } from "@/components/ui/slider";
 import { usePlayback } from "../player/usePlayback";
+import { usePlaybackPosition } from "../player/playback/position";
 import type { CompactKaraokeStyle, LyricsLine } from "../../shared/types";
 import { ArtworkTransitionImage } from "./NotchArtwork";
 import { KaraokeLine } from "./NotchKaraokeLine";
@@ -28,26 +29,30 @@ type ExpandedPreviewSupportingLine = {
 };
 
 export function ExpandedPlayer({
+  active,
   karaokeStyle,
   playback,
   previewLine,
   previewSupportingLine,
   previewDoubleLine,
+  previewDoubleLineAlternating,
   previewDoubleLineReversed,
   previewMaxDurationMs,
-  previewPositionMs,
+  previewOffsetMs,
   quickControls,
   marqueePaused,
   t,
 }: {
+  active: boolean;
   karaokeStyle: CompactKaraokeStyle;
   playback: PlaybackController;
   previewLine: LyricsLine | null;
   previewSupportingLine: ExpandedPreviewSupportingLine | null;
   previewDoubleLine: boolean;
+  previewDoubleLineAlternating: boolean;
   previewDoubleLineReversed: boolean;
   previewMaxDurationMs: number | null;
-  previewPositionMs: number;
+  previewOffsetMs: number;
   quickControls: ReactNode;
   marqueePaused: boolean;
   t: TFunction;
@@ -60,9 +65,18 @@ export function ExpandedPlayer({
   const [draftPositionMs, setDraftPositionMs] = useState<number | null>(null);
   const [pendingSeek, setPendingSeek] = useState<{ trackKey: string; positionMs: number } | null>(null);
   const playerProgressRef = useRef<HTMLDivElement>(null);
+  // 扫光模式只在展开播放器内部刷新时间，避免带动外层灵动岛持续重渲染。
+  const locallyTrackedPositionMs = usePlaybackPosition(
+    active && playback.active,
+    karaokeStyle === "sweep",
+    playback.snapshot,
+  );
+  const currentPlaybackPositionMs = karaokeStyle === "sweep"
+    ? locallyTrackedPositionMs
+    : playback.positionMs;
   const pendingPositionMs = pendingSeek?.trackKey === trackKey ? pendingSeek.positionMs : null;
   const positionMs = durationMs > 0
-    ? Math.min(durationMs, Math.max(0, draftPositionMs ?? pendingPositionMs ?? playback.positionMs))
+    ? Math.min(durationMs, Math.max(0, draftPositionMs ?? pendingPositionMs ?? currentPlaybackPositionMs))
     : 0;
 
   useEffect(() => {
@@ -74,7 +88,7 @@ export function ExpandedPlayer({
     if (
       pendingPositionMs === null
       || playback.isControlling
-      || Math.abs(playback.positionMs - pendingPositionMs) > SEEK_SYNC_TOLERANCE_MS
+      || Math.abs(currentPlaybackPositionMs - pendingPositionMs) > SEEK_SYNC_TOLERANCE_MS
     ) {
       return;
     }
@@ -83,7 +97,7 @@ export function ExpandedPlayer({
         ? null
         : current
     ));
-  }, [pendingPositionMs, playback.isControlling, playback.positionMs, trackKey]);
+  }, [currentPlaybackPositionMs, pendingPositionMs, playback.isControlling, trackKey]);
 
   useEffect(() => {
     if (pendingPositionMs === null) return;
@@ -138,6 +152,7 @@ export function ExpandedPlayer({
       {previewLine && (
         <div
           className={styles.playerLyricsPreview}
+          data-double-line-mode={previewDoubleLineAlternating ? "alternating" : undefined}
           data-line-order={previewDoubleLineReversed ? "reversed" : "normal"}
         >
           <div className={styles.playerLyricsCurrent}>
@@ -148,7 +163,12 @@ export function ExpandedPlayer({
               maxDurationMs={previewMaxDurationMs}
               paused={marqueePaused}
             >
-              <KaraokeLine line={previewLine} positionMs={previewPositionMs} karaokeStyle={karaokeStyle} />
+              <KaraokeLine
+                line={previewLine}
+                playing={active && playback.active && playback.snapshot.isPlaying}
+                positionMs={currentPlaybackPositionMs + previewOffsetMs}
+                karaokeStyle={karaokeStyle}
+              />
             </OverflowText>
           </div>
           {previewDoubleLine && (

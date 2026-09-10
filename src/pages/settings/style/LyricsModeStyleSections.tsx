@@ -24,6 +24,10 @@ import { api, isTauriRuntime, messageOf } from "../../../shared/api";
 import CompactLyricsPresentationSettings from "./CompactLyricsPresentationSettings";
 import ListLyricsLineOrderEditor from "./ListLyricsLineOrderEditor";
 import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field";
+import {
+  NOTCH_NON_NOTCH_MIN_WIDTH,
+  notchMinimumWidth,
+} from "../../../features/lyrics/NotchLyricsLayout";
 
 type AuxiliaryMode = Exclude<LyricsStyleMode, "desktop">;
 
@@ -258,13 +262,17 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
   const selectedMonitorId = notchMonitors.some((monitor) => monitor.id === value.monitorId)
     ? value.monitorId ?? ""
     : notchMonitors.find((monitor) => monitor.isPrimary)?.id ?? notchMonitors[0]?.id ?? "";
+  const selectedMonitor = notchMonitors.find((monitor) => monitor.id === selectedMonitorId);
+  const notchWidthMinimum = selectedMonitor
+    ? notchMinimumWidth(selectedMonitor)
+    : NOTCH_NON_NOTCH_MIN_WIDTH;
   const monitorOptions: Array<[string, string]> = notchMonitors.map((monitor, index) => {
     const name = monitor.name || t("settings.display.notch.displayFallback", { index: index + 1 });
     const primary = monitor.isPrimary ? ` · ${t("settings.display.notch.primaryDisplay")}` : "";
     return [monitor.id, `${name} · ${monitor.width}×${monitor.height}${primary}`];
   });
   const normalizeNotchWidthRange = (next: [number, number]): [number, number] => {
-    const maxWidth = Math.min(next[0], next[1]);
+    const maxWidth = Math.max(notchWidthMinimum, Math.min(next[0], next[1]));
     return [maxWidth, Math.max(440, maxWidth, next[1])];
   };
   const previewWidth = (widths: [number, number]) => {
@@ -339,9 +347,9 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
         firstLabel={t("settings.style.modeControls.compactWidth")}
         secondLabel={t("settings.style.modeControls.hoverWidth")}
         values={notchWidthRange}
-        min={320}
+        min={notchWidthMinimum}
         max={640}
-        step={10}
+        step={1}
         suffix="px"
         normalizeValues={normalizeNotchWidthRange}
         onValuePreview={previewWidth}

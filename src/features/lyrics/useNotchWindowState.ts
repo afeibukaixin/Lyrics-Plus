@@ -5,6 +5,7 @@ import {
   COLLAPSED_HEIGHT_FALLBACK,
   emptyLayout,
   EXPANDED_HEIGHT_FALLBACK,
+  NOTCH_NON_NOTCH_MIN_WIDTH,
   NOTCH_MAX_WIDTH,
   type IslandDimensions,
   type IslandState,
@@ -20,7 +21,10 @@ export function useNotchWindowState({ appearance }: UseNotchWindowStateOptions) 
   const [layout, setLayout] = useState(emptyLayout);
   const [islandState, setIslandState] = useState<IslandState>("collapsed");
   const [expandedWidth, setExpandedWidth] = useState(
-    () => Math.min(NOTCH_MAX_WIDTH, Math.max(appearance.maxWidth, appearance.expandedMaxWidth)),
+    () => Math.min(
+      NOTCH_MAX_WIDTH,
+      Math.max(NOTCH_NON_NOTCH_MIN_WIDTH, appearance.maxWidth, appearance.expandedMaxWidth),
+    ),
   );
   const [collapsedHeight, setCollapsedHeight] = useState(COLLAPSED_HEIGHT_FALLBACK);
   const [expandedHeight, setExpandedHeight] = useState(EXPANDED_HEIGHT_FALLBACK);
@@ -46,9 +50,12 @@ export function useNotchWindowState({ appearance }: UseNotchWindowStateOptions) 
   const previewActiveRef = useRef(false);
   const previewValuesRef = useRef<NotchWidthPreviewValues | null>(null);
   const dimensionsRef = useRef<IslandDimensions>({
-    collapsedWidth: appearance.maxWidth,
+    collapsedWidth: Math.max(NOTCH_NON_NOTCH_MIN_WIDTH, appearance.maxWidth),
     collapsedHeight: COLLAPSED_HEIGHT_FALLBACK,
-    expandedWidth: Math.min(NOTCH_MAX_WIDTH, Math.max(appearance.maxWidth, appearance.expandedMaxWidth)),
+    expandedWidth: Math.min(
+      NOTCH_MAX_WIDTH,
+      Math.max(NOTCH_NON_NOTCH_MIN_WIDTH, appearance.maxWidth, appearance.expandedMaxWidth),
+    ),
     expandedHeight: EXPANDED_HEIGHT_FALLBACK,
   });
   const pendingDimensionsRef = useRef<IslandDimensions | null>(null);

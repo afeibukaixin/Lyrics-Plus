@@ -101,17 +101,19 @@
   display: grid;
   position: relative;
   min-height: max(32px, var(--notch-top-inset));
-  grid-template-columns: minmax(30px, 1fr) var(--notch-center-gap) minmax(30px, 1fr);
+  grid-template-columns:
+    minmax(var(--notch-compact-slot-size), 1fr)
+    var(--notch-center-gap)
+    minmax(var(--notch-compact-slot-size), 1fr);
   align-items: center;
   column-gap: 8px;
-  padding: 0 8px;
+  padding: 0 var(--notch-slot-padding);
   font-size: clamp(11px, var(--notch-font-size), 14px);
   line-height: 1;
 }
 
 .shell[data-has-notch] .metadata {
   column-gap: 0;
-  padding-inline: var(--notch-slot-padding);
 }
 
 .brandCapsule {
@@ -171,8 +173,8 @@
 
 .slotArtwork {
   display: block;
-  width: 30px;
-  height: 30px;
+  width: var(--notch-compact-slot-size);
+  height: var(--notch-compact-slot-size);
   max-width: none;
   flex: none;
   border-radius: 5px;
@@ -187,9 +189,9 @@
 
 .spectrum {
   display: block;
-  width: 28px;
+  width: var(--notch-compact-slot-size);
   max-width: none;
-  height: 28px;
+  height: var(--notch-compact-slot-size);
   vertical-align: middle;
 }
 
@@ -534,6 +536,11 @@
   color: var(--notch-romanization-color);
 }
 
+.playerLyricsPreview[data-double-line-mode="alternating"] .playerLyricsCurrent .overflowViewport,
+.playerLyricsPreview[data-double-line-mode="alternating"] .playerLyricsSupportingPreview {
+  min-height: calc(var(--notch-font-size) + 2px);
+}
+
 .playerLyricsSupportingPreview[data-empty="true"] {
   visibility: hidden;
 }
@@ -693,25 +700,47 @@
 }
 
 .karaokeWordFill {
+  display: block;
+  position: relative;
+  align-self: start;
+  justify-self: start;
+  width: 100%;
+  height: 100%;
+  clip-path: inset(0% 100% 0% 0%);
   color: var(--notch-active-color);
-  clip-path: inset(0 calc(100% - var(--word-progress)) 0 0);
-  transition: clip-path 80ms linear;
+  pointer-events: none;
 }
 
-.karaokeWord[data-current="true"] .karaokeWordFill {
-  will-change: clip-path;
+.karaokeWordFill[data-karaoke-axis="y"] {
+  clip-path: inset(0% 0% 100% 0%);
 }
 
-.karaokeText[data-karaoke="highlight"] .karaokeWordFill {
-  clip-path: inset(0);
+.karaokeWordFillText {
+  position: absolute;
+  inset: 0 auto auto 0;
+  display: block;
+  width: max-content;
+  height: 100%;
+  color: var(--notch-active-color);
+  white-space: pre;
+}
+
+.karaokeWordFill[data-karaoke-axis="y"] .karaokeWordFillText {
+  width: 100%;
+  height: max-content;
+}
+
+.karaokeText[data-karaoke="highlight"] .karaokeWordFill,
+.karaokeText[data-karaoke="bounce"] .karaokeWord[data-complete="true"] .karaokeWordFill,
+.karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] .karaokeWordFill {
+  clip-path: inset(0% 0% 0% 0%);
 }
 
 .shell:not([data-has-notch]) .metadata {
   grid-template-columns: minmax(30px, 1fr) 24px minmax(30px, 1fr);
   height: var(--notch-top-inset);
   min-height: 0;
-  padding-block: 4px;
-  padding-inline: max(6px, calc(var(--notch-radius) - 10px));
+  padding-block: var(--notch-slot-vertical-padding);
 }
 
 .shell:not([data-has-notch]) .metadata[data-inline-lyrics="true"] {
@@ -733,20 +762,7 @@
   padding: 0;
 }
 
-.shell:not([data-has-notch]) .slotArtwork {
-  width: var(--notch-compact-slot-size);
-  height: var(--notch-compact-slot-size);
-}
-
-.shell:not([data-has-notch]) .spectrum {
-  height: var(--notch-compact-slot-size);
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .karaokeWordFill {
-    transition: none;
-  }
-
   .shell:not([data-island-visible]) .islandVisual {
     opacity: 0;
   }

@@ -66,6 +66,21 @@ pub(super) fn reset_scroll() {
         .unwrap_or_else(|error| error.into_inner()) = ScrollState::default();
 }
 
+pub(super) fn reset() {
+    LAYER_CACHE.with(|slot| {
+        let Some(cache) = slot.borrow_mut().take() else {
+            return;
+        };
+        for row in cache.rows {
+            row.base_layer.removeFromSuperlayer();
+            if let Some(layer) = row.highlight_layer {
+                layer.removeFromSuperlayer();
+            }
+        }
+    });
+    reset_scroll();
+}
+
 fn system_font_weight(weight: u16) -> f64 {
     match weight {
         0..=449 => 0.0,

@@ -31,9 +31,12 @@ import {
 import {
   COLLAPSED_HEIGHT_FALLBACK,
   EXPANDED_HEIGHT_FALLBACK,
+  notchCompactSlotSize,
   notchCollapsedHeightFloor,
+  notchMinimumWidth,
   notchSlotPadding,
   NOTCH_MAX_WIDTH,
+  NOTCH_SLOT_VERTICAL_PADDING,
   resolvedNotchTopInset,
 } from "./NotchLyricsLayout";
 import styles from "./NotchLyricsWindow.module.scss";
@@ -41,15 +44,7 @@ import styles from "./NotchLyricsWindow.module.scss";
 export default function NotchLyricsWindow() {
   const { t } = useTranslation();
   const { config, setLyricsDisplayPreferences } = useAppConfig();
-  const playback = usePlayback({ loadArtwork: true });
   const notch = config.lyrics.displays.notch;
-  const lyrics = useCompactLyricsPresentation({
-    snapshot: playback.snapshot,
-    positionMs: playback.positionMs,
-    active: playback.active,
-    presentation: notch.presentation,
-    offsetErrorMessage: "Failed to update the Dynamic Island lyrics offset",
-  });
   const appearance = notch.appearance;
   const notchRef = useRef(notch);
   notchRef.current = notch;
@@ -96,6 +91,20 @@ export default function NotchLyricsWindow() {
     lastObservedGeometryRef,
     reconcileHoverStateRef,
   } = useNotchWindowState({ appearance });
+  // 扫光由 GSAP 自己推进，无需用 100ms React 时钟重复刷新整棵灵动岛组件树。
+  const needsContinuousPosition = appearance.karaokeStyle !== "sweep";
+  const playback = usePlayback({
+    loadArtwork: true,
+    trackPosition: needsContinuousPosition,
+  });
+  const lyrics = useCompactLyricsPresentation({
+    snapshot: playback.snapshot,
+    positionMs: playback.positionMs,
+    active: playback.active,
+    timing: needsContinuousPosition ? "continuous" : "line",
+    presentation: notch.presentation,
+    offsetErrorMessage: "Failed to update the Dynamic Island lyrics offset",
+  });
   const usesSpectrum = notch.leftSlot === "spectrum" || notch.rightSlot === "spectrum";
   const spectrumColors = playback.artworkSpectrumColors ?? {
     left: { top: "#ffffff", middle: "#ffffff", bottom: "#ffffff" },
@@ -103,7 +112,11 @@ export default function NotchLyricsWindow() {
     right: { top: "#ffffff", middle: "#ffffff", bottom: "#ffffff" },
   };
   const { registerSpectrumNode } = useNotchSpectrum(usesSpectrum && playback.active);
-  const effectiveWidth = previewValues?.maxWidth ?? appearance.maxWidth;
+  const minimumWidth = notchMinimumWidth(layout);
+  const effectiveWidth = Math.min(
+    NOTCH_MAX_WIDTH,
+    Math.max(minimumWidth, previewValues?.maxWidth ?? appearance.maxWidth),
+  );
   const effectiveExpandedMaxWidth = Math.min(
     NOTCH_MAX_WIDTH,
     Math.max(
@@ -113,16 +126,16 @@ export default function NotchLyricsWindow() {
   );
   const resolvedTopInset = resolvedNotchTopInset(layout);
   const collapsedHeightFloor = notchCollapsedHeightFloor(layout);
-  const compactSlotSize = Math.max(0, Math.min(30, resolvedTopInset - 8));
   const slotPadding = notchSlotPadding(appearance.borderRadius);
+  const compactSlotSize = notchCompactSlotSize(layout);
   const marqueePaused = previewActive || widthMotionActive || visibilityMotionActive;
+  const expandedPlayerActive = islandState !== "collapsed";
   const {
     changeLyricsOffset,
     offsetAvailable,
     offsetMs,
     resetLyricsOffset,
   } = lyrics;
-  const previewPositionMs = playback.positionMs + offsetMs;
   const previewLine = lyrics.currentLine;
   const previewNextLine = lyrics.nextLine;
   const previewLineDisplayEndMs = previewNextLine?.startMs ?? previewLine?.endMs;
@@ -166,13 +179,22 @@ export default function NotchLyricsWindow() {
         paused={marqueePaused}
       >
         {primaryLine
-          ? <KaraokeLine line={primaryLine} positionMs={playback.positionMs + offsetMs} karaokeStyle={appearance.karaokeStyle} />
+          ? <KaraokeLine
+            line={primaryLine}
+            playing={playback.active && playback.snapshot.isPlaying}
+            positionMs={lyrics.positionMs + offsetMs}
+            karaokeStyle={appearance.karaokeStyle}
+          />
           : primaryText}
       </OverflowText>
     </div>
   );
   const supportingLine = supportingLines[0];
   const supportingIsNext = supportingResolvedLine?.kind === "next";
+  const previewDoubleLineAlternating = notch.showLyrics
+    && notch.presentation.layout === "double"
+    && notch.presentation.doubleLineMode === "alternating"
+    && supportingIsNext;
   const supportingLineElement = supportingLine && (
     <div className={styles.supportingLine} data-empty={!supportingLine.line.text.trim() || undefined} data-kind={supportingLine.kind} key={`${supportingLine.kind}:${supportingLine.line.startMs}:${supportingLine.line.text}`}>
       <OverflowText
@@ -372,6 +394,7 @@ export default function NotchLyricsWindow() {
         "--notch-expanded-min-height": `${EXPANDED_HEIGHT_FALLBACK}px`,
         "--notch-expanded-height": `${Math.max(COLLAPSED_HEIGHT_FALLBACK, expandedHeight)}px`,
         "--notch-top-inset": `${resolvedTopInset}px`,
+        "--notch-slot-vertical-padding": `${NOTCH_SLOT_VERTICAL_PADDING}px`,
         "--notch-compact-slot-size": `${compactSlotSize}px`,
         "--notch-center-gap": `${layout.centerGapWidth}px`,
       } as CSSProperties}
@@ -420,15 +443,17 @@ export default function NotchLyricsWindow() {
               <div className={styles.toolbarReveal} ref={toolbarRevealRef}>
                 <div className={styles.toolbarRevealInner}>
                   <ExpandedPlayer
+                    active={expandedPlayerActive}
                     karaokeStyle={appearance.karaokeStyle}
-                    marqueePaused={marqueePaused}
+                    marqueePaused={marqueePaused || !expandedPlayerActive}
                     playback={playback}
                     previewLine={notch.showLyrics ? previewLine : null}
                     previewSupportingLine={notch.showLyrics ? previewSupportingLine : null}
                     previewDoubleLine={notch.showLyrics && notch.presentation.layout === "double" && Boolean(previewLine)}
+                    previewDoubleLineAlternating={previewDoubleLineAlternating}
                     previewDoubleLineReversed={notch.showLyrics && notch.presentation.layout === "double" && doubleLineOrder === "reversed"}
                     previewMaxDurationMs={previewLyricMarqueeTimeLimitMs}
-                    previewPositionMs={previewPositionMs}
+                    previewOffsetMs={offsetMs}
                     quickControls={quickControls}
                     t={t}
                   />

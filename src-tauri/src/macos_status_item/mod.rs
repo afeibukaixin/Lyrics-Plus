@@ -30,7 +30,7 @@ pub(crate) fn sync(app: &tauri::AppHandle) {
     if let Some(payload) = payload {
         renderer::render_on_main(payload, &tray_state.lyrics_icon);
     } else {
-        renderer::reset_scroll();
+        renderer::reset();
     }
     display_driver::update_display_driver_activity(app);
 }

@@ -188,7 +188,7 @@ pub(super) fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), Co
         (
             "maxWidth",
             value.pointer("/lyrics/displays/notch/appearance/maxWidth"),
-            320.0,
+            120.0,
             640.0,
         ),
         (
