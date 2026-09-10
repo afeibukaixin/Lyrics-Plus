@@ -2686,7 +2686,7 @@ dependencies = [
 
 [[package]]
 name = "lyrics-plus"
-version = "2.2.14-beta.1"
+version = "2.2.14"
 dependencies = [
  "base64 0.22.1",
  "block2 0.6.2",

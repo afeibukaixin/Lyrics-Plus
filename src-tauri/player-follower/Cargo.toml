@@ -1,6 +1,6 @@
 [package]
 name = "lyrics-plus-player-follower"
-version = "2.2.14-beta.1"
+version = "2.2.14"
 edition = "2021"
 publish = false
 
