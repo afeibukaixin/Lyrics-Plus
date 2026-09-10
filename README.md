@@ -32,12 +32,15 @@ Lyrics Plus is a free and open-source macOS app that follows your music player a
 
 | Feature | Support |
 |---|---|
-| Lyrics display | Desktop Lyrics, Menu Bar Lyrics, Lyrics Window, and Dynamic Island Lyrics |
-| Playback sources | Apple Music, Spotify, and compatible apps through macOS System Media |
-| Lyrics sources | Multiple online lyrics providers |
-| Lyrics matching | Concurrent search, provider ordering, automatic matching, and metadata-based candidate ranking |
-| Lyrics content | Synced lyrics, translations, romanization, word-level karaoke timing, local import, and an offline library |
-| Appearance | Shared or per-mode fonts, colors, layout, opacity, and display behavior |
+| Lyrics display | Desktop Lyrics, Menu Bar Lyrics, Lyrics Window, and Dynamic Island Lyrics, each independently configurable |
+| Playback sources | Apple Music, Spotify, and compatible apps through macOS System Media, with automatic or manual selection and app filtering |
+| Lyrics sources | Multiple online providers with enable/disable controls, priority ordering, health checks, and strict or smart modes |
+| Lyrics search | Automatic and manual search, concurrent queries, candidate previews and selection, and metadata- and capability-based ranking |
+| Lyrics content | Synced lyrics, translations, romanization, word-level karaoke timing, local import, and per-track timing offsets |
+| Lyrics library | Manage local and downloaded lyrics, browse songs, artists, and lyrics, and bind, unbind, merge, or clean up library items |
+| Appearance | Shared styles with per-mode inheritance, including fonts, colors, layouts, orientation, opacity, backgrounds, and long-text behavior |
+| Controls | Customizable global shortcuts, window locking, always-on-top, auto-hide, follow restoration, and window-size reset |
+| App experience | Light, dark, and system themes, multilingual UI, and automatic update checks and installation |
 | Compatibility | macOS 13+, Apple Silicon, and Intel |
 
 Online lyrics providers are optional. When enabled, matching metadata such as title, artist, album, and duration is sent to the selected third-party service.
@@ -86,3 +89,31 @@ The application code is released under the [MIT License](LICENSE). The MIT Licen
 - [MxIris-LyricsX-Project/LyricsX](https://github.com/MxIris-LyricsX-Project/LyricsX)
 - [ddddxxx/LyricsX](https://github.com/ddddxxx/LyricsX)
 - [ChouChiu/Lyrics-Helper](https://github.com/ChouChiu/Lyrics-Helper)
+
+## ❤️ Support Lyrics Plus
+
+If Lyrics Plus has been helpful to you, consider supporting its continued development through AFDIAN, WeChat, or Alipay. Thank you for your support!
+
+<table border="1" cellpadding="12" cellspacing="0">
+  <tr>
+    <td width="33%" align="center">
+      <a href="https://afdian.com/a/afeibukaixin"><img src="https://img.shields.io/badge/AFDIAN-Support-946CE6?style=flat-square&logo=afdian&logoColor=white" alt="Support Lyrics Plus on AFDIAN"></a>
+      <br>
+      <sub>Support the continued development of Lyrics Plus through AFDIAN.</sub>
+    </td>
+    <td width="33%" align="center">
+      <strong>WeChat</strong>
+      <br>
+      <img src="docs/sponsors/wechat.jpg" alt="WeChat payment QR code" width="280">
+    </td>
+    <td width="33%" align="center">
+      <strong>Alipay</strong>
+      <br>
+      <img src="docs/sponsors/alipay.jpg" alt="Alipay payment QR code" width="280">
+    </td>
+  </tr>
+</table>
+
+## 🌟 Sponsors
+
+Thank you to everyone who supports Lyrics Plus. If you would like to be listed here, leave your GitHub username or nickname in the payment note; otherwise, sponsorships will remain anonymous.
