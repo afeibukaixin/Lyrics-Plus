@@ -30,23 +30,40 @@
 
 .tableContent { min-width: 0; min-height: 0; flex: 1 1 auto; display: flex; padding: 0; overflow: hidden; }
 .tableContent > [data-slot="table-container"] { min-width: 0; min-height: 0; flex: 1 1 auto; overflow-x: hidden; overflow-y: auto; }
-.dataTable { width: 100%; min-width: 0; max-width: 100%; table-layout: auto; background: var(--card); }
+.dataTable { width: 100%; min-width: 0; max-width: 100%; table-layout: fixed; background: var(--card); }
 .dataTable [data-slot="table-header"] { position: sticky; z-index: 1; top: 0; background: var(--muted); }
 .dataTable [data-slot="table-row"] { border-color: var(--library-line); }
 .dataTable [data-slot="table-body"] [data-slot="table-row"] { height: 58px; background: var(--card); }
 .dataTable [data-slot="table-body"] [data-slot="table-row"]:hover { background: var(--muted); }
 .dataTable [data-slot="table-body"] [data-slot="table-row"][data-state="selected"] { background: color-mix(in srgb, var(--primary) 10%, var(--card)); }
 .adaptiveTable :is([data-slot="table-head"], [data-slot="table-cell"]) { min-width: 0; padding-inline: 12px; }
-.adaptiveTable [data-slot="table-cell"] { overflow: visible; }
+.adaptiveTable [data-slot="table-cell"] { overflow: hidden; }
 .adaptiveTable :is([data-slot="table-head"], [data-slot="table-cell"]):first-child { padding-left: 16px; }
 .adaptiveTable :is([data-slot="table-head"], [data-slot="table-cell"]):last-child { padding-right: 16px; }
 .growColumn { min-width: 0; }
-.compactColumn { width: max-content; min-width: max-content; white-space: nowrap; }
+.compactColumn { min-width: 0; white-space: nowrap; }
 .primaryCell { min-width: 0; overflow: hidden; }
 .selectionColumn { text-align: center; }
 .numericColumn { text-align: right; font-variant-numeric: tabular-nums; }
 .fileSizeColumn { white-space: nowrap; }
 .actionColumn { text-align: right; white-space: nowrap; }
+.songTitleColumn { width: 59%; }
+.songSourcesColumn { width: 9%; }
+.songLyricsColumn { width: 9%; }
+.songDurationColumn { width: 12%; }
+.songActionsColumn { width: 11%; }
+.lyricSelectionColumn { width: 4%; }
+.lyricTitleColumn { width: 42%; }
+.lyricStatusColumn { width: 14%; }
+.lyricCapabilitiesColumn { width: 22%; }
+.lyricSizeColumn { width: 11%; }
+.lyricActionsColumn { width: 11%; }
+.dataTable[data-selection="true"] .lyricTitleColumn { width: 38%; }
+.artistNameColumn { width: 28%; }
+.artistAliasesColumn { width: 23%; }
+.artistSongCountColumn { width: 10%; }
+.artistRawCreditsColumn { width: 27%; }
+.artistActionsColumn { width: 12%; }
 .truncatedText { display: block; width: 100%; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .truncatedText[data-variant="meta"] { margin-top: 2px; color: var(--muted-foreground); font-size: .75rem; }
 .truncatedTooltip { overflow-wrap: anywhere; }

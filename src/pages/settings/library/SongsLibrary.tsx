@@ -98,6 +98,13 @@ export default function SongsLibrary({ detailId, similarityOpen, onSimilarityClo
         <CardContent className={styles.tableContent}>
         {loadingError ? <LibraryState state="error" message={loadingError} /> : data === null ? <LibraryState state="loading" message={t("library.manager.loading")} /> : data.items.length ? (
           <Table className={`${styles.adaptiveTable} ${styles.dataTable}`}>
+            <colgroup>
+              <col className={styles.songTitleColumn} />
+              <col className={styles.songSourcesColumn} />
+              <col className={styles.songLyricsColumn} />
+              <col className={styles.songDurationColumn} />
+              <col className={styles.songActionsColumn} />
+            </colgroup>
             <TableHeader><TableRow><TableHead className={styles.growColumn}>{t("library.manager.song")}</TableHead><TableHead className={`${styles.numericColumn} ${styles.compactColumn}`}>{t("library.manager.sources")}</TableHead><TableHead className={`${styles.numericColumn} ${styles.compactColumn}`}>{t("library.manager.lyricsCount")}</TableHead><TableHead className={`${styles.numericColumn} ${styles.compactColumn}`}>{t("library.manager.duration")}</TableHead><TableHead className={`${styles.actionColumn} ${styles.compactColumn}`}>{t("library.manager.actions")}</TableHead></TableRow></TableHeader>
             <TableBody>{data.items.map((song) => (
               <TableRow key={song.recordingId}>

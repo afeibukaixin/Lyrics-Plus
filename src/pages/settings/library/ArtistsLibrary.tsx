@@ -52,6 +52,13 @@ export default function ArtistsLibrary({ detailId }: { detailId: number | null }
           <>
             {data.items.length ? (
               <Table className={`${styles.adaptiveTable} ${styles.dataTable}`}>
+                <colgroup>
+                  <col className={styles.artistNameColumn} />
+                  <col className={styles.artistAliasesColumn} />
+                  <col className={styles.artistSongCountColumn} />
+                  <col className={styles.artistRawCreditsColumn} />
+                  <col className={styles.artistActionsColumn} />
+                </colgroup>
                 <TableHeader><TableRow><TableHead className={styles.growColumn}>{t("library.manager.artist")}</TableHead><TableHead className={styles.growColumn}>{t("library.manager.aliases")}</TableHead><TableHead className={`${styles.numericColumn} ${styles.compactColumn}`}>{t("library.manager.songCount")}</TableHead><TableHead className={styles.growColumn}>{t("library.manager.rawCredits")}</TableHead><TableHead className={`${styles.actionColumn} ${styles.compactColumn}`}>{t("library.manager.actions")}</TableHead></TableRow></TableHeader>
                 <TableBody>{data.items.map((item) => <TableRow key={item.artistId}><TableCell className={`${styles.primaryCell} ${styles.growColumn}`}><TruncatedText variant="title">{item.canonicalName}</TruncatedText></TableCell><TableCell className={styles.growColumn}>{item.aliases.length ? <div className={styles.tableAliasBadges}>{item.aliases.map((value) => <Badge className={styles.tableAliasBadge} variant="secondary" key={value}><TruncatedText>{value}</TruncatedText></Badge>)}</div> : "—"}</TableCell><TableCell className={`${styles.numericColumn} ${styles.compactColumn}`}>{item.songCount}</TableCell><TableCell className={styles.growColumn}><TruncatedText>{item.rawNames.join(" / ") || "—"}</TruncatedText></TableCell><TableCell className={`${styles.actionColumn} ${styles.compactColumn}`}><Button size="sm" variant="outline" onClick={() => navigation.openDetail("artists", item.artistId, item.canonicalName)}>{t("library.manager.details")}</Button></TableCell></TableRow>)}</TableBody>
               </Table>
