@@ -12,8 +12,36 @@ const emptySnapshot: LyricsRuntimeSnapshot = {
   error: null,
 };
 
-export function useLyricsPresentation(snapshot: PlaybackSnapshot, positionMs: number, active = true) {
+export type LyricsTimingMode = "continuous" | "line";
+
+type LyricsPresentationOptions = {
+  timing?: LyricsTimingMode;
+};
+
+function estimatedPosition(snapshot: PlaybackSnapshot, fallbackPositionMs: number) {
+  const base = snapshot.positionMs ?? fallbackPositionMs;
+  if (!snapshot.isPlaying) return base;
+  return Math.min(
+    snapshot.durationMs ?? Number.MAX_SAFE_INTEGER,
+    base + Math.max(0, Date.now() - snapshot.observedAtMs),
+  );
+}
+
+function nextLineStart(lines: LyricsLine[], adjustedPositionMs: number) {
+  return lines.find((line) => line.text.trim() && line.startMs > adjustedPositionMs)?.startMs ?? null;
+}
+
+export function useLyricsPresentation(
+  snapshot: PlaybackSnapshot,
+  positionMs: number,
+  active = true,
+  { timing = "continuous" }: LyricsPresentationOptions = {},
+) {
   const [runtime, setRuntime] = useState<LyricsRuntimeSnapshot>(emptySnapshot);
+  const [linePositionMs, setLinePositionMs] = useState(
+    () => snapshot.positionMs ?? positionMs,
+  );
+  const [lineTick, setLineTick] = useState(0);
   const trackKey = useMemo(() => trackKeyOf(snapshot), [snapshot]);
 
   useEffect(() => {
@@ -37,9 +65,28 @@ export function useLyricsPresentation(snapshot: PlaybackSnapshot, positionMs: nu
   }, [active]);
 
   const document = runtime.trackKey === trackKey ? runtime.document : null;
+  useEffect(() => {
+    if (timing !== "line" || !active) return;
+
+    const currentPositionMs = estimatedPosition(snapshot, positionMs);
+    setLinePositionMs(currentPositionMs);
+    if (!snapshot.isPlaying || !document) return;
+
+    const adjustedPositionMs = currentPositionMs + document.offsetMs;
+    const nextStartMs = nextLineStart(document.tracks.original.lines, adjustedPositionMs);
+    if (nextStartMs === null) return;
+
+    const delayMs = Math.max(16, nextStartMs - adjustedPositionMs);
+    const timer = window.setTimeout(() => {
+      setLineTick((value) => value + 1);
+    }, delayMs);
+    return () => window.clearTimeout(timer);
+  }, [active, document, lineTick, positionMs, snapshot, timing]);
+
+  const resolvedPositionMs = timing === "line" ? linePositionMs : positionMs;
   const activeIndex = useMemo(() => {
     if (!document) return -1;
-    const adjusted = positionMs + document.offsetMs;
+    const adjusted = resolvedPositionMs + document.offsetMs;
     let found = -1;
     for (let index = 0; index < document.tracks.original.lines.length; index += 1) {
       const line = document.tracks.original.lines[index];
@@ -48,7 +95,7 @@ export function useLyricsPresentation(snapshot: PlaybackSnapshot, positionMs: nu
       found = index;
     }
     return found;
-  }, [document, positionMs]);
+  }, [document, resolvedPositionMs]);
 
   const currentLine: LyricsLine | null = document?.tracks.original.lines[activeIndex] ?? null;
   const nextLine: LyricsLine | null = document?.tracks.original.lines[activeIndex + 1] ?? null;
@@ -68,6 +115,7 @@ export function useLyricsPresentation(snapshot: PlaybackSnapshot, positionMs: nu
   return {
     trackKey,
     document,
+    positionMs: resolvedPositionMs,
     status: runtime.trackKey === trackKey ? runtime.status : "loading" as const,
     error: runtime.trackKey === trackKey ? runtime.error : null,
     activeIndex,
@@ -75,6 +123,6 @@ export function useLyricsPresentation(snapshot: PlaybackSnapshot, positionMs: nu
     nextLine,
     currentTranslation,
     currentRomanization,
-    adjustedPositionMs: positionMs + (document?.offsetMs ?? 0),
+    adjustedPositionMs: resolvedPositionMs + (document?.offsetMs ?? 0),
   };
 }

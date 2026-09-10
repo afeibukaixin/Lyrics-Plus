@@ -6,12 +6,13 @@ import styles from "./StatusBarLyricsWindow.module.scss";
 
 export default function StatusBarLyricsWindow() {
   const { config } = useAppConfig();
-  const playback = usePlayback();
+  const playback = usePlayback({ trackPosition: false });
   const preferences = config.lyrics.displays.statusBar;
   const lyrics = useCompactLyricsPresentation({
     snapshot: playback.snapshot,
     positionMs: playback.positionMs,
     active: playback.active,
+    timing: "line",
     presentation: preferences.presentation,
     offsetErrorMessage: "Failed to update the menu bar lyrics offset",
   });

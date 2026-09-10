@@ -1,5 +1,6 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { PointerEvent as ReactPointerEvent } from "react";
+import { useCallback } from "react";
 import { api, isTauriRuntime } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
 import styles from "./LyricsListWindow.module.scss";
@@ -47,13 +48,13 @@ export function useListLyricsWindow({ locked }: UseListLyricsWindowOptions) {
     });
   };
 
-  const openStyleSettings = () => {
+  const openStyleSettings = useCallback(() => {
     void api.showLyricsStyleSettings("listWindow");
-  };
+  }, []);
 
-  const openQuickLyrics = () => {
+  const openQuickLyrics = useCallback(() => {
     void api.showQuickLyricsWindow();
-  };
+  }, []);
 
   return {
     resizeDirections,
