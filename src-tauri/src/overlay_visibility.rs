@@ -2,12 +2,14 @@ fn should_show_overlay(visible: bool, hide_when_not_playing: bool, is_playing: b
     visible && (!hide_when_not_playing || is_playing)
 }
 
-/// 暂停期间固定同一首歌的进度，避免播放器轮询返回较早位置时歌词高光回弹。
+/// Apple Music 和 Spotify 仍沿用原有的暂停位置防回弹；系统通道由适配器的精确进度负责。
 fn preserve_paused_position(
     previous: &player::PlaybackSnapshot,
     next: &mut player::PlaybackSnapshot,
 ) {
-    if next.is_playing
+    if previous.player == Some(player::PlayerKind::System)
+        || next.player == Some(player::PlayerKind::System)
+        || next.is_playing
         || !next.is_running
         || next.error_code.is_some()
         || commands::playback_track_key(previous).is_none()
@@ -20,10 +22,7 @@ fn preserve_paused_position(
         return;
     };
     let estimated_position_ms = if previous.is_playing {
-        position_ms.saturating_add(
-            next.observed_at_ms
-                .saturating_sub(previous.observed_at_ms),
-        )
+        position_ms.saturating_add(next.observed_at_ms.saturating_sub(previous.observed_at_ms))
     } else {
         position_ms
     };
@@ -56,7 +55,7 @@ pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<boo
         .last_snapshot
         .read()
         .unwrap_or_else(|error| error.into_inner())
-        .is_playing;
+        .is_playing_for_display();
     let should_show = should_show_overlay(
         configured.lyrics.displays.desktop.enabled,
         configured.lyrics.displays.desktop.hide_when_not_playing,
@@ -86,8 +85,7 @@ pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<boo
             restore_overlay_position(app, &window);
         }
         // 显示前同步统一的歌词窗口 Space 行为，避免窗口重新显示时使用旧状态。
-        crate::apply_joining_other_apps_fullscreen(&window)
-            .map_err(|error| error.to_string())?;
+        crate::apply_joining_other_apps_fullscreen(&window).map_err(|error| error.to_string())?;
         crate::apply_lyrics_window_space_behavior(
             &window,
             configured.app.lyrics_windows_show_on_all_spaces,
@@ -143,26 +141,28 @@ fn start_player_monitor(app: tauri::AppHandle) {
                 })
                 .unwrap_or_default();
 
+            let publication_started = Instant::now();
             let query_system_media = system_media.clone();
-            let (mut snapshot, next_auto_player) = tauri::async_runtime::spawn_blocking(move || {
-                query_selected_player(
-                    selection,
-                    previous_auto_player,
-                    &query_system_media,
-                    system_media_filter_mode,
-                    &system_media_applications,
-                )
-            })
-            .await
-            .unwrap_or_else(|error| {
-                (
-                    player::PlaybackSnapshot::unavailable(
-                        selection.preferred_kind(),
-                        format!("播放器读取任务失败：{error}"),
-                    ),
-                    previous_auto_player,
-                )
-            });
+            let (mut snapshot, next_auto_player) =
+                tauri::async_runtime::spawn_blocking(move || {
+                    query_selected_player(
+                        selection,
+                        previous_auto_player,
+                        &query_system_media,
+                        system_media_filter_mode,
+                        &system_media_applications,
+                    )
+                })
+                .await
+                .unwrap_or_else(|error| {
+                    (
+                        player::PlaybackSnapshot::unavailable(
+                            selection.preferred_kind(),
+                            format!("播放器读取任务失败：{error}"),
+                        ),
+                        previous_auto_player,
+                    )
+                });
 
             if let Some(state) = app.try_state::<AppState>() {
                 let mut last_snapshot = state
@@ -172,10 +172,23 @@ fn start_player_monitor(app: tauri::AppHandle) {
                 preserve_paused_position(&last_snapshot, &mut snapshot);
                 *last_snapshot = snapshot.clone();
                 *state.auto_player.write().unwrap_or_else(|e| e.into_inner()) = next_auto_player;
-                state.spectrum.sync_snapshot(&app, &snapshot);
+                drop(last_snapshot);
                 state.status_bar_wake.notify_one();
             }
             let _ = app.emit("playback://snapshot", &snapshot);
+            if snapshot.player == Some(player::PlayerKind::System) {
+                log::debug!(
+                    "系统媒体快照发布 title={:?} playing={} display_playing={} observed_at_ms={} elapsed_us={}",
+                    snapshot.title,
+                    snapshot.is_playing,
+                    snapshot.is_playing_for_display(),
+                    snapshot.observed_at_ms,
+                    publication_started.elapsed().as_micros()
+                );
+            }
+            if let Some(state) = app.try_state::<AppState>() {
+                state.spectrum.sync_snapshot(&app, &snapshot);
+            }
             commands::sync_lyrics_runtime(&app, &snapshot);
             if let Err(error) = reconcile_overlay_visibility(&app) {
                 log::warn!("Failed to reconcile overlay visibility with playback state: {error}");
@@ -188,27 +201,26 @@ fn start_player_monitor(app: tauri::AppHandle) {
             let any_window_visible = app
                 .try_state::<AppState>()
                 .is_some_and(|state| state.config.snapshot().lyrics.displays.status_bar.enabled)
-                || [
-                    "main",
-                    "lyrics-overlay",
-                    "lyrics-list",
-                    "lyrics-notch",
-                ]
-                .iter()
-                .any(|label| {
-                    app.get_webview_window(label)
-                        .and_then(|window| window.is_visible().ok())
-                        .unwrap_or(false)
-                });
-            let refresh_delay = Duration::from_millis(if any_window_visible {
-                750
-            } else {
-                2_000
-            });
-            if let Some(playback_changed) = system_media.playback_change_notifier() {
-                tokio::select! {
-                    _ = playback_changed.notified() => {}
-                    _ = tokio::time::sleep(refresh_delay) => {}
+                || ["main", "lyrics-overlay", "lyrics-list", "lyrics-notch"]
+                    .iter()
+                    .any(|label| {
+                        app.get_webview_window(label)
+                            .and_then(|window| window.is_visible().ok())
+                            .unwrap_or(false)
+                    });
+            let refresh_delay = Duration::from_millis(if any_window_visible { 750 } else { 2_000 });
+            system_media.set_refresh_interval(refresh_delay);
+            let use_system_events =
+                selection == PlayerSelection::System || selection == PlayerSelection::Auto;
+            if use_system_events {
+                if let Some(playback_changed) = system_media.playback_change_notifier() {
+                    tokio::select! {
+                        // Notify 自动合并连续通知，醒来直接读取最新状态。
+                        _ = playback_changed.notified() => {}
+                        _ = tokio::time::sleep(refresh_delay) => {}
+                    }
+                } else {
+                    tokio::time::sleep(refresh_delay).await;
                 }
             } else {
                 tokio::time::sleep(refresh_delay).await;

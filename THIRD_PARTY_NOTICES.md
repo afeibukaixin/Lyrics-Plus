@@ -2,14 +2,23 @@
 
 ## media-remote
 
-Lyrics Plus uses `media-remote` 0.3.7, licensed under the MIT License:
+Lyrics Plus uses the pinned `media-remote` 0.3.8 release, licensed under the MIT License:
 https://github.com/nohackjustnoobb/media-remote
 
 ## MediaRemoteAdapter
 
-`media-remote` includes MediaRemoteAdapter assets based on the project by Jonas van den Berg,
+Lyrics Plus embeds the unchanged MediaRemoteAdapter archive from `media-remote` 0.3.8 at
+`src-tauri/resources/mediaremote-adapter/mediaremote-adapter-0.3.8.tar.gz` and manages its
+stream process directly. The archive is based on the project by Jonas van den Berg,
 licensed under the BSD 3-Clause License:
 https://github.com/ungive/mediaremote-adapter
+
+The pinned adapter archive SHA-256 is
+`87b19e480a213ee591b7794942c2111f3ad58e7f0a1f18ec62c581d8e80e0a94`.
+The unpacked script SHA-256 is
+`984d622eeebbcb17656d157a49272b02fb741593ae2ec624d1926c12d955c8a1`,
+and the Framework executable SHA-256 is
+`21547fea1012a1c64db71804a16dc7cc20afee682ca9998e1f976e34223f09cd`.
 
 Copyright (c) 2025 Jonas van den Berg
 

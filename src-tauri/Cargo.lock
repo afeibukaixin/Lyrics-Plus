@@ -2686,12 +2686,13 @@ dependencies = [
 
 [[package]]
 name = "lyrics-plus"
-version = "2.2.14"
+version = "2.2.15"
 dependencies = [
  "base64 0.22.1",
  "block2 0.6.2",
  "cc",
  "encoding_rs",
+ "flate2",
  "futures",
  "image",
  "log",
@@ -2716,6 +2717,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "strsim",
+ "tar",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

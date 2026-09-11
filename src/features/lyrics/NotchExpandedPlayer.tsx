@@ -62,6 +62,14 @@ export function ExpandedPlayer({
   const artist = playback.snapshot.artist?.trim() || "";
   const durationMs = playback.snapshot.durationMs ?? 0;
   const canSeek = durationMs > 0 && Boolean(playback.snapshot.player);
+  const displayIsPlaying = playback.snapshot.displayIsPlaying ?? playback.snapshot.isPlaying;
+  const togglePlayback = () => {
+    // 以用户看到的暂停按钮为准，确认窗口内不要 toggle 回播放。
+    const action = displayIsPlaying && !playback.snapshot.isPlaying
+      ? playback.pause
+      : playback.togglePlayPause;
+    void action().catch(() => undefined);
+  };
   const [draftPositionMs, setDraftPositionMs] = useState<number | null>(null);
   const [pendingSeek, setPendingSeek] = useState<{ trackKey: string; positionMs: number } | null>(null);
   const playerProgressRef = useRef<HTMLDivElement>(null);
@@ -195,7 +203,7 @@ export function ExpandedPlayer({
       <div className={styles.playerTransport}>
         <div className={styles.playerControls} role="group" aria-label={t("notchLyrics.player.label")}>
           <ToolbarIconButton interactionMode="native" className={styles.playerControl} label={t("notchLyrics.player.previous")} variant="ghost" size="icon" onClick={() => void playback.previousTrack().catch(() => undefined)}><SkipBack fill="currentColor" strokeWidth={1.75} /></ToolbarIconButton>
-          <ToolbarIconButton interactionMode="native" className={styles.playerPrimaryControl} label={playback.snapshot.isPlaying ? t("notchLyrics.player.pause") : t("notchLyrics.player.play")} variant="ghost" size="icon" onClick={() => void playback.togglePlayPause().catch(() => undefined)}>{playback.snapshot.isPlaying ? <Pause fill="currentColor" strokeWidth={1.5} /> : <Play fill="currentColor" strokeWidth={1.5} />}</ToolbarIconButton>
+          <ToolbarIconButton interactionMode="native" className={styles.playerPrimaryControl} label={displayIsPlaying ? t("notchLyrics.player.pause") : t("notchLyrics.player.play")} variant="ghost" size="icon" onClick={togglePlayback}>{displayIsPlaying ? <Pause fill="currentColor" strokeWidth={1.5} /> : <Play fill="currentColor" strokeWidth={1.5} />}</ToolbarIconButton>
           <ToolbarIconButton interactionMode="native" className={styles.playerControl} label={t("notchLyrics.player.next")} variant="ghost" size="icon" onClick={() => void playback.nextTrack().catch(() => undefined)}><SkipForward fill="currentColor" strokeWidth={1.75} /></ToolbarIconButton>
         </div>
         <div ref={playerProgressRef} className={styles.playerProgress}>

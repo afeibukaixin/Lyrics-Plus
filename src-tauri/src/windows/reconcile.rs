@@ -64,7 +64,7 @@ pub(crate) fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Resu
     #[cfg(not(target_os = "macos"))]
     {
         let show_status_bar = displays.status_bar.enabled
-            && (!displays.status_bar.hide_when_not_playing || playback.is_playing);
+            && (!displays.status_bar.hide_when_not_playing || playback.is_playing_for_display());
         if show_status_bar {
             cancel_surface_destroy(app, "lyrics-status-bar");
             if !surface_is_destroying(app, "lyrics-status-bar") {
@@ -122,8 +122,8 @@ pub(crate) fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Resu
         sync_list_unlock_handle(app);
     }
 
-    let show_notch =
-        displays.notch.enabled && (!displays.notch.hide_when_not_playing || playback.is_playing);
+    let show_notch = displays.notch.enabled
+        && (!displays.notch.hide_when_not_playing || playback.is_playing_for_display());
     let (visibility_changed, visibility_generation) = {
         let mut visibility = state
             .notch_visibility
@@ -198,7 +198,8 @@ pub(crate) fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Resu
                         .unwrap_or_else(|error| error.into_inner())
                         .clone();
                     let should_still_hide = !displays.notch.enabled
-                        || (displays.notch.hide_when_not_playing && !playback.is_playing);
+                        || (displays.notch.hide_when_not_playing
+                            && !playback.is_playing_for_display());
                     if should_still_hide {
                         let handle_for_main = handle.clone();
                         if let Err(error) = handle.run_on_main_thread(move || {

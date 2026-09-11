@@ -93,6 +93,9 @@ pub struct PlaybackSnapshot {
     pub player: Option<PlayerKind>,
     pub is_running: bool,
     pub is_playing: bool,
+    /// 仅用于按钮和自动隐藏；计时与路由始终使用 is_playing。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_is_playing: Option<bool>,
     pub track_id: Option<String>,
     pub title: Option<String>,
     pub artist: Option<String>,
@@ -113,6 +116,7 @@ impl Default for PlaybackSnapshot {
             player: None,
             is_running: false,
             is_playing: false,
+            display_is_playing: None,
             track_id: None,
             title: None,
             artist: None,
@@ -130,6 +134,10 @@ impl Default for PlaybackSnapshot {
 }
 
 impl PlaybackSnapshot {
+    pub fn is_playing_for_display(&self) -> bool {
+        self.display_is_playing.unwrap_or(self.is_playing)
+    }
+
     pub fn empty() -> Self {
         Self::unavailable_with_code(None, PlaybackErrorCode::Waiting, "等待播放器".into())
     }
@@ -147,6 +155,7 @@ impl PlaybackSnapshot {
             player,
             is_running: false,
             is_playing: false,
+            display_is_playing: None,
             track_id: None,
             title: None,
             artist: None,
