@@ -61,6 +61,8 @@ export type PlaybackSnapshot = {
   player: PlayerKind | null;
   isRunning: boolean;
   isPlaying: boolean;
+  /** 按钮和自动隐藏使用的状态；不参与播放进度计算。 */
+  displayIsPlaying?: boolean | null;
   trackId: string | null;
   title: string | null;
   artist: string | null;

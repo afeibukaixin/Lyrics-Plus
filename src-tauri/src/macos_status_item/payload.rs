@@ -226,7 +226,7 @@ pub(super) fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .clone();
-    if preferences.hide_when_not_playing && !playback.is_playing {
+    if preferences.hide_when_not_playing && !playback.is_playing_for_display() {
         return None;
     }
     let presentation = &preferences.presentation;

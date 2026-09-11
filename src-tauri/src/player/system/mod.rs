@@ -3,6 +3,8 @@ mod artwork;
 mod compat;
 mod metadata;
 mod palette;
+mod presentation;
+mod runtime;
 mod service;
 
 pub use service::SystemMediaService;

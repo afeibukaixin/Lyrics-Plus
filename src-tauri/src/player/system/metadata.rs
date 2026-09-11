@@ -39,7 +39,8 @@ pub(super) fn timed_info(mut info: NowPlayingInfo) -> Option<TimedInfo> {
         return None;
     }
     if !valid_elapsed_time(&info) {
-        return None;
+        // 时间字段异常不能丢弃有效的切歌或播放状态事件。
+        info.elapsed_time = None;
     }
     if info.is_playing == Some(true) {
         if let (Some(elapsed), Some(updated_at)) = (info.elapsed_time, info.info_update_time) {
@@ -132,6 +133,7 @@ pub(super) fn snapshot_from_info(timed: &TimedInfo) -> PlaybackSnapshot {
         player: Some(PlayerKind::System),
         is_running: true,
         is_playing: info.is_playing.unwrap_or(false),
+        display_is_playing: None,
         track_id,
         title: metadata.title,
         artist: metadata.artist,
