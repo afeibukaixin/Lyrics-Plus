@@ -247,7 +247,9 @@
   display: block;
   min-width: 0;
   width: 100%;
-  overflow: hidden;
+  overflow: visible;
+  // 横向跑马灯只裁左右边界，上下保留字形下伸部。
+  clip-path: inset(-0.25em 0% -0.25em 0%);
   white-space: nowrap;
 }
 
@@ -701,39 +703,34 @@
 
 .karaokeWordFill {
   display: block;
-  position: relative;
-  align-self: start;
-  justify-self: start;
-  width: 100%;
-  height: 100%;
-  clip-path: inset(0% 100% 0% 0%);
+  // 与底色文字使用同一网格尺寸，避免文字叠层基线偏移。
+  align-self: stretch;
+  justify-self: stretch;
+  clip-path: inset(-0.25em 100% -0.25em 0%);
   color: var(--notch-active-color);
   pointer-events: none;
 }
 
 .karaokeWordFill[data-karaoke-axis="y"] {
-  clip-path: inset(0% 0% 100% 0%);
+  clip-path: inset(0% -0.25em 100% -0.25em);
 }
 
 .karaokeWordFillText {
-  position: absolute;
-  inset: 0 auto auto 0;
   display: block;
-  width: max-content;
-  height: 100%;
   color: var(--notch-active-color);
   white-space: pre;
-}
-
-.karaokeWordFill[data-karaoke-axis="y"] .karaokeWordFillText {
-  width: 100%;
-  height: max-content;
 }
 
 .karaokeText[data-karaoke="highlight"] .karaokeWordFill,
 .karaokeText[data-karaoke="bounce"] .karaokeWord[data-complete="true"] .karaokeWordFill,
 .karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] .karaokeWordFill {
-  clip-path: inset(0% 0% 0% 0%);
+  clip-path: inset(-0.25em 0% -0.25em 0%);
+}
+
+.karaokeText[data-karaoke="highlight"] .karaokeWordFill[data-karaoke-axis="y"],
+.karaokeText[data-karaoke="bounce"] .karaokeWord[data-complete="true"] .karaokeWordFill[data-karaoke-axis="y"],
+.karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] .karaokeWordFill[data-karaoke-axis="y"] {
+  clip-path: inset(0% -0.25em 0% -0.25em);
 }
 
 .shell:not([data-has-notch]) .metadata {

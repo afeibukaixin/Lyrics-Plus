@@ -8,6 +8,22 @@ gsap.registerPlugin(useGSAP);
 const KARAOKE_FILL_SELECTOR = "[data-karaoke-fill]";
 const KARAOKE_RESYNC_THRESHOLD_SECONDS = 0.15;
 
+const KARAOKE_CROSS_AXIS_BLEED = "-0.25em";
+
+function karaokeClipPaths(axis: "x" | "y") {
+  if (axis === "y") {
+    return {
+      initial: `inset(0% ${KARAOKE_CROSS_AXIS_BLEED} 100% ${KARAOKE_CROSS_AXIS_BLEED})`,
+      complete: `inset(0% ${KARAOKE_CROSS_AXIS_BLEED} 0% ${KARAOKE_CROSS_AXIS_BLEED})`,
+    };
+  }
+
+  return {
+    initial: `inset(${KARAOKE_CROSS_AXIS_BLEED} 100% ${KARAOKE_CROSS_AXIS_BLEED} 0%)`,
+    complete: `inset(${KARAOKE_CROSS_AXIS_BLEED} 0% ${KARAOKE_CROSS_AXIS_BLEED} 0%)`,
+  };
+}
+
 export type KaraokeWordClasses = {
   word: string;
   base: string;
@@ -75,11 +91,8 @@ export function useKaraokeSweepTimeline({
 
     const fills = Array.from(scope.querySelectorAll<HTMLElement>(KARAOKE_FILL_SELECTOR));
     const timeline = gsap.timeline({ paused: true });
-    // 四个方向都显式使用百分比，避免 GSAP 生成缺少单位的无效中间帧。
-    const initialClipPath = axis === "y"
-      ? "inset(0% 0% 100% 0%)"
-      : "inset(0% 100% 0% 0%)";
-    const completeClipPath = "inset(0% 0% 0% 0%)";
+    // 只在扫光轴上裁切，交叉轴保留字形下伸部，避免 y/g/p/q 被切掉。
+    const { initial: initialClipPath, complete: completeClipPath } = karaokeClipPaths(axis);
     const timelineOriginMs = Math.min(
       lineStartMs,
       ...words.map((word) => word.startMs),

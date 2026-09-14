@@ -105,29 +105,32 @@
 }
 .karaokeWordFill {
   display: block;
-  position: relative; align-self: start; justify-self: start;
-  width: 100%; height: 100%;
-  clip-path: inset(0% 100% 0% 0%);
+  // 两层文字共享网格尺寸，竖排时也不额外计算文字层宽高。
+  align-self: stretch; justify-self: stretch;
+  clip-path: inset(-0.25em 100% -0.25em 0%);
   color: var(--active-color);
   pointer-events: none;
   -webkit-text-stroke: 0 transparent;
 }
 
 .karaokeWordFill[data-karaoke-axis="y"] {
-  clip-path: inset(0% 0% 100% 0%);
+  clip-path: inset(0% -0.25em 100% -0.25em);
 }
 .karaokeWordFillText {
-  position: absolute; inset: 0 auto auto 0; display: block;
-  width: max-content; height: 100%; color: var(--active-color); white-space: pre;
+  display: block;
+  color: var(--active-color); white-space: pre;
   -webkit-text-stroke: 0 transparent;
-}
-.karaokeWordFill[data-karaoke-axis="y"] .karaokeWordFillText {
-  width: 100%; height: max-content;
 }
 .karaokeText[data-karaoke="highlight"] .karaokeWordFill,
 .karaokeText[data-karaoke="bounce"] .karaokeWord[data-complete="true"] .karaokeWordFill,
 .karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] .karaokeWordFill {
-  clip-path: inset(0% 0% 0% 0%);
+  clip-path: inset(-0.25em 0% -0.25em 0%);
+}
+
+.karaokeText[data-karaoke="highlight"] .karaokeWordFill[data-karaoke-axis="y"],
+.karaokeText[data-karaoke="bounce"] .karaokeWord[data-complete="true"] .karaokeWordFill[data-karaoke-axis="y"],
+.karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] .karaokeWordFill[data-karaoke-axis="y"] {
+  clip-path: inset(0% -0.25em 0% -0.25em);
 }
 .karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] {
   display: inline-grid; animation: word-bounce .42s ease-out both;
@@ -173,7 +176,8 @@
   animation: marquee-once var(--marquee-duration) ease-in-out 1 forwards;
 }
 .active[data-marquee="true"], .next[data-marquee="true"] {
-  overflow: hidden; text-align: left;
+  overflow: visible; text-align: left;
+  clip-path: inset(-0.25em 0% -0.25em 0%);
 }
 .overlay[data-orientation="vertical"] .active[data-marquee="true"] > span,
 .overlay[data-orientation="vertical"] .next[data-marquee="true"] > span {
@@ -181,7 +185,7 @@
 }
 .overlay[data-orientation="vertical"] .active[data-marquee="true"],
 .overlay[data-orientation="vertical"] .next[data-marquee="true"] {
-  text-align: start; clip-path: inset(0);
+  text-align: start; clip-path: inset(0% -0.25em 0% -0.25em);
 }
 .overlay[data-alignment="distributed"][data-layout="double"][data-orientation="horizontal"] .lines[data-double-line-order="reversed"] .active { text-align: right; }
 .overlay[data-alignment="distributed"][data-layout="double"][data-orientation="horizontal"] .lines[data-double-line-order="reversed"] .next { text-align: left; }
