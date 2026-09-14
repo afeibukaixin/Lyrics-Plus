@@ -39,6 +39,8 @@ export function ExpandedPlayer({
   previewDoubleLineReversed,
   previewMaxDurationMs,
   previewOffsetMs,
+  previewPositionMs,
+  previewPositionObservedAtMs,
   quickControls,
   marqueePaused,
   t,
@@ -53,6 +55,8 @@ export function ExpandedPlayer({
   previewDoubleLineReversed: boolean;
   previewMaxDurationMs: number | null;
   previewOffsetMs: number;
+  previewPositionMs: number;
+  previewPositionObservedAtMs: number;
   quickControls: ReactNode;
   marqueePaused: boolean;
   t: TFunction;
@@ -172,9 +176,11 @@ export function ExpandedPlayer({
               paused={marqueePaused}
             >
               <KaraokeLine
+                key={`${trackKey}:${previewLine.startMs}`}
                 line={previewLine}
                 playing={active && playback.active && playback.snapshot.isPlaying}
-                positionMs={currentPlaybackPositionMs + previewOffsetMs}
+                positionMs={(karaokeStyle === "sweep" ? previewPositionMs : currentPlaybackPositionMs) + previewOffsetMs}
+                positionObservedAtMs={karaokeStyle === "sweep" ? previewPositionObservedAtMs : playback.snapshot.observedAtMs}
                 karaokeStyle={karaokeStyle}
               />
             </OverflowText>

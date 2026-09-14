@@ -10,9 +10,10 @@ const karaokeWordClasses = {
   fillText: styles.karaokeWordFillText,
 };
 
-export function KaraokeLine({ line, positionMs, karaokeStyle, playing }: {
+export function KaraokeLine({ line, positionMs, positionObservedAtMs, karaokeStyle, playing }: {
   line: LyricsLine;
   positionMs: number;
+  positionObservedAtMs: number;
   karaokeStyle: CompactKaraokeStyle;
   playing: boolean;
 }) {
@@ -27,6 +28,7 @@ export function KaraokeLine({ line, positionMs, karaokeStyle, playing }: {
     lineStartMs: line.startMs,
     playing,
     positionMs,
+    positionObservedAtMs,
     scopeRef,
     words,
   });

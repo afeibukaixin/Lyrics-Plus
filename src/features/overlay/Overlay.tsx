@@ -103,7 +103,7 @@ export default function Overlay() {
 
   const primaryText = lyrics.primaryLine.text;
   const activeLineEmpty = Boolean(lyrics.primaryLine.line && !lyrics.primaryLine.text.trim());
-  const primaryLineKey = `${lyrics.primaryLine.line?.startMs ?? "fallback"}:${primaryText}`;
+  const primaryLineKey = `${lyrics.trackKey}:${lyrics.primaryLine.line?.startMs ?? "fallback"}:${primaryText}`;
   const currentLineDisplayEndMs = lyrics.nextLine?.startMs ?? lyrics.currentLine?.endMs;
   const marqueeTimeLimit = lyrics.currentLine && currentLineDisplayEndMs != null
     ? Math.max(
@@ -318,6 +318,7 @@ export default function Overlay() {
               fallback={primaryText}
               playing={playback.active && playback.snapshot.isPlaying}
               positionMs={lyrics.adjustedPositionMs}
+              positionObservedAtMs={playback.snapshot.observedAtMs}
               style={style}
             />
           </div>

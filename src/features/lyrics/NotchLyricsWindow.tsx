@@ -102,6 +102,7 @@ export default function NotchLyricsWindow() {
     positionMs: playback.positionMs,
     active: playback.active,
     timing: needsContinuousPosition ? "continuous" : "line",
+    holdSweepFrame: appearance.karaokeStyle === "sweep",
     presentation: notch.presentation,
     offsetErrorMessage: "Failed to update the Dynamic Island lyrics offset",
   });
@@ -170,7 +171,7 @@ export default function NotchLyricsWindow() {
     && hasPrimaryLine;
   // 空白歌词行也要保留容器，避免把时间轴上的停顿压掉。
   const primaryLineElement = hasPrimaryLine && (
-    <div className={styles.currentLine} key={`${primaryLine?.startMs ?? "fallback"}:${primaryText}`}>
+    <div className={styles.currentLine} key={`${lyrics.trackKey}:${primaryLine?.startMs ?? "fallback"}:${primaryText}`}>
       <OverflowText
         align="center"
         behavior="once"
@@ -183,6 +184,7 @@ export default function NotchLyricsWindow() {
             line={primaryLine}
             playing={playback.active && playback.snapshot.isPlaying}
             positionMs={lyrics.positionMs + offsetMs}
+            positionObservedAtMs={lyrics.positionObservedAtMs}
             karaokeStyle={appearance.karaokeStyle}
           />
           : primaryText}
@@ -454,6 +456,8 @@ export default function NotchLyricsWindow() {
                     previewDoubleLineReversed={notch.showLyrics && notch.presentation.layout === "double" && doubleLineOrder === "reversed"}
                     previewMaxDurationMs={previewLyricMarqueeTimeLimitMs}
                     previewOffsetMs={offsetMs}
+                    previewPositionMs={lyrics.positionMs}
+                    previewPositionObservedAtMs={lyrics.positionObservedAtMs}
                     quickControls={quickControls}
                     t={t}
                   />

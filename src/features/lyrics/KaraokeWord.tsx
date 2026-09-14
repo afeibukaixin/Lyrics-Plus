@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import type { LyricsWord } from "../../shared/types";
@@ -44,6 +44,7 @@ type KaraokeSweepTimelineOptions = {
   scopeRef: RefObject<HTMLElement | null>;
   lineStartMs: number;
   positionMs: number;
+  positionObservedAtMs: number;
   words: readonly LyricsWord[];
   enabled: boolean;
   playing: boolean;
@@ -58,6 +59,7 @@ export function useKaraokeSweepTimeline({
   scopeRef,
   lineStartMs,
   positionMs,
+  positionObservedAtMs,
   words,
   enabled,
   playing,
@@ -67,6 +69,8 @@ export function useKaraokeSweepTimeline({
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   const timelineOriginRef = useRef(lineStartMs);
   const playingRef = useRef(playing);
+  const pausedPositionRef = useRef(positionMs);
+  const resumeSnapshotRef = useRef<number | null>(null);
   const [reducedMotion, setReducedMotion] = useReducedMotion();
   const wordsSignature = useMemo(
     () => words.map((word) => `${word.startMs}:${word.endMs}:${word.text}`).join("\u001f"),
@@ -145,7 +149,7 @@ export function useKaraokeSweepTimeline({
     revertOnUpdate: true,
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const wasPlaying = playingRef.current;
     playingRef.current = playing;
     const timeline = timelineRef.current;
@@ -155,11 +159,27 @@ export function useKaraokeSweepTimeline({
       timelineOriginRef.current,
       timeline.duration(),
     );
-    if (!playing || reducedMotion) {
-      if (!playing && wasPlaying) {
-        timeline.pause();
-        return;
+    if (!playing) {
+      // 普通暂停只冻结；展示层保留位置后，位置变化才代表拖动或歌词偏移调整。
+      timeline.pause();
+      if (!wasPlaying && positionMs !== pausedPositionRef.current) {
+        timeline.time(desiredTime, false);
       }
+      pausedPositionRef.current = positionMs;
+      resumeSnapshotRef.current = null;
+      return;
+    }
+    if (!wasPlaying) {
+      // 原实例直接续播，不能拿恢复首帧的旧位置 seek，更不能把暂停时长补进来。
+      resumeSnapshotRef.current = positionObservedAtMs;
+      if (!reducedMotion && timeline.time() < timeline.duration()) timeline.play();
+      return;
+    }
+    if (resumeSnapshotRef.current !== null) {
+      if (positionObservedAtMs <= resumeSnapshotRef.current) return;
+      resumeSnapshotRef.current = null;
+    }
+    if (reducedMotion) {
       timeline.pause(desiredTime);
       return;
     }
@@ -169,7 +189,7 @@ export function useKaraokeSweepTimeline({
     if (desiredTime < timeline.duration() && !timeline.isActive()) {
       timeline.play();
     }
-  }, [lineStartMs, playing, positionMs, reducedMotion]);
+  }, [lineStartMs, playing, positionMs, positionObservedAtMs, reducedMotion]);
 }
 
 export const KaraokeWord = memo(function KaraokeWord({

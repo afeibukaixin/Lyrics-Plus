@@ -67,6 +67,7 @@ pub(super) fn reset_scroll() {
 }
 
 pub(super) fn reset() {
+    super::payload::reset_position();
     LAYER_CACHE.with(|slot| {
         let Some(cache) = slot.borrow_mut().take() else {
             return;
@@ -508,5 +509,10 @@ pub(super) fn render_on_main(payload: RenderPayload, tray: &tauri::tray::TrayIco
             }
         });
         CATransaction::commit();
+        if let Some(position) = payload.presented_position {
+            super::payload::commit_position(position);
+        } else {
+            super::payload::reset_position();
+        }
     });
 }

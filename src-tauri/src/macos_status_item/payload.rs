@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tauri::Manager;
@@ -13,6 +14,55 @@ use crate::overlay_model::{DoubleLineMode, OverlayLayout};
 use crate::AppState;
 
 const AUXILIARY_TIMESTAMP_TOLERANCE_MS: u64 = 500;
+
+// 只在文字层实际提交后记录，不能把一次尚未绘制的 payload 当成暂停画面。
+static PRESENTED_POSITION: Mutex<Option<PresentedPosition>> = Mutex::new(None);
+
+#[derive(Clone)]
+pub(super) struct PresentedPosition {
+    track_key: Option<String>,
+    position_ms: u64,
+    source_position_ms: Option<u64>,
+    playing: bool,
+    resume_snapshot_ms: Option<u64>,
+}
+
+pub(super) fn commit_position(position: PresentedPosition) {
+    *PRESENTED_POSITION.lock().unwrap_or_else(|e| e.into_inner()) = Some(position);
+}
+
+pub(super) fn reset_position() {
+    *PRESENTED_POSITION.lock().unwrap_or_else(|e| e.into_inner()) = None;
+}
+
+fn presented_position(playback: &crate::player::PlaybackSnapshot) -> PresentedPosition {
+    let track_key = crate::commands::playback_track_key(playback);
+    let previous = PRESENTED_POSITION.lock().unwrap_or_else(|e| e.into_inner());
+    let mut next = PresentedPosition {
+        track_key: track_key.clone(),
+        position_ms: current_position_ms(playback),
+        source_position_ms: playback.position_ms,
+        playing: playback.is_playing,
+        resume_snapshot_ms: None,
+    };
+    if let Some(previous) = previous.as_ref().filter(|p| p.track_key == track_key) {
+        let paused_seek = !previous.playing && !playback.is_playing
+            && previous.source_position_ms.zip(playback.position_ms)
+                .is_some_and(|(before, after)| before.abs_diff(after) > 150);
+        if !playback.is_playing && !paused_seek {
+            next.position_ms = previous.position_ms;
+            if !previous.playing {
+                next.source_position_ms = previous.source_position_ms;
+            }
+        } else if playback.is_playing && (!previous.playing
+            || previous.resume_snapshot_ms.is_some_and(|time| playback.observed_at_ms <= time))
+        {
+            next.position_ms = previous.position_ms;
+            next.resume_snapshot_ms = Some(previous.resume_snapshot_ms.unwrap_or(playback.observed_at_ms));
+        }
+    }
+    next
+}
 
 thread_local! {
     static TRACK_REGION_CACHE: RefCell<Option<TrackRegionCache>> = const { RefCell::new(None) };
@@ -59,6 +109,7 @@ impl RenderLinePayload {
 }
 
 pub(super) struct RenderPayload {
+    pub(super) presented_position: Option<PresentedPosition>,
     pub(super) lines: [RenderLinePayload; 2],
     pub(super) double_line: bool,
     pub(super) cache_key: String,
@@ -233,7 +284,11 @@ pub(super) fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
     let compact = &presentation.compact;
     let double_line = compact.layout == OverlayLayout::Double;
     let playback_key = crate::commands::playback_track_key(&playback);
-    let position_ms = current_position_ms(&playback);
+    let presented_position = matches!(preferences.appearance.karaoke_style, CompactKaraokeStyle::Sweep)
+        .then(|| presented_position(&playback));
+    let position_ms = presented_position.as_ref()
+        .map(|position| position.position_ms)
+        .unwrap_or_else(|| current_position_ms(&playback));
     let runtime = state
         .lyrics_runtime
         .read()
@@ -440,6 +495,7 @@ pub(super) fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
     secondary.content_key.push_str(":secondary");
 
     Some(RenderPayload {
+        presented_position,
         cache_key: format!("{}|{}", primary.content_key, secondary.content_key),
         lines: [primary, secondary],
         double_line,

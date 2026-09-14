@@ -35,6 +35,7 @@ export function useOverlayController() {
     snapshot: playback.snapshot,
     positionMs: playback.positionMs,
     active: playback.active,
+    holdSweepFrame: style.karaokeStyle === "sweep",
     presentation,
     primaryLinePosition: style.primaryLinePosition,
     offsetErrorMessage: "Failed to update the desktop lyrics offset",

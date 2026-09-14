@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { api } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
@@ -242,6 +242,7 @@ type CompactLyricsHookOptions = {
   positionMs: number;
   active?: boolean;
   timing?: LyricsTimingMode;
+  holdSweepFrame?: boolean;
   presentation: CompactLyricsPresentation;
   title?: string | null;
   artist?: string | null;
@@ -254,6 +255,7 @@ export function useCompactLyricsPresentation({
   positionMs,
   active = true,
   timing = "continuous",
+  holdSweepFrame = false,
   presentation,
   title = snapshot.title,
   artist = snapshot.artist,
@@ -261,6 +263,44 @@ export function useCompactLyricsPresentation({
   offsetErrorMessage,
 }: CompactLyricsHookOptions) {
   const runtime = useLyricsPresentation(snapshot, positionMs, active, { timing });
+  const lastFrame = useRef<{
+    trackKey: string | null;
+    playing: boolean;
+    positionMs: number;
+    observedAtMs: number;
+    sourcePositionMs: number | null;
+    resumeSnapshotMs: number | null;
+  } | null>(null);
+  const previous = lastFrame.current;
+  const sameTrack = holdSweepFrame && active && previous?.trackKey === runtime.trackKey;
+  const pausedSeek = sameTrack && previous && !previous.playing && !snapshot.isPlaying
+    && snapshot.positionMs !== null && previous.sourcePositionMs !== null
+    && Math.abs(snapshot.positionMs - previous.sourcePositionMs) > 150;
+  const positionSnapshotMs = timing === "line" ? runtime.positionObservedAtMs : snapshot.observedAtMs;
+  const waitingForSnapshot = sameTrack && previous && snapshot.isPlaying
+    && (!previous.playing || (previous.resumeSnapshotMs !== null
+      && positionSnapshotMs <= previous.resumeSnapshotMs));
+  // 只保留已提交的位置以稳定歌词节点，不创建时钟、不计算暂停时长或恢复补偿。
+  const displayPositionMs = sameTrack && previous
+    && ((!snapshot.isPlaying && !pausedSeek) || waitingForSnapshot)
+    ? previous.positionMs
+    : timing === "line" && pausedSeek ? snapshot.positionMs! : runtime.positionMs;
+  const displayObservedAtMs = sameTrack && previous
+    && ((!snapshot.isPlaying && !pausedSeek) || waitingForSnapshot)
+    ? previous.observedAtMs
+    : timing === "line" && pausedSeek ? snapshot.observedAtMs : runtime.positionObservedAtMs;
+  useLayoutEffect(() => {
+    lastFrame.current = holdSweepFrame && active ? {
+      trackKey: runtime.trackKey,
+      playing: snapshot.isPlaying,
+      positionMs: displayPositionMs,
+      observedAtMs: displayObservedAtMs,
+      sourcePositionMs: sameTrack && previous && !previous.playing && !snapshot.isPlaying && !pausedSeek
+        ? previous.sourcePositionMs : snapshot.positionMs,
+      resumeSnapshotMs: waitingForSnapshot && previous
+        ? previous.resumeSnapshotMs ?? snapshot.observedAtMs : null,
+    } : null;
+  });
   const offset = useCompactLyricsOffset({
     trackKey: runtime.trackKey,
     hasDocument: Boolean(runtime.document),
@@ -269,7 +309,7 @@ export function useCompactLyricsPresentation({
   });
   const resolved = resolveCompactLyricsPresentation({
     document: runtime.document,
-    positionMs: runtime.positionMs,
+    positionMs: displayPositionMs,
     title,
     artist,
     presentation,
@@ -281,5 +321,7 @@ export function useCompactLyricsPresentation({
     ...runtime,
     ...resolved,
     ...offset,
+    positionMs: displayPositionMs,
+    positionObservedAtMs: displayObservedAtMs,
   };
 }

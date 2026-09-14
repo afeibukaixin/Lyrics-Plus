@@ -10,10 +10,11 @@ const karaokeWordClasses = {
   fillText: styles.karaokeWordFillText,
 };
 
-export function OverlayKaraokeLine({ line, fallback, positionMs, style, playing }: {
+export function OverlayKaraokeLine({ line, fallback, positionMs, positionObservedAtMs, style, playing }: {
   line: LyricsLine | null;
   fallback: string;
   positionMs: number;
+  positionObservedAtMs: number;
   style: OverlayStyle;
   playing: boolean;
 }) {
@@ -29,6 +30,7 @@ export function OverlayKaraokeLine({ line, fallback, positionMs, style, playing 
     lineStartMs: line?.startMs ?? 0,
     playing,
     positionMs,
+    positionObservedAtMs,
     scopeRef,
     words,
   });
