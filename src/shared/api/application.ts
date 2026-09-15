@@ -51,4 +51,6 @@ export const applicationApi = {
   getGlobalShortcutStatus: () => invoke<GlobalShortcutStatus>("get_global_shortcut_status"),
   setGlobalShortcuts: (shortcuts: GlobalShortcutSettings) =>
     invoke<AppConfig>("set_global_shortcuts", { shortcuts }),
+  resetGlobalShortcut: (action: keyof GlobalShortcutSettings) =>
+    invoke<AppConfig>("reset_global_shortcut", { action }),
 };

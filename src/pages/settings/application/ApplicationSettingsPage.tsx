@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Monitor, Moon, Sun } from "lucide-react";
 
-import { defaultGlobalShortcuts, type GlobalShortcutSettings, type GlobalShortcutStatus, type LanguagePreference, type ThemePreference } from "../../../shared/types";
+import type { GlobalShortcutSettings, GlobalShortcutStatus, LanguagePreference, ThemePreference } from "../../../shared/types";
 import { api, messageOf } from "../../../shared/api";
 import { languageRegistry, supportedLanguages } from "../../../shared/languages";
 import { normalizeLanguagePreference } from "../../../features/i18n/i18n";
@@ -96,6 +96,20 @@ export default function ApplicationSettingsPage() {
     }
   };
 
+  const resetShortcut = async (action: ShortcutAction) => {
+    setSavingShortcut(true);
+    setError(null);
+    try {
+      await api.resetGlobalShortcut(action);
+      await api.getGlobalShortcutStatus().then(setShortcutStatus).catch(() => setShortcutStatus(null));
+      setRecording(null);
+    } catch (error) {
+      setError(messageOf(error));
+    } finally {
+      setSavingShortcut(false);
+    }
+  };
+
   const unavailableShortcuts = shortcutStatus
     ? shortcutActions.filter((action) => config.app.shortcuts[action].trim() && !shortcutStatus[action])
     : [];
@@ -141,7 +155,6 @@ export default function ApplicationSettingsPage() {
       <div className={styles.shortcutRow}><span>{t("settings.app.openSettings")}</span><kbd>⌘ ,</kbd></div>
       {shortcutActions.map((action) => {
         const active = recording === action;
-        const isDefault = config.app.shortcuts[action] === defaultGlobalShortcuts[action];
         return <div className={styles.shortcutRow} key={action}><span>{t(`settings.app.${action}`)}</span><div className={styles.shortcutActionControls}>
           <Button ref={(element) => { shortcutRecorderRefs.current[action] = element; }} variant="outline" size="sm" className={styles.shortcutRecorder} aria-pressed={active} data-recording={active} disabled={savingShortcut} onClick={() => setRecording(active ? null : action)} onKeyDown={(event) => {
             if (!active) return;
@@ -150,7 +163,7 @@ export default function ApplicationSettingsPage() {
             const shortcut = shortcutFromEvent(event);
             if (shortcut) void saveShortcut(action, shortcut);
           }}>{active ? t("settings.app.record") : config.app.shortcuts[action].trim() ? shortcutDisplay(config.app.shortcuts[action]) : t("settings.app.shortcutUnset")}</Button>
-          <Button variant="ghost" size="sm" disabled={savingShortcut || isDefault} onClick={() => void saveShortcut(action, defaultGlobalShortcuts[action])}>{t("common.actions.resetDefault")}</Button>
+          <Button variant="ghost" size="sm" disabled={savingShortcut} onClick={() => void resetShortcut(action)}>{t("common.actions.resetDefault")}</Button>
         </div></div>;
       })}
       {unavailableShortcuts.length > 0 && <p className={styles.cardHint} data-error="true">{t("settings.app.shortcutUnavailable", { actions: unavailableShortcuts.map((action) => t(`settings.app.${action}`)).join(", ") })}</p>}

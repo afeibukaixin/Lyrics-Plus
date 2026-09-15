@@ -1,3 +1,4 @@
+use serde_json::Value;
 use tauri::{Emitter, Manager};
 
 use crate::config::{AppConfig, GlobalShortcutSettings};
@@ -86,6 +87,7 @@ pub(super) fn apply_app_config(
     state: &AppState,
     next: AppConfig,
     expected_revision: u64,
+    user: Option<Value>,
 ) -> Result<AppConfig, String> {
     let previous_config = state.config.snapshot();
     let previous_dock_icon_hidden = previous_config.app.hide_dock_icon;
@@ -123,9 +125,14 @@ pub(super) fn apply_app_config(
             return Err(error);
         }
     }
-    let save_result = state
-        .config
-        .replace_at_revision(next.clone(), expected_revision);
+    let save_result = match user {
+        Some(user) => state
+            .config
+            .replace_draft(next.clone(), user, expected_revision),
+        None => state
+            .config
+            .replace_at_revision(next.clone(), expected_revision),
+    };
     let saved = match save_result {
         Ok(saved) => saved,
         Err(error) => {

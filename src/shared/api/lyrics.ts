@@ -161,6 +161,8 @@ export const lyricsApi = {
   getProviderCredentials: () => invoke<ProviderCredentialView>("get_provider_credentials"),
   setProviderSettings: (settings: ProviderSettings) =>
     invoke<ProviderSettingsView>("update_provider_policy", { settings }),
+  resetProviderSetting: (setting: "titleFilterKeywords" | "amllBaseUrl") =>
+    invoke<ProviderSettingsView>("reset_provider_setting", { setting }),
   setMusixmatchToken: (tokenType: MusixmatchTokenType, token: string) =>
     invoke<ProviderCredentialUpdate>("set_musixmatch_token", { tokenType, token }),
   clearMusixmatchToken: () =>

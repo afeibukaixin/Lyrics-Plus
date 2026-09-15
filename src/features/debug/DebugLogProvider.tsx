@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, startTransition, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { attachLogger, LogLevel } from "@tauri-apps/plugin-log";
 import { frontendErrorDetail, reportFrontendError } from "../../shared/debugLog";
 import { disposeTauriListener } from "../../shared/tauriEvent";
@@ -13,6 +13,7 @@ export type DebugLogEntry = {
 };
 
 const MAX_LOG_ENTRIES = 300;
+const LOG_FLUSH_DELAY_MS = 100;
 export const debugLogLevels: DebugLogLevel[] = ["debug", "info", "warn", "error"];
 
 type DebugLogContextValue = {
@@ -43,6 +44,36 @@ export function DebugLogProvider({ children }: { children: React.ReactNode }) {
     () => new Set(debugLogLevels),
   );
   const sequence = useRef(0);
+  const pendingEntries = useRef<DebugLogEntry[]>([]);
+  const flushTimer = useRef<number | null>(null);
+  const streamGeneration = useRef(0);
+
+  const cancelPendingFlush = useCallback(() => {
+    streamGeneration.current += 1;
+    pendingEntries.current = [];
+    if (flushTimer.current !== null) {
+      window.clearTimeout(flushTimer.current);
+      flushTimer.current = null;
+    }
+  }, []);
+
+  const flushPending = useCallback(() => {
+    flushTimer.current = null;
+    if (pendingEntries.current.length === 0) return;
+    const generation = streamGeneration.current;
+    const batch = pendingEntries.current;
+    pendingEntries.current = [];
+    startTransition(() => {
+      setEntries((current) => streamGeneration.current === generation
+        ? [...current, ...batch].slice(-MAX_LOG_ENTRIES)
+        : current);
+    });
+  }, []);
+
+  const scheduleFlush = useCallback(() => {
+    if (flushTimer.current !== null) return;
+    flushTimer.current = window.setTimeout(flushPending, LOG_FLUSH_DELAY_MS);
+  }, [flushPending]);
 
   const append = useCallback((level: DebugLogLevel, message: string) => {
     const entry: DebugLogEntry = {
@@ -51,16 +82,21 @@ export function DebugLogProvider({ children }: { children: React.ReactNode }) {
       level,
       message,
     };
-    setEntries((current) => [...current, entry].slice(-MAX_LOG_ENTRIES));
-  }, []);
+    pendingEntries.current.push(entry);
+    scheduleFlush();
+  }, [scheduleFlush]);
 
   const setEnabled = useCallback((next: boolean) => {
+    cancelPendingFlush();
     setEntries([]);
     setVisibleLevels(new Set(debugLogLevels));
     setEnabledState(next);
-  }, []);
+  }, [cancelPendingFlush]);
 
-  const clear = useCallback(() => setEntries([]), []);
+  const clear = useCallback(() => {
+    cancelPendingFlush();
+    setEntries([]);
+  }, [cancelPendingFlush]);
 
   const toggleLevel = useCallback((level: DebugLogLevel) => {
     setVisibleLevels((current) => {
@@ -102,11 +138,12 @@ export function DebugLogProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       disposed = true;
+      cancelPendingFlush();
       disposeTauriListener(detach);
       window.removeEventListener("error", handleWindowError);
       window.removeEventListener("unhandledrejection", handleUnhandledRejection);
     };
-  }, [append, enabled]);
+  }, [append, cancelPendingFlush, enabled]);
 
   const value = useMemo<DebugLogContextValue>(() => ({
     enabled,

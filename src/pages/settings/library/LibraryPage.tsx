@@ -5,7 +5,7 @@ import { Bubbles, Mic2, Music2, ScrollText } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { LibraryLyricStatus } from "@/shared/types/lyrics";
 import { PageHeader } from "../shared/components";
 import ArtistsLibrary from "./ArtistsLibrary";
@@ -41,58 +41,59 @@ export default function LibraryPage() {
         title={t("library.manager.title")}
         description={t("library.manager.description")}
       />
-      <div className={styles.sectionBar}>
-        <Tabs
-          value={activeSection}
-          onValueChange={(value) => {
-            setSimilaritySection(null);
-            navigate(`/settings/library/${String(value)}`);
-          }}
-        >
+      <Tabs
+        className={styles.libraryTabs}
+        value={activeSection}
+        onValueChange={(value) => {
+          setSimilaritySection(null);
+          navigate(`/settings/library/${String(value)}`);
+        }}
+      >
+        <div className={styles.sectionBar}>
           <TabsList className={styles.sectionTabs} aria-label={t("library.manager.tabsLabel")}>
             <TabsTrigger value="songs"><Music2 data-icon="inline-start" />{t("library.manager.tabs.songs")}</TabsTrigger>
             <TabsTrigger value="lyrics"><ScrollText data-icon="inline-start" />{t("library.manager.tabs.lyrics")}</TabsTrigger>
             <TabsTrigger value="artists"><Mic2 data-icon="inline-start" />{t("library.manager.tabs.artists")}</TabsTrigger>
           </TabsList>
-        </Tabs>
-        {validId === null && (activeSection === "songs" || activeSection === "lyrics") ? (
-          <div className={styles.sectionActions}>
-            {activeSection === "lyrics" ? (
-              <div className={styles.sectionSummary}>
-                <Badge>{t("library.manager.status.inUse")} {lyricStatusCounts.inUse}</Badge>
-                <Badge variant="secondary">{t("library.manager.status.candidate")} {lyricStatusCounts.candidate}</Badge>
-                <Badge variant="outline">{t("library.manager.status.unbound")} {lyricStatusCounts.unbound}</Badge>
-              </div>
-            ) : null}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setSimilaritySection(activeSection)}
-            >
-              <Bubbles data-icon="inline-start" />
-              {t(`library.manager.similar${activeSection === "songs" ? "Songs" : "Lyrics"}`)}
-            </Button>
-          </div>
-        ) : null}
-      </div>
-      <div className={styles.libraryContent}>
-        {activeSection === "songs" ? (
+          {validId === null && (activeSection === "songs" || activeSection === "lyrics") ? (
+            <div className={styles.sectionActions}>
+              {activeSection === "lyrics" ? (
+                <div className={styles.sectionSummary}>
+                  <Badge>{t("library.manager.status.inUse")} {lyricStatusCounts.inUse}</Badge>
+                  <Badge variant="secondary">{t("library.manager.status.candidate")} {lyricStatusCounts.candidate}</Badge>
+                  <Badge variant="outline">{t("library.manager.status.unbound")} {lyricStatusCounts.unbound}</Badge>
+                </div>
+              ) : null}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setSimilaritySection(activeSection)}
+              >
+                <Bubbles data-icon="inline-start" />
+                {t(`library.manager.similar${activeSection === "songs" ? "Songs" : "Lyrics"}`)}
+              </Button>
+            </div>
+          ) : null}
+        </div>
+        <TabsContent value="songs" className={styles.libraryContent}>
           <SongsLibrary
             detailId={validId}
             similarityOpen={similaritySection === "songs"}
             onSimilarityClose={() => setSimilaritySection(null)}
           />
-        ) : null}
-        {activeSection === "lyrics" ? (
+        </TabsContent>
+        <TabsContent value="lyrics" className={styles.libraryContent}>
           <LyricsLibrary
             detailId={validId}
             onStatusCountsChange={setLyricStatusCounts}
             similarityOpen={similaritySection === "lyrics"}
             onSimilarityClose={() => setSimilaritySection(null)}
           />
-        ) : null}
-        {activeSection === "artists" ? <ArtistsLibrary detailId={validId} /> : null}
-      </div>
+        </TabsContent>
+        <TabsContent value="artists" className={styles.libraryContent}>
+          <ArtistsLibrary detailId={validId} />
+        </TabsContent>
+      </Tabs>
     </main>
   );
 }

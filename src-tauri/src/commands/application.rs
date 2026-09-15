@@ -231,6 +231,47 @@ pub fn set_global_shortcuts(
 }
 
 #[tauri::command]
+pub fn reset_global_shortcut(app: tauri::AppHandle, action: String) -> Result<AppConfig, String> {
+    let path = match action.as_str() {
+        "toggleOverlay" => "/app/shortcuts/toggleOverlay",
+        "unlockOverlay" => "/app/shortcuts/unlockOverlay",
+        "resetOverlay" => "/app/shortcuts/resetOverlay",
+        "toggleStatusBarLyrics" => "/app/shortcuts/toggleStatusBarLyrics",
+        "toggleListLyrics" => "/app/shortcuts/toggleListLyrics",
+        "toggleNotchLyrics" => "/app/shortcuts/toggleNotchLyrics",
+        "switchLyrics" => "/app/shortcuts/switchLyrics",
+        _ => return Err("不支持的全局快捷键配置项".into()),
+    };
+    let state = app.state::<AppState>();
+    let previous = state.config.snapshot();
+    let mut next_shortcuts = previous.app.shortcuts.clone();
+    let defaults = GlobalShortcutSettings::default();
+    match action.as_str() {
+        "toggleOverlay" => next_shortcuts.toggle_overlay = defaults.toggle_overlay,
+        "unlockOverlay" => next_shortcuts.unlock_overlay = defaults.unlock_overlay,
+        "resetOverlay" => next_shortcuts.reset_overlay = defaults.reset_overlay,
+        "toggleStatusBarLyrics" => {
+            next_shortcuts.toggle_status_bar_lyrics = defaults.toggle_status_bar_lyrics
+        }
+        "toggleListLyrics" => next_shortcuts.toggle_list_lyrics = defaults.toggle_list_lyrics,
+        "toggleNotchLyrics" => next_shortcuts.toggle_notch_lyrics = defaults.toggle_notch_lyrics,
+        "switchLyrics" => next_shortcuts.switch_lyrics = defaults.switch_lyrics,
+        _ => unreachable!("快捷键路径已在上方校验"),
+    }
+    crate::apply_global_shortcuts(&app, &previous.app.shortcuts, &next_shortcuts)?;
+    let config = match state.config.reset_overrides(&[path]) {
+        Ok(config) => config,
+        Err(error) => {
+            let _ = crate::apply_global_shortcuts(&app, &next_shortcuts, &previous.app.shortcuts);
+            return Err(error);
+        }
+    };
+    app.emit("config://changed", &config)
+        .map_err(|error| error.to_string())?;
+    Ok(config)
+}
+
+#[tauri::command]
 pub fn set_dock_icon_hidden(app: tauri::AppHandle, hidden: bool) -> Result<AppConfig, String> {
     update_dock_icon_hidden(&app, hidden)
 }

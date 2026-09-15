@@ -8,7 +8,7 @@ use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::config::{
-    normalize_player_follower_application, normalize_system_media_applications,
+    normalize_player_follower_application, normalize_system_media_applications, parse_config_draft,
     validate_config_draft, AppConfig, ChineseConversion, ConfigDraftValidation, ConfigEditorData,
     DesktopLyricsPreferences, GlobalShortcutSettings, LanguagePreference, ListLyricsPreferences,
     LyricsBaseAppearance, LyricsModeStyleInheritance, NotchLyricsPreferences,

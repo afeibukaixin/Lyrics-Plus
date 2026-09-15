@@ -12,7 +12,7 @@ import type { TFunction } from "i18next";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 
-export const FACTORY_RESET_CONFIRMATION = "RESET LYRICS PLUS";
+export const FACTORY_RESET_CONFIRMATION = "reset lyrics plus";
 
 type Props = {
   open: boolean;
@@ -35,7 +35,7 @@ export function FactoryResetDialog({
   onOpenChange,
   onConfirm,
 }: Props) {
-  const confirmed = confirmation === FACTORY_RESET_CONFIRMATION;
+  const confirmed = confirmation.trim() === FACTORY_RESET_CONFIRMATION;
 
   return (
     <AlertDialog open={open} onOpenChange={(nextOpen) => { if (!resetting) onOpenChange(nextOpen); }}>

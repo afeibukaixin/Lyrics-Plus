@@ -2,7 +2,7 @@ use super::models::RecordingView;
 use crate::lyrics::conversion::convert_text;
 use crate::lyrics::provider::version_tags_from_title;
 use crate::storage::{ExternalIdentifier, Storage};
-use rusqlite::OptionalExtension;
+use rusqlite::{OptionalExtension, TransactionBehavior};
 use std::collections::{HashMap, HashSet};
 use zhhz::Config;
 
@@ -60,7 +60,8 @@ impl Storage {
             .lock()
             .unwrap_or_else(|error| error.into_inner());
         let transaction = connection
-            .transaction()
+            // 先查询歌曲实体后再写入观察记录，必须在读取前锁定写事务。
+            .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| format!("开始记录歌曲观察失败：{error}"))?;
         let observed_recording_id = transaction
             .query_row(

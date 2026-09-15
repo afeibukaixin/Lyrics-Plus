@@ -1,6 +1,6 @@
-use std::sync::Mutex;
+use std::{collections::HashMap, sync::Mutex};
 
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 
 use super::super::{
     load_artist_credits, load_observations, normalized_identity_artist, recording_view, Storage,
@@ -203,7 +203,8 @@ fn commit_library_search_terms_if_current(
     generation: i64,
 ) -> Result<bool, String> {
     let transaction = connection
-        .transaction()
+        // 校验代次后还要写入索引，提前取得写锁避免快照升级失败。
+        .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|error| format!("开始提交资料库搜索索引失败：{error}"))?;
     let current_generation = transaction
         .query_row(
@@ -533,6 +534,14 @@ impl Storage {
         let song_pending = pending_search_entities(&connection, "song")?;
         let lyric_pending = pending_search_entities(&connection, "lyric")?;
         let artist_pending = pending_search_entities(&connection, "artist")?;
+        // 歌手索引会整体重建，但每个实体仍必须保留自己的失效代次。
+        let artist_generations = if artist_pending.is_empty() {
+            HashMap::new()
+        } else {
+            pending_index_generations(&connection, "artist")?
+                .into_iter()
+                .collect::<HashMap<_, _>>()
+        };
         let total = song_pending.len() + lyric_pending.len() + artist_pending.len();
         if total == 0 {
             return Ok(());
@@ -621,7 +630,30 @@ impl Storage {
             let (summaries, _) = all_library_artist_summaries(&connection)?;
             for summary in summaries {
                 let fields = library_artist_search_fields(&summary);
-                replace_library_search_terms(&connection, "artist", summary.artist_id, fields, 1)?;
+                let generation = artist_generations
+                    .get(&summary.artist_id)
+                    .copied()
+                    .or_else(|| {
+                        connection
+                            .query_row(
+                                "SELECT generation FROM library_index_dirty
+                                 WHERE index_kind='artist' AND entity_id=?1",
+                                params![summary.artist_id],
+                                |row| row.get::<_, i64>(0),
+                            )
+                            .optional()
+                            .ok()
+                            .flatten()
+                    })
+                    // 新增实体可能刚好发生在代次快照之后；下一轮会按触发器代次补建。
+                    .unwrap_or_default();
+                replace_library_search_terms(
+                    &connection,
+                    "artist",
+                    summary.artist_id,
+                    fields,
+                    generation,
+                )?;
             }
             for (artist_id, generation) in artist_pending {
                 connection

@@ -67,6 +67,7 @@ export type SettingsOutletContext = {
   setVisible: (visible: boolean) => Promise<void>;
   setLocked: (locked: boolean) => Promise<void>;
   saveProviderSettings: (settings: ProviderSettings) => Promise<boolean>;
+  resetProviderSetting: (setting: "titleFilterKeywords" | "amllBaseUrl") => Promise<boolean>;
   saveMusixmatchToken: (tokenType: MusixmatchTokenType, token: string) => Promise<boolean>;
   clearMusixmatchToken: () => Promise<boolean>;
   beginProviderDrag: (providerId: string, sourceIndex: number, event: ReactPointerEvent<HTMLButtonElement>) => void;

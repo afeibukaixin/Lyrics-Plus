@@ -5,6 +5,12 @@ set -euo pipefail
 script_dir="${0:A:h}"
 project_root="${script_dir:h}"
 
+# 避免 cc 自动混用 Command Line Tools SDK 与当前 Xcode 工具链。
+# 显式设置的 SDKROOT 仍优先，便于需要时覆盖开发 SDK。
+if [[ -z "${SDKROOT:-}" ]]; then
+  export SDKROOT="$(/usr/bin/xcrun --sdk macosx --show-sdk-path)"
+fi
+
 command_name="${1:-}"
 if [[ -z "$command_name" ]]; then
   exec cargo
