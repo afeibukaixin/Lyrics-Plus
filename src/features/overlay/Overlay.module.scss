@@ -107,14 +107,15 @@
   display: block;
   // 两层文字共享网格尺寸，竖排时也不额外计算文字层宽高。
   align-self: stretch; justify-self: stretch;
-  clip-path: inset(-0.25em 100% -0.25em 0%);
+  // 此处由 KaraokeWord 的 GSAP 时间轴逐帧更新，必须保持纯百分比，不能改回 em。
+  clip-path: inset(-25% 100% -25% 0%);
   color: var(--active-color);
   pointer-events: none;
   -webkit-text-stroke: 0 transparent;
 }
 
 .karaokeWordFill[data-karaoke-axis="y"] {
-  clip-path: inset(0% -0.25em 100% -0.25em);
+  clip-path: inset(0% -25% 100% -25%);
 }
 .karaokeWordFillText {
   display: block;
@@ -124,13 +125,13 @@
 .karaokeText[data-karaoke="highlight"] .karaokeWordFill,
 .karaokeText[data-karaoke="bounce"] .karaokeWord[data-complete="true"] .karaokeWordFill,
 .karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] .karaokeWordFill {
-  clip-path: inset(-0.25em 0% -0.25em 0%);
+  clip-path: inset(-25% 0% -25% 0%);
 }
 
 .karaokeText[data-karaoke="highlight"] .karaokeWordFill[data-karaoke-axis="y"],
 .karaokeText[data-karaoke="bounce"] .karaokeWord[data-complete="true"] .karaokeWordFill[data-karaoke-axis="y"],
 .karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] .karaokeWordFill[data-karaoke-axis="y"] {
-  clip-path: inset(0% -0.25em 0% -0.25em);
+  clip-path: inset(0% -25% 0% -25%);
 }
 .karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] {
   display: inline-grid; animation: word-bounce .42s ease-out both;

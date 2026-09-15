@@ -8,7 +8,10 @@ gsap.registerPlugin(useGSAP);
 const KARAOKE_FILL_SELECTOR = "[data-karaoke-fill]";
 const KARAOKE_RESYNC_THRESHOLD_SECONDS = 0.15;
 
-const KARAOKE_CROSS_AXIS_BLEED = "-0.25em";
+// 重要：该值参与 GSAP 逐帧插值，必须与 inset 的其它值统一使用百分比。
+// 不要改回 -0.25em；macOS WebKit 在混合单位 clip-path 扫光下会持续累积渲染内存。
+// -25% 是交叉轴余量，用于保留下伸字母（如 y/g/p/q）。
+const KARAOKE_CROSS_AXIS_BLEED = "-25%";
 
 function karaokeClipPaths(axis: "x" | "y") {
   if (axis === "y") {
