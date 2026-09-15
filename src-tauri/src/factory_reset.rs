@@ -7,15 +7,15 @@ use tauri_plugin_window_state::AppHandleExt;
 
 use crate::storage::Storage;
 
-pub(crate) const CONFIRMATION: &str = "RESET LYRICS PLUS";
+pub(crate) const CONFIRMATION: &str = "reset lyrics plus";
 
 const PENDING_MARKER: &str = ".factory-reset.pending";
 const MARKER_CONTENT: &str = "lyrics-plus-factory-reset-v1";
 
 /// 删除本次初始化前必须清理的外部文件，并安排下一次启动清空应用数据。
 pub(crate) fn prepare(app: &AppHandle, storage: &Storage, confirmation: &str) -> Result<(), String> {
-    if confirmation != CONFIRMATION {
-        return Err("确认短语不正确，请输入 RESET LYRICS PLUS".into());
+    if confirmation.trim() != CONFIRMATION {
+        return Err("确认短语不正确，请输入“reset lyrics plus”".into());
     }
 
     let deleted_files = storage.remove_application_downloads()?;
