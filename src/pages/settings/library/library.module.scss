@@ -2,18 +2,17 @@
   --library-line: var(--border);
   --library-surface: color-mix(in srgb, var(--muted) 56%, var(--card));
   width: 100%; height: 100%; min-width: 0; min-height: 0;
-  display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 10px;
+  display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 10px;
   overflow: hidden; container: library-page / inline-size;
 }
 .page[data-detail="true"], .page:has(.queuePanel) { grid-template-rows: minmax(0, 1fr); gap: 0; }
-.page[data-detail="true"] > header, .page[data-detail="true"] > .sectionBar,
-.page:has(.queuePanel) > header, .page:has(.queuePanel) > .sectionBar { display: none; }
+.page[data-detail="true"] > header, .page[data-detail="true"] .sectionBar,
+.page:has(.queuePanel) > header, .page:has(.queuePanel) .sectionBar { display: none; }
 .page > header { margin-bottom: 0; }
+.libraryTabs { min-width: 0; min-height: 0; height: 100%; gap: 10px; }
 .libraryContent, .workspace { min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
 .workspace { display: grid; grid-template-columns: minmax(0, 1fr); }
 .sectionBar { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.sectionTabs [data-slot="tabs-trigger"][data-active] { border-color: color-mix(in srgb, var(--foreground) 16%, transparent); }
-:global(.dark) .sectionTabs [data-slot="tabs-trigger"][data-active] { background: var(--background); color: var(--foreground); }
 .sectionSummary { min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .sectionActions { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .sectionActions > [data-slot="button"] { margin-left: auto; }

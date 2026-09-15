@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -63,6 +64,10 @@
   --success-foreground: hsl(355.7 100% 97.3%);
   --warning: hsl(38 92% 50%);
   --warning-foreground: hsl(26 83% 14%);
+  --syntax-property: hsl(199 80% 32%);
+  --syntax-string: hsl(22 75% 36%);
+  --syntax-number: hsl(145 65% 28%);
+  --syntax-literal: hsl(270 55% 43%);
   --border: hsl(240 5.9% 90%);
   --input: hsl(240 5.9% 90%);
   --ring: hsl(142.1 76.2% 36.3%);
@@ -101,8 +106,12 @@
   --success-foreground: hsl(144.9 80.4% 10%);
   --warning: hsl(48 96% 53%);
   --warning-foreground: hsl(26 83% 14%);
-  --border: hsl(240 3.7% 15.9%);
-  --input: hsl(240 3.7% 15.9%);
+  --syntax-property: hsl(199 90% 70%);
+  --syntax-string: hsl(30 90% 70%);
+  --syntax-number: hsl(145 65% 63%);
+  --syntax-literal: hsl(270 70% 76%);
+  --border: hsl(0 0% 100% / 10%);
+  --input: hsl(0 0% 100% / 15%);
   --ring: hsl(142.4 71.8% 29.2%);
   --sidebar: hsl(24 9.8% 10%);
   --sidebar-foreground: hsl(0 0% 95%);
