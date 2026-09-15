@@ -1,3 +1,5 @@
+use rusqlite::TransactionBehavior;
+
 fn normalize_identity_component(value: &str) -> String {
     value
         .split_whitespace()
@@ -97,7 +99,8 @@ impl Storage {
             .lock()
             .unwrap_or_else(|error| error.into_inner());
         let transaction = connection
-            .transaction()
+            // 先读取再写入时提前取得写锁，避免 WAL 快照升级直接返回 database is locked。
+            .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| format!("开始保存歌词关联证据失败：{error}"))?;
         let canonical = transaction
             .query_row(
