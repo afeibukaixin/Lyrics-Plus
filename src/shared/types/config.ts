@@ -69,6 +69,7 @@ export type ConfigDraftValidation = {
 export type ConfigEditorData = {
   defaultJsonc: string;
   userJson: string;
+  resetJsonc: string;
   revision: number;
   validation: ConfigDraftValidation;
 };

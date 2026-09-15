@@ -30,7 +30,9 @@ export function messageOf(error: unknown): string {
   if (error instanceof AppOperationError) {
     if ([
       "set_global_shortcuts",
+      "reset_global_shortcut",
       "set_provider_settings",
+      "reset_provider_setting",
       "set_system_media_filter_mode",
       "set_system_media_applications",
       "resolve_system_media_applications",

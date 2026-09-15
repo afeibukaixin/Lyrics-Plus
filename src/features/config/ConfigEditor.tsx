@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, errorCodeOf, messageOf } from "../../shared/api";
 import type { AppConfig, ConfigDraftValidation, ConfigEditorData } from "../../shared/types";
 import { useAppConfig } from "./AppConfigProvider";
+import { ConfigCodeEditor, type ConfigCodeEditorHandle } from "./ConfigCodeEditor";
 import styles from "./ConfigEditor.module.scss";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { FactoryResetDialog, FACTORY_RESET_CONFIRMATION } from "./FactoryResetDialog";
 
@@ -22,7 +24,7 @@ type Props = {
 export default function ConfigEditor({ onApplied, setError, setNotice }: Props) {
   const { t } = useTranslation();
   const { config, syncConfig } = useAppConfig();
-  const userLineNumbers = useRef<HTMLPreElement>(null);
+  const userEditor = useRef<ConfigCodeEditorHandle>(null);
   const dirtyRef = useRef(false);
   const validationRequest = useRef(0);
   const [data, setData] = useState<ConfigEditorData | null>(null);
@@ -36,6 +38,7 @@ export default function ConfigEditor({ onApplied, setError, setNotice }: Props) 
   const [factoryResetConfirmation, setFactoryResetConfirmation] = useState("");
   const [factoryResetting, setFactoryResetting] = useState(false);
   const [factoryResetError, setFactoryResetError] = useState<string | null>(null);
+  const [showDefaultConfig, setShowDefaultConfig] = useState(false);
 
   const applyEditorData = (next: ConfigEditorData) => {
     validationRequest.current += 1;
@@ -154,83 +157,132 @@ export default function ConfigEditor({ onApplied, setError, setNotice }: Props) 
   };
 
   const factoryReset = async () => {
-    if (factoryResetConfirmation !== FACTORY_RESET_CONFIRMATION || factoryResetting) return;
+    const confirmation = factoryResetConfirmation.trim();
+    if (confirmation !== FACTORY_RESET_CONFIRMATION || factoryResetting) return;
     setFactoryResetting(true);
     setFactoryResetError(null);
     setError(null);
     try {
-      await api.factoryResetApplication(factoryResetConfirmation);
+      await api.factoryResetApplication(confirmation);
     } catch (value) {
       setFactoryResetting(false);
       setFactoryResetError(messageOf(value));
     }
   };
 
-  const lineNumbersOf = (value: string) =>
-    Array.from({ length: value.split("\n").length }, (_, index) => index + 1).join("\n");
-  const userLines = useMemo(() => lineNumbersOf(draft), [draft]);
-
-  const syncLineNumbers = (source: HTMLTextAreaElement) => {
-    if (userLineNumbers.current) {
-      userLineNumbers.current.style.transform = `translateY(${-source.scrollTop}px)`;
-    }
+  const locateError = () => {
+    const error = validation?.error;
+    if (error) userEditor.current?.focusAt(error.line, error.column);
   };
 
-  const status = conflict
-    ? { kind: "error", text: t("settings.config.changed") }
-    : validating
-      ? { kind: "checking", text: t("settings.config.validating") }
-      : validation?.valid
-        ? { kind: "valid", text: dirty ? t("settings.config.validSave") : t("settings.config.validCurrent") }
-        : {
-            kind: "error",
-            text: validation?.error
-              ? t("settings.config.location", { line: validation.error.line, column: validation.error.column, message: t("errors.validation") })
-              : t("settings.config.invalid"),
-          };
+  const status = !data
+    ? { kind: "checking", text: t("settings.config.loading") }
+    : conflict
+      ? { kind: "error", text: t("settings.config.changed") }
+      : validating
+        ? { kind: "checking", text: t("settings.config.validating") }
+        : validation?.valid
+          ? { kind: "valid", text: dirty ? t("settings.config.validSave") : t("settings.config.validCurrent") }
+          : {
+              kind: "error",
+              text: validation?.error
+                ? t("settings.config.location", { line: validation.error.line, column: validation.error.column, message: t("errors.validation") })
+                : t("settings.config.invalid"),
+            };
+
+  const userConfigInvalid = validation?.valid === false || conflict;
 
   return (
     <section className={styles.editorShell}>
       <div className={styles.toolbar}>
         <div className={styles.utilityActions}>
-          <Button variant="ghost" size="sm" onClick={() => void exportConfig()}>{t("settings.config.export")}</Button>
-          <Button variant="ghost" size="sm" onClick={() => void api.revealConfigDirectory().catch((value) => setError(messageOf(value)))}>{t("settings.config.openDirectory")}</Button>
-          <Button variant="destructive" size="sm" onClick={openFactoryReset}>{t("settings.config.factoryResetAction")}</Button>
+          <Button variant="ghost" size="sm" disabled={!data} onClick={() => void exportConfig()}>{t("settings.config.export")}</Button>
+          <Button variant="ghost" size="sm" disabled={!data} onClick={() => void api.revealConfigDirectory().catch((value) => setError(messageOf(value)))}>{t("settings.config.openDirectory")}</Button>
+          <Button variant="destructive" size="sm" disabled={!data} onClick={openFactoryReset}>{t("settings.config.factoryResetAction")}</Button>
         </div>
         <div className={styles.actions}>
           <Button variant="outline" size="sm" onClick={() => void reload()}>{t("common.actions.reload")}</Button>
-          <Button variant="outline" size="sm" disabled={!data} onClick={() => data && changeDraft(data.defaultJsonc)}>{t("common.actions.resetDefault")}</Button>
+          <Button variant="outline" size="sm" disabled={!data} onClick={() => data && changeDraft(data.resetJsonc)}>{t("common.actions.resetDefault")}</Button>
           <Button size="sm" disabled={!dirty || !validation?.valid || conflict || validating || saving} onClick={() => void save()}>{saving ? t("settings.config.saving") : t("settings.config.saveApply")}</Button>
         </div>
       </div>
 
       <div className={styles.editor}>
-        <Card className={cn(styles.panel, "gap-0 py-0")} data-invalid={!validation?.valid || conflict}>
-          <CardHeader className="border-b pt-(--card-spacing)">
-            <div className={styles.panelHeading}>
-              <CardTitle>{t("settings.config.myConfig")}</CardTitle>
-              <Badge className={styles.status} variant="outline" data-kind={status.kind} aria-live="polite">
-                {status.text}
-              </Badge>
+        {!data ? (
+          <Card className={cn(styles.panel, styles.loadingPanel, "gap-0 py-0")}>
+            <CardHeader className="border-b pt-(--card-spacing)"><CardTitle>{t("settings.config.loading")}</CardTitle></CardHeader>
+            <CardContent className="grid min-h-0 px-0" />
+          </Card>
+        ) : (
+          <Card className={cn(styles.panel, "gap-0 py-0")} data-invalid={userConfigInvalid}>
+            <div className={cn(styles.panelLayout, showDefaultConfig && styles.splitPanel)}>
+              {showDefaultConfig && (
+                <section className={styles.pane}>
+                  <CardHeader className="border-b pt-(--card-spacing)">
+                    <div className={styles.panelHeading}>
+                      <CardTitle>{t("settings.config.defaultConfig")}</CardTitle>
+                      <Badge variant="outline">{t("settings.config.readOnly")}</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="grid min-h-0 px-0">
+                    <Field className={styles.codeFrame}>
+                      <ConfigCodeEditor
+                        ariaLabel={t("settings.config.defaultConfigAria")}
+                        className={styles.codeEditor}
+                        readOnly
+                        value={data.defaultJsonc}
+                      />
+                    </Field>
+                  </CardContent>
+                </section>
+              )}
+              {showDefaultConfig && <Separator orientation="vertical" aria-hidden className={styles.splitSeparator} />}
+              <section className={styles.pane}>
+                <CardHeader className="border-b pt-(--card-spacing)">
+                  <div className={styles.panelHeading}>
+                    <div className={styles.panelTitle}>
+                      <CardTitle>{t("settings.config.myConfig")}</CardTitle>
+                      <Badge className={styles.status} variant="outline" data-kind={status.kind} aria-live="polite">
+                        {status.text}
+                      </Badge>
+                    </div>
+                    <div className={styles.paneActions}>
+                      {validation?.error && (
+                        <Button variant="ghost" size="sm" onClick={locateError}>
+                          {t("settings.config.locateError")}
+                        </Button>
+                      )}
+                      <label className={styles.defaultToggle}>
+                        <span>{t("settings.config.defaultConfig")}</span>
+                        <Switch
+                          aria-label={t("settings.config.defaultConfig")}
+                          checked={showDefaultConfig}
+                          onCheckedChange={setShowDefaultConfig}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="grid min-h-0 px-0">
+                  <Field data-invalid={userConfigInvalid} className={styles.codeFrame}>
+                    <ConfigCodeEditor
+                      ariaLabel={t("settings.config.myConfigAria")}
+                      className={styles.codeEditor}
+                      error={validation?.valid === false ? validation.error : null}
+                      invalid={userConfigInvalid}
+                      onChange={changeDraft}
+                      placeholderText={t("settings.config.placeholder")}
+                      ref={userEditor}
+                      value={draft}
+                    />
+                  </Field>
+                </CardContent>
+              </section>
             </div>
-          </CardHeader>
-          <CardContent className="grid min-h-0 px-0">
-            <Field data-invalid={!validation?.valid || conflict} className={styles.codeFrame}>
-              <pre ref={userLineNumbers} aria-hidden className={styles.lineNumbers}>{userLines}</pre>
-              <Textarea
-                aria-invalid={!validation?.valid || conflict}
-                aria-label={t("settings.config.myConfigAria")}
-                onChange={(event) => changeDraft(event.currentTarget.value)}
-                onScroll={(event) => syncLineNumbers(event.currentTarget)}
-                placeholder={t("settings.config.placeholder")}
-                spellCheck={false}
-                value={draft}
-              />
-            </Field>
-          </CardContent>
-        </Card>
+          </Card>
+        )}
       </div>
-      {!validation?.valid && <Alert variant="destructive" className={styles.fallback}><AlertDescription>{t("settings.config.fallback")}</AlertDescription></Alert>}
+      {validation?.valid === false && <Alert variant="destructive" className={styles.fallback}><AlertDescription>{t("settings.config.fallback")}</AlertDescription></Alert>}
       <FactoryResetDialog
         confirmation={factoryResetConfirmation}
         error={factoryResetError}

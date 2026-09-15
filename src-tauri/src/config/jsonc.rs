@@ -1,11 +1,32 @@
+use serde::ser::{SerializeMap, SerializeSeq, Serializer};
+
 fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<String, String> {
-    let json =
-        serde_json::to_string_pretty(value).map_err(|error| format!("序列化配置失败：{error}"))?;
+    let value = serde_json::to_value(value).map_err(|error| format!("序列化配置失败：{error}"))?;
+    canonical_jsonc(&value, language)
+}
+
+fn canonical_user_jsonc(value: &Value, language: UiLanguage) -> Result<String, String> {
+    canonical_jsonc(value, language)
+}
+
+fn canonical_jsonc(value: &Value, language: UiLanguage) -> Result<String, String> {
+    let json = serde_json::to_string_pretty(&CanonicalJsonValue {
+        value,
+        path: String::new(),
+    })
+    .map_err(|error| format!("序列化配置失败：{error}"))?;
     let mut output = String::with_capacity(json.len() + 1_200);
     let mut desktop_state_comments_remaining = 0_u8;
     for line in json.lines() {
         if line.starts_with("      \"desktop\":") {
             desktop_state_comments_remaining = 2;
+        } else if desktop_state_comments_remaining > 0
+            && line.starts_with("      \"")
+            && !line.starts_with("        \"")
+        {
+            // Sparse user documents may omit desktop state fields. Stop the
+            // state-specific comment scope before reaching another sibling.
+            desktop_state_comments_remaining = 0;
         }
         let comment = match line {
             line if line.starts_with("  \"schemaVersion\":") => {
@@ -272,4 +293,291 @@ fn canonical_config_jsonc(value: &AppConfig, language: UiLanguage) -> Result<Str
         output.push('\n');
     }
     Ok(output)
+}
+
+/// `serde_json::Value` 默认使用按键名排序的 BTreeMap；配置文件则沿用
+/// AppConfig 的声明顺序，便于在默认配置和稀疏用户配置之间对照阅读。
+struct CanonicalJsonValue<'a> {
+    value: &'a Value,
+    path: String,
+}
+
+impl serde::Serialize for CanonicalJsonValue<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self.value {
+            Value::Null => serializer.serialize_none(),
+            Value::Bool(value) => serializer.serialize_bool(*value),
+            Value::Number(value) => value.serialize(serializer),
+            Value::String(value) => serializer.serialize_str(value),
+            Value::Array(values) => {
+                let mut sequence = serializer.serialize_seq(Some(values.len()))?;
+                for value in values {
+                    sequence.serialize_element(&CanonicalJsonValue {
+                        value,
+                        path: self.path.clone(),
+                    })?;
+                }
+                sequence.end()
+            }
+            Value::Object(values) => {
+                let keys = ordered_keys(&self.path, values);
+                let mut object = serializer.serialize_map(Some(keys.len()))?;
+                for key in keys {
+                    let value = values
+                        .get(key)
+                        .expect("ordered configuration key must exist");
+                    let path = if self.path.is_empty() {
+                        key.clone()
+                    } else {
+                        format!("{}.{}", self.path, key)
+                    };
+                    object.serialize_entry(
+                        key,
+                        &CanonicalJsonValue { value, path },
+                    )?;
+                }
+                object.end()
+            }
+        }
+    }
+}
+
+fn ordered_keys<'a>(
+    path: &str,
+    values: &'a serde_json::Map<String, Value>,
+) -> Vec<&'a String> {
+    let preferred = match path {
+        "" => &[
+            "schemaVersion",
+            "app",
+            "lyrics",
+        ][..],
+        "app" => &[
+            "theme",
+            "uiFontFamily",
+            "language",
+            "playerSelection",
+            "systemMediaFilterMode",
+            "systemMediaApplications",
+            "playerFollowerApplication",
+            "hideDockIcon",
+            "hideMenuBarIcon",
+            "silentStartup",
+            "autoCheckUpdates",
+            "lyricsWindowsShowOnAllSpaces",
+            "shortcuts",
+        ][..],
+        "app.shortcuts" => &[
+            "toggleOverlay",
+            "unlockOverlay",
+            "resetOverlay",
+            "toggleStatusBarLyrics",
+            "toggleListLyrics",
+            "toggleNotchLyrics",
+            "switchLyrics",
+        ][..],
+        "app.systemMediaApplications" | "app.playerFollowerApplication" =>
+            &["name", "bundleId"][..],
+        "lyrics" => &[
+            "chineseConversion",
+            "repairSimplifiedJapanese",
+            "providers",
+            "displays",
+            "baseAppearance",
+            "styleInheritance",
+        ][..],
+        "lyrics.providers" => &[
+            "mode",
+            "providers",
+            "autoApplyThreshold",
+            "autoSearchDebounceMs",
+            "maxCandidatesPerProvider",
+            "preferCapabilities",
+            "capabilityPreferenceTolerance",
+            "matchWeights",
+            "normalizeChinese",
+            "titleFilterKeywords",
+            "amllBaseUrl",
+        ][..],
+        "lyrics.providers.providers" => &["id", "enabled"][..],
+        "lyrics.providers.matchWeights" => &["title", "artist", "album", "duration", "version"][..],
+        "lyrics.baseAppearance" => &[
+            "fontFamily",
+            "activeColor",
+            "inactiveColor",
+            "translationColor",
+            "romanizationColor",
+            "supportingColor",
+            "backgroundColor",
+        ][..],
+        "lyrics.styleInheritance" => &["desktop", "statusBar", "listWindow", "notch"][..],
+        "lyrics.styleInheritance.desktop"
+        | "lyrics.styleInheritance.statusBar"
+        | "lyrics.styleInheritance.listWindow"
+        | "lyrics.styleInheritance.notch" => &["inheritFontFamily", "inheritColors"][..],
+        "lyrics.displays" => &["desktop", "statusBar", "listWindow", "notch"][..],
+        "lyrics.displays.desktop" => &[
+            "enabled",
+            "locked",
+            "hideWhenNotPlaying",
+            "presentation",
+            "appearance",
+        ][..],
+        "lyrics.displays.desktop.presentation" => &[
+            "layout",
+            "doubleLineMode",
+            "showTranslation",
+            "showRomanization",
+            "supportingPriority",
+            "orientation",
+            "alignment",
+            "primaryLinePosition",
+            "longText",
+            "autoCenterWithTranslationOrRomanization",
+        ][..],
+        "lyrics.displays.statusBar" => &[
+            "enabled",
+            "hideWhenNotPlaying",
+            "presentation",
+            "appearance",
+        ][..],
+        "lyrics.displays.statusBar.presentation" => &[
+            "layout",
+            "doubleLineMode",
+            "showTranslation",
+            "showRomanization",
+            "supportingPriority",
+            "alignment",
+        ][..],
+        "lyrics.displays.statusBar.appearance" => &[
+            "fontFamily",
+            "fontSize",
+            "verticalOffset",
+            "fontWeight",
+            "secondaryFontWeight",
+            "textColor",
+            "inactiveColor",
+            "highlightColor",
+            "translationColor",
+            "romanizationColor",
+            "karaokeStyle",
+            "width",
+        ][..],
+        "lyrics.displays.listWindow" => &[
+            "enabled",
+            "alwaysOnTop",
+            "locked",
+            "showTranslation",
+            "showRomanization",
+            "lineOrder",
+            "appearance",
+        ][..],
+        "lyrics.displays.listWindow.appearance" => &[
+            "fontFamily",
+            "fontSize",
+            "fontWeight",
+            "secondaryFontScale",
+            "lineHeight",
+            "lineGap",
+            "secondaryLineGap",
+            "activeColor",
+            "inactiveColor",
+            "activeOpacity",
+            "inactiveOpacity",
+            "translationColor",
+            "romanizationColor",
+            "activeBackgroundColor",
+            "backgroundColor",
+            "backgroundOpacity",
+            "backgroundMode",
+            "textShadowOffsetX",
+            "textShadowOffsetY",
+            "textShadowBlur",
+            "textShadowColor",
+            "textStrokeWidth",
+            "textStrokeColor",
+            "alignment",
+        ][..],
+        "lyrics.displays.notch" => &[
+            "enabled",
+            "hideWhenNotPlaying",
+            "monitorId",
+            "showLyrics",
+            "leftSlot",
+            "rightSlot",
+            "presentation",
+            "inlineLyricsOnNonNotch",
+            "appearance",
+        ][..],
+        "lyrics.displays.notch.presentation" => &[
+            "layout",
+            "doubleLineMode",
+            "showTranslation",
+            "showRomanization",
+            "supportingPriority",
+        ][..],
+        "lyrics.displays.notch.appearance" => &[
+            "fontFamily",
+            "fontSize",
+            "fontWeight",
+            "secondaryFontWeight",
+            "activeColor",
+            "inactiveColor",
+            "translationColor",
+            "romanizationColor",
+            "karaokeStyle",
+            "lineGap",
+            "borderRadius",
+            "expandedBorderRadius",
+            "topBorderRadius",
+            "maxWidth",
+            "expandedMaxWidth",
+        ][..],
+        "lyrics.displays.desktop.appearance" => &[
+            "fontFamily",
+            "fontSize",
+            "fontWeight",
+            "secondaryFontWeight",
+            "lineHeight",
+            "activeColor",
+            "inactiveColor",
+            "opacity",
+            "backgroundOpacity",
+            "backgroundBlur",
+            "backgroundRadius",
+            "backgroundPaddingX",
+            "backgroundPaddingY",
+            "backgroundMode",
+            "background",
+            "solidColor",
+            "lineGap",
+            "karaokeStyle",
+            "secondaryFontScale",
+            "translationFontScale",
+            "romanizationFontScale",
+            "translationColor",
+            "romanizationColor",
+            "textShadowOffsetX",
+            "textShadowOffsetY",
+            "textShadowBlur",
+            "textShadowColor",
+            "textStrokeWidth",
+            "textStrokeColor",
+        ][..],
+        _ => &[][..],
+    };
+    let mut keys = values.keys().collect::<Vec<_>>();
+    keys.sort_by_key(|key| {
+        (
+            preferred
+                .iter()
+                .position(|candidate| *candidate == key.as_str())
+                .unwrap_or(usize::MAX),
+            key.as_str(),
+        )
+    });
+    keys
 }

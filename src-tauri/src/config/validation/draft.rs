@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use super::{error_at_key, internal_draft_error, merge_json};
+use super::{error_at_key, internal_draft_error, merge_json, user_overrides_from_config};
 use crate::config::{self, AppConfig, ConfigDraftError, ParsedDraft, CONFIG_SCHEMA_VERSION};
 use crate::language::UiLanguage;
 
@@ -82,7 +82,7 @@ pub(super) fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftEr
     config::migrate_v50_notch_layout(&mut user, version);
     config::migrate_v54_notch_double_line_settings(&mut user, version);
     config::migrate_v57_chinese_conversion(&mut user, version);
-    config::migrate_v59_switch_lyrics_shortcut(&mut user);
+    config::migrate_v59_switch_lyrics_shortcut(&mut user, version);
     config::migrate_v62_status_bar_secondary_font_weight(&mut user, version);
     config::migrate_v63_simplified_japanese_repair(&mut user, version);
     let migrated_layout = config::migrate_legacy_overlay_layout(&mut user, version, raw)?;
@@ -104,10 +104,13 @@ pub(super) fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftEr
     user.as_object_mut()
         .expect("checked object")
         .insert("schemaVersion".into(), Value::from(CONFIG_SCHEMA_VERSION));
+    // Keep the sparse document compact even when the editor supplied empty
+    // container objects such as `app: {}` or `lyrics: {}`.
+    super::remove_empty_objects(&mut user, true);
 
     super::ranges::validate_numeric_ranges(&user, raw)?;
     let mut merged = serde_json::to_value(AppConfig::default()).map_err(internal_draft_error)?;
-    merge_json(&mut merged, user);
+    merge_json(&mut merged, user.clone());
     let mut config =
         serde_json::from_value::<AppConfig>(merged).map_err(|error| ConfigDraftError {
             message: format!("配置字段类型或选项无效：{error}"),
@@ -136,10 +139,19 @@ pub(super) fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftEr
         };
         error_at_key(raw, key, &message)
     })?;
+    // Version 72 changes the on-disk representation from a generated full
+    // configuration to explicit user overrides. Compress older files once;
+    // current-version files retain values the user explicitly entered.
+    let user = if version < CONFIG_SCHEMA_VERSION {
+        user_overrides_from_config(&config)
+    } else {
+        user
+    };
     let normalized_json =
-        config::canonical_config_jsonc(&config, UiLanguage::ZhCn).map_err(internal_draft_error)?;
+        config::canonical_user_jsonc(&user, UiLanguage::ZhCn).map_err(internal_draft_error)?;
     Ok(ParsedDraft {
         config,
+        user,
         normalized_json,
         #[cfg(test)]
         migrated,

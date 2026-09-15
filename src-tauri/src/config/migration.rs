@@ -20,19 +20,22 @@ pub struct ConfigDraftValidation {
 pub struct ConfigEditorData {
     pub default_jsonc: String,
     pub user_json: String,
+    pub reset_jsonc: String,
     pub revision: u64,
     pub validation: ConfigDraftValidation,
 }
 
-struct ParsedDraft {
-    config: AppConfig,
-    normalized_json: String,
+pub(crate) struct ParsedDraft {
+    pub(crate) config: AppConfig,
+    pub(crate) user: Value,
+    pub(crate) normalized_json: String,
     #[cfg(test)]
     migrated: bool,
 }
 
 struct ConfigStoreState {
     value: AppConfig,
+    user: Value,
     revision: u64,
     source_raw: String,
     source_error: Option<ConfigDraftError>,
@@ -110,7 +113,10 @@ fn migrate_v58_enable_all_provider_sources(settings: &mut ProviderSettings) {
     }
 }
 
-fn migrate_v59_switch_lyrics_shortcut(user: &mut Value) {
+fn migrate_v59_switch_lyrics_shortcut(user: &mut Value, version: u16) {
+    if version >= 59 {
+        return;
+    }
     let Some(shortcuts) = user
         .get_mut("app")
         .and_then(Value::as_object_mut)

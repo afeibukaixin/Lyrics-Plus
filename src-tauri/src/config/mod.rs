@@ -17,7 +17,7 @@ use crate::overlay_model::{
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 71;
+pub const CONFIG_SCHEMA_VERSION: u16 = 72;
 const DEFAULT_SWITCH_LYRICS_SHORTCUT: &str = "CommandOrControl+Shift+KeyY";
 const APP_CONFIG_KEYS: &[&str] = &[
     "theme",
@@ -39,11 +39,11 @@ include!("jsonc.rs");
 include!("model.rs");
 include!("migration.rs");
 mod validation;
-pub(crate) use validation::validate_config_draft;
 use validation::{
     color_fields, error_at_key, is_supported_color, is_valid_language_preference,
-    normalize_display_font_weight, parse_config_draft,
+    normalize_display_font_weight,
 };
+pub(crate) use validation::{parse_config_draft, validate_config_draft};
 include!("store.rs");
 
 #[cfg(test)]

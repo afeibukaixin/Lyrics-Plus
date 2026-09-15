@@ -65,6 +65,16 @@ export function createProviderActions({
     }
   };
 
+  const resetProviderSetting = async (setting: "titleFilterKeywords" | "amllBaseUrl") => {
+    try {
+      setProviderView(await api.resetProviderSetting(setting));
+      return true;
+    } catch (value) {
+      setError(messageOf(value));
+      return false;
+    }
+  };
+
   const saveMusixmatchToken = async (tokenType: MusixmatchTokenType, token: string) => {
     try {
       const update = await api.setMusixmatchToken(tokenType, token);
@@ -193,6 +203,7 @@ export function createProviderActions({
     clearMusixmatchToken,
     continueProviderDrag,
     finishProviderDrag,
+    resetProviderSetting,
     saveMusixmatchToken,
     saveProviderSettings,
     testAllProviders,

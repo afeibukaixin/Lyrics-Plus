@@ -105,11 +105,13 @@ mod tests {
         assert!(parsed.config.lyrics.providers.providers[1..]
             .iter()
             .all(|provider| !provider.enabled));
-        let default_lines = canonical_config_jsonc(&AppConfig::default(), UiLanguage::ZhCn)
-            .unwrap()
-            .lines()
-            .count();
-        assert_eq!(parsed.normalized_json.lines().count(), default_lines);
+        assert!(parsed.normalized_json.lines().count() < canonical_config_jsonc(
+            &AppConfig::default(),
+            UiLanguage::ZhCn,
+        )
+        .unwrap()
+        .lines()
+        .count());
     }
 
     #[test]
@@ -231,7 +233,7 @@ mod tests {
         let parsed = parse_config_draft(r#"{"schemaVersion":12}"#).unwrap();
         assert!(parsed.migrated);
         assert_eq!(parsed.config.app.language, LanguagePreference::default());
-        assert!(parsed.normalized_json.contains("\"language\": \"system\""));
+        assert!(!parsed.normalized_json.contains("\"language\": \"system\""));
     }
 
     #[test]
@@ -612,7 +614,7 @@ mod tests {
                 .presentation
                 .auto_center_with_translation_or_romanization
         );
-        assert!(parsed
+        assert!(!parsed
             .normalized_json
             .contains("\"autoCenterWithTranslationOrRomanization\": false"));
     }
@@ -622,7 +624,7 @@ mod tests {
         let parsed = parse_config_draft(r#"{"schemaVersion":7}"#).unwrap();
         assert!(parsed.migrated);
         assert_eq!(parsed.config.lyrics.providers.auto_apply_threshold, 60);
-        assert!(parsed
+        assert!(!parsed
             .normalized_json
             .contains("\"autoApplyThreshold\": 60"));
     }
@@ -714,6 +716,7 @@ mod tests {
             path: root.join("config.json"),
             state: RwLock::new(ConfigStoreState {
                 value: AppConfig::default(),
+                user: serde_json::json!({ "schemaVersion": CONFIG_SCHEMA_VERSION }),
                 revision: 1,
                 source_raw: "{}".into(),
                 source_error: None,

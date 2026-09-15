@@ -995,6 +995,25 @@ pub fn update_provider_policy(
 }
 
 #[tauri::command]
+pub fn reset_provider_setting(
+    app: tauri::AppHandle,
+    setting: String,
+    state: State<'_, AppState>,
+) -> Result<ProviderSettingsView, String> {
+    let path = match setting.as_str() {
+        "titleFilterKeywords" => "/lyrics/providers/titleFilterKeywords",
+        "amllBaseUrl" => "/lyrics/providers/amllBaseUrl",
+        _ => return Err("不支持的歌词源配置项".into()),
+    };
+    let config = state.config.reset_overrides(&[path])?;
+    let view = state.providers.set_settings(config.lyrics.providers.clone())?;
+    invalidate_lyrics_search_session(&state);
+    app.emit("config://changed", &config)
+        .map_err(|error| error.to_string())?;
+    Ok(view)
+}
+
+#[tauri::command]
 pub fn add_library_root(
     app: tauri::AppHandle,
     path: String,

@@ -3,9 +3,9 @@ pub fn reset_lyrics_base_appearance(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<AppConfig, String> {
-    let config = state.config.update(|config| {
-        config.lyrics.base_appearance = LyricsBaseAppearance::default();
-    })?;
+    let config = state
+        .config
+        .reset_overrides(&["/lyrics/baseAppearance"])?;
     sync_desktop_style_from_config(&app, &state, &config)?;
     finish_display_config_update(&app, config)
 }
@@ -177,22 +177,21 @@ pub fn reset_lyrics_style_mode(
     if matches!(mode, LyricsStyleMode::Desktop) {
         return reset_settings_section(app, SettingsSection::Style, state);
     }
-    state.config.update(|config| match mode {
-        LyricsStyleMode::StatusBar => {
-            config.lyrics.displays.status_bar = Default::default();
-            config.lyrics.style_inheritance.status_bar = Default::default();
-        }
-        LyricsStyleMode::ListWindow => {
-            config.lyrics.displays.list_window = Default::default();
-            config.lyrics.style_inheritance.list_window = Default::default();
-        }
-        LyricsStyleMode::Notch => {
-            config.lyrics.displays.notch = Default::default();
-            config.lyrics.style_inheritance.notch = Default::default();
-        }
-        LyricsStyleMode::Desktop => {}
-    })?;
-    let configured = state.config.snapshot();
+    let configured = match mode {
+        LyricsStyleMode::StatusBar => state.config.reset_overrides(&[
+            "/lyrics/displays/statusBar",
+            "/lyrics/styleInheritance/statusBar",
+        ])?,
+        LyricsStyleMode::ListWindow => state.config.reset_overrides(&[
+            "/lyrics/displays/listWindow",
+            "/lyrics/styleInheritance/listWindow",
+        ])?,
+        LyricsStyleMode::Notch => state.config.reset_overrides(&[
+            "/lyrics/displays/notch",
+            "/lyrics/styleInheritance/notch",
+        ])?,
+        LyricsStyleMode::Desktop => unreachable!("桌面歌词在上方单独处理"),
+    };
     crate::sync_lyrics_surfaces(&app);
     app.emit("config://changed", &configured)
         .map_err(|error| error.to_string())?;
@@ -289,14 +288,19 @@ pub fn save_app_config_draft(
     expected_revision: u64,
     state: State<'_, AppState>,
 ) -> Result<AppConfig, String> {
-    let validation = validate_config_draft(&raw);
-    if let Some(error) = validation.error {
-        return Err(format!(
+    let parsed = parse_config_draft(&raw).map_err(|error| {
+        format!(
             "第 {} 行第 {} 列：{}",
             error.line, error.column, error.message
-        ));
-    }
-    apply_app_config(&app, &state, validation.effective_config, expected_revision)
+        )
+    })?;
+    apply_app_config(
+        &app,
+        &state,
+        parsed.config,
+        expected_revision,
+        Some(parsed.user),
+    )
 }
 
 #[tauri::command]
@@ -332,10 +336,10 @@ pub fn reset_settings_section(
                 .overlay_settings
                 .write()
                 .unwrap_or_else(|error| error.into_inner()) = OverlaySettings::default();
-            let configured = state.config.update(|config| {
-                config.lyrics.displays.desktop = DesktopLyricsPreferences::default();
-                config.lyrics.style_inheritance.desktop = Default::default();
-            })?;
+            let configured = state.config.reset_overrides(&[
+                "/lyrics/displays/desktop",
+                "/lyrics/styleInheritance/desktop",
+            ])?;
             let mut style = sync_desktop_style_from_config(&app, &state, &configured)?;
             style.horizontal_max_width = geometry.0;
             style.vertical_max_height = geometry.1;
@@ -393,12 +397,11 @@ pub fn reset_settings_section(
                 .overlay_settings
                 .write()
                 .unwrap_or_else(|error| error.into_inner()) = OverlaySettings::default();
-            state.config.update(|config| {
-                let desktop = &mut config.lyrics.displays.desktop;
-                desktop.enabled = true;
-                desktop.locked = false;
-                desktop.hide_when_not_playing = false;
-            })?;
+            state.config.reset_overrides(&[
+                "/lyrics/displays/desktop/enabled",
+                "/lyrics/displays/desktop/locked",
+                "/lyrics/displays/desktop/hideWhenNotPlaying",
+            ])?;
 
             let window = app
                 .get_webview_window("lyrics-overlay")
@@ -418,41 +421,72 @@ pub fn reset_settings_section(
                 .map_err(|error| error.to_string())?;
         }
         SettingsSection::Lyrics => {
-            let view = state.providers.set_settings(ProviderSettings::default())?;
-            state.config.update(|config| {
-                config.lyrics.providers = view.settings;
-                config.lyrics.chinese_conversion = ChineseConversion::Original;
-                config.lyrics.repair_simplified_japanese = false;
-            })?;
+            let configured = state.config.reset_overrides(&[
+                "/lyrics/providers",
+                "/lyrics/chineseConversion",
+                "/lyrics/repairSimplifiedJapanese",
+            ])?;
+            let _view = state.providers.set_settings(configured.lyrics.providers.clone())?;
             invalidate_lyrics_search_session(&state);
         }
         SettingsSection::Player => {
-            update_player_selection(&app, PlayerSelection::Auto)?;
-            let config = state.config.update(|config| {
-                config.app.system_media_filter_mode = SystemMediaFilterMode::Allowlist;
-                config.app.system_media_applications.clear();
-                config.app.player_follower_application = None;
-            })?;
+            let config = state.config.reset_overrides(&[
+                "/app/playerSelection",
+                "/app/systemMediaFilterMode",
+                "/app/systemMediaApplications",
+                "/app/playerFollowerApplication",
+            ])?;
+            *state
+                .selection
+                .write()
+                .unwrap_or_else(|error| error.into_inner()) = config.app.player_selection;
+            *state
+                .auto_player
+                .write()
+                .unwrap_or_else(|error| error.into_inner()) = None;
+            app.emit("player://selection", config.app.player_selection)
+                .map_err(|error| error.to_string())?;
             player_follower_error = crate::player_lifecycle::sync_service(&app, &config.app).err();
         }
         SettingsSection::Application => {
-            update_dock_icon_hidden(&app, false)?;
-            update_menu_bar_icon_hidden(&app, false)?;
-            update_global_shortcuts(&app, GlobalShortcutSettings::default())?;
-            state.config.update(|config| {
-                config.app.theme = ThemePreference::Dark;
-                config.app.ui_font_family = None;
-                config.app.language = LanguagePreference::default();
-                config.app.silent_startup = false;
-                config.app.lyrics_windows_show_on_all_spaces = false;
-            })?;
+            let previous = state.config.snapshot();
+            crate::apply_dock_icon_hidden(&app, false)?;
+            if let Err(error) = crate::apply_menu_bar_icon_hidden(&app, false) {
+                let _ = crate::apply_dock_icon_hidden(&app, previous.app.hide_dock_icon);
+                return Err(error);
+            }
+            let defaults = GlobalShortcutSettings::default();
+            if let Err(error) = crate::apply_global_shortcuts(
+                &app,
+                &previous.app.shortcuts,
+                &defaults,
+            ) {
+                let _ = crate::apply_menu_bar_icon_hidden(&app, previous.app.hide_menu_bar_icon);
+                let _ = crate::apply_dock_icon_hidden(&app, previous.app.hide_dock_icon);
+                return Err(error);
+            }
+            if let Err(error) = state.config.reset_overrides(&[
+                "/app/theme",
+                "/app/uiFontFamily",
+                "/app/language",
+                "/app/hideDockIcon",
+                "/app/hideMenuBarIcon",
+                "/app/shortcuts",
+                "/app/silentStartup",
+                "/app/lyricsWindowsShowOnAllSpaces",
+            ]) {
+                let _ = crate::apply_global_shortcuts(&app, &defaults, &previous.app.shortcuts);
+                let _ = crate::apply_menu_bar_icon_hidden(&app, previous.app.hide_menu_bar_icon);
+                let _ = crate::apply_dock_icon_hidden(&app, previous.app.hide_dock_icon);
+                return Err(error);
+            }
             crate::apply_lyrics_windows_space_behavior(&app, false)
                 .map_err(|error| error.to_string())?;
         }
         SettingsSection::About => {
             state
                 .config
-                .update(|config| config.app.auto_check_updates = true)?;
+                .reset_overrides(&["/app/autoCheckUpdates"])?;
         }
     }
 

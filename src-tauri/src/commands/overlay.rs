@@ -288,12 +288,14 @@ pub fn reset_overlay_bounds(app: tauri::AppHandle) -> Result<OverlayStyleSetting
         .write()
         .unwrap_or_else(|error| error.into_inner())
         .visible = true;
-    state
+    let config = state
         .config
-        .update(|config| config.lyrics.displays.desktop.enabled = true)?;
+        .reset_overrides(&["/lyrics/displays/desktop/enabled"])?;
     crate::sync_tray_overlay_checked(&app, true);
     crate::reconcile_overlay_visibility(&app)?;
     app.emit("overlay://settings", get_overlay_settings_inner(&state))
+        .map_err(|error| error.to_string())?;
+    app.emit("config://changed", &config)
         .map_err(|error| error.to_string())?;
     Ok(style)
 }
