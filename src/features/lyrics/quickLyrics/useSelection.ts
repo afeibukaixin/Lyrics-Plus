@@ -155,11 +155,13 @@ export function useQuickLyricsSelection(
   }, [autoRecommendedKey, currentKey, displayItems]);
 
   const selectAndApply = async (item: QuickLyricsDisplayItem) => {
+    // React 尚未提交 disabled 属性前，连续点击也必须完全忽略后续请求。
+    if (applying.current) return;
     const { result } = item;
     const key = resultKey(result);
     setSelectedKey(key);
     setNotice(null);
-    if (item.kind === "current" || applying.current) return;
+    if (item.kind === "current") return;
     applying.current = true;
     setApplyingKey(key);
     try {
