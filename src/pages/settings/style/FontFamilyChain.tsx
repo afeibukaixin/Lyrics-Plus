@@ -84,13 +84,9 @@ export default function FontFamilyChain({
   };
 
   const changeFonts = (nextPrimary: FontFamily, nextFallbacks: string, nextWeight?: OverlayFontWeight) => {
-    const [normalizedPrimary, ...normalizedFallbacks] = normalizeFontFamilies([
-      nextPrimary,
-      ...fontFallbacksFromCss(nextFallbacks),
-    ]);
-    const normalizedFallbackValue = fontFallbacksToCss(normalizedFallbacks);
-    fallbackValueRef.current = normalizedFallbackValue;
-    const selection = { primary: normalizedPrimary, fallbacks: normalizedFallbackValue, fontWeight: nextWeight };
+    const [normalizedPrimary] = normalizeFontFamilies([nextPrimary]);
+    fallbackValueRef.current = nextFallbacks;
+    const selection = { primary: normalizedPrimary, fallbacks: nextFallbacks, fontWeight: nextWeight };
     pendingRef.current = selection;
     setPreviewSelection(selection);
     void saveLatest();
@@ -149,7 +145,14 @@ export default function FontFamilyChain({
         value={fallbackValue}
         emptyValue=""
         disabled={disabled}
-        onChange={(value) => changeFonts(shownPrimary, value)}
+        onChange={(value) => {
+          // Normalize the fallback list on its own so matching the primary font does not clear it.
+          const [, ...normalizedFallbacks] = normalizeFontFamilies([
+            defaultFontFamilies[0],
+            ...fontFallbacksFromCss(value),
+          ]);
+          changeFonts(shownPrimary, fontFallbacksToCss(normalizedFallbacks));
+        }}
       />
     </div>
   );
