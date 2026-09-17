@@ -135,6 +135,80 @@ pub(super) fn fixed_axis_content_size(
     }
 }
 
+pub(super) fn fit_directional_safety_bounds(
+    position: tauri::PhysicalPosition<i32>,
+    current_size: tauri::PhysicalSize<u32>,
+    previous: &OverlayStyleSettings,
+    next: &OverlayStyleSettings,
+    scale: f64,
+    work_position: tauri::PhysicalPosition<i32>,
+    work_size: tauri::PhysicalSize<u32>,
+) -> (tauri::PhysicalPosition<i32>, tauri::PhysicalSize<u32>) {
+    if previous.orientation != next.orientation {
+        return (position, current_size);
+    }
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    let sides = |value: f64| ((-value).max(0.0), value.max(0.0));
+    let (old_left, old_right) = sides(previous.safety_inset_x);
+    let (new_left, new_right) = sides(next.safety_inset_x);
+    let (old_top, old_bottom) = sides(previous.safety_inset_y);
+    let (new_top, new_bottom) = sides(next.safety_inset_y);
+    let delta_width = if next.orientation == OverlayOrientation::Vertical {
+        ((new_left + new_right) * scale).round() - ((old_left + old_right) * scale).round()
+    } else {
+        0.0
+    };
+    let delta_height = if next.orientation == OverlayOrientation::Horizontal {
+        ((new_top + new_bottom) * scale).round() - ((old_top + old_bottom) * scale).round()
+    } else {
+        0.0
+    };
+    let minimum_width = if next.orientation == OverlayOrientation::Vertical {
+        MIN_VERTICAL_HOST_WIDTH
+    } else {
+        MIN_HORIZONTAL_WINDOW_WIDTH
+    };
+    let width = (current_size.width as f64 + delta_width)
+        .round()
+        .clamp(minimum_width * scale, (work_size.width as f64).max(minimum_width * scale)) as u32;
+    let height = (current_size.height as f64 + delta_height)
+        .round()
+        .clamp(76.0 * scale, (work_size.height as f64).max(76.0 * scale)) as u32;
+    let next_size = tauri::PhysicalSize::new(width, height);
+    // 用新旧安全值各自的像素位置差，避免 1x 屏幕拖动滑块时反复舍入而累计漂移。
+    let horizontal_anchor = |left: f64, right: f64| {
+        if next.orientation == OverlayOrientation::Vertical {
+            (-left * scale).round()
+        } else {
+            ((right - left) * scale / 2.0).round()
+        }
+    };
+    let vertical_anchor = |top: f64, bottom: f64| {
+        if next.orientation == OverlayOrientation::Horizontal {
+            (-top * scale).round()
+        } else {
+            ((bottom - top) * scale / 2.0).round()
+        }
+    };
+    let x = position.x as f64
+        + horizontal_anchor(new_left, new_right) - horizontal_anchor(old_left, old_right);
+    let y = position.y as f64
+        + vertical_anchor(new_top, new_bottom) - vertical_anchor(old_top, old_bottom);
+    let work_left = work_position.x as i64;
+    let work_top = work_position.y as i64;
+    let max_x = work_left + work_size.width as i64 - width as i64;
+    let max_y = work_top + work_size.height as i64 - height as i64;
+    let next_position = tauri::PhysicalPosition::new(
+        (x.round() as i64).clamp(work_left, max_x.max(work_left)) as i32,
+        (y.round() as i64).clamp(work_top, max_y.max(work_top)) as i32,
+    );
+    (next_position, next_size)
+}
+
 #[cfg(test)]
 pub(super) fn fit_overlay_bounds(
     position: tauri::PhysicalPosition<i32>,

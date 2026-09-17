@@ -1,4 +1,4 @@
-import { defaultOverlayStyle, type LyricsBaseAppearance, type LyricsStyleMode, type OverlayStyle } from "../../../shared/types";
+import type { LyricsBaseAppearance, LyricsStyleMode, OverlayStyle } from "../../../shared/types";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -6,12 +6,14 @@ import { ChevronDown, ListMusic, Monitor, Palette, PanelTop, PanelTopDashed } fr
 import { api, messageOf } from "../../../shared/api";
 import { useSettingsContext } from "../shared/SettingsContext";
 import styles from "../settings.module.scss";
-import { ColorRow, PageHeader, RangeRow, SelectRow, SettingsPage, SettingsSection, TextRow, ToggleRow } from "../shared/components";
+import { ColorRow, PageHeader, RangeRow, SelectRow, SettingsPage, SettingsSection, ToggleRow } from "../shared/components";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import LyricsModeStyleSections, { auxiliarySections } from "./LyricsModeStyleSections";
 import CompactLyricsPresentationSettings from "./CompactLyricsPresentationSettings";
+import FontFamilyChain from "./FontFamilyChain";
+import FontWeightSelect from "./FontWeightSelect";
 
 type OverlayColorValues = Pick<
   OverlayStyle,
@@ -46,7 +48,7 @@ const overlayColorKeys: Array<keyof OverlayColorValues> = [
   "translationColor",
   "romanizationColor",
 ];
-const baseColorKeys: Array<keyof Omit<LyricsBaseAppearance, "fontFamily">> = [
+const baseColorKeys: Array<keyof Omit<LyricsBaseAppearance, "fontFamily" | "fontFamilies">> = [
   ...overlayColorKeys,
   "supportingColor",
   "backgroundColor",
@@ -60,7 +62,7 @@ function styleModeFromQuery(value: string | null): StyleMode {
     : "base";
 }
 
-function baseColorsForPreset(preset: OverlayColorPreset): Omit<LyricsBaseAppearance, "fontFamily"> {
+function baseColorsForPreset(preset: OverlayColorPreset): Omit<LyricsBaseAppearance, "fontFamily" | "fontFamilies"> {
   return {
     ...preset.colors,
     supportingColor: preset.colors.romanizationColor,
@@ -120,13 +122,6 @@ export default function StyleSettingsPage() {
   const desktopInheritance = config.lyrics.styleInheritance.desktop;
   const activeColorPreset = overlayColorPresets.find((preset) => matchesColorPreset(baseAppearance, preset));
   const visibleColorPresets = colorPresetsExpanded ? overlayColorPresets : overlayColorPresets.slice(0, featuredColorPresetCount);
-  const fontWeightOptions: Array<[string, string]> = [
-    ["400", t("settings.overlay.fontWeightRegular")],
-    ["500", t("settings.overlay.fontWeightMedium")],
-    ["600", t("settings.overlay.fontWeightSemibold")],
-    ["700", t("settings.overlay.fontWeightBold")],
-    ["800", t("settings.overlay.fontWeightExtrabold")],
-  ];
   const desktopSections = [
     { id: "mode-state", label: t("settings.style.modeControls.displayInteraction") },
     { id: "mode-inheritance", label: t("settings.style.modeControls.inheritance") },
@@ -225,7 +220,8 @@ export default function StyleSettingsPage() {
       </ToggleGroup>
       {mode === "base" ? <>
       <SettingsSection id="base-font" title={t("settings.style.modeControls.baseFont")}>
-        <TextRow label={t("settings.overlay.fontFamily")} description={t("settings.overlay.fontFamilyHint")} value={baseAppearance.fontFamily} emptyValue={defaultOverlayStyle.fontFamily} onChange={(fontFamily) => void setLyricsBaseAppearance({ ...baseAppearance, fontFamily }).catch((error) => setError(messageOf(error)))} />
+        <FontFamilyChain fontFamily={baseAppearance.fontFamily} fontFamilies={baseAppearance.fontFamilies} onChange={(fontFamily, fontFamilies) => setLyricsBaseAppearance({ ...baseAppearance, fontFamily, fontFamilies })} onError={setError} />
+        <p className={styles.cardHint}>{t("settings.overlay.baseFontWeightHint")}</p>
       </SettingsSection>
       <SettingsSection id="base-presets" title={t("settings.style.modeControls.colorPresets")} trailing={<span className={styles.colorPresetStatus}>{t("settings.overlay.currentColor", { name: activeColorPreset ? t(`settings.overlay.presets.${activeColorPreset.id}`) : t("settings.overlay.custom") })}</span>}>
         <div className={styles.colorPresetGrid} id="base-color-presets">
@@ -264,10 +260,10 @@ export default function StyleSettingsPage() {
         <ToggleRow label={t("settings.style.modeControls.inheritColors")} value={desktopInheritance.inheritColors} onChange={(inheritColors) => setLyricsStyleInheritance("desktop", { ...desktopInheritance, inheritColors })} />
       </SettingsSection>
       <SettingsSection id="mode-text" title={t("settings.style.modeControls.textLayout")}>
-        {!desktopInheritance.inheritFontFamily && <TextRow label={t("settings.overlay.fontFamily")} description={t("settings.overlay.fontFamilyHint")} value={style.fontFamily} emptyValue={defaultOverlayStyle.fontFamily} onChange={(fontFamily) => void updateStyle({ fontFamily })} />}
+        {!desktopInheritance.inheritFontFamily && <FontFamilyChain fontFamily={style.fontFamily} fontFamilies={style.fontFamilies} fontWeight={style.fontWeight} onChange={(fontFamily, fontFamilies, fontWeight) => updateStyle({ fontFamily, fontFamilies, ...(fontWeight == null ? {} : { fontWeight }) })} onError={setError} />}
         <RangeRow label={t("settings.overlay.fontSize")} value={style.fontSize} min={16} max={72} suffix="px" onChange={(fontSize) => void updateStyle({ fontSize })} />
-        <SelectRow label={t("settings.overlay.fontWeight")} value={String(style.fontWeight)} onChange={(fontWeight) => void updateStyle({ fontWeight: Number(fontWeight) as OverlayStyle["fontWeight"] })} options={fontWeightOptions} />
-        <SelectRow label={t("settings.overlay.secondaryFontWeight")} value={String(style.secondaryFontWeight)} onChange={(secondaryFontWeight) => void updateStyle({ secondaryFontWeight: Number(secondaryFontWeight) as OverlayStyle["secondaryFontWeight"] })} options={fontWeightOptions} />
+        <FontWeightSelect label={t("settings.overlay.fontWeight")} family={style.fontFamily} value={style.fontWeight} onChange={(fontWeight) => void updateStyle({ fontWeight })} />
+        <FontWeightSelect label={t("settings.overlay.secondaryFontWeight")} family={style.fontFamily} value={style.secondaryFontWeight} showHint={false} onChange={(secondaryFontWeight) => void updateStyle({ secondaryFontWeight })} />
         <RangeRow label={t("settings.overlay.lineHeight")} value={style.lineHeight} min={0.8} max={2} step={0.05} suffix="×" onChange={(lineHeight) => void updateStyle({ lineHeight })} />
         <SelectRow label={t("settings.overlay.textDirection")} value={style.orientation} onChange={(orientation) => void updateStyle({ orientation: orientation as OverlayStyle["orientation"] })} options={[["horizontal", t("overlay.orientation.horizontal")], ["vertical", t("overlay.orientation.vertical")]]} />
         <SelectRow label={t("settings.overlay.primaryLinePosition")} description={t("settings.overlay.primaryLinePositionHint")} disabled={!alignmentAvailable} value={alignmentAvailable ? style.primaryLinePosition : "first"} onChange={(primaryLinePosition) => void updateStyle({ primaryLinePosition: primaryLinePosition as OverlayStyle["primaryLinePosition"] })} options={[["first", t("settings.overlay.primaryLineFirst")], ["second", t("settings.overlay.primaryLineSecond")]]} />
@@ -310,6 +306,8 @@ export default function StyleSettingsPage() {
         <RangeRow label={t("settings.overlay.backgroundRadius")} value={style.backgroundRadius} min={0} max={64} suffix="px" onChange={(backgroundRadius) => void updateStyle({ backgroundRadius })} />
         <RangeRow label={t("settings.overlay.backgroundPaddingX")} value={style.backgroundPaddingX} min={0} max={64} suffix="px" onChange={(backgroundPaddingX) => void updateStyle({ backgroundPaddingX })} />
         <RangeRow label={t("settings.overlay.backgroundPaddingY")} value={style.backgroundPaddingY} min={0} max={64} suffix="px" onChange={(backgroundPaddingY) => void updateStyle({ backgroundPaddingY })} />
+        <RangeRow label={t("settings.overlay.safetyInsetX")} value={style.safetyInsetX} min={-64} max={64} suffix="px" onChange={(safetyInsetX) => void updateStyle({ safetyInsetX })} />
+        <RangeRow label={t("settings.overlay.safetyInsetY")} value={style.safetyInsetY} min={-64} max={64} suffix="px" onChange={(safetyInsetY) => void updateStyle({ safetyInsetY })} />
       </SettingsSection>
       </> : <LyricsModeStyleSections mode={mode} displays={config.lyrics.displays} update={setLyricsDisplayPreferences} setListLyricsLocked={setListLyricsLocked} setError={setError} inheritance={config.lyrics.styleInheritance} updateInheritance={setLyricsStyleInheritance} resetPosition={resetDisplayPosition} />}
     </SettingsPage>

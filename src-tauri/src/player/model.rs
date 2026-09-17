@@ -93,6 +93,8 @@ pub struct PlaybackSnapshot {
     pub player: Option<PlayerKind>,
     pub is_running: bool,
     pub is_playing: bool,
+    /// 仅用于界面提示；发送系统媒体命令前还会重新核对当前来源。
+    pub system_control_available: bool,
     /// 仅用于按钮和自动隐藏；计时与路由始终使用 is_playing。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_is_playing: Option<bool>,
@@ -116,6 +118,7 @@ impl Default for PlaybackSnapshot {
             player: None,
             is_running: false,
             is_playing: false,
+            system_control_available: false,
             display_is_playing: None,
             track_id: None,
             title: None,
@@ -138,6 +141,26 @@ impl PlaybackSnapshot {
         self.display_is_playing.unwrap_or(self.is_playing)
     }
 
+    /// 系统当前媒体与选中来源必须同时有可核对的应用和曲目标识。
+    pub(crate) fn same_system_media(&self, other: &Self) -> bool {
+        self.player == Some(PlayerKind::System)
+            && other.player == Some(PlayerKind::System)
+            && self.is_running
+            && other.is_running
+            && self.error_code.is_none()
+            && other.error_code.is_none()
+            && self
+                .source_app_bundle_id
+                .as_deref()
+                .filter(|value| !value.is_empty())
+                .is_some_and(|bundle_id| other.source_app_bundle_id.as_deref() == Some(bundle_id))
+            && self
+                .track_id
+                .as_deref()
+                .filter(|value| !value.is_empty())
+                .is_some_and(|track_id| other.track_id.as_deref() == Some(track_id))
+    }
+
     pub fn empty() -> Self {
         Self::unavailable_with_code(None, PlaybackErrorCode::Waiting, "等待播放器".into())
     }
@@ -155,6 +178,7 @@ impl PlaybackSnapshot {
             player,
             is_running: false,
             is_playing: false,
+            system_control_available: false,
             display_is_playing: None,
             track_id: None,
             title: None,

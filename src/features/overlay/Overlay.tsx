@@ -3,6 +3,7 @@ import {
   secondaryDisplayFlags,
   type ToolbarPlacement,
 } from "../../shared/types";
+import { fontFamilyStack } from "../../shared/fontFamily";
 import { isMacTauriRuntime } from "../../shared/tauriEvent";
 import styles from "./Overlay.module.scss";
 import { OverlayKaraokeLine } from "./OverlayKaraokeLine";
@@ -112,9 +113,13 @@ export default function Overlay() {
     )
     : null;
   const vertical = style.orientation === "vertical";
-  const overlayHorizontalPadding = style.backgroundPaddingX * 2
+  const safetyLeft = Math.max(0, -style.safetyInsetX);
+  const safetyRight = Math.max(0, style.safetyInsetX);
+  const safetyTop = Math.max(0, -style.safetyInsetY);
+  const safetyBottom = Math.max(0, style.safetyInsetY);
+  const overlayHorizontalPadding = style.backgroundPaddingX * 2 + safetyLeft + safetyRight
     + (vertical ? VERTICAL_SURFACE_TOOLBAR_INSET : 0);
-  const overlayVerticalPadding = style.backgroundPaddingY * 2
+  const overlayVerticalPadding = style.backgroundPaddingY * 2 + safetyTop + safetyBottom
     + (vertical ? 0 : HORIZONTAL_SURFACE_TOOLBAR_INSET);
 
   const supportsSecondary = style.layout === "double";
@@ -263,7 +268,7 @@ export default function Overlay() {
       data-backdrop-keepalive={backdropKeepAlive ? "true" : undefined}
       onPointerDown={startWindowDrag}
       style={{
-        "--lyric-font-family": style.fontFamily,
+        "--lyric-font-family": fontFamilyStack(style.fontFamily, style.fontFamilies),
         "--lyric-size": `${style.fontSize}px`,
         "--lyric-font-weight": style.fontWeight,
         "--secondary-font-weight": style.secondaryFontWeight,
@@ -275,6 +280,10 @@ export default function Overlay() {
         "--background-radius": `${style.backgroundRadius}px`,
         "--background-padding-x": `${style.backgroundPaddingX}px`,
         "--background-padding-y": `${style.backgroundPaddingY}px`,
+        "--safety-left": `${safetyLeft}px`,
+        "--safety-right": `${safetyRight}px`,
+        "--safety-top": `${safetyTop}px`,
+        "--safety-bottom": `${safetyBottom}px`,
         "--line-gap": `${style.lineGap}px`,
         "--solid-color": style.solidColor,
         "--text-shadow": `${style.textShadowOffsetX}px ${style.textShadowOffsetY}px ${style.textShadowBlur}px ${style.textShadowColor}`,
@@ -299,45 +308,48 @@ export default function Overlay() {
           WebkitBackdropFilter: backdropFilter,
         }}
       >
-        <div className={styles.lines} data-double-line-order={doubleLineOrder} ref={linesRef}>
-          <div
-            className={styles.active}
-            data-empty={activeLineEmpty}
-            data-marquee={style.longText === "marquee" && marqueeMetrics[0]?.overflowing}
-            ref={activeRef}
-            style={{
-              fontSize: `${style.fontSize * fitScale}px`,
-              "--wrap-line-height": wrapLineHeight(style.fontSize * fitScale, style.lineHeight, style.textStrokeWidth * fitScale),
-              "--marquee-distance": `${marqueeMetrics[0]?.distance ?? 0}px`,
-              "--marquee-duration": `${marqueeMetrics[0]?.duration ?? DEFAULT_MARQUEE_DURATION_SECONDS}s`,
-            } as React.CSSProperties}
-          >
-            <OverlayKaraokeLine
-              key={primaryLineKey}
-              line={lyrics.currentLine}
-              fallback={primaryText}
-              playing={playback.active && playback.snapshot.isPlaying}
-              positionMs={lyrics.adjustedPositionMs}
-              positionObservedAtMs={playback.snapshot.observedAtMs}
-              style={style}
-            />
-          </div>
-          {supportingLines.map((line, index) => (
+        <div className={styles.shadowBounds}>
+          <div className={styles.lines} data-double-line-order={doubleLineOrder} ref={linesRef}>
             <div
-              className={styles.next}
-              data-kind={line.kind}
-              data-marquee={style.longText === "marquee" && marqueeMetrics[index + 1]?.overflowing}
-              key={`${line.kind}:${line.text}`}
-              ref={(element) => { supportingRefs.current[index] = element; }}
+              className={styles.active}
+              data-empty={activeLineEmpty}
+              data-marquee={style.longText === "marquee" && marqueeMetrics[0]?.overflowing}
+              ref={activeRef}
               style={{
-                color: line.color,
-                fontSize: `${line.baseSize * fitScale}px`,
-                "--wrap-line-height": wrapLineHeight(line.baseSize * fitScale, style.lineHeight, style.textStrokeWidth * fitScale),
-                "--marquee-distance": `${marqueeMetrics[index + 1]?.distance ?? 0}px`,
-                "--marquee-duration": `${marqueeMetrics[index + 1]?.duration ?? DEFAULT_MARQUEE_DURATION_SECONDS}s`,
+                fontSize: `${style.fontSize * fitScale}px`,
+                "--wrap-line-height": wrapLineHeight(style.fontSize * fitScale, style.lineHeight, style.textStrokeWidth * fitScale),
+                "--marquee-distance": `${marqueeMetrics[0]?.distance ?? 0}px`,
+                "--marquee-duration": `${marqueeMetrics[0]?.duration ?? DEFAULT_MARQUEE_DURATION_SECONDS}s`,
               } as React.CSSProperties}
-            ><span>{line.text}</span></div>
-          ))}
+            >
+              <OverlayKaraokeLine
+                key={primaryLineKey}
+                line={lyrics.currentLine}
+                fallback={primaryText}
+                playing={playback.active && playback.snapshot.isPlaying}
+                positionMs={lyrics.adjustedPositionMs}
+                positionObservedAtMs={playback.snapshot.observedAtMs}
+                style={style}
+                fitScale={fitScale}
+              />
+            </div>
+            {supportingLines.map((line, index) => (
+              <div
+                className={styles.next}
+                data-kind={line.kind}
+                data-marquee={style.longText === "marquee" && marqueeMetrics[index + 1]?.overflowing}
+                key={`${line.kind}:${line.text}`}
+                ref={(element) => { supportingRefs.current[index] = element; }}
+                style={{
+                  color: line.color,
+                  fontSize: `${line.baseSize * fitScale}px`,
+                  "--wrap-line-height": wrapLineHeight(line.baseSize * fitScale, style.lineHeight, style.textStrokeWidth * fitScale),
+                  "--marquee-distance": `${marqueeMetrics[index + 1]?.distance ?? 0}px`,
+                  "--marquee-duration": `${marqueeMetrics[index + 1]?.duration ?? DEFAULT_MARQUEE_DURATION_SECONDS}s`,
+                } as React.CSSProperties}
+              ><span>{line.text}</span></div>
+            ))}
+          </div>
         </div>
       </div>
 

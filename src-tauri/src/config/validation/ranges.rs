@@ -14,14 +14,14 @@ pub(super) fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), Co
         (
             "fontWeight",
             value.pointer("/lyrics/displays/desktop/appearance/fontWeight"),
-            400.0,
-            800.0,
+            100.0,
+            900.0,
         ),
         (
             "secondaryFontWeight",
             value.pointer("/lyrics/displays/desktop/appearance/secondaryFontWeight"),
-            400.0,
-            800.0,
+            100.0,
+            900.0,
         ),
         (
             "lineHeight",
@@ -86,7 +86,7 @@ pub(super) fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), Co
         (
             "fontSize",
             value.pointer("/lyrics/displays/statusBar/appearance/fontSize"),
-            10.0,
+            6.0,
             32.0,
         ),
         (
@@ -170,14 +170,14 @@ pub(super) fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), Co
         (
             "fontWeight",
             value.pointer("/lyrics/displays/notch/appearance/fontWeight"),
-            400.0,
-            800.0,
+            100.0,
+            900.0,
         ),
         (
             "secondaryFontWeight",
             value.pointer("/lyrics/displays/notch/appearance/secondaryFontWeight"),
-            400.0,
-            800.0,
+            100.0,
+            900.0,
         ),
         (
             "lineGap",
@@ -237,6 +237,18 @@ pub(super) fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), Co
             "backgroundPaddingY",
             value.pointer("/lyrics/displays/desktop/appearance/backgroundPaddingY"),
             0.0,
+            64.0,
+        ),
+        (
+            "safetyInsetX",
+            value.pointer("/lyrics/displays/desktop/appearance/safetyInsetX"),
+            -64.0,
+            64.0,
+        ),
+        (
+            "safetyInsetY",
+            value.pointer("/lyrics/displays/desktop/appearance/safetyInsetY"),
+            -64.0,
             64.0,
         ),
         (

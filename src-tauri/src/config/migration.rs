@@ -771,6 +771,37 @@ pub(crate) fn migrate_v69_provider_duration_settings(user: &mut Value, version: 
     }
 }
 
+pub(crate) fn migrate_v73_font_families(user: &mut Value, version: u16) {
+    if version >= 73 {
+        return;
+    }
+    for path in [
+        "/lyrics/baseAppearance",
+        "/lyrics/displays/desktop/appearance",
+        "/lyrics/displays/statusBar/appearance",
+        "/lyrics/displays/listWindow/appearance",
+        "/lyrics/displays/notch/appearance",
+    ] {
+        let Some(appearance) = user.pointer_mut(path).and_then(Value::as_object_mut) else {
+            continue;
+        };
+        let Some(font_family) = appearance.get("fontFamily").and_then(Value::as_str) else {
+            continue;
+        };
+        let families = font_families_from_css(font_family);
+        let Some(primary) = families.first() else {
+            continue;
+        };
+        appearance.insert("fontFamily".into(), Value::from(primary.family.clone()));
+        if families.len() > 1 {
+            appearance.insert(
+                "fontFamilies".into(),
+                Value::from(font_fallbacks_from_families(&families[1..])),
+            );
+        }
+    }
+}
+
 fn remove_retired_fullscreen_space_preferences(user: &mut Value) {
     if let Some(overlay) = user.pointer_mut("/overlay").and_then(Value::as_object_mut) {
         overlay.remove("joinOtherAppsFullscreen");

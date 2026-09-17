@@ -1,4 +1,5 @@
 import { type CSSProperties } from "react";
+import { fontFamilyStack } from "../../shared/fontFamily";
 import { useAppConfig } from "../config/AppConfigProvider";
 import { usePlayback } from "../player/usePlayback";
 import { useCompactLyricsPresentation } from "./compactPresentation";
@@ -30,7 +31,7 @@ export default function StatusBarLyricsWindow() {
       data-layout={preferences.presentation.layout}
       data-line-order={lyrics.doubleLineOrder}
       style={{
-        "--status-font-family": appearance.fontFamily,
+        "--status-font-family": fontFamilyStack(appearance.fontFamily, appearance.fontFamilies),
         "--status-font-size": `${appearance.fontSize}px`,
         "--status-vertical-offset": `${appearance.verticalOffset}px`,
         "--status-font-weight": appearance.fontWeight,

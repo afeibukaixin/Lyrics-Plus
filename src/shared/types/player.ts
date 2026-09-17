@@ -61,6 +61,8 @@ export type PlaybackSnapshot = {
   player: PlayerKind | null;
   isRunning: boolean;
   isPlaying: boolean;
+  /** 仅用于界面显示，后端发送前仍会重新核对当前媒体。 */
+  systemControlAvailable: boolean;
   /** 按钮和自动隐藏使用的状态；不参与播放进度计算。 */
   displayIsPlaying?: boolean | null;
   trackId: string | null;

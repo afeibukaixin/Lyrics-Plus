@@ -3,6 +3,8 @@
   <p>A simple, synchronized lyrics companion for macOS.</p>
   <p>
     <a href="https://github.com/afeibukaixin/Lyrics-Plus/releases/latest"><img src="https://img.shields.io/github/v/release/afeibukaixin/Lyrics-Plus?style=flat-square" alt="Latest release"></a>
+    <a href="#download"><img src="https://img.shields.io/badge/macOS-13%2B-000000?style=flat-square&logo=apple&logoColor=white" alt="macOS 13+"></a>
+    <a href="#download"><img src="https://img.shields.io/badge/CPU-Apple%20Silicon%20%7C%20Intel-555555?style=flat-square" alt="Apple Silicon | Intel"></a>
     <a href="LICENSE"><img src="https://img.shields.io/github/license/afeibukaixin/Lyrics-Plus?style=flat-square" alt="MIT License"></a>
     <a href="https://qm.qq.com/q/KDcSY7Yhii"><img src="https://img.shields.io/badge/QQ%20Group-1045190390-12B7F5?style=flat-square&logo=qq&logoColor=white" alt="QQ Group 1045190390"></a>
   </p>

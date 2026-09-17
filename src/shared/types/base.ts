@@ -1,3 +1,3 @@
 export type { SupportedLanguage } from "../languages";
 
-export type OverlayFontWeight = 400 | 500 | 600 | 700 | 800;
+export type OverlayFontWeight = 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900;

@@ -9,6 +9,7 @@ const initialSnapshot: PlaybackSnapshot = {
   player: null,
   isRunning: false,
   isPlaying: false,
+  systemControlAvailable: false,
   trackId: null,
   title: null,
   artist: null,

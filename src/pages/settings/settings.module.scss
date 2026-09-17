@@ -52,6 +52,16 @@
 .textSettingRow:last-child { border-bottom: 0; }
 .textSettingRow input { width: 100%; font-family: var(--font-family-mono); }
 
+.fontFamilySetting { display: grid; border-bottom: 1px solid var(--border); }
+.fontFamilySetting:last-child { border-bottom: 0; }
+.fontFamilySetting[data-disabled="true"] { opacity: .6; }
+.fontFamilySetting .textSettingRow { border-bottom: 0; }
+.fontFamilySettingRow { min-height: 58px; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 16px; }
+.fontFamilySettingRow + .textSettingRow { border-top: 1px solid var(--border); }
+.fontFamilyPrimaryActions { min-width: 0; max-width: 70%; display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.fontFamilyValue { min-width: 150px; max-width: 65%; justify-content: space-between; overflow: hidden; }
+.fontFamilyValue > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .colorSettingRow { flex-wrap: wrap; }
 .colorTrigger { display: flex; align-items: center; gap: 7px; }
 .colorTrigger > span { width: 19px; height: 19px; border: 1px solid var(--border); border-radius: calc(var(--radius) - 6px); }
@@ -180,6 +190,7 @@
   .sidebarTriggerRow { left: 10px; align-items: flex-start; transform: none; }
   .content { padding: 24px var(--settings-content-padding-inline); }
   .settingRow { align-items: flex-start; }
+  .fontFamilyPrimaryActions { width: 100%; max-width: none; justify-content: flex-start; }
   .rangeControl { width: min(280px, 55%); }
   .rangePairControl { width: min(280px, 55%); }
   .colorPresetGrid { grid-template-columns: 1fr; }
@@ -193,6 +204,8 @@
 
 @media (max-width: 640px) {
   .settingRow { flex-direction: column; }
+  .fontFamilySettingRow { flex-direction: column; align-items: flex-start; }
+  .fontFamilyValue { width: 100%; max-width: none; }
   .rangeControl { width: 100%; }
   .rangePairControl { width: 100%; }
   .settingRow [data-slot="toggle-group"] { width: 100%; }

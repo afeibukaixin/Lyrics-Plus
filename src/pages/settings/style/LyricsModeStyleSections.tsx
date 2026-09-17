@@ -10,10 +10,9 @@ import type {
   ListLyricsLineOrder,
   NotchSlotContent,
   NotchLyricsPreferences,
-  OverlayFontWeight,
   StatusBarLyricsPreferences,
 } from "../../../shared/types";
-import { ColorRow, RangePairRow, RangeRow, SelectRow, SettingsSection, TextRow, ToggleRow } from "../shared/components";
+import { ColorRow, RangePairRow, RangeRow, SelectRow, SettingsSection, ToggleRow } from "../shared/components";
 import { Button } from "@/components/ui/button";
 import styles from "../settings.module.scss";
 import { useTranslation } from "react-i18next";
@@ -23,6 +22,8 @@ import { emitNotchWidthPreview } from "../../../shared/tauriEvent";
 import { api, isTauriRuntime, messageOf } from "../../../shared/api";
 import CompactLyricsPresentationSettings from "./CompactLyricsPresentationSettings";
 import ListLyricsLineOrderEditor from "./ListLyricsLineOrderEditor";
+import FontFamilyChain from "./FontFamilyChain";
+import FontWeightSelect from "./FontWeightSelect";
 import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field";
 import {
   NOTCH_NON_NOTCH_MIN_WIDTH,
@@ -127,13 +128,6 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
     };
   }, [mode]);
 
-  const fontWeights: Array<[string, string]> = [
-    ["400", t("settings.overlay.fontWeightRegular")],
-    ["500", t("settings.overlay.fontWeightMedium")],
-    ["600", t("settings.overlay.fontWeightSemibold")],
-    ["700", t("settings.overlay.fontWeightBold")],
-    ["800", t("settings.overlay.fontWeightExtrabold")],
-  ];
   const modeInheritance = inheritance[mode];
   const inheritanceSection = <SettingsSection id="mode-inheritance" title={t("settings.style.modeControls.inheritance")}>
     <ToggleRow label={t("settings.style.modeControls.inheritFontFamily")} value={modeInheritance.inheritFontFamily} onChange={(inheritFontFamily) => updateInheritance(mode, { ...modeInheritance, inheritFontFamily })} />
@@ -151,11 +145,11 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
       </SettingsSection>
       {inheritanceSection}
       <SettingsSection id="mode-text" title={t("settings.style.modeControls.textLayout")}>
-        {!modeInheritance.inheritFontFamily && <TextRow label={t("settings.overlay.fontFamily")} value={appearance.fontFamily} emptyValue={appearance.fontFamily} onChange={(fontFamily) => save(patchAppearance(value, { fontFamily }))} />}
-        <RangeRow label={t("settings.overlay.fontSize")} value={appearance.fontSize} min={10} max={18} suffix=" pt" onChange={(fontSize) => save(patchAppearance(value, { fontSize }))} />
+        {!modeInheritance.inheritFontFamily && <FontFamilyChain fontFamily={appearance.fontFamily} fontFamilies={appearance.fontFamilies} fontWeight={appearance.fontWeight} onChange={(fontFamily, fontFamilies, fontWeight) => update("statusBar", patchAppearance(value, { fontFamily, fontFamilies, ...(fontWeight == null ? {} : { fontWeight }) }))} onError={setError} />}
+        <RangeRow label={t("settings.overlay.fontSize")} description={t("settings.display.statusBar.fontSizeHint")} value={appearance.fontSize} min={6} max={18} suffix=" pt" onChange={(fontSize) => save(patchAppearance(value, { fontSize }))} />
         <RangeRow label={t("settings.display.statusBar.verticalOffset")} description={t("settings.display.statusBar.verticalOffsetHint")} value={appearance.verticalOffset} min={-6} max={6} step={0.1} suffix=" pt" displayValue={Number(appearance.verticalOffset.toFixed(1))} onChange={(verticalOffset) => save(patchAppearance(value, { verticalOffset }))} />
-        <SelectRow label={t("settings.overlay.fontWeight")} value={String(appearance.fontWeight)} options={fontWeights} onChange={(fontWeight) => save(patchAppearance(value, { fontWeight: Number(fontWeight) as OverlayFontWeight }))} />
-        {value.presentation.layout === "double" && <SelectRow label={t("settings.display.statusBar.secondaryFontWeight")} value={String(appearance.secondaryFontWeight)} options={fontWeights} onChange={(secondaryFontWeight) => save(patchAppearance(value, { secondaryFontWeight: Number(secondaryFontWeight) as OverlayFontWeight }))} />}
+        <FontWeightSelect label={t("settings.overlay.fontWeight")} family={appearance.fontFamily} value={appearance.fontWeight} onChange={(fontWeight) => save(patchAppearance(value, { fontWeight }))} />
+        {value.presentation.layout === "double" && <FontWeightSelect label={t("settings.display.statusBar.secondaryFontWeight")} family={appearance.fontFamily} value={appearance.secondaryFontWeight} showHint={false} onChange={(secondaryFontWeight) => save(patchAppearance(value, { secondaryFontWeight }))} />}
         <SelectRow label={t("settings.display.statusBar.alignment")} value={value.presentation.alignment} options={[["left", t("settings.display.statusBar.alignmentLeft")], ["center", t("settings.display.statusBar.alignmentCenter")], ["right", t("settings.display.statusBar.alignmentRight")]]} onChange={(alignment) => save(patchPresentation(value, { alignment: alignment as StatusBarLyricsPreferences["presentation"]["alignment"] }))} />
       </SettingsSection>
       <SettingsSection id="mode-colors" title={t("settings.style.modeControls.colorEffects")}>
@@ -216,9 +210,9 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
       </SettingsSection>
       {inheritanceSection}
       <SettingsSection id="mode-text" title={t("settings.style.modeControls.textLayout")}>
-        {!modeInheritance.inheritFontFamily && <TextRow label={t("settings.overlay.fontFamily")} value={appearance.fontFamily} emptyValue={appearance.fontFamily} onChange={(fontFamily) => save(patchAppearance(value, { fontFamily }))} />}
+        {!modeInheritance.inheritFontFamily && <FontFamilyChain fontFamily={appearance.fontFamily} fontFamilies={appearance.fontFamilies} fontWeight={appearance.fontWeight} onChange={(fontFamily, fontFamilies, fontWeight) => update("listWindow", patchAppearance(value, { fontFamily, fontFamilies, ...(fontWeight == null ? {} : { fontWeight }) }))} onError={setError} />}
         <RangeRow label={t("settings.style.modeControls.mainFontSize")} value={appearance.fontSize} min={12} max={56} suffix="px" onChange={(fontSize) => save(patchAppearance(value, { fontSize }))} />
-        <SelectRow label={t("settings.style.modeControls.mainFontWeight")} value={String(appearance.fontWeight)} options={fontWeights} onChange={(fontWeight) => save(patchAppearance(value, { fontWeight: Number(fontWeight) as OverlayFontWeight }))} />
+        <FontWeightSelect label={t("settings.style.modeControls.mainFontWeight")} family={appearance.fontFamily} value={appearance.fontWeight} onChange={(fontWeight) => save(patchAppearance(value, { fontWeight }))} />
         <RangeRow label={t("settings.style.modeControls.secondaryFontSize")} value={appearance.secondaryFontScale} min={0.35} max={1} step={0.05} suffix="%" displayValue={Math.round(appearance.secondaryFontScale * 100)} onChange={(secondaryFontScale) => save(patchAppearance(value, { secondaryFontScale }))} />
         <RangeRow label={t("settings.overlay.lineHeight")} value={appearance.lineHeight} min={0.8} max={2} step={0.05} suffix="×" onChange={(lineHeight) => save(patchAppearance(value, { lineHeight }))} />
         <RangeRow label={t("settings.style.modeControls.lineGap")} value={appearance.lineGap} min={0} max={32} suffix="px" onChange={(lineGap) => save(patchAppearance(value, { lineGap }))} />
@@ -322,10 +316,10 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
     {value.showLyrics && <>
     {inheritanceSection}
     <SettingsSection id="mode-text" title={t("settings.style.modeControls.textLayout")}>
-      {!modeInheritance.inheritFontFamily && <TextRow label={t("settings.overlay.fontFamily")} value={appearance.fontFamily} emptyValue={appearance.fontFamily} onChange={(fontFamily) => save(patchAppearance(value, { fontFamily }))} />}
+      {!modeInheritance.inheritFontFamily && <FontFamilyChain fontFamily={appearance.fontFamily} fontFamilies={appearance.fontFamilies} fontWeight={appearance.fontWeight} onChange={(fontFamily, fontFamilies, fontWeight) => update("notch", patchAppearance(value, { fontFamily, fontFamilies, ...(fontWeight == null ? {} : { fontWeight }) }))} onError={setError} />}
       <RangeRow label={t("settings.overlay.fontSize")} value={appearance.fontSize} min={12} max={32} suffix="px" onChange={(fontSize) => save(patchAppearance(value, { fontSize }))} />
-      <SelectRow label={t("settings.overlay.fontWeight")} value={String(appearance.fontWeight)} options={fontWeights} onChange={(fontWeight) => save(patchAppearance(value, { fontWeight: Number(fontWeight) as OverlayFontWeight }))} />
-      <SelectRow label={t("settings.overlay.secondaryFontWeight")} value={String(appearance.secondaryFontWeight)} options={fontWeights} onChange={(secondaryFontWeight) => save(patchAppearance(value, { secondaryFontWeight: Number(secondaryFontWeight) as OverlayFontWeight }))} />
+      <FontWeightSelect label={t("settings.overlay.fontWeight")} family={appearance.fontFamily} value={appearance.fontWeight} onChange={(fontWeight) => save(patchAppearance(value, { fontWeight }))} />
+      <FontWeightSelect label={t("settings.overlay.secondaryFontWeight")} family={appearance.fontFamily} value={appearance.secondaryFontWeight} showHint={false} onChange={(secondaryFontWeight) => save(patchAppearance(value, { secondaryFontWeight }))} />
       <RangeRow label={t("settings.style.modeControls.lineGap")} disabled={value.presentation.layout !== "double"} value={appearance.lineGap} min={0} max={32} suffix="px" onChange={(lineGap) => save(patchAppearance(value, { lineGap }))} />
     </SettingsSection>
     <SettingsSection id="mode-colors" title={t("settings.style.modeControls.colorEffects")}>

@@ -10,7 +10,7 @@ use crate::config::{
 };
 use crate::lyrics::conversion::detect_region;
 use crate::lyrics::{LyricsDocument, LyricsLine, LyricsTrack, LyricsWord};
-use crate::overlay_model::{DoubleLineMode, OverlayLayout};
+use crate::overlay_model::{font_family_stack, DoubleLineMode, OverlayLayout};
 use crate::AppState;
 
 const AUXILIARY_TIMESTAMP_TOLERANCE_MS: u64 = 500;
@@ -467,10 +467,14 @@ pub(super) fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
         std::mem::swap(&mut primary, &mut secondary);
     }
 
+    let font_family = font_family_stack(
+        &preferences.appearance.font_family,
+        &preferences.appearance.font_families,
+    );
     let style_key = format!(
         ":style:{}:{}:{}:{}:{}:{:?}:{}:{:?}:{}:{}:{}:{}:{}:{}:{}:{}:{:?}:{:?}:{:?}:{:?}",
         preferences.appearance.width,
-        &preferences.appearance.font_family,
+        &font_family,
         preferences.appearance.font_size,
         preferences.appearance.font_weight,
         preferences.appearance.secondary_font_weight,
@@ -500,7 +504,7 @@ pub(super) fn render_payload(app: &tauri::AppHandle) -> Option<RenderPayload> {
         lines: [primary, secondary],
         double_line,
         width: preferences.appearance.width as f64,
-        font_family: preferences.appearance.font_family,
+        font_family,
         font_size: preferences.appearance.font_size as f64,
         vertical_offset: preferences.appearance.vertical_offset,
         font_weight: preferences.appearance.font_weight,

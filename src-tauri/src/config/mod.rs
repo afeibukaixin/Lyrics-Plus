@@ -10,14 +10,14 @@ use tauri_plugin_global_shortcut::Shortcut;
 use crate::language::{detect_config_comment_language, ConfigComment, UiLanguage};
 use crate::lyrics::provider::{normalize_settings, ProviderOrderMode, ProviderSettings};
 use crate::overlay_model::{
-    DoubleLineMode, KaraokeStyle, LongTextMode, OverlayAlignment, OverlayBackground,
-    OverlayBackgroundMode, OverlayLayout, OverlayOrientation, OverlayStyleSettings,
-    SecondaryDisplayMode,
+    font_fallbacks_from_families, font_families_from_css, normalize_font_families, DoubleLineMode,
+    KaraokeStyle, LongTextMode, OverlayAlignment, OverlayBackground, OverlayBackgroundMode,
+    OverlayLayout, OverlayOrientation, OverlayStyleSettings, SecondaryDisplayMode,
 };
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 72;
+pub const CONFIG_SCHEMA_VERSION: u16 = 73;
 const DEFAULT_SWITCH_LYRICS_SHORTCUT: &str = "CommandOrControl+Shift+KeyY";
 const APP_CONFIG_KEYS: &[&str] = &[
     "theme",

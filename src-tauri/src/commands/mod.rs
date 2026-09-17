@@ -48,9 +48,9 @@ use config_runtime::{
 #[cfg(test)]
 use overlay_geometry::fit_overlay_bounds;
 use overlay_geometry::{
-    clear_manual_overlay_bounds, fit_overlay_content_bounds, fixed_axis_content_size,
-    reset_overlay_dimensions, resize_overlay_edge_bounds, MIN_HORIZONTAL_WINDOW_WIDTH,
-    MIN_VERTICAL_HOST_WIDTH,
+    clear_manual_overlay_bounds, fit_directional_safety_bounds, fit_overlay_content_bounds,
+    fixed_axis_content_size, reset_overlay_dimensions, resize_overlay_edge_bounds,
+    MIN_HORIZONTAL_WINDOW_WIDTH, MIN_VERTICAL_HOST_WIDTH,
 };
 use overlay_persistence::persist_overlay_style_for_current_monitor;
 

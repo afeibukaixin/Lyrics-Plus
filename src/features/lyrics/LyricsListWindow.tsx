@@ -1,6 +1,7 @@
 import { useCallback, useMemo, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { LyricsLine } from "../../shared/types";
+import { fontFamilyStack } from "../../shared/fontFamily";
 import { isMacTauriRuntime } from "../../shared/tauriEvent";
 import { useAppConfig } from "../config/AppConfigProvider";
 import { usePlayback } from "../player/usePlayback";
@@ -64,6 +65,7 @@ export default function LyricsListWindow() {
 
   const title = playback.snapshot.title ?? t("lyricsList.noTrack");
   const artist = playback.snapshot.artist ?? t("lyricsList.waiting");
+  const canSeek = !locked && (playback.snapshot.player !== "system" || playback.snapshot.systemControlAvailable);
 
   const seekToLine = useCallback((line: LyricsLine) => {
     const positionMs = Math.max(0, Math.round(line.startMs - offsetMs));
@@ -77,12 +79,13 @@ export default function LyricsListWindow() {
       data-background-mode={appearance.backgroundMode}
       data-following={following.following}
       data-locked={locked}
+      data-seek-enabled={canSeek}
       data-toolbar-visible={toolbar.toolbarVisible}
       data-backdrop-keepalive={backdropKeepAlive && toolbar.toolbarVisible ? "true" : undefined}
       onMouseEnter={toolbar.showToolbar}
       onMouseLeave={toolbar.scheduleToolbarHide}
       style={{
-        "--list-font-family": appearance.fontFamily,
+        "--list-font-family": fontFamilyStack(appearance.fontFamily, appearance.fontFamilies),
         "--list-font-size": `${appearance.fontSize}px`,
         "--list-section-break-height": `${appearance.fontSize * appearance.lineHeight}px`,
         "--list-font-weight": appearance.fontWeight,
@@ -143,7 +146,7 @@ export default function LyricsListWindow() {
         lines={lines}
         auxiliary={auxiliary}
         lineOrder={options.lineOrder}
-        onLineClick={locked ? undefined : seekToLine}
+        onLineClick={canSeek ? seekToLine : undefined}
         activeIndex={lyrics.activeIndex}
         activeRef={following.activeRef}
         following={following.following}

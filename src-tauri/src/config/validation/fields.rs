@@ -481,12 +481,25 @@ pub(super) fn validate_field_types_and_options(
             }
         }
     }
-    if let Some(candidate) = value.pointer("/lyrics/displays/desktop/appearance/fontFamily") {
-        let font_family = candidate
-            .as_str()
-            .ok_or_else(|| error_at_key(raw, "fontFamily", "fontFamily 必须是字符串"))?;
-        if font_family.trim().is_empty() {
-            return Err(error_at_key(raw, "fontFamily", "fontFamily 不能为空"));
+    for path in [
+        "/lyrics/baseAppearance",
+        "/lyrics/displays/desktop/appearance",
+        "/lyrics/displays/statusBar/appearance",
+        "/lyrics/displays/listWindow/appearance",
+        "/lyrics/displays/notch/appearance",
+    ] {
+        if let Some(candidate) = value.pointer(&format!("{path}/fontFamily")) {
+            let font_family = candidate
+                .as_str()
+                .ok_or_else(|| error_at_key(raw, "fontFamily", "fontFamily 必须是字符串"))?;
+            if font_family.trim().is_empty() {
+                return Err(error_at_key(raw, "fontFamily", "fontFamily 不能为空"));
+            }
+        }
+        if let Some(candidate) = value.pointer(&format!("{path}/fontFamilies")) {
+            candidate
+                .as_str()
+                .ok_or_else(|| error_at_key(raw, "fontFamilies", "fontFamilies 必须是字符串"))?;
         }
     }
     if let Some(candidate) = value.pointer("/lyrics/providers/amllBaseUrl") {

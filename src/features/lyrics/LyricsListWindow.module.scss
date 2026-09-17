@@ -270,18 +270,18 @@
   transition: color 180ms ease, background-color 180ms ease;
 }
 
-.shell:not([data-locked="true"]) .line {
+.shell[data-seek-enabled="true"] .line {
   cursor: pointer;
   pointer-events: auto;
 }
 
-.shell:not([data-locked="true"]) .line:hover {
+.shell[data-seek-enabled="true"] .line:hover {
   color: var(--list-active-color);
   background: var(--list-active-background);
 }
 
-.shell:not([data-locked="true"]) .line:hover p,
-.shell:not([data-locked="true"]) .line:hover small { opacity: var(--list-active-opacity); }
+.shell[data-seek-enabled="true"] .line:hover p,
+.shell[data-seek-enabled="true"] .line:hover small { opacity: var(--list-active-opacity); }
 
 .sectionBreak {
   flex: 0 0 var(--list-section-break-height);

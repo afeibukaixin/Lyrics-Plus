@@ -18,6 +18,10 @@ pub(super) fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftEr
             column: 1,
         });
     }
+    let version_was_omitted = !user
+        .as_object()
+        .expect("checked object")
+        .contains_key("schemaVersion");
     let version = match user.get("schemaVersion") {
         None => CONFIG_SCHEMA_VERSION,
         Some(Value::Number(value)) => {
@@ -92,6 +96,7 @@ pub(super) fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftEr
     config::migrate_v67_provider_scoring(&mut user, version);
     config::migrate_v68_provider_matching(&mut user, version);
     config::migrate_v69_provider_duration_settings(&mut user, version);
+    config::migrate_v73_font_families(&mut user, if version_was_omitted { 0 } else { version });
     config::remove_retired_fullscreen_space_preferences(&mut user);
     super::structure::validate_known_fields(&user, raw)?;
     super::fields::validate_field_types_and_options(&user, raw)?;
@@ -140,8 +145,10 @@ pub(super) fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftEr
         error_at_key(raw, key, &message)
     })?;
     // Version 72 changes the on-disk representation from a generated full
-    // configuration to explicit user overrides. Compress older files once;
-    // current-version files retain values the user explicitly entered.
+    // configuration to explicit user overrides. Version 73 separates a legacy
+    // CSS font stack into its primary family and comma-separated fallbacks.
+    // Compress older files once; current-version files retain values the user
+    // explicitly entered.
     let user = if version < CONFIG_SCHEMA_VERSION {
         user_overrides_from_config(&config)
     } else {

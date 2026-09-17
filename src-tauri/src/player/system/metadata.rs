@@ -133,6 +133,7 @@ pub(super) fn snapshot_from_info(timed: &TimedInfo) -> PlaybackSnapshot {
         player: Some(PlayerKind::System),
         is_running: true,
         is_playing: info.is_playing.unwrap_or(false),
+        system_control_available: false,
         display_is_playing: None,
         track_id,
         title: metadata.title,

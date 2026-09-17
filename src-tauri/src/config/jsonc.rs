@@ -113,6 +113,9 @@ fn canonical_jsonc(value: &Value, language: UiLanguage) -> Result<String, String
             line if line.starts_with("          \"fontFamily\":") => {
                 Some(("          ", ConfigComment::FontFamily))
             }
+            line if line.starts_with("          \"fontFamilies\":") => {
+                Some(("          ", ConfigComment::FontFamilies))
+            }
             line if line.starts_with("          \"lineHeight\":") => {
                 Some(("          ", ConfigComment::LineHeight))
             }
@@ -190,6 +193,9 @@ fn canonical_jsonc(value: &Value, language: UiLanguage) -> Result<String, String
             }
             line if line.starts_with("      \"fontFamily\":") => {
                 Some(("      ", ConfigComment::FontFamily))
+            }
+            line if line.starts_with("      \"fontFamilies\":") => {
+                Some(("      ", ConfigComment::FontFamilies))
             }
             line if line.starts_with("      \"lineHeight\":") => {
                 Some(("      ", ConfigComment::LineHeight))
@@ -406,6 +412,7 @@ fn ordered_keys<'a>(
         "lyrics.providers.matchWeights" => &["title", "artist", "album", "duration", "version"][..],
         "lyrics.baseAppearance" => &[
             "fontFamily",
+            "fontFamilies",
             "activeColor",
             "inactiveColor",
             "translationColor",
@@ -454,6 +461,7 @@ fn ordered_keys<'a>(
         ][..],
         "lyrics.displays.statusBar.appearance" => &[
             "fontFamily",
+            "fontFamilies",
             "fontSize",
             "verticalOffset",
             "fontWeight",
@@ -477,6 +485,7 @@ fn ordered_keys<'a>(
         ][..],
         "lyrics.displays.listWindow.appearance" => &[
             "fontFamily",
+            "fontFamilies",
             "fontSize",
             "fontWeight",
             "secondaryFontScale",
@@ -521,6 +530,7 @@ fn ordered_keys<'a>(
         ][..],
         "lyrics.displays.notch.appearance" => &[
             "fontFamily",
+            "fontFamilies",
             "fontSize",
             "fontWeight",
             "secondaryFontWeight",
@@ -538,6 +548,7 @@ fn ordered_keys<'a>(
         ][..],
         "lyrics.displays.desktop.appearance" => &[
             "fontFamily",
+            "fontFamilies",
             "fontSize",
             "fontWeight",
             "secondaryFontWeight",
@@ -550,6 +561,8 @@ fn ordered_keys<'a>(
             "backgroundRadius",
             "backgroundPaddingX",
             "backgroundPaddingY",
+            "safetyInsetX",
+            "safetyInsetY",
             "backgroundMode",
             "background",
             "solidColor",

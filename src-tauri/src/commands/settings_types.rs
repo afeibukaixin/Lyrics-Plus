@@ -57,7 +57,15 @@ pub fn control_playback(action: PlaybackAction, state: State<'_, AppState>) -> R
         .selection
         .read()
         .unwrap_or_else(|error| error.into_inner());
-    control_player(action, selection, &snapshot, &state.system_media)
+    let config = state.config.snapshot();
+    control_player(
+        action,
+        selection,
+        &snapshot,
+        &state.system_media,
+        config.app.system_media_filter_mode,
+        &config.app.system_media_applications,
+    )
 }
 
 #[tauri::command]
@@ -71,5 +79,13 @@ pub fn seek_playback(position_ms: u64, state: State<'_, AppState>) -> Result<(),
         .selection
         .read()
         .unwrap_or_else(|error| error.into_inner());
-    seek_player(position_ms, selection, &snapshot, &state.system_media)
+    let config = state.config.snapshot();
+    seek_player(
+        position_ms,
+        selection,
+        &snapshot,
+        &state.system_media,
+        config.app.system_media_filter_mode,
+        &config.app.system_media_applications,
+    )
 }

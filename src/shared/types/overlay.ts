@@ -11,8 +11,15 @@ export type OverlayResizeBounds = {
   width: number;
   height: number;
 };
+
+export type FontFamily = {
+  name: string;
+  family: string;
+};
+
 export type OverlayStyle = {
   fontFamily: string;
+  fontFamilies: string;
   fontSize: number;
   fontWeight: OverlayFontWeight;
   secondaryFontWeight: OverlayFontWeight;
@@ -25,6 +32,8 @@ export type OverlayStyle = {
   backgroundRadius: number;
   backgroundPaddingX: number;
   backgroundPaddingY: number;
+  safetyInsetX: number;
+  safetyInsetY: number;
   backgroundMode: "solid" | "transparent";
   background: "glass" | "transparent" | "solid";
   solidColor: string;
