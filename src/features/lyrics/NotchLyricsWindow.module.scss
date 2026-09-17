@@ -742,14 +742,33 @@
 }
 
 .shell:not([data-has-notch]) .metadata[data-inline-lyrics="true"] {
-  grid-template-columns: minmax(0, auto) minmax(0, 1fr) minmax(0, auto);
+  grid-template-columns:
+    minmax(0, var(--notch-inline-side-width))
+    minmax(0, 1fr)
+    minmax(0, var(--notch-inline-side-width));
   column-gap: 8px;
 }
 
 .metadata[data-inline-lyrics="true"] .slot {
-  width: fit-content;
-  max-width: 96px;
+  width: 100%;
   overflow: hidden;
+}
+
+.slotMeasure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max-content;
+  height: 0;
+  overflow: hidden;
+  white-space: pre;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.slot[data-slot="artwork"] .slotMeasure,
+.slot[data-slot="spectrum"] .slotMeasure {
+  width: var(--notch-compact-slot-size);
 }
 
 .metadata[data-inline-lyrics="true"] .currentLine,

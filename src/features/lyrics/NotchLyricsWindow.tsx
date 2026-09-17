@@ -1,6 +1,8 @@
 import {
   useCallback,
+  useLayoutEffect,
   useRef,
+  useState,
   type CSSProperties,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -41,6 +43,8 @@ import {
   resolvedNotchTopInset,
 } from "./NotchLyricsLayout";
 import styles from "./NotchLyricsWindow.module.scss";
+
+const INLINE_SLOT_MAX_WIDTH = 96;
 
 export default function NotchLyricsWindow() {
   const { t } = useTranslation();
@@ -130,6 +134,10 @@ export default function NotchLyricsWindow() {
   const collapsedHeightFloor = notchCollapsedHeightFloor(layout);
   const slotPadding = notchSlotPadding(appearance.borderRadius);
   const compactSlotSize = notchCompactSlotSize(layout);
+  const fontFamily = fontFamilyStack(appearance.fontFamily, appearance.fontFamilies);
+  const [inlineSideWidth, setInlineSideWidth] = useState(0);
+  const leftSlotMeasureRef = useRef<HTMLSpanElement>(null);
+  const rightSlotMeasureRef = useRef<HTMLSpanElement>(null);
   const marqueePaused = previewActive || widthMotionActive || visibilityMotionActive;
   const expandedPlayerActive = islandState !== "collapsed";
   const {
@@ -170,6 +178,33 @@ export default function NotchLyricsWindow() {
     && notch.inlineLyricsOnNonNotch
     && notch.showLyrics
     && hasPrimaryLine;
+  const title = playback.snapshot.title?.trim() || "Lyrics Plus";
+  const artist = playback.snapshot.artist?.trim() || "";
+  const slotText = (slot: NotchSlotContent) => slot === "title" ? title : slot === "artist" ? artist : "";
+
+  useLayoutEffect(() => {
+    if (!inlineLyricsOnNonNotch) return;
+    const leftMeasure = leftSlotMeasureRef.current;
+    const rightMeasure = rightSlotMeasureRef.current;
+    if (!leftMeasure || !rightMeasure) return;
+
+    // 测量独立的自然宽度；两侧都有内容时同步到较窄侧，空槽不挤掉另一侧。
+    const measure = () => {
+      const leftWidth = leftMeasure.getBoundingClientRect().width;
+      const rightWidth = rightMeasure.getBoundingClientRect().width;
+      const contentWidth = leftWidth > 0 && rightWidth > 0
+        ? Math.min(leftWidth, rightWidth)
+        : Math.max(leftWidth, rightWidth);
+      const width = Math.min(INLINE_SLOT_MAX_WIDTH, Math.ceil(contentWidth));
+      setInlineSideWidth((previous) => previous === width ? previous : width);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(leftMeasure);
+    observer.observe(rightMeasure);
+    measure();
+    return () => observer.disconnect();
+  }, [inlineLyricsOnNonNotch, notch.leftSlot, notch.rightSlot, title, artist, fontFamily, appearance.fontSize, compactSlotSize]);
+
   // 空白歌词行也要保留容器，避免把时间轴上的停顿压掉。
   const primaryLineElement = hasPrimaryLine && (
     <div className={styles.currentLine} key={`${lyrics.trackKey}:${primaryLine?.startMs ?? "fallback"}:${primaryText}`}>
@@ -345,9 +380,7 @@ export default function NotchLyricsWindow() {
     if (slot === "spectrum") {
       return <SpectrumBars active={usesSpectrum && playback.active} register={registerSpectrumNode} />;
     }
-    const value = slot === "title"
-      ? playback.snapshot.title?.trim() || "Lyrics Plus"
-      : playback.snapshot.artist?.trim() || "";
+    const value = slotText(slot);
     return (
       <OverflowText
         align={align}
@@ -370,7 +403,7 @@ export default function NotchLyricsWindow() {
       data-width-preview={previewActive || undefined}
       ref={shellRef}
       style={{
-        "--notch-font-family": fontFamilyStack(appearance.fontFamily, appearance.fontFamilies),
+        "--notch-font-family": fontFamily,
         "--notch-font-size": `${appearance.fontSize}px`,
         "--notch-font-weight": appearance.fontWeight,
         "--notch-secondary-font-weight": appearance.secondaryFontWeight,
@@ -399,6 +432,7 @@ export default function NotchLyricsWindow() {
         "--notch-top-inset": `${resolvedTopInset}px`,
         "--notch-slot-vertical-padding": `${NOTCH_SLOT_VERTICAL_PADDING}px`,
         "--notch-compact-slot-size": `${compactSlotSize}px`,
+        "--notch-inline-side-width": `${inlineSideWidth}px`,
         "--notch-center-gap": `${layout.centerGapWidth}px`,
       } as CSSProperties}
     >
@@ -422,9 +456,15 @@ export default function NotchLyricsWindow() {
               )}
               <div className={styles.content} data-inline-double-line={inlineDoubleLine || undefined} ref={contentRef}>
                 <header className={styles.metadata} data-inline-lyrics={inlineLyricsOnNonNotch || undefined}>
-                  <div className={styles.slot} data-side="left" data-slot={notch.leftSlot}>{renderSlot(notch.leftSlot, "left")}</div>
+                  <div className={styles.slot} data-side="left" data-slot={notch.leftSlot}>
+                    {renderSlot(notch.leftSlot, "left")}
+                    {inlineLyricsOnNonNotch && <span aria-hidden="true" className={styles.slotMeasure} ref={leftSlotMeasureRef}>{slotText(notch.leftSlot)}</span>}
+                  </div>
                   {inlineLyricsOnNonNotch ? inlineTopLineElement : <span className={styles.notchGap} aria-hidden="true" />}
-                  <div className={styles.slot} data-side="right" data-slot={notch.rightSlot}>{renderSlot(notch.rightSlot, "right")}</div>
+                  <div className={styles.slot} data-side="right" data-slot={notch.rightSlot}>
+                    {renderSlot(notch.rightSlot, "right")}
+                    {inlineLyricsOnNonNotch && <span aria-hidden="true" className={styles.slotMeasure} ref={rightSlotMeasureRef}>{slotText(notch.rightSlot)}</span>}
+                  </div>
                 </header>
                 {notch.showLyrics && ((hasPrimaryLine && !inlineLyricsOnNonNotch) || supportingLines.length > 0) && (
                   <div
