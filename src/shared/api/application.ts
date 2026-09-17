@@ -19,6 +19,9 @@ export const applicationApi = {
     invoke<void>("show_lyrics_style_settings", { mode }),
   showQuickLyricsWindow: () => invoke<void>("show_quick_lyrics_window"),
   getAppConfig: () => invoke<AppConfig>("get_app_config"),
+  openFontPanel: (family?: string, fontWeight?: number) => invoke<void>("open_font_panel", { family: family ?? null, fontWeight: fontWeight ?? null }),
+  getFontAvailableWeights: (family: string) => invoke<number[] | null>("get_font_available_weights", { family }),
+  closeFontPanel: () => invoke<void>("close_font_panel"),
   getTelemetrySettings: () => invoke<TelemetrySettings>("get_telemetry_settings"),
   setTelemetryEnabled: (enabled: boolean) =>
     invoke<TelemetrySettings>("set_telemetry_enabled", { enabled }),

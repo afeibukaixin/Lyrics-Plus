@@ -83,6 +83,11 @@ impl ConfigStore {
             .and_then(|raw| serde_json::from_str::<OverlayStyleSettings>(&raw).ok())
             .map(OverlayStyleSettings::normalized);
         if let Some(style) = legacy_style {
+            // The legacy store only had one overlay style. Move its font
+            // source to the common appearance before inheritance is applied,
+            // so a user CSS stack is not replaced by the new default chain.
+            value.lyrics.base_appearance.font_family = style.font_family.clone();
+            value.lyrics.base_appearance.font_families = style.font_families.clone();
             value.lyrics.displays.desktop.apply_style(&style);
         }
         let value = value.normalized()?;

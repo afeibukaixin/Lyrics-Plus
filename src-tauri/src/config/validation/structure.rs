@@ -47,6 +47,7 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
                 raw,
                 &[
                     "fontFamily",
+                    "fontFamilies",
                     "activeColor",
                     "inactiveColor",
                     "translationColor",
@@ -141,6 +142,7 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
                         raw,
                         &[
                             "fontFamily",
+                            "fontFamilies",
                             "fontSize",
                             "fontWeight",
                             "secondaryFontWeight",
@@ -211,6 +213,7 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
                         raw,
                         &[
                             "fontFamily",
+                            "fontFamilies",
                             "fontSize",
                             "verticalOffset",
                             "fontWeight",
@@ -256,6 +259,7 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
                         raw,
                         &[
                             "fontFamily",
+                            "fontFamilies",
                             "fontSize",
                             "fontWeight",
                             "secondaryFontScale",
@@ -318,6 +322,7 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
                         raw,
                         &[
                             "fontFamily",
+                            "fontFamilies",
                             "fontSize",
                             "fontWeight",
                             "secondaryFontWeight",

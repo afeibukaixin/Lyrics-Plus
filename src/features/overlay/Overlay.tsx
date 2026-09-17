@@ -3,6 +3,7 @@ import {
   secondaryDisplayFlags,
   type ToolbarPlacement,
 } from "../../shared/types";
+import { fontFamilyStack } from "../../shared/fontFamily";
 import { isMacTauriRuntime } from "../../shared/tauriEvent";
 import styles from "./Overlay.module.scss";
 import { OverlayKaraokeLine } from "./OverlayKaraokeLine";
@@ -263,7 +264,7 @@ export default function Overlay() {
       data-backdrop-keepalive={backdropKeepAlive ? "true" : undefined}
       onPointerDown={startWindowDrag}
       style={{
-        "--lyric-font-family": style.fontFamily,
+        "--lyric-font-family": fontFamilyStack(style.fontFamily, style.fontFamilies),
         "--lyric-size": `${style.fontSize}px`,
         "--lyric-font-weight": style.fontWeight,
         "--secondary-font-weight": style.secondaryFontWeight,

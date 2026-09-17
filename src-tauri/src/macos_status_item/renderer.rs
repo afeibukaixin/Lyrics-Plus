@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 
 use super::payload::{RenderLinePayload, RenderPayload};
 use crate::config::StatusBarAlignment;
+use crate::font_weight::{font_manager_weight, system_font_weight};
 
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
@@ -15,6 +16,7 @@ use objc2_app_kit::{
 use objc2_core_graphics::CGColor;
 use objc2_foundation::{NSMutableAttributedString, NSPoint, NSRange, NSRect, NSSize, NSString};
 use objc2_quartz_core::{CALayer, CATextLayer, CATransaction};
+use unicode_segmentation::UnicodeSegmentation;
 
 const CONTENT_INSET: f64 = 6.0;
 const SCROLL_SPEED_POINTS_PER_SECOND: f64 = 35.0;
@@ -82,54 +84,98 @@ pub(super) fn reset() {
     reset_scroll();
 }
 
-fn system_font_weight(weight: u16) -> f64 {
-    match weight {
-        0..=449 => 0.0,
-        450..=549 => 0.23,
-        550..=649 => 0.30,
-        650..=749 => 0.40,
-        _ => 0.56,
+fn split_font_family_stack(value: &str) -> Vec<String> {
+    let mut candidates = Vec::new();
+    let mut current = String::new();
+    let mut quote = None;
+    let mut escaped = false;
+    for character in value.chars() {
+        if escaped {
+            current.push(character);
+            escaped = false;
+            continue;
+        }
+        if character == '\\' && quote.is_some() {
+            escaped = true;
+            continue;
+        }
+        if let Some(active_quote) = quote {
+            if character == active_quote {
+                quote = None;
+            } else {
+                current.push(character);
+            }
+        } else if matches!(character, '\'' | '"') {
+            quote = Some(character);
+        } else if character == ',' {
+            candidates.push(current.trim().to_owned());
+            current.clear();
+        } else {
+            current.push(character);
+        }
     }
+    if escaped {
+        current.push('\\');
+    }
+    candidates.push(current.trim().to_owned());
+    candidates
 }
 
-fn font_manager_weight(weight: u16) -> isize {
-    match weight {
-        0..=449 => 5,
-        450..=549 => 7,
-        550..=649 => 9,
-        650..=749 => 11,
-        _ => 13,
-    }
+fn is_system_font_family(family: &str) -> bool {
+    matches!(
+        family.trim().to_ascii_lowercase().as_str(),
+        "-apple-system" | "system-ui" | "blinkmacsystemfont" | "sans-serif"
+    )
 }
 
-fn resolve_font(
+fn resolve_fonts(
     family_stack: &str,
     size: f64,
     weight: u16,
     mtm: MainThreadMarker,
-) -> Retained<NSFont> {
+) -> Vec<Retained<NSFont>> {
     let manager = NSFontManager::sharedFontManager(mtm);
-    for candidate in family_stack.split(',') {
-        let family = candidate.trim().trim_matches(['\'', '"']);
+    let mut fonts = Vec::new();
+    let mut seen_families = Vec::new();
+    let mut system_font_added = false;
+    for candidate in split_font_family_stack(family_stack) {
+        let family = candidate.trim();
         if family.is_empty() {
             continue;
         }
-        if matches!(
-            family.to_ascii_lowercase().as_str(),
-            "-apple-system" | "system-ui" | "sans-serif"
-        ) {
-            break;
+        if is_system_font_family(family) {
+            if !system_font_added {
+                fonts.push(NSFont::systemFontOfSize_weight(
+                    size,
+                    system_font_weight(weight),
+                ));
+                system_font_added = true;
+            }
+            continue;
         }
+        if seen_families
+            .iter()
+            .any(|seen: &String| seen.eq_ignore_ascii_case(family))
+        {
+            continue;
+        }
+        seen_families.push(family.to_owned());
         if let Some(font) = manager.fontWithFamily_traits_weight_size(
             &NSString::from_str(family),
             NSFontTraitMask::empty(),
             font_manager_weight(weight),
             size,
         ) {
-            return font;
+            fonts.push(font);
         }
     }
-    NSFont::systemFontOfSize_weight(size, system_font_weight(weight))
+    if !system_font_added {
+        fonts.push(NSFont::systemFontOfSize_weight(
+            size,
+            system_font_weight(weight),
+        ));
+    }
+    fonts
 }
 
 fn parse_channel(value: &str) -> Option<f64> {
@@ -264,21 +310,70 @@ fn scroll_offset(
 
 fn attributed_text(
     text: &str,
-    font: &NSFont,
+    fonts: &[Retained<NSFont>],
     color: &NSColor,
 ) -> Retained<NSMutableAttributedString> {
     let string = NSString::from_str(text);
     let attributed = NSMutableAttributedString::from_nsstring(&string);
     let full_range = NSRange::new(0, string.length());
-    let font_object = <NSFont as AsRef<AnyObject>>::as_ref(font);
     let color_object = <NSColor as AsRef<AnyObject>>::as_ref(color);
     unsafe {
-        attributed.addAttribute_value_range(NSFontAttributeName, font_object, full_range);
         attributed.addAttribute_value_range(
             NSForegroundColorAttributeName,
             color_object,
             full_range,
         );
+    }
+
+    if fonts.is_empty() || text.is_empty() {
+        return attributed;
+    }
+
+    let coverage = fonts
+        .iter()
+        .map(|font| font.coveredCharacterSet())
+        .collect::<Vec<_>>();
+    let font_for_grapheme = |grapheme: &str| {
+        coverage
+            .iter()
+            .position(|characters| {
+                grapheme
+                    .chars()
+                    .all(|character| characters.longCharacterIsMember(character as u32))
+            })
+            .unwrap_or(coverage.len() - 1)
+    };
+    let mut runs = Vec::new();
+    let mut utf16_offset = 0;
+    let mut run_start = 0;
+    let mut run_font = None;
+    // Keep combining marks and emoji sequences in one font run. NSRange uses
+    // UTF-16 code units, so a supplementary character advances by two units.
+    for grapheme in text.graphemes(true) {
+        let character_font = font_for_grapheme(grapheme);
+        if let Some(previous_font) = run_font {
+            if previous_font != character_font {
+                runs.push((run_start, utf16_offset, previous_font));
+                run_start = utf16_offset;
+            }
+        } else {
+            run_start = utf16_offset;
+        }
+        run_font = Some(character_font);
+        utf16_offset += grapheme.encode_utf16().count();
+    }
+    if let Some(last_font) = run_font {
+        runs.push((run_start, utf16_offset, last_font));
+    }
+    for (start, end, font_index) in runs {
+        let font_object = <NSFont as AsRef<AnyObject>>::as_ref(&*fonts[font_index]);
+        unsafe {
+            attributed.addAttribute_value_range(
+                NSFontAttributeName,
+                font_object,
+                NSRange::new(start, end - start),
+            );
+        }
     }
     attributed
 }
@@ -287,9 +382,13 @@ fn layer_id(layer: &CALayer) -> usize {
     layer as *const CALayer as usize
 }
 
-fn build_layer_row(line: &RenderLinePayload, font: &NSFont, host_layer: &CALayer) -> LayerRowCache {
+fn build_layer_row(
+    line: &RenderLinePayload,
+    fonts: &[Retained<NSFont>],
+    host_layer: &CALayer,
+) -> LayerRowCache {
     let base_color = native_color(&line.base_color, (0.96, 0.98, 1.0, 1.0));
-    let base_attributed = attributed_text(&line.text, font, &base_color);
+    let base_attributed = attributed_text(&line.text, fonts, &base_color);
     let content_width = base_attributed.size().width.ceil();
 
     let base_layer = CATextLayer::layer();
@@ -303,7 +402,7 @@ fn build_layer_row(line: &RenderLinePayload, font: &NSFont, host_layer: &CALayer
 
     let (highlight_layer, highlight_mask) = if line.sweep_progress.is_some() {
         let highlight_color = native_color(&line.highlight_color, (0.64, 0.90, 0.21, 1.0));
-        let highlight_attributed = attributed_text(&line.text, font, &highlight_color);
+        let highlight_attributed = attributed_text(&line.text, fonts, &highlight_color);
         let layer = CATextLayer::layer();
         layer.setWrapped(false);
         layer.setContentsScale(2.0);
@@ -339,8 +438,8 @@ fn build_layer_cache(
     mtm: MainThreadMarker,
     cache_key: String,
 ) -> LayerCache {
-    let primary_font = resolve_font(&payload.font_family, font_size, payload.font_weight, mtm);
-    let secondary_font = resolve_font(
+    let primary_fonts = resolve_fonts(&payload.font_family, font_size, payload.font_weight, mtm);
+    let secondary_fonts = resolve_fonts(
         &payload.font_family,
         font_size,
         payload.secondary_font_weight,
@@ -353,12 +452,12 @@ fn build_layer_cache(
         .take(line_count)
         .enumerate()
         .map(|(index, line)| {
-            let font = if index == 0 {
-                &primary_font
+            let fonts = if index == 0 {
+                &primary_fonts
             } else {
-                &secondary_font
+                &secondary_fonts
             };
-            build_layer_row(line, font, host_layer)
+            build_layer_row(line, fonts, host_layer)
         })
         .collect();
     LayerCache {

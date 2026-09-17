@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import appIconUrl from "../../../src-tauri/icons/128x128@2x.png";
 import { api } from "../../shared/api";
 import { reportFrontendError } from "../../shared/debugLog";
+import { fontFamilyStack } from "../../shared/fontFamily";
 import { useAppConfig } from "../config/AppConfigProvider";
 import { usePlayback } from "../player/usePlayback";
 import { useCompactLyricsPresentation } from "./compactPresentation";
@@ -369,7 +370,7 @@ export default function NotchLyricsWindow() {
       data-width-preview={previewActive || undefined}
       ref={shellRef}
       style={{
-        "--notch-font-family": appearance.fontFamily,
+        "--notch-font-family": fontFamilyStack(appearance.fontFamily, appearance.fontFamilies),
         "--notch-font-size": `${appearance.fontSize}px`,
         "--notch-font-weight": appearance.fontWeight,
         "--notch-secondary-font-weight": appearance.secondaryFontWeight,

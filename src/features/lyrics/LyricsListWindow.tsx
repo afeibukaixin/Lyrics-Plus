@@ -1,6 +1,7 @@
 import { useCallback, useMemo, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { LyricsLine } from "../../shared/types";
+import { fontFamilyStack } from "../../shared/fontFamily";
 import { isMacTauriRuntime } from "../../shared/tauriEvent";
 import { useAppConfig } from "../config/AppConfigProvider";
 import { usePlayback } from "../player/usePlayback";
@@ -82,7 +83,7 @@ export default function LyricsListWindow() {
       onMouseEnter={toolbar.showToolbar}
       onMouseLeave={toolbar.scheduleToolbarHide}
       style={{
-        "--list-font-family": appearance.fontFamily,
+        "--list-font-family": fontFamilyStack(appearance.fontFamily, appearance.fontFamilies),
         "--list-font-size": `${appearance.fontSize}px`,
         "--list-section-break-height": `${appearance.fontSize * appearance.lineHeight}px`,
         "--list-font-weight": appearance.fontWeight,

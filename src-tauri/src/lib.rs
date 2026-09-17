@@ -1,6 +1,8 @@
 mod commands;
 mod config;
 mod factory_reset;
+#[cfg(target_os = "macos")]
+mod font_weight;
 mod language;
 mod lyrics;
 #[cfg(target_os = "macos")]

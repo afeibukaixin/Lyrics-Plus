@@ -11,8 +11,15 @@ export type OverlayResizeBounds = {
   width: number;
   height: number;
 };
+
+export type FontFamily = {
+  name: string;
+  family: string;
+};
+
 export type OverlayStyle = {
   fontFamily: string;
+  fontFamilies: string;
   fontSize: number;
   fontWeight: OverlayFontWeight;
   secondaryFontWeight: OverlayFontWeight;

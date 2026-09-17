@@ -102,7 +102,7 @@ export function useOverlayContentFit({
     } else {
       lastRequestedSize.current = null;
     }
-  }, [fitLimits.height, fitLimits.width, fitRetryTimer, fitFrame, preserveSizeForEmptyLine, primaryLineKey, shrinkTimer, supportingKey, style.backgroundPaddingX, style.backgroundPaddingY, style.fontFamily, style.fontSize, style.fontWeight, style.horizontalMaxWidth, style.layout, style.lineGap, style.lineHeight, style.longText, style.orientation, style.romanizationFontScale, style.secondaryFontScale, style.secondaryFontWeight, style.textStrokeWidth, style.translationFontScale, style.verticalMaxHeight]);
+  }, [fitLimits.height, fitLimits.width, fitRetryTimer, fitFrame, preserveSizeForEmptyLine, primaryLineKey, shrinkTimer, supportingKey, style.backgroundPaddingX, style.backgroundPaddingY, style.fontFamily, style.fontFamilies, style.fontSize, style.fontWeight, style.horizontalMaxWidth, style.layout, style.lineGap, style.lineHeight, style.longText, style.orientation, style.romanizationFontScale, style.secondaryFontScale, style.secondaryFontWeight, style.textShadowBlur, style.textShadowOffsetX, style.textShadowOffsetY, style.textStrokeWidth, style.translationFontScale, style.verticalMaxHeight]);
 
   useLayoutEffect(() => {
     if (!settingsVisible || resizing) {
@@ -270,5 +270,5 @@ export function useOverlayContentFit({
       if (shrinkTimer.current !== null) clearTimeout(shrinkTimer.current);
       shrinkTimer.current = null;
     };
-  }, [constrained, fitLimits.height, fitLimits.width, fitScale, horizontalContentLimit, horizontalWindowLimit, marqueeHorizontalLimit, marqueeMetrics, marqueeTimeLimit, marqueeVerticalLimit, overlayHorizontalPadding, overlayVerticalPadding, preserveSizeForEmptyLine, primaryText, resizing, settingsVisible, style.fontFamily, style.fontSize, style.fontWeight, style.layout, style.lineGap, style.lineHeight, style.longText, style.orientation, style.romanizationFontScale, style.secondaryFontScale, style.secondaryFontWeight, style.textStrokeWidth, style.translationFontScale, supportingKey, vertical, verticalContentLimit, verticalWindowLimit, wrapped]);
+  }, [constrained, fitLimits.height, fitLimits.width, fitScale, horizontalContentLimit, horizontalWindowLimit, marqueeHorizontalLimit, marqueeMetrics, marqueeTimeLimit, marqueeVerticalLimit, overlayHorizontalPadding, overlayVerticalPadding, preserveSizeForEmptyLine, primaryText, resizing, settingsVisible, style.fontFamily, style.fontFamilies, style.fontSize, style.fontWeight, style.layout, style.lineGap, style.lineHeight, style.longText, style.orientation, style.romanizationFontScale, style.secondaryFontScale, style.secondaryFontWeight, style.textShadowBlur, style.textShadowOffsetX, style.textShadowOffsetY, style.textStrokeWidth, style.translationFontScale, supportingKey, vertical, verticalContentLimit, verticalWindowLimit, wrapped]);
 }

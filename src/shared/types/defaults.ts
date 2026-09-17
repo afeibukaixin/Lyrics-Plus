@@ -10,6 +10,7 @@ import type {
   DesktopLyricsPresentation,
 } from "./lyrics";
 import type { OverlayStyle } from "./overlay";
+import { defaultCustomFontFamilies, SYSTEM_FONT_FAMILY } from "../fontFamily";
 
 export function secondaryDisplayFlags(mode: OverlayStyle["secondaryDisplay"]) {
   return {
@@ -26,10 +27,11 @@ export function secondaryDisplayFromFlags(translation: boolean, romanization: bo
 }
 
 export const defaultOverlayStyle: OverlayStyle = {
-  fontFamily: 'Inter, "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", Arial, sans-serif',
+  fontFamily: SYSTEM_FONT_FAMILY,
+  fontFamilies: defaultCustomFontFamilies,
   fontSize: 36,
-  fontWeight: 800,
-  secondaryFontWeight: 500,
+  fontWeight: 400,
+  secondaryFontWeight: 400,
   lineHeight: 1.2,
   activeColor: "#a3e635",
   inactiveColor: "#ecfccb",
@@ -69,6 +71,7 @@ export const defaultOverlayStyle: OverlayStyle = {
 
 export const defaultLyricsBaseAppearance: LyricsBaseAppearance = {
   fontFamily: defaultOverlayStyle.fontFamily,
+  fontFamilies: defaultOverlayStyle.fontFamilies,
   activeColor: "#a3e635",
   inactiveColor: "#ecfccb",
   translationColor: "#d9f99d",
@@ -119,10 +122,11 @@ export const defaultLyricsStyleInheritance: LyricsStyleInheritance = {
 
 export const defaultStatusBarLyricsAppearance: StatusBarLyricsAppearance = {
   fontFamily: defaultOverlayStyle.fontFamily,
+  fontFamilies: defaultOverlayStyle.fontFamilies,
   fontSize: 14,
   verticalOffset: 0,
-  fontWeight: 600,
-  secondaryFontWeight: 500,
+  fontWeight: 400,
+  secondaryFontWeight: 400,
   textColor: "#a3e635",
   inactiveColor: "#ecfccb",
   highlightColor: "#a3e635",
@@ -139,8 +143,9 @@ export const defaultStatusBarLyricsPresentation = {
 
 export const defaultListLyricsAppearance: ListLyricsAppearance = {
   fontFamily: defaultOverlayStyle.fontFamily,
+  fontFamilies: defaultOverlayStyle.fontFamilies,
   fontSize: 24,
-  fontWeight: 600,
+  fontWeight: 400,
   secondaryFontScale: 0.58,
   lineHeight: 1.45,
   lineGap: 8,
@@ -172,9 +177,10 @@ export const defaultListLyricsLineOrder: ListLyricsLineOrder = [
 
 export const defaultNotchLyricsAppearance: NotchLyricsAppearance = {
   fontFamily: defaultOverlayStyle.fontFamily,
+  fontFamilies: defaultOverlayStyle.fontFamilies,
   fontSize: 18,
-  fontWeight: 700,
-  secondaryFontWeight: 500,
+  fontWeight: 400,
+  secondaryFontWeight: 400,
   activeColor: defaultOverlayStyle.activeColor,
   inactiveColor: defaultOverlayStyle.inactiveColor,
   translationColor: defaultOverlayStyle.translationColor,

@@ -273,6 +273,7 @@ impl Default for LyricsPreferences {
 #[serde(default, rename_all = "camelCase")]
 pub struct LyricsBaseAppearance {
     pub font_family: String,
+    pub font_families: String,
     pub active_color: String,
     pub inactive_color: String,
     pub translation_color: String,
@@ -286,6 +287,7 @@ impl Default for LyricsBaseAppearance {
         let overlay = OverlayStyleSettings::default();
         Self {
             font_family: overlay.font_family,
+            font_families: overlay.font_families,
             active_color: "#a3e635".into(),
             inactive_color: "#ecfccb".into(),
             translation_color: "#d9f99d".into(),
@@ -500,6 +502,7 @@ impl Default for StatusBarLyricsPresentation {
 #[serde(default, rename_all = "camelCase")]
 pub struct StatusBarLyricsAppearance {
     pub font_family: String,
+    pub font_families: String,
     pub font_size: u16,
     pub vertical_offset: f64,
     pub font_weight: u16,
@@ -518,10 +521,11 @@ impl Default for StatusBarLyricsAppearance {
     fn default() -> Self {
         Self {
             font_family: OverlayAppearance::default().font_family,
+            font_families: OverlayAppearance::default().font_families,
             font_size: 14,
             vertical_offset: 0.0,
-            font_weight: 600,
-            secondary_font_weight: 500,
+            font_weight: 400,
+            secondary_font_weight: 400,
             text_color: "#a3e635".into(),
             inactive_color: "#ecfccb".into(),
             highlight_color: "#a3e635".into(),
@@ -597,6 +601,7 @@ impl Default for ListLyricsPreferences {
 #[serde(default, rename_all = "camelCase")]
 pub struct ListLyricsAppearance {
     pub font_family: String,
+    pub font_families: String,
     pub font_size: u16,
     pub font_weight: u16,
     pub secondary_font_scale: f64,
@@ -626,8 +631,9 @@ impl Default for ListLyricsAppearance {
     fn default() -> Self {
         Self {
             font_family: OverlayAppearance::default().font_family,
+            font_families: OverlayAppearance::default().font_families,
             font_size: 24,
-            font_weight: 600,
+            font_weight: 400,
             secondary_font_scale: 0.58,
             line_height: 1.45,
             line_gap: 8.0,
@@ -687,6 +693,7 @@ impl Default for NotchLyricsPreferences {
 #[serde(default, rename_all = "camelCase")]
 pub struct NotchLyricsAppearance {
     pub font_family: String,
+    pub font_families: String,
     pub font_size: u16,
     pub font_weight: u16,
     pub secondary_font_weight: u16,
@@ -707,9 +714,10 @@ impl Default for NotchLyricsAppearance {
     fn default() -> Self {
         Self {
             font_family: OverlayAppearance::default().font_family,
+            font_families: OverlayAppearance::default().font_families,
             font_size: 18,
-            font_weight: 700,
-            secondary_font_weight: 500,
+            font_weight: 400,
+            secondary_font_weight: 400,
             active_color: "#a3e635".into(),
             inactive_color: "#ecfccb".into(),
             translation_color: "#d9f99d".into(),
@@ -729,6 +737,7 @@ impl Default for NotchLyricsAppearance {
 #[serde(default, rename_all = "camelCase")]
 pub struct OverlayAppearance {
     pub font_family: String,
+    pub font_families: String,
     pub font_size: u16,
     pub font_weight: u16,
     pub secondary_font_weight: u16,
@@ -769,6 +778,7 @@ impl From<&OverlayStyleSettings> for OverlayAppearance {
     fn from(style: &OverlayStyleSettings) -> Self {
         Self {
             font_family: style.font_family.clone(),
+            font_families: style.font_families.clone(),
             font_size: style.font_size,
             font_weight: style.font_weight,
             secondary_font_weight: style.secondary_font_weight,
@@ -805,6 +815,7 @@ impl OverlayAppearance {
     pub fn into_style(self) -> OverlayStyleSettings {
         let mut style = OverlayStyleSettings::default();
         style.font_family = self.font_family;
+        style.font_families = self.font_families;
         style.font_size = self.font_size;
         style.font_weight = self.font_weight;
         style.secondary_font_weight = self.secondary_font_weight;
@@ -900,6 +911,7 @@ impl AppConfig {
 
         if inheritance.desktop.inherit_font_family {
             self.lyrics.displays.desktop.appearance.font_family = base.font_family.clone();
+            self.lyrics.displays.desktop.appearance.font_families = base.font_families.clone();
         }
         if inheritance.desktop.inherit_colors {
             self.lyrics.displays.desktop.appearance.active_color = base.active_color.clone();
@@ -912,6 +924,7 @@ impl AppConfig {
         let status = &mut self.lyrics.displays.status_bar.appearance;
         if inheritance.status_bar.inherit_font_family {
             status.font_family = base.font_family.clone();
+            status.font_families = base.font_families.clone();
         }
         if inheritance.status_bar.inherit_colors {
             status.text_color = base.active_color.clone();
@@ -924,6 +937,7 @@ impl AppConfig {
         let list = &mut self.lyrics.displays.list_window.appearance;
         if inheritance.list_window.inherit_font_family {
             list.font_family = base.font_family.clone();
+            list.font_families = base.font_families.clone();
         }
         if inheritance.list_window.inherit_colors {
             list.active_color = base.active_color.clone();
@@ -936,6 +950,7 @@ impl AppConfig {
         let notch = &mut self.lyrics.displays.notch.appearance;
         if inheritance.notch.inherit_font_family {
             notch.font_family = base.font_family;
+            notch.font_families = base.font_families;
         }
         if inheritance.notch.inherit_colors {
             notch.active_color = base.active_color;
@@ -964,6 +979,10 @@ impl AppConfig {
         if self.lyrics.base_appearance.font_family.is_empty() {
             self.lyrics.base_appearance.font_family = LyricsBaseAppearance::default().font_family;
         }
+        normalize_font_families(
+            &mut self.lyrics.base_appearance.font_families,
+            &mut self.lyrics.base_appearance.font_family,
+        );
         for (name, color) in [
             (
                 "基础主歌词颜色",
@@ -995,6 +1014,11 @@ impl AppConfig {
             }
         }
         self.apply_lyrics_style_inheritance();
+        let desktop_appearance = &mut self.lyrics.displays.desktop.appearance;
+        normalize_font_families(
+            &mut desktop_appearance.font_families,
+            &mut desktop_appearance.font_family,
+        );
         self.app.system_media_applications =
             normalize_system_media_applications(self.app.system_media_applications)?;
         self.app.player_follower_application =
@@ -1009,6 +1033,10 @@ impl AppConfig {
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
         let status_appearance = &mut self.lyrics.displays.status_bar.appearance;
+        normalize_font_families(
+            &mut status_appearance.font_families,
+            &mut status_appearance.font_family,
+        );
         status_appearance.font_size = status_appearance.font_size.clamp(10, 18);
         status_appearance.vertical_offset = if status_appearance.vertical_offset.is_finite() {
             status_appearance.vertical_offset.clamp(-6.0, 6.0)
@@ -1024,6 +1052,10 @@ impl AppConfig {
             return Err("歌词窗口歌词顺序必须包含原文、翻译和音译各一次".into());
         }
         let list_appearance = &mut self.lyrics.displays.list_window.appearance;
+        normalize_font_families(
+            &mut list_appearance.font_families,
+            &mut list_appearance.font_family,
+        );
         list_appearance.font_size = list_appearance.font_size.clamp(12, 56);
         list_appearance.font_weight = normalize_display_font_weight(list_appearance.font_weight);
         list_appearance.secondary_font_scale =
@@ -1054,6 +1086,10 @@ impl AppConfig {
             list_appearance.alignment = "center".into();
         }
         let notch_appearance = &mut self.lyrics.displays.notch.appearance;
+        normalize_font_families(
+            &mut notch_appearance.font_families,
+            &mut notch_appearance.font_family,
+        );
         notch_appearance.font_size = notch_appearance.font_size.clamp(12, 32);
         notch_appearance.font_weight = normalize_display_font_weight(notch_appearance.font_weight);
         notch_appearance.secondary_font_weight =

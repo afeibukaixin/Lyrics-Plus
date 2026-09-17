@@ -14,14 +14,14 @@ pub(super) fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), Co
         (
             "fontWeight",
             value.pointer("/lyrics/displays/desktop/appearance/fontWeight"),
-            400.0,
-            800.0,
+            100.0,
+            900.0,
         ),
         (
             "secondaryFontWeight",
             value.pointer("/lyrics/displays/desktop/appearance/secondaryFontWeight"),
-            400.0,
-            800.0,
+            100.0,
+            900.0,
         ),
         (
             "lineHeight",
@@ -170,14 +170,14 @@ pub(super) fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), Co
         (
             "fontWeight",
             value.pointer("/lyrics/displays/notch/appearance/fontWeight"),
-            400.0,
-            800.0,
+            100.0,
+            900.0,
         ),
         (
             "secondaryFontWeight",
             value.pointer("/lyrics/displays/notch/appearance/secondaryFontWeight"),
-            400.0,
-            800.0,
+            100.0,
+            900.0,
         ),
         (
             "lineGap",

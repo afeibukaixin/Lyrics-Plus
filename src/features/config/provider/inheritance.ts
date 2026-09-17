@@ -19,7 +19,7 @@ export function materializeLyricsStyleInheritance(config: AppConfig): AppConfig 
       },
     },
   };
-  if (inheritance.desktop.inheritFontFamily) next.lyrics.displays.desktop.appearance.fontFamily = base.fontFamily;
+  if (inheritance.desktop.inheritFontFamily) Object.assign(next.lyrics.displays.desktop.appearance, { fontFamily: base.fontFamily, fontFamilies: base.fontFamilies });
   if (inheritance.desktop.inheritColors) Object.assign(next.lyrics.displays.desktop.appearance, {
     activeColor: base.activeColor,
     inactiveColor: base.inactiveColor,
@@ -27,7 +27,7 @@ export function materializeLyricsStyleInheritance(config: AppConfig): AppConfig 
     romanizationColor: base.romanizationColor,
     solidColor: base.backgroundColor,
   });
-  if (inheritance.statusBar.inheritFontFamily) next.lyrics.displays.statusBar.appearance.fontFamily = base.fontFamily;
+  if (inheritance.statusBar.inheritFontFamily) Object.assign(next.lyrics.displays.statusBar.appearance, { fontFamily: base.fontFamily, fontFamilies: base.fontFamilies });
   if (inheritance.statusBar.inheritColors) Object.assign(next.lyrics.displays.statusBar.appearance, {
     textColor: base.activeColor,
     inactiveColor: base.inactiveColor,
@@ -35,14 +35,14 @@ export function materializeLyricsStyleInheritance(config: AppConfig): AppConfig 
     translationColor: base.translationColor,
     romanizationColor: base.romanizationColor,
   });
-  if (inheritance.listWindow.inheritFontFamily) next.lyrics.displays.listWindow.appearance.fontFamily = base.fontFamily;
+  if (inheritance.listWindow.inheritFontFamily) Object.assign(next.lyrics.displays.listWindow.appearance, { fontFamily: base.fontFamily, fontFamilies: base.fontFamilies });
   if (inheritance.listWindow.inheritColors) Object.assign(next.lyrics.displays.listWindow.appearance, {
     activeColor: base.activeColor,
     inactiveColor: base.inactiveColor,
     translationColor: base.translationColor,
     romanizationColor: base.romanizationColor,
   });
-  if (inheritance.notch.inheritFontFamily) next.lyrics.displays.notch.appearance.fontFamily = base.fontFamily;
+  if (inheritance.notch.inheritFontFamily) Object.assign(next.lyrics.displays.notch.appearance, { fontFamily: base.fontFamily, fontFamilies: base.fontFamilies });
   if (inheritance.notch.inheritColors) Object.assign(next.lyrics.displays.notch.appearance, {
     activeColor: base.activeColor,
     inactiveColor: base.inactiveColor,

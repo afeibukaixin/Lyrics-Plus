@@ -250,7 +250,10 @@ fn inherited_override_pointers(config: &AppConfig) -> Vec<&'static str> {
     let inheritance = &config.lyrics.style_inheritance;
     let mut pointers = Vec::new();
     if inheritance.desktop.inherit_font_family {
-        pointers.push("/lyrics/displays/desktop/appearance/fontFamily");
+        pointers.extend([
+            "/lyrics/displays/desktop/appearance/fontFamily",
+            "/lyrics/displays/desktop/appearance/fontFamilies",
+        ]);
     }
     if inheritance.desktop.inherit_colors {
         pointers.extend([
@@ -262,7 +265,10 @@ fn inherited_override_pointers(config: &AppConfig) -> Vec<&'static str> {
         ]);
     }
     if inheritance.status_bar.inherit_font_family {
-        pointers.push("/lyrics/displays/statusBar/appearance/fontFamily");
+        pointers.extend([
+            "/lyrics/displays/statusBar/appearance/fontFamily",
+            "/lyrics/displays/statusBar/appearance/fontFamilies",
+        ]);
     }
     if inheritance.status_bar.inherit_colors {
         pointers.extend([
@@ -274,7 +280,10 @@ fn inherited_override_pointers(config: &AppConfig) -> Vec<&'static str> {
         ]);
     }
     if inheritance.list_window.inherit_font_family {
-        pointers.push("/lyrics/displays/listWindow/appearance/fontFamily");
+        pointers.extend([
+            "/lyrics/displays/listWindow/appearance/fontFamily",
+            "/lyrics/displays/listWindow/appearance/fontFamilies",
+        ]);
     }
     if inheritance.list_window.inherit_colors {
         pointers.extend([
@@ -286,7 +295,10 @@ fn inherited_override_pointers(config: &AppConfig) -> Vec<&'static str> {
         ]);
     }
     if inheritance.notch.inherit_font_family {
-        pointers.push("/lyrics/displays/notch/appearance/fontFamily");
+        pointers.extend([
+            "/lyrics/displays/notch/appearance/fontFamily",
+            "/lyrics/displays/notch/appearance/fontFamilies",
+        ]);
     }
     if inheritance.notch.inherit_colors {
         pointers.extend([
@@ -365,7 +377,7 @@ pub(super) fn color_fields(style: &OverlayStyleSettings) -> [(&'static str, &str
 }
 
 pub(super) fn normalize_display_font_weight(value: u16) -> u16 {
-    [400_u16, 500, 600, 700, 800]
+    [100_u16, 200, 300, 400, 500, 600, 700, 800, 900]
         .into_iter()
         .min_by_key(|candidate| (*candidate).abs_diff(value))
         .unwrap_or(600)

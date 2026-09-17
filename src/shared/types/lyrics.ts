@@ -504,6 +504,7 @@ export type NotchSlotContent = "empty" | "title" | "artist" | "artwork" | "spect
 
 export type LyricsBaseAppearance = {
   fontFamily: string;
+  fontFamilies: string;
   activeColor: string;
   inactiveColor: string;
   translationColor: string;
@@ -521,6 +522,7 @@ export type LyricsStyleInheritance = Record<LyricsStyleMode, LyricsModeStyleInhe
 
 export type StatusBarLyricsAppearance = {
   fontFamily: string;
+  fontFamilies: string;
   fontSize: number;
   verticalOffset: number;
   fontWeight: OverlayFontWeight;
@@ -536,6 +538,7 @@ export type StatusBarLyricsAppearance = {
 
 export type ListLyricsAppearance = {
   fontFamily: string;
+  fontFamilies: string;
   fontSize: number;
   fontWeight: OverlayFontWeight;
   secondaryFontScale: number;
@@ -563,6 +566,7 @@ export type ListLyricsAppearance = {
 
 export type NotchLyricsAppearance = {
   fontFamily: string;
+  fontFamilies: string;
   fontSize: number;
   fontWeight: OverlayFontWeight;
   secondaryFontWeight: OverlayFontWeight;
