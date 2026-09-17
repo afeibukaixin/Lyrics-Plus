@@ -120,16 +120,53 @@ pub fn set_overlay_style(
     state: State<'_, AppState>,
 ) -> Result<OverlayStyleSettings, String> {
     let style = style.normalized();
-    let previous_orientation = state
+    let previous = state
         .overlay_style
         .read()
         .unwrap_or_else(|error| error.into_inner())
-        .orientation;
+        .clone();
+    if (previous.safety_inset_x != style.safety_inset_x
+        || previous.safety_inset_y != style.safety_inset_y)
+        && previous.orientation == style.orientation
+    {
+        if let Some(window) = app.get_webview_window("lyrics-overlay") {
+            let current_position = window.outer_position().map_err(|error| error.to_string())?;
+            let current_size = window.outer_size().map_err(|error| error.to_string())?;
+            let scale = window.scale_factor().map_err(|error| error.to_string())?;
+            let monitor = window
+                .current_monitor()
+                .map_err(|error| error.to_string())?
+                .or(window.primary_monitor().map_err(|error| error.to_string())?)
+                .ok_or_else(|| "无法读取显示器信息".to_string())?;
+            let work_area = monitor.work_area();
+            let (next_position, next_size) = fit_directional_safety_bounds(
+                current_position,
+                current_size,
+                &previous,
+                &style,
+                scale,
+                work_area.position,
+                work_area.size,
+            );
+            if next_position != current_position || next_size != current_size {
+                crate::mark_overlay_programmatic_position(&app, next_position);
+                crate::set_window_frame(
+                    &window,
+                    current_size,
+                    current_position,
+                    next_size,
+                    next_position,
+                    scale,
+                )
+                .map_err(|error| error.to_string())?;
+            }
+        }
+    }
     *state
         .overlay_style
         .write()
         .unwrap_or_else(|error| error.into_inner()) = style.clone();
-    if previous_orientation != style.orientation {
+    if previous.orientation != style.orientation {
         crate::reset_overlay_toolbar_placement(&app, style.orientation);
     }
     persist_overlay_style_for_current_monitor(&app, &state, &style)?;

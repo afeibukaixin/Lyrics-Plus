@@ -750,6 +750,8 @@ pub struct OverlayAppearance {
     pub background_radius: f64,
     pub background_padding_x: f64,
     pub background_padding_y: f64,
+    pub safety_inset_x: f64,
+    pub safety_inset_y: f64,
     pub background_mode: OverlayBackgroundMode,
     pub background: OverlayBackground,
     pub solid_color: String,
@@ -791,6 +793,8 @@ impl From<&OverlayStyleSettings> for OverlayAppearance {
             background_radius: style.background_radius,
             background_padding_x: style.background_padding_x,
             background_padding_y: style.background_padding_y,
+            safety_inset_x: style.safety_inset_x,
+            safety_inset_y: style.safety_inset_y,
             background_mode: style.background_mode,
             background: style.background,
             solid_color: style.solid_color.clone(),
@@ -828,6 +832,8 @@ impl OverlayAppearance {
         style.background_radius = self.background_radius;
         style.background_padding_x = self.background_padding_x;
         style.background_padding_y = self.background_padding_y;
+        style.safety_inset_x = self.safety_inset_x;
+        style.safety_inset_y = self.safety_inset_y;
         style.background_mode = self.background_mode;
         style.background = self.background;
         style.solid_color = self.solid_color;

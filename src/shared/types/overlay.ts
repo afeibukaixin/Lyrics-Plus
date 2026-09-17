@@ -32,6 +32,8 @@ export type OverlayStyle = {
   backgroundRadius: number;
   backgroundPaddingX: number;
   backgroundPaddingY: number;
+  safetyInsetX: number;
+  safetyInsetY: number;
   backgroundMode: "solid" | "transparent";
   background: "glass" | "transparent" | "solid";
   solidColor: string;

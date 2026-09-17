@@ -10,13 +10,14 @@ const karaokeWordClasses = {
   fillText: styles.karaokeWordFillText,
 };
 
-export function OverlayKaraokeLine({ line, fallback, positionMs, positionObservedAtMs, style, playing }: {
+export function OverlayKaraokeLine({ line, fallback, positionMs, positionObservedAtMs, style, playing, fitScale }: {
   line: LyricsLine | null;
   fallback: string;
   positionMs: number;
   positionObservedAtMs: number;
   style: OverlayStyle;
   playing: boolean;
+  fitScale: number;
 }) {
   const text = line ? line.text : fallback;
   const words = useMemo(
@@ -33,6 +34,7 @@ export function OverlayKaraokeLine({ line, fallback, positionMs, positionObserve
     positionObservedAtMs,
     scopeRef,
     words,
+    fontLayoutKey: `${style.fontFamily}:${style.fontFamilies}:${style.fontWeight}:${style.fontSize * fitScale}:${style.lineHeight}:${style.safetyInsetX}:${style.safetyInsetY}`,
   });
 
   if (words.length === 0) return <span>{text || "\u00a0"}</span>;

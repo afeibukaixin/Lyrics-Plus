@@ -12,7 +12,9 @@
 .surface {
   position: absolute;
   inset: var(--surface-top-inset) var(--surface-right-inset) var(--surface-bottom-inset) var(--surface-left-inset);
-  z-index: 0; display: grid; place-items: center; padding: var(--background-padding-y) var(--background-padding-x);
+  z-index: 0; display: grid; place-items: center;
+  padding: calc(var(--background-padding-y) + var(--safety-top)) calc(var(--background-padding-x) + var(--safety-right))
+    calc(var(--background-padding-y) + var(--safety-bottom)) calc(var(--background-padding-x) + var(--safety-left));
   overflow: hidden; border-radius: var(--background-radius); pointer-events: none;
   transition: backdrop-filter .16s ease, -webkit-backdrop-filter .16s ease;
 }
@@ -56,9 +58,17 @@
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
 }
 
+.shadowBounds {
+  // 阴影层的绘制范围向安全距离扩展，负外边距保持歌词原有的布局位置和测量尺寸。
+  position: relative; z-index: 1; width: max-content; height: max-content;
+  padding: var(--safety-top) var(--safety-right) var(--safety-bottom) var(--safety-left);
+  margin: calc(0px - var(--safety-top)) calc(0px - var(--safety-right))
+    calc(0px - var(--safety-bottom)) calc(0px - var(--safety-left));
+  filter: drop-shadow(var(--text-shadow)); pointer-events: none;
+}
 .lines {
   width: max-content; height: max-content; max-width: var(--content-max-width); max-height: var(--content-max-height); position: relative; z-index: 1;
-  min-width: 0; display: grid; align-items: center; gap: var(--line-gap); pointer-events: none; filter: drop-shadow(var(--text-shadow));
+  min-width: 0; display: grid; align-items: center; gap: var(--line-gap); pointer-events: none;
 }
 .overlay:not([data-orientation="vertical"]) .lines { min-width: var(--content-min-width); }
 .overlay[data-layout="double"][data-orientation="horizontal"] .active,
@@ -100,14 +110,15 @@
 .karaokeWord {
   display: inline-grid; position: relative; vertical-align: baseline; text-orientation: inherit;
 }
-.karaokeWordBase, .karaokeWordFill {
-  grid-area: 1 / 1; white-space: pre; color: var(--inactive-color);
-}
+.karaokeWordBase { grid-area: 1 / 1; white-space: pre; color: var(--inactive-color); }
 .karaokeWordFill {
-  display: block;
-  // 两层文字共享网格尺寸，竖排时也不额外计算文字层宽高。
-  align-self: stretch; justify-self: stretch;
-  // 此处由 KaraokeWord 的 GSAP 时间轴逐帧更新，必须保持纯百分比，不能改回 em。
+  // 底字独自决定字盒尺寸；绘制盒延伸到安全距离，内侧 padding 把彩色字补回底字原点。
+  position: absolute; display: block;
+  top: calc(0px - var(--safety-top)); right: calc(0px - var(--safety-right));
+  bottom: calc(0px - var(--safety-bottom)); left: calc(0px - var(--safety-left));
+  padding: var(--safety-top) var(--safety-right) var(--safety-bottom) var(--safety-left);
+  white-space: pre;
+  // GSAP 扫光的初始值和逐帧插值都保持纯百分比，避免 WebKit 混合单位内存增长。
   clip-path: inset(-25% 100% -25% 0%);
   color: var(--active-color);
   pointer-events: none;
@@ -178,7 +189,7 @@
 }
 .active[data-marquee="true"], .next[data-marquee="true"] {
   overflow: visible; text-align: left;
-  clip-path: inset(-0.25em 0% -0.25em 0%);
+  clip-path: inset(calc(-0.25em - var(--safety-top)) 0% calc(-0.25em - var(--safety-bottom)) 0%);
 }
 .overlay[data-orientation="vertical"] .active[data-marquee="true"] > span,
 .overlay[data-orientation="vertical"] .next[data-marquee="true"] > span {
@@ -186,7 +197,8 @@
 }
 .overlay[data-orientation="vertical"] .active[data-marquee="true"],
 .overlay[data-orientation="vertical"] .next[data-marquee="true"] {
-  text-align: start; clip-path: inset(0% -0.25em 0% -0.25em);
+  text-align: start;
+  clip-path: inset(0% calc(-0.25em - var(--safety-right)) 0% calc(-0.25em - var(--safety-left)));
 }
 .overlay[data-alignment="distributed"][data-layout="double"][data-orientation="horizontal"] .lines[data-double-line-order="reversed"] .active { text-align: right; }
 .overlay[data-alignment="distributed"][data-layout="double"][data-orientation="horizontal"] .lines[data-double-line-order="reversed"] .next { text-align: left; }

@@ -51,6 +51,7 @@ type KaraokeSweepTimelineOptions = {
   words: readonly LyricsWord[];
   enabled: boolean;
   playing: boolean;
+  fontLayoutKey?: string;
 };
 
 /**
@@ -66,6 +67,7 @@ export function useKaraokeSweepTimeline({
   words,
   enabled,
   playing,
+  fontLayoutKey = "",
 }: KaraokeSweepTimelineOptions) {
   const positionRef = useRef(positionMs);
   positionRef.current = positionMs;
@@ -98,7 +100,7 @@ export function useKaraokeSweepTimeline({
 
     const fills = Array.from(scope.querySelectorAll<HTMLElement>(KARAOKE_FILL_SELECTOR));
     const timeline = gsap.timeline({ paused: true });
-    // 只在扫光轴上裁切，交叉轴保留字形下伸部，避免 y/g/p/q 被切掉。
+    // 扫光只在播放轴上裁切；交叉轴由百分比和绘制盒保留字形余量。
     const { initial: initialClipPath, complete: completeClipPath } = karaokeClipPaths(axis);
     const timelineOriginMs = Math.min(
       lineStartMs,
@@ -147,7 +149,7 @@ export function useKaraokeSweepTimeline({
       fills.forEach((fill) => fill.style.removeProperty("clip-path"));
     };
   }, {
-    dependencies: [axis, enabled, lineStartMs, scopeRef, wordsSignature],
+    dependencies: [axis, enabled, lineStartMs, scopeRef, wordsSignature, fontLayoutKey],
     scope: scopeRef,
     revertOnUpdate: true,
   });

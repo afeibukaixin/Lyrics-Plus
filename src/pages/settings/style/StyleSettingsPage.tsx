@@ -306,6 +306,8 @@ export default function StyleSettingsPage() {
         <RangeRow label={t("settings.overlay.backgroundRadius")} value={style.backgroundRadius} min={0} max={64} suffix="px" onChange={(backgroundRadius) => void updateStyle({ backgroundRadius })} />
         <RangeRow label={t("settings.overlay.backgroundPaddingX")} value={style.backgroundPaddingX} min={0} max={64} suffix="px" onChange={(backgroundPaddingX) => void updateStyle({ backgroundPaddingX })} />
         <RangeRow label={t("settings.overlay.backgroundPaddingY")} value={style.backgroundPaddingY} min={0} max={64} suffix="px" onChange={(backgroundPaddingY) => void updateStyle({ backgroundPaddingY })} />
+        <RangeRow label={t("settings.overlay.safetyInsetX")} value={style.safetyInsetX} min={-64} max={64} suffix="px" onChange={(safetyInsetX) => void updateStyle({ safetyInsetX })} />
+        <RangeRow label={t("settings.overlay.safetyInsetY")} value={style.safetyInsetY} min={-64} max={64} suffix="px" onChange={(safetyInsetY) => void updateStyle({ safetyInsetY })} />
       </SettingsSection>
       </> : <LyricsModeStyleSections mode={mode} displays={config.lyrics.displays} update={setLyricsDisplayPreferences} setListLyricsLocked={setListLyricsLocked} setError={setError} inheritance={config.lyrics.styleInheritance} updateInheritance={setLyricsStyleInheritance} resetPosition={resetDisplayPosition} />}
     </SettingsPage>

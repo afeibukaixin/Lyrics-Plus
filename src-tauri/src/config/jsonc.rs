@@ -561,6 +561,8 @@ fn ordered_keys<'a>(
             "backgroundRadius",
             "backgroundPaddingX",
             "backgroundPaddingY",
+            "safetyInsetX",
+            "safetyInsetY",
             "backgroundMode",
             "background",
             "solidColor",

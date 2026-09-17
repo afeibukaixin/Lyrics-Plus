@@ -341,6 +341,8 @@ pub struct OverlayStyleSettings {
     pub background_radius: f64,
     pub background_padding_x: f64,
     pub background_padding_y: f64,
+    pub safety_inset_x: f64,
+    pub safety_inset_y: f64,
     pub background_mode: OverlayBackgroundMode,
     pub background: OverlayBackground,
     pub solid_color: String,
@@ -391,6 +393,8 @@ impl Default for OverlayStyleSettings {
             background_radius: 18.0,
             background_padding_x: 26.0,
             background_padding_y: 22.0,
+            safety_inset_x: 0.0,
+            safety_inset_y: 0.0,
             background_mode: OverlayBackgroundMode::Solid,
             background: OverlayBackground::Glass,
             solid_color: "#171821".into(),
@@ -445,6 +449,8 @@ impl OverlayStyleSettings {
         self.background_radius = self.background_radius.clamp(0.0, 64.0);
         self.background_padding_x = self.background_padding_x.clamp(0.0, 64.0);
         self.background_padding_y = self.background_padding_y.clamp(0.0, 64.0);
+        self.safety_inset_x = self.safety_inset_x.clamp(-64.0, 64.0);
+        self.safety_inset_y = self.safety_inset_y.clamp(-64.0, 64.0);
         self.line_gap = self.line_gap.clamp(0.0, 32.0);
         self.text_shadow_offset_x = self.text_shadow_offset_x.clamp(-20.0, 20.0);
         self.text_shadow_offset_y = self.text_shadow_offset_y.clamp(-20.0, 20.0);

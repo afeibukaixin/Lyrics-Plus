@@ -240,6 +240,18 @@ pub(super) fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), Co
             64.0,
         ),
         (
+            "safetyInsetX",
+            value.pointer("/lyrics/displays/desktop/appearance/safetyInsetX"),
+            -64.0,
+            64.0,
+        ),
+        (
+            "safetyInsetY",
+            value.pointer("/lyrics/displays/desktop/appearance/safetyInsetY"),
+            -64.0,
+            64.0,
+        ),
+        (
             "lineGap",
             value.pointer("/lyrics/displays/desktop/appearance/lineGap"),
             0.0,

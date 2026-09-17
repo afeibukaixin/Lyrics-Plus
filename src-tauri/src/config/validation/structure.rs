@@ -155,6 +155,8 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
                             "backgroundRadius",
                             "backgroundPaddingX",
                             "backgroundPaddingY",
+                            "safetyInsetX",
+                            "safetyInsetY",
                             "backgroundMode",
                             "background",
                             "solidColor",

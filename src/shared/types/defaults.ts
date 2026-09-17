@@ -41,6 +41,8 @@ export const defaultOverlayStyle: OverlayStyle = {
   backgroundRadius: 18,
   backgroundPaddingX: 26,
   backgroundPaddingY: 22,
+  safetyInsetX: 0,
+  safetyInsetY: 0,
   backgroundMode: "solid",
   background: "glass",
   solidColor: "#171821",
