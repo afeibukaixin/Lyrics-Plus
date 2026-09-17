@@ -126,6 +126,16 @@ fn start_player_monitor(app: tauri::AppHandle) {
                         .unwrap_or_else(|error| error.into_inner())
                 })
                 .unwrap_or(None);
+            let previous_system_bundle_id = app.try_state::<AppState>().and_then(|state| {
+                let snapshot = state
+                    .last_snapshot
+                    .read()
+                    .unwrap_or_else(|error| error.into_inner());
+                (snapshot.player == Some(player::PlayerKind::System)
+                    && snapshot.error_code.is_none())
+                .then(|| snapshot.source_app_bundle_id.clone())
+                .flatten()
+            });
             let system_media = app
                 .try_state::<AppState>()
                 .map(|state| state.system_media.clone())
@@ -148,6 +158,7 @@ fn start_player_monitor(app: tauri::AppHandle) {
                     query_selected_player(
                         selection,
                         previous_auto_player,
+                        previous_system_bundle_id.as_deref(),
                         &query_system_media,
                         system_media_filter_mode,
                         &system_media_applications,

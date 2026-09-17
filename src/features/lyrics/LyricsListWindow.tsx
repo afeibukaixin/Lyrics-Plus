@@ -65,6 +65,7 @@ export default function LyricsListWindow() {
 
   const title = playback.snapshot.title ?? t("lyricsList.noTrack");
   const artist = playback.snapshot.artist ?? t("lyricsList.waiting");
+  const canSeek = !locked && (playback.snapshot.player !== "system" || playback.snapshot.systemControlAvailable);
 
   const seekToLine = useCallback((line: LyricsLine) => {
     const positionMs = Math.max(0, Math.round(line.startMs - offsetMs));
@@ -78,6 +79,7 @@ export default function LyricsListWindow() {
       data-background-mode={appearance.backgroundMode}
       data-following={following.following}
       data-locked={locked}
+      data-seek-enabled={canSeek}
       data-toolbar-visible={toolbar.toolbarVisible}
       data-backdrop-keepalive={backdropKeepAlive && toolbar.toolbarVisible ? "true" : undefined}
       onMouseEnter={toolbar.showToolbar}
@@ -144,7 +146,7 @@ export default function LyricsListWindow() {
         lines={lines}
         auxiliary={auxiliary}
         lineOrder={options.lineOrder}
-        onLineClick={locked ? undefined : seekToLine}
+        onLineClick={canSeek ? seekToLine : undefined}
         activeIndex={lyrics.activeIndex}
         activeRef={following.activeRef}
         following={following.following}

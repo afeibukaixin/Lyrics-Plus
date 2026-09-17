@@ -6,6 +6,7 @@ mod palette;
 mod presentation;
 mod runtime;
 mod service;
+mod targeted;
 
 pub use service::SystemMediaService;
 

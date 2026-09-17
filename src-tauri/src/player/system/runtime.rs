@@ -15,10 +15,9 @@ use image::ImageReader;
 use serde_json::Value;
 use tokio::sync::Notify;
 
-use super::super::PlaybackAction;
 use super::adapter::{payload_to_timed, run_adapter, same_media_info};
 use super::metadata::TimedInfo;
-use super::presentation::{ControlContext, PlaybackPresentation};
+use super::presentation::PlaybackPresentation;
 
 struct Enrichment {
     generation: u64,
@@ -47,7 +46,7 @@ pub(super) struct AdapterRuntime {
     pub(super) playback_changed: Arc<Notify>,
     pub(super) script_path: PathBuf,
     pub(super) framework_path: PathBuf,
-    // 定时校准和跳转确认串行发起 get，但从不阻塞事件提交。
+    // 定时校准和控制前的当前媒体查询串行发起 get，但从不阻塞事件提交。
     pub(super) query: Mutex<()>,
     pub(super) presentation: Mutex<PlaybackPresentation>,
     presentation_wake: Condvar,
@@ -231,24 +230,6 @@ impl AdapterRuntime {
             received_at.elapsed().as_micros()
         );
         Ok(true)
-    }
-
-    pub(super) fn prepare_control(&self, action: PlaybackAction) -> Result<ControlContext, String> {
-        let _latest = self.latest.read().unwrap_or_else(|e| e.into_inner());
-        self.presentation
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .prepare_control(action)
-    }
-
-    pub(super) fn acknowledge_control(&self, context: &ControlContext) {
-        let mut presentation = self.presentation.lock().unwrap_or_else(|e| e.into_inner());
-        let changed = presentation.acknowledge_control(context);
-        self.presentation_wake.notify_one();
-        drop(presentation);
-        if changed {
-            self.playback_changed.notify_one();
-        }
     }
 
     fn presentation_loop(&self) {

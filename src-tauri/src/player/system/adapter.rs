@@ -1,49 +1,27 @@
 use std::io::{Cursor, Read};
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::sync::Arc;
 #[cfg(test)]
 use std::sync::RwLock;
-use std::sync::{atomic::Ordering, Arc};
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+#[cfg(test)]
+use std::time::Instant;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use media_remote::NowPlayingInfo;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use wait_timeout::ChildExt;
 
-use super::super::{run_with_timeout, PlaybackAction};
-use super::metadata::{milliseconds, timed_info, TimedInfo};
+use super::super::{PlaybackAction, PlaybackSnapshot};
+use super::metadata::{milliseconds, snapshot_from_info, timed_info, TimedInfo};
 use super::runtime::AdapterRuntime;
 
-const SEEK_CONFIRM_TIMEOUT: Duration = Duration::from_secs(2);
-const SEEK_CONFIRM_TOLERANCE_MS: u64 = 1_500;
-const MEDIA_CHANGED_ERROR: &str = "跳转期间系统媒体已切换";
 const ADAPTER_ARCHIVE: &[u8] =
     include_bytes!("../../../resources/mediaremote-adapter/mediaremote-adapter-0.3.8.tar.gz");
 const ADAPTER_ARCHIVE_SHA256: &str =
     "87b19e480a213ee591b7794942c2111f3ad58e7f0a1f18ec62c581d8e80e0a94";
-
-const SYSTEM_MEDIA_SEEK_SCRIPT: &str = r#"
-ObjC.import('Foundation');
-function run(argv) {
-  const target = Number(argv[0]);
-  const framework = $.NSBundle.bundleWithPath('/System/Library/PrivateFrameworks/MediaRemote.framework/');
-  if (!framework.load) return 'framework_unavailable';
-  const Controller = $.NSClassFromString('MRNowPlayingController');
-  const Request = $.NSClassFromString('MRNowPlayingRequest');
-  if (!Controller || !Request) return 'controller_unavailable';
-  const controller = Controller.localRouteController;
-  const options = $.NSMutableDictionary.dictionary;
-  options.setObjectForKey($(target), $('kMRMediaRemoteOptionPlaybackPosition'));
-  controller.sendCommandOptionsCompletion(24, options, null);
-  $.NSThread.sleepForTimeInterval(0.2);
-  const item = Request.localNowPlayingItem;
-  if (!item || !item.metadata) return 'media_unavailable';
-  const actual = Number(item.metadata.calculatedPlaybackPosition);
-  return Number.isFinite(actual) && Math.abs(actual - target) < 2 ? 'ok' : `position:${actual}`;
-}
-"#;
 
 pub(super) struct AdapterClient {
     pub(super) runtime: Arc<AdapterRuntime>,
@@ -76,77 +54,70 @@ pub(super) fn initialize() -> Result<AdapterClient, String> {
     Ok(AdapterClient { runtime, workers })
 }
 
-pub(super) fn control(client: &AdapterClient, action: PlaybackAction) -> Result<(), String> {
-    let context = client.runtime.prepare_control(action)?;
-    let command = match context.action {
-        PlaybackAction::Play => media_remote::Command::Play,
-        PlaybackAction::Pause => media_remote::Command::Pause,
-        PlaybackAction::TogglePlayPause => media_remote::Command::TogglePlayPause,
-        PlaybackAction::Previous => media_remote::Command::PreviousTrack,
-        PlaybackAction::Next => media_remote::Command::NextTrack,
-    };
-    let accepted = media_remote::send_command(command);
-    client.runtime.request_refresh();
-    if accepted {
-        client.runtime.acknowledge_control(&context);
-        Ok(())
-    } else {
-        Err("系统媒体播放器未接受控制命令".into())
-    }
-}
-
-pub(super) fn seek(client: &AdapterClient, position_ms: u64) -> Result<(), String> {
-    let expected_info = client
+/// 控制前同步读取全局当前媒体，不使用可能已被其他应用抢占的流缓存。
+pub(super) fn current_snapshot(client: &AdapterClient) -> Result<PlaybackSnapshot, String> {
+    let _query = client
         .runtime
-        .latest
-        .read()
-        .unwrap_or_else(|error| error.into_inner())
-        .as_ref()
-        .map(|timed| timed.info.clone())
-        .ok_or_else(|| "当前没有可控制的系统媒体".to_string())?;
-    let position_micros = position_ms.saturating_mul(1_000);
-    let position = position_micros.to_string();
-    let adapter_result = run_adapter(
+        .query
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    let output = run_adapter(
         &client.runtime.script_path,
         &client.runtime.framework_path,
-        ["seek", position.as_str()],
+        ["get", "--no-artwork", "--now", "--micros"],
+    )?;
+    command_output(&output, "读取系统当前媒体失败")?;
+    let payload: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("解析系统当前媒体失败：{error}"))?;
+    let timed =
+        payload_to_timed(&payload)?.ok_or_else(|| "系统当前没有可控制的媒体".to_string())?;
+    Ok(snapshot_from_info(&timed))
+}
+
+/// 适配器只控制系统当前媒体；调用方必须在发送前核对选中来源。
+pub(super) fn send_current_once(
+    client: &AdapterClient,
+    action: PlaybackAction,
+) -> Result<(), String> {
+    let command = match action {
+        PlaybackAction::Play => "0",
+        PlaybackAction::Pause => "1",
+        PlaybackAction::Next => "4",
+        PlaybackAction::Previous => "5",
+        PlaybackAction::TogglePlayPause => return Err("请使用明确的播放或暂停命令".into()),
+    };
+    let result = run_adapter(
+        &client.runtime.script_path,
+        &client.runtime.framework_path,
+        ["send", command],
     );
-    match adapter_result {
-        Ok(output) if output.status.success() => {
-            let confirmation = confirm_seek_position(client, &expected_info, position_ms);
-            if confirmation.is_ok() && current_info_matches(client, &expected_info) {
-                acknowledge_elapsed_sync(client);
-                return Ok(());
-            }
-            if confirmation
-                .as_ref()
-                .err()
-                .is_some_and(|error| error.as_str() == MEDIA_CHANGED_ERROR)
-            {
-                return Err(MEDIA_CHANGED_ERROR.into());
-            }
-            seek_with_fallback(
-                client,
-                &expected_info,
-                position_ms,
-                "系统媒体适配器未确认跳转位置",
-            )
-        }
-        Ok(output) => {
-            let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            seek_with_fallback(
-                client,
-                &expected_info,
-                position_ms,
-                if detail.is_empty() {
-                    "系统媒体播放器未接受跳转命令"
-                } else {
-                    detail.as_str()
-                },
-            )
-        }
-        Err(error) => seek_with_fallback(client, &expected_info, position_ms, &error),
+    client.runtime.request_refresh();
+    let result = result?;
+    command_output(&result, "系统当前媒体未接受控制命令")
+}
+
+pub(super) fn seek_current_once(client: &AdapterClient, position_ms: u64) -> Result<(), String> {
+    let position_micros = position_ms.saturating_mul(1_000).to_string();
+    let result = run_adapter(
+        &client.runtime.script_path,
+        &client.runtime.framework_path,
+        ["seek", position_micros.as_str()],
+    );
+    client.runtime.request_refresh();
+    let result = result?;
+    command_output(&result, "系统当前媒体未接受跳转命令")
+}
+
+fn command_output(output: &std::process::Output, fallback: &str) -> Result<(), String> {
+    if output.status.success() && output.stderr.is_empty() {
+        return Ok(());
     }
+    let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    Err(if detail.is_empty() {
+        fallback.into()
+    } else {
+        detail
+    })
 }
 
 /// get 与 stream 都携带完整快照；空结果清空媒体，异常载荷保持已有状态。
@@ -216,161 +187,6 @@ pub(super) fn sync_elapsed_from_adapter(latest: &RwLock<Option<TimedInfo>>, outp
         timed.received_at = Instant::now();
     }
     same_track
-}
-
-fn seek_with_fallback(
-    client: &AdapterClient,
-    expected_info: &media_remote::NowPlayingInfo,
-    position_ms: u64,
-    adapter_error: &str,
-) -> Result<(), String> {
-    if !current_info_matches(client, expected_info) {
-        return Err(MEDIA_CHANGED_ERROR.into());
-    }
-    match seek_with_system_controller(position_ms) {
-        Ok(()) => {
-            if !current_info_matches(client, expected_info)
-                || !update_elapsed_time(client, expected_info, position_ms)
-            {
-                return Err(MEDIA_CHANGED_ERROR.into());
-            }
-            Ok(())
-        }
-        Err(controller_error) => {
-            client.runtime.request_refresh();
-            Err(format!(
-                "系统媒体跳转失败（适配器：{adapter_error}；系统控制器：{controller_error}）"
-            ))
-        }
-    }
-}
-
-fn confirm_seek_position(
-    client: &AdapterClient,
-    expected_info: &NowPlayingInfo,
-    target_ms: u64,
-) -> Result<u64, String> {
-    let started_at = Instant::now();
-    let mut last_error = None;
-    loop {
-        {
-            let _query = client
-                .runtime
-                .query
-                .lock()
-                .unwrap_or_else(|e| e.into_inner());
-            let version = {
-                let latest = client
-                    .runtime
-                    .latest
-                    .read()
-                    .unwrap_or_else(|e| e.into_inner());
-                if !latest
-                    .as_ref()
-                    .is_some_and(|timed| same_media_info(&timed.info, expected_info))
-                {
-                    return Err(MEDIA_CHANGED_ERROR.into());
-                }
-                client.runtime.state_version.load(Ordering::SeqCst)
-            };
-            match run_adapter(
-                &client.runtime.script_path,
-                &client.runtime.framework_path,
-                ["get", "--no-artwork", "--now", "--micros"],
-            ) {
-                Ok(output) if output.status.success() && output.stderr.is_empty() => {
-                    if let Ok(payload) = serde_json::from_slice::<Value>(&output.stdout) {
-                        let same_track = payload_matches_info(&payload, expected_info);
-                        let position = adapter_position_ms(&payload);
-                        // 由统一入口在写锁内比较版本；绝不先检查版本、稍后再写旧状态。
-                        if client.runtime.commit(&payload, Some(version))? {
-                            if !same_track {
-                                return Err(MEDIA_CHANGED_ERROR.into());
-                            }
-                            if let Some(position) = position {
-                                let expected = if payload.get("playing").and_then(Value::as_bool)
-                                    == Some(true)
-                                {
-                                    target_ms
-                                        .saturating_add(started_at.elapsed().as_millis() as u64)
-                                } else {
-                                    target_ms
-                                };
-                                let expected = milliseconds(expected_info.duration)
-                                    .map(|duration| expected.min(duration))
-                                    .unwrap_or(expected);
-                                if position.abs_diff(expected) <= SEEK_CONFIRM_TOLERANCE_MS {
-                                    return Ok(position);
-                                }
-                                last_error =
-                                    Some(format!("实际位置 {position}ms，目标 {expected}ms"));
-                            }
-                        } else {
-                            last_error = Some("跳转确认遇到更新的媒体事件".into());
-                        }
-                    }
-                }
-                Ok(output) => {
-                    last_error = Some(format!(
-                        "适配器未返回有效进度：{}",
-                        String::from_utf8_lossy(&output.stderr).trim()
-                    ));
-                }
-                Err(error) => last_error = Some(error),
-            }
-        }
-        if started_at.elapsed() >= SEEK_CONFIRM_TIMEOUT {
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    }
-    Err(last_error.unwrap_or_else(|| "系统媒体播放器未返回跳转后进度".into()))
-}
-
-fn update_elapsed_time(
-    client: &AdapterClient,
-    expected_info: &NowPlayingInfo,
-    position_ms: u64,
-) -> bool {
-    let mut latest = client
-        .runtime
-        .latest
-        .write()
-        .unwrap_or_else(|e| e.into_inner());
-    let Some(timed) = latest.as_mut() else {
-        return false;
-    };
-    if !same_media_info(&timed.info, expected_info) {
-        return false;
-    }
-    timed.info.elapsed_time = Some(position_ms as f64 / 1000.0);
-    timed.received_at = Instant::now();
-    client.runtime.state_version.fetch_add(1, Ordering::SeqCst);
-    drop(latest);
-    acknowledge_elapsed_sync(client);
-    true
-}
-
-fn acknowledge_elapsed_sync(client: &AdapterClient) {
-    client.runtime.request_refresh();
-    client.runtime.playback_changed.notify_one();
-}
-
-fn current_info_matches(
-    client: &AdapterClient,
-    expected_info: &media_remote::NowPlayingInfo,
-) -> bool {
-    client
-        .runtime
-        .latest
-        .read()
-        .unwrap_or_else(|error| error.into_inner())
-        .as_ref()
-        .is_some_and(|timed| same_media_info(&timed.info, expected_info))
-}
-
-fn adapter_position_ms(payload: &Value) -> Option<u64> {
-    milliseconds(adapter_elapsed_seconds(payload))
 }
 
 fn adapter_elapsed_seconds(payload: &Value) -> Option<f64> {
@@ -444,6 +260,7 @@ fn number_value(value: Option<&Value>) -> Option<f64> {
     }
 }
 
+#[cfg(test)]
 fn payload_matches_info(payload: &Value, info: &media_remote::NowPlayingInfo) -> bool {
     matches_required_string(payload, "title", info.title.as_deref())
         && matches_optional_string(payload, "bundleIdentifier", info.bundle_id.as_deref())
@@ -462,6 +279,7 @@ pub(super) fn same_media_info(
         && duration_values_match(milliseconds(first.duration), milliseconds(second.duration))
 }
 
+#[cfg(test)]
 fn payload_duration_matches_info(payload: &Value, info: &media_remote::NowPlayingInfo) -> bool {
     duration_values_match(
         adapter_duration_seconds(payload).and_then(|value| milliseconds(Some(value))),
@@ -476,6 +294,7 @@ fn duration_values_match(first: Option<u64>, second: Option<u64>) -> bool {
     }
 }
 
+#[cfg(test)]
 fn matches_optional_string(payload: &Value, key: &str, current: Option<&str>) -> bool {
     let Some(value) = payload.get(key).and_then(Value::as_str) else {
         return true;
@@ -486,6 +305,7 @@ fn matches_optional_string(payload: &Value, key: &str, current: Option<&str>) ->
     current.is_some_and(|current| current.trim() == value.trim())
 }
 
+#[cfg(test)]
 fn matches_required_string(payload: &Value, key: &str, current: Option<&str>) -> bool {
     payload
         .get(key)
@@ -545,19 +365,4 @@ pub(super) fn run_adapter(
             stderr,
         })
     })
-}
-
-fn seek_with_system_controller(position_ms: u64) -> Result<(), String> {
-    let mut command = Command::new("/usr/bin/osascript");
-    command
-        .args(["-l", "JavaScript", "-e", SYSTEM_MEDIA_SEEK_SCRIPT, "--"])
-        .arg(format!("{:.3}", position_ms as f64 / 1_000.0));
-    let output = run_with_timeout(command, Duration::from_secs(3))?;
-    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if output.status.success() && result == "ok" {
-        Ok(())
-    } else {
-        let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        Err(if detail.is_empty() { result } else { detail })
-    }
 }

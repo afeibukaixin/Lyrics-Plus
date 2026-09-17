@@ -40,11 +40,29 @@ fn attach_system_artwork(snapshot: &mut PlaybackSnapshot, system: &PlaybackSnaps
 pub fn query_selected_player(
     selection: PlayerSelection,
     previous_auto_player: Option<PlayerKind>,
+    previous_system_bundle_id: Option<&str>,
     system_media: &SystemMediaService,
     system_media_filter_mode: SystemMediaFilterMode,
     system_media_applications: &[RegisteredApplication],
 ) -> (PlaybackSnapshot, Option<PlayerKind>) {
-    let system_snapshot = system_media.snapshot();
+    let current_system_snapshot = system_media.snapshot();
+    let system_snapshot = if matches!(selection, PlayerSelection::System | PlayerSelection::Auto)
+        && system_media_filter_mode == SystemMediaFilterMode::Allowlist
+        && !(current_system_snapshot.is_playing
+            && current_system_snapshot
+                .source_app_bundle_id
+                .as_deref()
+                .is_some_and(is_dedicated_player_bundle_id))
+    {
+        choose_allowlisted_source(
+            current_system_snapshot.clone(),
+            previous_system_bundle_id,
+            system_media,
+            system_media_applications,
+        )
+    } else {
+        current_system_snapshot.clone()
+    };
     let (mut snapshot, next_auto_player) = match selection {
         PlayerSelection::AppleMusic => (automation::snapshot(PlayerKind::AppleMusic), None),
         PlayerSelection::Spotify => (automation::snapshot(PlayerKind::Spotify), None),
@@ -64,8 +82,108 @@ pub fn query_selected_player(
             automation::snapshot,
         ),
     };
-    attach_system_artwork(&mut snapshot, &system_snapshot);
+    snapshot.system_control_available = snapshot.same_system_media(&current_system_snapshot);
+    attach_system_artwork(&mut snapshot, &current_system_snapshot);
     (snapshot, next_auto_player)
+}
+
+fn choose_allowlisted_source(
+    current: PlaybackSnapshot,
+    previous_bundle_id: Option<&str>,
+    system_media: &SystemMediaService,
+    applications: &[RegisteredApplication],
+) -> PlaybackSnapshot {
+    let current_allowed = current.is_running
+        && system_source_allowed(&current, SystemMediaFilterMode::Allowlist, applications);
+    let (candidates, had_error) = match system_media.allowlisted_snapshots(applications) {
+        Ok(result) => result,
+        Err(error) => {
+            return PlaybackSnapshot::unavailable_with_code(
+                Some(PlayerKind::System),
+                PlaybackErrorCode::Unavailable,
+                error,
+            );
+        }
+    };
+
+    let selected = candidates
+        .iter()
+        .find(|(snapshot, _)| {
+            current_allowed
+                && current.is_playing
+                && snapshot.is_playing
+                && snapshot.source_app_bundle_id == current.source_app_bundle_id
+        })
+        .or_else(|| {
+            candidates.iter().find(|(snapshot, _)| {
+                snapshot.is_playing
+                    && snapshot.source_app_bundle_id.as_deref() == previous_bundle_id
+            })
+        })
+        .or_else(|| {
+            most_recent(
+                candidates
+                    .iter()
+                    .filter(|(snapshot, _)| snapshot.is_playing),
+            )
+        })
+        .or_else(|| {
+            candidates.iter().find(|(snapshot, _)| {
+                snapshot.source_app_bundle_id.as_deref() == previous_bundle_id
+            })
+        })
+        .or_else(|| {
+            candidates.iter().find(|(snapshot, _)| {
+                current_allowed && snapshot.source_app_bundle_id == current.source_app_bundle_id
+            })
+        })
+        .or_else(|| {
+            previous_bundle_id
+                .is_none()
+                .then(|| most_recent(candidates.iter()))
+                .flatten()
+        });
+    if let Some((snapshot, _)) = selected {
+        return snapshot
+            .source_app_bundle_id
+            .as_deref()
+            .and_then(|bundle_id| system_media.targeted_snapshot(bundle_id))
+            .unwrap_or_else(|| {
+                PlaybackSnapshot::unavailable_with_code(
+                    Some(PlayerKind::System),
+                    PlaybackErrorCode::Unavailable,
+                    "指定播放器状态已过期".into(),
+                )
+            });
+    }
+    if current_allowed
+        && current
+            .source_app_bundle_id
+            .as_deref()
+            .is_some_and(is_dedicated_player_bundle_id)
+    {
+        return current;
+    }
+    if had_error || current_allowed || previous_bundle_id.is_some() {
+        return PlaybackSnapshot::unavailable_with_code(
+            Some(PlayerKind::System),
+            PlaybackErrorCode::Unavailable,
+            "读取允许列表中的播放器失败".into(),
+        );
+    }
+    current
+}
+
+fn most_recent<'a>(
+    candidates: impl Iterator<Item = &'a (PlaybackSnapshot, Option<f64>)>,
+) -> Option<&'a (PlaybackSnapshot, Option<f64>)> {
+    candidates.reduce(|best, next| {
+        if next.1.unwrap_or(0.0) > best.1.unwrap_or(0.0) {
+            next
+        } else {
+            best
+        }
+    })
 }
 
 pub(super) fn query_auto_player(
@@ -130,7 +248,10 @@ pub(super) fn query_auto_player(
         && spotify.title.is_some()
     {
         (spotify, previous_auto_player)
-    } else if system.error_code == Some(PlaybackErrorCode::SourceNotAllowed) {
+    } else if matches!(
+        system.error_code,
+        Some(PlaybackErrorCode::SourceNotAllowed | PlaybackErrorCode::Unavailable)
+    ) {
         (system, Some(PlayerKind::System))
     } else {
         (
