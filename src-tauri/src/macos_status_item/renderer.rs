@@ -31,6 +31,7 @@ const DOUBLE_LINE_TEXT_LAYER_PADDING: f64 = 1.0;
 
 thread_local! {
     static LAYER_CACHE: RefCell<Option<LayerCache>> = const { RefCell::new(None) };
+    static DOUBLE_LINE_FONT_SIZE_CACHE: RefCell<Option<(String, f64)>> = const { RefCell::new(None) };
 }
 
 struct LayerCache {
@@ -70,6 +71,7 @@ pub(super) fn reset_scroll() {
 
 pub(super) fn reset() {
     super::payload::reset_position();
+    DOUBLE_LINE_FONT_SIZE_CACHE.with(|slot| *slot.borrow_mut() = None);
     LAYER_CACHE.with(|slot| {
         let Some(cache) = slot.borrow_mut().take() else {
             return;
@@ -176,6 +178,81 @@ fn resolve_fonts(
         ));
     }
     fonts
+}
+
+fn rendered_line_height(text: &str, fonts: &[Retained<NSFont>]) -> f64 {
+    let Some(fallback) = fonts.last() else {
+        return 0.0;
+    };
+    let font_height = |font: &NSFont| {
+        // Different font families can extend beyond their nominal point size.
+        // Use AppKit bounds so custom fonts do not get clipped by a fixed row.
+        font.boundingRectForFont().size.height.max(1.0)
+    };
+    if text.is_empty() {
+        return font_height(fallback);
+    }
+
+    let coverage = fonts
+        .iter()
+        .map(|font| font.coveredCharacterSet())
+        .collect::<Vec<_>>();
+    text.graphemes(true)
+        .map(|grapheme| {
+            let index = coverage
+                .iter()
+                .position(|characters| {
+                    grapheme
+                        .chars()
+                        .all(|character| characters.longCharacterIsMember(character as u32))
+                })
+                .unwrap_or(fonts.len() - 1);
+            font_height(&fonts[index])
+        })
+        .fold(0.0, f64::max)
+}
+
+fn double_line_font_size(
+    payload: &RenderPayload,
+    requested_size: f64,
+    row_height: f64,
+    mtm: MainThreadMarker,
+) -> f64 {
+    let cache_key = format!("{}:{requested_size:.3}:{row_height:.3}", payload.cache_key);
+    if let Some(font_size) = DOUBLE_LINE_FONT_SIZE_CACHE.with(|slot| {
+        slot.borrow()
+            .as_ref()
+            .filter(|(key, _)| key == &cache_key)
+            .map(|(_, font_size)| *font_size)
+    }) {
+        return font_size;
+    }
+
+    let primary_fonts = resolve_fonts(
+        &payload.font_family,
+        requested_size,
+        payload.font_weight,
+        mtm,
+    );
+    let secondary_fonts = resolve_fonts(
+        &payload.font_family,
+        requested_size,
+        payload.secondary_font_weight,
+        mtm,
+    );
+    let rendered_height = rendered_line_height(&payload.lines[0].text, &primary_fonts).max(
+        rendered_line_height(&payload.lines[1].text, &secondary_fonts),
+    );
+    let available_height = (row_height - DOUBLE_LINE_TEXT_LAYER_PADDING).max(1.0);
+    let font_size = if rendered_height <= available_height || rendered_height <= 0.0 {
+        requested_size
+    } else {
+        requested_size * available_height / rendered_height
+    };
+    DOUBLE_LINE_FONT_SIZE_CACHE.with(|slot| {
+        *slot.borrow_mut() = Some((cache_key, font_size));
+    });
+    font_size
 }
 
 fn parse_channel(value: &str) -> Option<f64> {
@@ -487,11 +564,8 @@ pub(super) fn render_on_main(payload: RenderPayload, tray: &tauri::tray::TrayIco
         };
         let (font_size, row_height, total_height) = if payload.double_line {
             let row_height = ((button_height - row_gap).max(1.0)) / 2.0;
-            let max_font_size = (row_height - DOUBLE_LINE_TEXT_LAYER_PADDING).max(1.0);
-            let font_size = payload
-                .font_size
-                .min(STATUS_BAR_FONT_SIZE_MAX)
-                .min(max_font_size);
+            let requested_size = payload.font_size.min(STATUS_BAR_FONT_SIZE_MAX);
+            let font_size = double_line_font_size(&payload, requested_size, row_height, mtm);
             (font_size, row_height, row_height * 2.0 + row_gap)
         } else {
             let font_size = payload

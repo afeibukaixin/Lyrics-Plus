@@ -1037,7 +1037,7 @@ impl AppConfig {
             &mut status_appearance.font_families,
             &mut status_appearance.font_family,
         );
-        status_appearance.font_size = status_appearance.font_size.clamp(10, 18);
+        status_appearance.font_size = status_appearance.font_size.clamp(6, 18);
         status_appearance.vertical_offset = if status_appearance.vertical_offset.is_finite() {
             status_appearance.vertical_offset.clamp(-6.0, 6.0)
         } else {
