@@ -94,7 +94,7 @@ pnpm tauri build
 
 ## ❤️ 支持 Lyrics Plus
 
-如果 Lyrics Plus 对你有帮助，欢迎通过爱发电、微信或支付宝支持项目的持续维护。感谢你的支持！
+不装体面了，求给口饭吃。Lyrics Plus 一直免费，开发和维护靠我自己，连 Codex 都快用不起了。如果它帮到过你，求你扫个码赏点饭钱，几块钱也行；能帮我分担点 Codex 的费用就更感谢了。谢谢愿意拉我一把的人。
 
 <table border="1" cellpadding="12" cellspacing="0">
   <tr>

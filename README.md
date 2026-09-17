@@ -94,7 +94,7 @@ The application code is released under the [MIT License](LICENSE). The MIT Licen
 
 ## ❤️ Support Lyrics Plus
 
-If Lyrics Plus has been helpful to you, consider supporting its continued development through AFDIAN, WeChat, or Alipay. Thank you for your support!
+I’ll just ask plainly: please help feed the broke developer behind Lyrics Plus. The app is free, and I spend my own time and money keeping it going. I can barely afford Codex at this point. If the app has helped you, please spare a little for a meal or help cover my Codex costs. Even a small donation means a lot. Thank you.
 
 <table border="1" cellpadding="12" cellspacing="0">
   <tr>
