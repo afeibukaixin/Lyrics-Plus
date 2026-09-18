@@ -87,7 +87,7 @@ pub(super) fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), Co
             "fontSize",
             value.pointer("/lyrics/displays/statusBar/appearance/fontSize"),
             6.0,
-            32.0,
+            24.0,
         ),
         (
             "verticalOffset",

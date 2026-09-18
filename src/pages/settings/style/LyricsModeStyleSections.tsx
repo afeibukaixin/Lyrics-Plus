@@ -18,7 +18,7 @@ import styles from "../settings.module.scss";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { reportFrontendError } from "../../../shared/debugLog";
-import { emitNotchWidthPreview } from "../../../shared/tauriEvent";
+import { emitNotchWidthPreview, isMacTauriRuntime } from "../../../shared/tauriEvent";
 import { api, isTauriRuntime, messageOf } from "../../../shared/api";
 import CompactLyricsPresentationSettings from "./CompactLyricsPresentationSettings";
 import ListLyricsLineOrderEditor from "./ListLyricsLineOrderEditor";
@@ -146,7 +146,7 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
       {inheritanceSection}
       <SettingsSection id="mode-text" title={t("settings.style.modeControls.textLayout")}>
         {!modeInheritance.inheritFontFamily && <FontFamilyChain fontFamily={appearance.fontFamily} fontFamilies={appearance.fontFamilies} fontWeight={appearance.fontWeight} onChange={(fontFamily, fontFamilies, fontWeight) => update("statusBar", patchAppearance(value, { fontFamily, fontFamilies, ...(fontWeight == null ? {} : { fontWeight }) }))} onError={setError} />}
-        <RangeRow label={t("settings.overlay.fontSize")} description={t("settings.display.statusBar.fontSizeHint")} value={appearance.fontSize} min={6} max={18} suffix=" pt" onChange={(fontSize) => save(patchAppearance(value, { fontSize }))} />
+        <RangeRow label={t("settings.overlay.fontSize")} description={t("settings.display.statusBar.fontSizeHint")} value={appearance.fontSize} min={6} max={isMacTauriRuntime() ? 24 : 18} suffix=" pt" onChange={(fontSize) => save(patchAppearance(value, { fontSize }))} />
         <RangeRow label={t("settings.display.statusBar.verticalOffset")} description={t("settings.display.statusBar.verticalOffsetHint")} value={appearance.verticalOffset} min={-6} max={6} step={0.1} suffix=" pt" displayValue={Number(appearance.verticalOffset.toFixed(1))} onChange={(verticalOffset) => save(patchAppearance(value, { verticalOffset }))} />
         <FontWeightSelect label={t("settings.overlay.fontWeight")} family={appearance.fontFamily} value={appearance.fontWeight} onChange={(fontWeight) => save(patchAppearance(value, { fontWeight }))} />
         {value.presentation.layout === "double" && <FontWeightSelect label={t("settings.display.statusBar.secondaryFontWeight")} family={appearance.fontFamily} value={appearance.secondaryFontWeight} showHint={false} onChange={(secondaryFontWeight) => save(patchAppearance(value, { secondaryFontWeight }))} />}
