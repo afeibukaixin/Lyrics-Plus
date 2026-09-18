@@ -158,7 +158,9 @@ pub(super) fn fit_directional_safety_bounds(
     let (old_top, old_bottom) = sides(previous.safety_inset_y);
     let (new_top, new_bottom) = sides(next.safety_inset_y);
     let delta_width = if next.orientation == OverlayOrientation::Vertical {
-        ((new_left + new_right) * scale).round() - ((old_left + old_right) * scale).round()
+        // 与前端居中布局的双倍单侧 padding 一致，避免随后自动适配再次补宽。
+        ((new_left + new_right) * 2.0 * scale).round()
+            - ((old_left + old_right) * 2.0 * scale).round()
     } else {
         0.0
     };
@@ -179,14 +181,8 @@ pub(super) fn fit_directional_safety_bounds(
         .round()
         .clamp(76.0 * scale, (work_size.height as f64).max(76.0 * scale)) as u32;
     let next_size = tauri::PhysicalSize::new(width, height);
-    // 用新旧安全值各自的像素位置差，避免 1x 屏幕拖动滑块时反复舍入而累计漂移。
-    let horizontal_anchor = |left: f64, right: f64| {
-        if next.orientation == OverlayOrientation::Vertical {
-            (-left * scale).round()
-        } else {
-            ((right - left) * scale / 2.0).round()
-        }
-    };
+    // 横排沿用安全距离的方向锚点；竖排宽度变化时保持窗口中心不动。
+    let horizontal_anchor = |left: f64, right: f64| ((right - left) * scale / 2.0).round();
     let vertical_anchor = |top: f64, bottom: f64| {
         if next.orientation == OverlayOrientation::Horizontal {
             (-top * scale).round()
@@ -194,8 +190,12 @@ pub(super) fn fit_directional_safety_bounds(
             ((bottom - top) * scale / 2.0).round()
         }
     };
-    let x = position.x as f64
-        + horizontal_anchor(new_left, new_right) - horizontal_anchor(old_left, old_right);
+    let x = if next.orientation == OverlayOrientation::Vertical {
+        position.x as f64 + ((current_size.width as f64 - width as f64) / 2.0).round()
+    } else {
+        position.x as f64
+            + horizontal_anchor(new_left, new_right) - horizontal_anchor(old_left, old_right)
+    };
     let y = position.y as f64
         + vertical_anchor(new_top, new_bottom) - vertical_anchor(old_top, old_bottom);
     let work_left = work_position.x as i64;
@@ -281,7 +281,7 @@ pub(super) fn fit_overlay_bounds_with_minimum(
     (tauri::PhysicalPosition::new(x as i32, y as i32), size)
 }
 
-// 歌词窗口以工具栏相反侧为锚点；向工作区边缘增长时只限制尺寸，不移动锚点。
+// 横排以工具栏相反侧为锚点；竖排保持窗口横向中心，靠工作区边缘时限制位置。
 pub(super) fn fit_overlay_content_bounds(
     position: tauri::PhysicalPosition<i32>,
     current_size: tauri::PhysicalSize<u32>,
@@ -314,30 +314,16 @@ pub(super) fn fit_overlay_content_bounds(
     let work_right = work_left + monitor_size.width as i64;
     let work_top = monitor_position.y as i64;
     let work_bottom = work_top + monitor_size.height as i64;
-    let minimum_width = (minimum_width_logical * scale).round() as u32;
     let minimum_height = (76.0 * scale).round() as u32;
     let fixed_position_limit =
         |position: i64| position.clamp(i32::MIN as i64, i32::MAX as i64) as i32;
 
     match toolbar_placement {
-        crate::ToolbarPlacement::Left => {
-            let fixed_right =
-                (position.x as i64 + current_size.width as i64).clamp(work_left, work_right);
-            let maximum_width = fixed_right
-                .saturating_sub(work_left)
-                .clamp(0, u32::MAX as i64) as u32;
-            let width = next_size.width.min(maximum_width.max(minimum_width));
-            next_size.width = width;
-            next_position.x = fixed_position_limit(fixed_right - width as i64);
-        }
-        crate::ToolbarPlacement::Right => {
-            let fixed_left = (position.x as i64).clamp(work_left, work_right);
-            let maximum_width = work_right
-                .saturating_sub(fixed_left)
-                .clamp(0, u32::MAX as i64) as u32;
-            let width = next_size.width.min(maximum_width.max(minimum_width));
-            next_size.width = width;
-            next_position.x = fixed_position_limit(fixed_left);
+        crate::ToolbarPlacement::Left | crate::ToolbarPlacement::Right => {
+            let centered_x = position.x as i64
+                + ((current_size.width as f64 - next_size.width as f64) / 2.0).round() as i64;
+            let maximum_x = (work_right - next_size.width as i64).max(work_left);
+            next_position.x = fixed_position_limit(centered_x.clamp(work_left, maximum_x));
         }
         crate::ToolbarPlacement::Top => {
             let fixed_bottom =

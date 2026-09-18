@@ -13,8 +13,10 @@
   position: absolute;
   inset: var(--surface-top-inset) var(--surface-right-inset) var(--surface-bottom-inset) var(--surface-left-inset);
   z-index: 0; display: grid; place-items: center;
-  padding: calc(var(--background-padding-y) + var(--safety-top)) calc(var(--background-padding-x) + var(--safety-right))
-    calc(var(--background-padding-y) + var(--safety-bottom)) calc(var(--background-padding-x) + var(--safety-left));
+  padding: calc(var(--background-padding-y) + var(--safety-top) + var(--safety-top))
+    calc(var(--background-padding-x) + var(--safety-right) + var(--safety-right))
+    calc(var(--background-padding-y) + var(--safety-bottom) + var(--safety-bottom))
+    calc(var(--background-padding-x) + var(--safety-left) + var(--safety-left));
   overflow: hidden; border-radius: var(--background-radius); pointer-events: none;
   transition: backdrop-filter .16s ease, -webkit-backdrop-filter .16s ease;
 }
@@ -59,12 +61,15 @@
 }
 
 .shadowBounds {
-  // 阴影层的绘制范围向安全距离扩展，负外边距保持歌词原有的布局位置和测量尺寸。
+  // 固定滤镜的绘制边界；负外边距抵消留白，不改变歌词的布局位置和测量尺寸。
   position: relative; z-index: 1; width: max-content; height: max-content;
-  padding: var(--safety-top) var(--safety-right) var(--safety-bottom) var(--safety-left);
-  margin: calc(0px - var(--safety-top)) calc(0px - var(--safety-right))
-    calc(0px - var(--safety-bottom)) calc(0px - var(--safety-left));
-  filter: drop-shadow(var(--text-shadow)); pointer-events: none;
+  padding: var(--paint-outset-top) var(--paint-outset-right) var(--paint-outset-bottom) var(--paint-outset-left);
+  margin: calc(0px - var(--paint-outset-top)) calc(0px - var(--paint-outset-right))
+    calc(0px - var(--paint-outset-bottom)) calc(0px - var(--paint-outset-left));
+  overflow: hidden; contain: paint; pointer-events: none;
+}
+.shadowFilter {
+  filter: drop-shadow(var(--text-shadow));
 }
 .lines {
   width: max-content; height: max-content; max-width: var(--content-max-width); max-height: var(--content-max-height); position: relative; z-index: 1;

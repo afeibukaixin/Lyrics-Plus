@@ -1,4 +1,4 @@
-import { useLayoutEffect, type MutableRefObject, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject, type RefObject } from "react";
 import { api, isTauriRuntime } from "../../shared/api";
 import type { OverlayStyle } from "../../shared/types";
 import {
@@ -29,6 +29,7 @@ type UseOverlayContentFitOptions = {
   resizing: boolean;
   fitLimits: { width: number; height: number };
   fitScale: number;
+  filterContentKey: string;
   wrapped: boolean;
   marqueeMetrics: MarqueeMetric[];
   primaryLineKey: string;
@@ -66,6 +67,7 @@ export function useOverlayContentFit({
   resizing,
   fitLimits,
   fitScale,
+  filterContentKey,
   wrapped,
   marqueeMetrics,
   primaryLineKey,
@@ -88,6 +90,59 @@ export function useOverlayContentFit({
   setFitScale,
   setMarqueeMetrics,
 }: UseOverlayContentFitOptions) {
+  const [paintRevision, setPaintRevision] = useState(0);
+  const observedGeometryRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refreshAfterFontLoad = () => {
+      if (cancelled) return;
+      setWrapped(false);
+      setFitScale(1);
+      setMarqueeMetrics([]);
+      lastRequestedSize.current = null;
+      setPaintRevision((revision) => revision + 1);
+    };
+    // 字体可能在设置事件之后才加载完成；即使布局尺寸相同，也要刷新字形滤镜。
+    void document.fonts.ready.then(refreshAfterFontLoad);
+    document.fonts.addEventListener("loadingdone", refreshAfterFontLoad);
+    document.fonts.addEventListener("loadingerror", refreshAfterFontLoad);
+    return () => {
+      cancelled = true;
+      document.fonts.removeEventListener("loadingdone", refreshAfterFontLoad);
+      document.fonts.removeEventListener("loadingerror", refreshAfterFontLoad);
+    };
+  }, [lastRequestedSize, setFitScale, setMarqueeMetrics, setWrapped, style.fontFamily, style.fontFamilies, style.fontSize, style.fontWeight, style.secondaryFontWeight]);
+
+  useLayoutEffect(() => {
+    const elements = [linesRef.current, activeRef.current, ...supportingRefs.current.slice(0, supportingLines.length)]
+      .filter((element): element is HTMLDivElement => Boolean(element));
+    if (elements.length < 2) return;
+    let frame = 0;
+    const inspectGeometry = () => {
+      frame = 0;
+      const geometry = elements.map((element) => {
+        const bounds = element.getBoundingClientRect();
+        // 竖排横向只观察布局盒；逐词彩色层向安全距离外伸不计入尺寸变化。
+        const measuredOverflowWidth = vertical ? element.clientWidth : element.scrollWidth;
+        return `${element.clientWidth}:${element.clientHeight}:${measuredOverflowWidth}:${element.scrollHeight}:${bounds.width}:${bounds.height}`;
+      }).join("|");
+      if (geometry === observedGeometryRef.current) return;
+      observedGeometryRef.current = geometry;
+      setPaintRevision((revision) => revision + 1);
+    };
+    const observer = new ResizeObserver(() => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(inspectGeometry);
+    });
+    elements.forEach((element) => observer.observe(element));
+    inspectGeometry();
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [activeRef, filterContentKey, linesRef, paintRevision, supportingLines.length, supportingRefs, vertical]);
+
   useLayoutEffect(() => {
     setWrapped(false);
     setFitScale(1);
@@ -107,8 +162,12 @@ export function useOverlayContentFit({
   useLayoutEffect(() => {
     if (!settingsVisible || resizing) {
       lastRequestedSize.current = null;
+      if (fitFrame.current !== null) cancelAnimationFrame(fitFrame.current);
+      fitFrame.current = null;
       if (fitRetryTimer.current !== null) clearTimeout(fitRetryTimer.current);
       fitRetryTimer.current = null;
+      if (shrinkTimer.current !== null) clearTimeout(shrinkTimer.current);
+      shrinkTimer.current = null;
       return;
     }
     if (preserveSizeForEmptyLine) return;
@@ -143,7 +202,9 @@ export function useOverlayContentFit({
     const naturalItems = elements.map((element, index) => {
       const currentSize = Math.max(1, baseSizes[index] * fitScale);
       const ratio = baseSizes[index] / currentSize;
-      return { width: element.scrollWidth * ratio, height: element.scrollHeight * ratio };
+      // 竖排的横向 scrollWidth 会包含绝对定位的逐词彩色层，布局宽度须按字盒计算。
+      const layoutWidth = vertical ? element.getBoundingClientRect().width : element.scrollWidth;
+      return { width: layoutWidth * ratio, height: element.scrollHeight * ratio };
     });
     const natural = combinedContentSize(naturalItems, style.layout, style.orientation, style.lineGap);
     // 竖排列向左扩展时，父级 scrollWidth 可能漏掉负方向溢出，改用每个歌词元素的实际布局盒汇总。
@@ -213,7 +274,7 @@ export function useOverlayContentFit({
     const constrainedHorizontal = !vertical && constrained;
     const constrainedVertical = vertical && constrained;
     const wrappedLayout = style.longText === "wrap" && wrapped;
-    const measuredContentWidth = vertical && (style.longText === "shrink" || wrappedLayout)
+    const measuredContentWidth = vertical
       ? Math.max(lines.clientWidth, Math.min(rendered.width, availableScreenWidth))
       : constrainedHorizontal
         ? horizontalContentLimit
@@ -231,13 +292,14 @@ export function useOverlayContentFit({
       : Math.min(fitLimits.height, Math.max(76, Math.ceil(measuredContentHeight + overlayVerticalPadding)));
     const previous = lastRequestedSize.current;
     if (previous && Math.abs(previous.width - width) <= 2 && Math.abs(previous.height - height) <= 2) return;
+    let cancelled = false;
     const applySize = (nextSize: { width: number; height: number }) => {
-      if (!isTauriRuntime()) return;
+      if (cancelled || !isTauriRuntime()) return;
       void api.fitOverlayContent(nextSize.width, nextSize.height).then((applied) => {
-        if (applied || lastRequestedSize.current !== nextSize) return;
+        if (cancelled || applied || lastRequestedSize.current !== nextSize) return;
         fitRetryTimer.current = setTimeout(() => {
           fitRetryTimer.current = null;
-          if (lastRequestedSize.current === nextSize) applySize(nextSize);
+          if (!cancelled && lastRequestedSize.current === nextSize) applySize(nextSize);
         }, FIT_RETRY_DELAY_MS);
       });
     };
@@ -247,6 +309,7 @@ export function useOverlayContentFit({
       fitRetryTimer.current = null;
       fitFrame.current = requestAnimationFrame(() => {
         fitFrame.current = null;
+        if (cancelled) return;
         lastRequestedSize.current = nextSize;
         applySize(nextSize);
       });
@@ -265,10 +328,13 @@ export function useOverlayContentFit({
       }
     }
     return () => {
+      cancelled = true;
       if (fitFrame.current !== null) cancelAnimationFrame(fitFrame.current);
       fitFrame.current = null;
       if (shrinkTimer.current !== null) clearTimeout(shrinkTimer.current);
       shrinkTimer.current = null;
     };
-  }, [constrained, fitLimits.height, fitLimits.width, fitScale, horizontalContentLimit, horizontalWindowLimit, marqueeHorizontalLimit, marqueeMetrics, marqueeTimeLimit, marqueeVerticalLimit, overlayHorizontalPadding, overlayVerticalPadding, preserveSizeForEmptyLine, primaryText, resizing, settingsVisible, style.fontFamily, style.fontFamilies, style.fontSize, style.fontWeight, style.layout, style.lineGap, style.lineHeight, style.longText, style.orientation, style.romanizationFontScale, style.safetyInsetX, style.safetyInsetY, style.secondaryFontScale, style.secondaryFontWeight, style.textShadowBlur, style.textShadowOffsetX, style.textShadowOffsetY, style.textStrokeWidth, style.translationFontScale, supportingKey, vertical, verticalContentLimit, verticalWindowLimit, wrapped]);
+  }, [constrained, fitLimits.height, fitLimits.width, fitScale, horizontalContentLimit, horizontalWindowLimit, marqueeHorizontalLimit, marqueeMetrics, marqueeTimeLimit, marqueeVerticalLimit, overlayHorizontalPadding, overlayVerticalPadding, paintRevision, preserveSizeForEmptyLine, primaryText, resizing, settingsVisible, style.fontFamily, style.fontFamilies, style.fontSize, style.fontWeight, style.layout, style.lineGap, style.lineHeight, style.longText, style.orientation, style.romanizationFontScale, style.safetyInsetX, style.safetyInsetY, style.secondaryFontScale, style.secondaryFontWeight, style.textShadowBlur, style.textShadowOffsetX, style.textShadowOffsetY, style.textStrokeWidth, style.translationFontScale, supportingKey, vertical, verticalContentLimit, verticalWindowLimit, wrapped]);
+
+  return paintRevision;
 }

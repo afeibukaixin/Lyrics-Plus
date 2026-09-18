@@ -117,10 +117,6 @@ export default function Overlay() {
   const safetyRight = Math.max(0, style.safetyInsetX);
   const safetyTop = Math.max(0, -style.safetyInsetY);
   const safetyBottom = Math.max(0, style.safetyInsetY);
-  const overlayHorizontalPadding = style.backgroundPaddingX * 2 + safetyLeft + safetyRight
-    + (vertical ? VERTICAL_SURFACE_TOOLBAR_INSET : 0);
-  const overlayVerticalPadding = style.backgroundPaddingY * 2 + safetyTop + safetyBottom
-    + (vertical ? 0 : HORIZONTAL_SURFACE_TOOLBAR_INSET);
 
   const supportsSecondary = style.layout === "double";
   const secondaryFlags = secondaryDisplayFlags(style.secondaryDisplay);
@@ -155,6 +151,22 @@ export default function Overlay() {
     ? "center"
     : style.alignment;
   const supportingKey = supportingLines.map((line) => `${line.kind}:${line.text}`).join("|");
+  // 绘制留白与用户设置的位移分开；滤镜模糊和字体墨迹不会进入 DOM 的布局尺寸。
+  const largestFontSize = Math.max(style.fontSize, ...supportingLines.map((line) => line.baseSize));
+  // 按未缩小的字号预留滤镜内部空间，避免缩放时绘制边界来回收缩。
+  const paintSpread = Math.ceil(largestFontSize * 0.5 + style.textStrokeWidth / 2
+    + style.textShadowBlur * 3 + 1);
+  const paintOutset = {
+    left: paintSpread + Math.max(0, -style.textShadowOffsetX),
+    right: paintSpread + Math.max(0, style.textShadowOffsetX),
+    top: paintSpread + Math.max(0, -style.textShadowOffsetY),
+    bottom: paintSpread + Math.max(0, style.textShadowOffsetY),
+  };
+  // 居中网格只会移动单侧 padding 的一半；绘制边界不占窗口布局空间。
+  const overlayHorizontalPadding = style.backgroundPaddingX * 2 + (safetyLeft + safetyRight) * 2
+    + (vertical ? VERTICAL_SURFACE_TOOLBAR_INSET : 0);
+  const overlayVerticalPadding = style.backgroundPaddingY * 2 + (safetyTop + safetyBottom) * 2
+    + (vertical ? 0 : HORIZONTAL_SURFACE_TOOLBAR_INSET);
   const offsetAvailable = Boolean(lyrics.document);
   const offsetMs = lyrics.offsetMs;
   const offsetLabel = offsetAvailable ? formatOffset(offsetMs) : "—";
@@ -207,13 +219,27 @@ export default function Overlay() {
     ? wrapped
     : style.longText === "marquee" && marqueeMetrics.some((metric) => metric.overflowing);
 
-  useOverlayContentFit({
+  // 内容 key 不包含播放时间，避免逐字扫光过程中重复创建滤镜层。
+  const filterContentKey = JSON.stringify([
+    primaryLineKey, supportingKey, doubleLineOrder, effectiveAlignment, toolbarSide,
+    style.fontFamily, style.fontFamilies,
+    style.fontSize, style.fontWeight, style.secondaryFontWeight, style.lineHeight,
+    style.secondaryFontScale, style.translationFontScale, style.romanizationFontScale,
+    style.layout, style.orientation, style.longText, style.karaokeStyle, style.lineGap,
+    style.backgroundPaddingX, style.backgroundPaddingY,
+    style.horizontalMaxWidth, style.verticalMaxHeight,
+    style.safetyInsetX, style.safetyInsetY, style.textShadowOffsetX,
+    style.textShadowOffsetY, style.textShadowBlur, style.textShadowColor,
+    style.textStrokeWidth, style.textStrokeColor, fitScale,
+  ]);
+  const paintRevision = useOverlayContentFit({
     activeRef,
     constrained,
     fitFrame,
     fitLimits,
     fitRetryTimer,
     fitScale,
+    filterContentKey,
     horizontalContentLimit,
     horizontalWindowLimit,
     lastMeasuredLayoutKey,
@@ -243,6 +269,7 @@ export default function Overlay() {
     verticalWindowLimit,
     wrapped,
   });
+  const shadowLayerKey = `${filterContentKey}:${paintRevision}`;
 
   const supportingToggleTitle = (track: string, enabled: boolean, available: boolean) => {
     const action = enabled ? t("overlay.toolbar.hideTrack", { track }) : t("overlay.toolbar.showTrack", { track });
@@ -284,6 +311,10 @@ export default function Overlay() {
         "--safety-right": `${safetyRight}px`,
         "--safety-top": `${safetyTop}px`,
         "--safety-bottom": `${safetyBottom}px`,
+        "--paint-outset-left": `${paintOutset.left}px`,
+        "--paint-outset-right": `${paintOutset.right}px`,
+        "--paint-outset-top": `${paintOutset.top}px`,
+        "--paint-outset-bottom": `${paintOutset.bottom}px`,
         "--line-gap": `${style.lineGap}px`,
         "--solid-color": style.solidColor,
         "--text-shadow": `${style.textShadowOffsetX}px ${style.textShadowOffsetY}px ${style.textShadowBlur}px ${style.textShadowColor}`,
@@ -309,7 +340,7 @@ export default function Overlay() {
         }}
       >
         <div className={styles.shadowBounds}>
-          <div className={styles.lines} data-double-line-order={doubleLineOrder} ref={linesRef}>
+          <div className={`${styles.lines} ${styles.shadowFilter}`} key={shadowLayerKey} data-double-line-order={doubleLineOrder} ref={linesRef}>
             <div
               className={styles.active}
               data-empty={activeLineEmpty}
