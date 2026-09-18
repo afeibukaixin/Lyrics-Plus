@@ -24,14 +24,21 @@ const DEFAULT_SCROLL_DURATION_SECONDS: f64 = 4.0;
 const MIN_SCROLL_DURATION_SECONDS: f64 = 0.1;
 const SCROLL_START_HOLD_PROGRESS: f64 = 0.12;
 const SCROLL_END_HOLD_PROGRESS: f64 = 0.88;
-const STATUS_BAR_FONT_SIZE_MAX: f64 = 18.0;
+const STATUS_BAR_FONT_SIZE_MAX: f64 = 24.0;
 const TEXT_LAYER_HEIGHT_PADDING: f64 = 4.0;
 const DOUBLE_LINE_ROW_GAP: f64 = 0.0;
 const DOUBLE_LINE_TEXT_LAYER_PADDING: f64 = 1.0;
+const STATUS_BAR_MAX_HEIGHT_SLACK: f64 = 4.0;
 
 thread_local! {
     static LAYER_CACHE: RefCell<Option<LayerCache>> = const { RefCell::new(None) };
-    static DOUBLE_LINE_FONT_SIZE_CACHE: RefCell<Option<(String, f64)>> = const { RefCell::new(None) };
+    static DOUBLE_LINE_FONT_SIZE_CACHE: RefCell<Option<(String, DoubleLineSizing)>> = const { RefCell::new(None) };
+}
+
+#[derive(Clone, Copy)]
+struct DoubleLineSizing {
+    font_size: f64,
+    height_slack: f64,
 }
 
 struct LayerCache {
@@ -212,20 +219,29 @@ fn rendered_line_height(text: &str, fonts: &[Retained<NSFont>]) -> f64 {
         .fold(0.0, f64::max)
 }
 
-fn double_line_font_size(
+fn relaxed_height_slack(requested_size: f64, safe_size: f64) -> f64 {
+    if requested_size <= safe_size || safe_size >= STATUS_BAR_FONT_SIZE_MAX {
+        return 0.0;
+    }
+    // Spread the 4 pt allowance from the measured safe size to the slider maximum.
+    STATUS_BAR_MAX_HEIGHT_SLACK
+        * ((requested_size - safe_size) / (STATUS_BAR_FONT_SIZE_MAX - safe_size)).clamp(0.0, 1.0)
+}
+
+fn double_line_sizing(
     payload: &RenderPayload,
     requested_size: f64,
     row_height: f64,
     mtm: MainThreadMarker,
-) -> f64 {
+) -> DoubleLineSizing {
     let cache_key = format!("{}:{requested_size:.3}:{row_height:.3}", payload.cache_key);
-    if let Some(font_size) = DOUBLE_LINE_FONT_SIZE_CACHE.with(|slot| {
+    if let Some(sizing) = DOUBLE_LINE_FONT_SIZE_CACHE.with(|slot| {
         slot.borrow()
             .as_ref()
             .filter(|(key, _)| key == &cache_key)
-            .map(|(_, font_size)| *font_size)
+            .map(|(_, sizing)| *sizing)
     }) {
-        return font_size;
+        return sizing;
     }
 
     let primary_fonts = resolve_fonts(
@@ -243,16 +259,27 @@ fn double_line_font_size(
     let rendered_height = rendered_line_height(&payload.lines[0].text, &primary_fonts).max(
         rendered_line_height(&payload.lines[1].text, &secondary_fonts),
     );
-    let available_height = (row_height - DOUBLE_LINE_TEXT_LAYER_PADDING).max(1.0);
+    let safe_height = (row_height - DOUBLE_LINE_TEXT_LAYER_PADDING).max(1.0);
+    let safe_size = if rendered_height > 0.0 {
+        (requested_size * safe_height / rendered_height).min(requested_size)
+    } else {
+        requested_size
+    };
+    let height_slack = relaxed_height_slack(requested_size, safe_size);
+    let available_height = safe_height + height_slack;
     let font_size = if rendered_height <= available_height || rendered_height <= 0.0 {
         requested_size
     } else {
         requested_size * available_height / rendered_height
     };
+    let sizing = DoubleLineSizing {
+        font_size,
+        height_slack,
+    };
     DOUBLE_LINE_FONT_SIZE_CACHE.with(|slot| {
-        *slot.borrow_mut() = Some((cache_key, font_size));
+        *slot.borrow_mut() = Some((cache_key, sizing));
     });
-    font_size
+    sizing
 }
 
 fn parse_channel(value: &str) -> Option<f64> {
@@ -562,18 +589,29 @@ pub(super) fn render_on_main(payload: RenderPayload, tray: &tauri::tray::TrayIco
         } else {
             0.0
         };
-        let (font_size, row_height, total_height) = if payload.double_line {
+        let (font_size, row_height, text_layer_height, total_height) = if payload.double_line {
             let row_height = ((button_height - row_gap).max(1.0)) / 2.0;
             let requested_size = payload.font_size.min(STATUS_BAR_FONT_SIZE_MAX);
-            let font_size = double_line_font_size(&payload, requested_size, row_height, mtm);
-            (font_size, row_height, row_height * 2.0 + row_gap)
+            let sizing = double_line_sizing(&payload, requested_size, row_height, mtm);
+            let text_layer_height = row_height + sizing.height_slack;
+            (
+                sizing.font_size,
+                row_height,
+                text_layer_height,
+                row_height * 2.0 + row_gap,
+            )
         } else {
-            let font_size = payload
-                .font_size
-                .min(STATUS_BAR_FONT_SIZE_MAX)
-                .min((button_height - TEXT_LAYER_HEIGHT_PADDING).max(10.0));
+            let requested_size = payload.font_size.min(STATUS_BAR_FONT_SIZE_MAX);
+            let safe_size = (button_height - TEXT_LAYER_HEIGHT_PADDING).max(10.0);
+            let height_slack = relaxed_height_slack(requested_size, safe_size);
+            let font_size = requested_size.min(safe_size + height_slack);
             let row_height = (font_size + TEXT_LAYER_HEIGHT_PADDING).min(button_height);
-            (font_size, row_height, row_height)
+            let text_layer_height = if height_slack > 0.0 {
+                font_size + TEXT_LAYER_HEIGHT_PADDING
+            } else {
+                row_height
+            };
+            (font_size, row_height, text_layer_height, row_height)
         };
 
         let host_layer = if let Some(layer) = button.layer() {
@@ -586,7 +624,7 @@ pub(super) fn render_on_main(payload: RenderPayload, tray: &tauri::tray::TrayIco
             layer
         };
         let cache_key = format!(
-            "{}:{font_size:.3}:{row_height:.3}:{line_count}",
+            "{}:{font_size:.3}:{row_height:.3}:{text_layer_height:.3}:{line_count}",
             payload.cache_key
         );
         let geometry_flipped = host_layer.isGeometryFlipped();
@@ -663,10 +701,12 @@ pub(super) fn render_on_main(payload: RenderPayload, tray: &tauri::tray::TrayIco
                 } else {
                     line_count - 1 - index
                 };
-                let origin_y = block_origin_y + coordinate_index as f64 * (row_height + row_gap);
+                // Keep each expanded text layer centered on its original row.
+                let origin_y = block_origin_y + coordinate_index as f64 * (row_height + row_gap)
+                    - (text_layer_height - row_height) / 2.0;
                 let frame = NSRect::new(
                     NSPoint::new(origin_x, origin_y),
-                    NSSize::new(content_width.max(1.0), row_height),
+                    NSSize::new(content_width.max(1.0), text_layer_height),
                 );
                 row.base_layer.setFrame(frame);
                 if let (Some(layer), Some(mask)) =
@@ -676,7 +716,7 @@ pub(super) fn render_on_main(payload: RenderPayload, tray: &tauri::tray::TrayIco
                     let progress = line.sweep_progress.unwrap_or_default().clamp(0.0, 1.0);
                     mask.setFrame(NSRect::new(
                         NSPoint::new(0.0, 0.0),
-                        NSSize::new(content_width.max(1.0) * progress, row_height),
+                        NSSize::new(content_width.max(1.0) * progress, text_layer_height),
                     ));
                 }
             }
