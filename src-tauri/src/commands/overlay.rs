@@ -167,6 +167,7 @@ pub fn set_overlay_style(
         .write()
         .unwrap_or_else(|error| error.into_inner()) = style.clone();
     if previous.orientation != style.orientation {
+        crate::cancel_pending_legacy_overlay_restore(&app);
         crate::reset_overlay_toolbar_placement(&app, style.orientation);
     }
     persist_overlay_style_for_current_monitor(&app, &state, &style)?;
@@ -188,6 +189,7 @@ pub fn nudge_overlay(app: tauri::AppHandle, dx: i32, dy: i32) -> Result<(), Stri
     let window = app
         .get_webview_window("lyrics-overlay")
         .ok_or_else(|| "歌词浮窗不存在".to_string())?;
+    crate::cancel_pending_legacy_overlay_restore(&app);
     let position = window.outer_position().map_err(|error| error.to_string())?;
     window
         .set_position(tauri::PhysicalPosition::new(
@@ -441,7 +443,7 @@ pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Re
         OverlayOrientation::Horizontal => MIN_HORIZONTAL_WINDOW_WIDTH,
         OverlayOrientation::Vertical => MIN_VERTICAL_HOST_WIDTH,
     };
-    let (next_position, next_size) = fit_overlay_content_bounds(
+    let (mut next_position, next_size) = fit_overlay_content_bounds(
         position,
         current_size,
         width,
@@ -452,6 +454,12 @@ pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Re
         toolbar_placement,
         minimum_width_logical,
     );
+    let legacy_restore_position = (style.orientation == OverlayOrientation::Vertical)
+        .then(|| crate::pending_legacy_overlay_restore_position(&app, &monitor, next_size))
+        .flatten();
+    if let Some(position) = legacy_restore_position {
+        next_position = position;
+    }
     let size_changed = current_size.width.abs_diff(next_size.width) > 2
         || current_size.height.abs_diff(next_size.height) > 2;
     if size_changed || position != next_position {
@@ -465,6 +473,10 @@ pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Re
             scale,
         )
         .map_err(|error| error.to_string())?;
+    }
+    if legacy_restore_position.is_some() {
+        // 旧记录在最终内容宽度确定后升级，后续启动即可直接按中心锚点恢复。
+        crate::complete_pending_legacy_overlay_restore(&app, &window, next_position);
     }
     crate::sync_unlock_handle(&app);
     Ok(true)

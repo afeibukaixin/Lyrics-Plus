@@ -6,6 +6,10 @@ pub(crate) struct StoredBounds {
     pub(crate) x: i32,
     pub(crate) y: i32,
     #[serde(default)]
+    pub(crate) window_width: Option<u32>,
+    #[serde(default)]
+    pub(crate) window_height: Option<u32>,
+    #[serde(default)]
     pub(crate) work_x: Option<i32>,
     #[serde(default)]
     pub(crate) work_y: Option<i32>,

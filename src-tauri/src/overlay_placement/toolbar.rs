@@ -116,11 +116,14 @@ pub(crate) fn set_overlay_drag_active(app: &tauri::AppHandle, active: bool) {
     let Some(state) = app.try_state::<AppState>() else {
         return;
     };
-    state
+    let mut placement = state
         .overlay_placement
         .lock()
-        .unwrap_or_else(|error| error.into_inner())
-        .drag_active = active;
+        .unwrap_or_else(|error| error.into_inner());
+    if active {
+        placement.cancel_pending_legacy_restore();
+    }
+    placement.drag_active = active;
 }
 
 pub(crate) fn overlay_drag_active(app: &tauri::AppHandle) -> bool {
@@ -141,6 +144,7 @@ pub(crate) fn settle_overlay_position_at(
     window: &tauri::WebviewWindow,
     position: tauri::PhysicalPosition<i32>,
 ) {
+    crate::cancel_pending_legacy_overlay_restore(app);
     let snapped = crate::snapped_position(window, position);
     let adjusted = adjust_overlay_toolbar_for_move(app, window, snapped);
     if adjusted != position {

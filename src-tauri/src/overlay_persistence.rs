@@ -49,6 +49,24 @@ fn restored_overlay_position(
     window_size: tauri::PhysicalSize<u32>,
     scale_factor: f64,
 ) -> tauri::PhysicalPosition<i32> {
+    restored_overlay_position_with_anchor(
+        bounds,
+        work_position,
+        work_size,
+        window_size,
+        scale_factor,
+        false,
+    )
+}
+
+fn restored_overlay_position_with_anchor(
+    bounds: &StoredBounds,
+    work_position: tauri::PhysicalPosition<i32>,
+    work_size: tauri::PhysicalSize<u32>,
+    window_size: tauri::PhysicalSize<u32>,
+    scale_factor: f64,
+    preserve_vertical_center: bool,
+) -> tauri::PhysicalPosition<i32> {
     let same_work_area = bounds.work_x == Some(work_position.x)
         && bounds.work_y == Some(work_position.y)
         && bounds.work_width == Some(work_size.width)
@@ -57,7 +75,7 @@ fn restored_overlay_position(
             .scale_factor
             .is_some_and(|saved| (saved - scale_factor).abs() < 0.001);
 
-    let (x, y) = if same_work_area {
+    let (mut x, y) = if same_work_area {
         (bounds.x, bounds.y)
     } else {
         let available_width = work_size.width.saturating_sub(window_size.width);
@@ -72,6 +90,15 @@ fn restored_overlay_position(
             }),
         )
     };
+
+    // 竖排窗口按中心缩放。先用保存时的宽度对齐中心，后续内容适配就不会再次移位。
+    if same_work_area && preserve_vertical_center {
+        if let Some(saved_width) = bounds.window_width {
+            let center_offset =
+                ((saved_width as f64 - window_size.width as f64) / 2.0).round() as i64;
+            x = (x as i64 + center_offset).clamp(i32::MIN as i64, i32::MAX as i64) as i32;
+        }
+    }
 
     tauri::PhysicalPosition::new(
         clamp_axis(x, work_position.x, work_size.width, window_size.width),
@@ -89,6 +116,8 @@ fn stored_bounds(
     StoredBounds {
         x: position.x,
         y: position.y,
+        window_width: Some(window_size.width),
+        window_height: Some(window_size.height),
         work_x: Some(work_area.position.x),
         work_y: Some(work_area.position.y),
         work_width: Some(work_area.size.width),
@@ -191,9 +220,11 @@ fn apply_stored_overlay_position(
     app: &tauri::AppHandle,
     window: &tauri::WebviewWindow,
     monitor: &tauri::Monitor,
+    mark_legacy_restore: bool,
 ) -> bool {
     let state = app.state::<AppState>();
-    let key = format!("overlay.position.{}", monitor_id(monitor));
+    let id = monitor_id(monitor);
+    let key = format!("overlay.position.{id}");
     let Some(bounds) = state
         .storage
         .get_preference(&key)
@@ -206,19 +237,22 @@ fn apply_stored_overlay_position(
     let Ok(window_size) = window.outer_size() else {
         return false;
     };
-    let work_area = monitor.work_area();
-    let position = restored_overlay_position(
-        &bounds,
-        work_area.position,
-        work_area.size,
-        window_size,
-        monitor.scale_factor(),
-    );
     let orientation = state
         .overlay_style
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .orientation;
+    let work_area = monitor.work_area();
+    let position = restored_overlay_position_with_anchor(
+        &bounds,
+        work_area.position,
+        work_area.size,
+        window_size,
+        monitor.scale_factor(),
+        orientation == crate::OverlayOrientation::Vertical,
+    );
+    let legacy_vertical_position =
+        orientation == crate::OverlayOrientation::Vertical && bounds.window_width.is_none();
     set_overlay_toolbar_placement(
         app,
         bounds
@@ -227,6 +261,13 @@ fn apply_stored_overlay_position(
             .normalized(orientation),
     );
     set_overlay_position(app, window, position);
+    if mark_legacy_restore {
+        state
+            .overlay_placement
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .pending_legacy_restore_monitor = legacy_vertical_position.then_some(id);
+    }
     true
 }
 
@@ -257,7 +298,7 @@ fn restore_preferred_overlay_placement(
             .iter()
             .find(|monitor| monitor_id(monitor) == preferred_monitor)
         {
-            if apply_stored_overlay_position(app, window, monitor) {
+            if apply_stored_overlay_position(app, window, monitor, false) {
                 return;
             }
         } else {
@@ -327,9 +368,65 @@ pub(crate) fn restore_overlay_position(app: &tauri::AppHandle, window: &tauri::W
         .as_ref()
         .and_then(|id| monitors.iter().find(|monitor| monitor_id(monitor) == *id))
     {
-        if apply_stored_overlay_position(app, window, monitor) {
+        if apply_stored_overlay_position(app, window, monitor, true) {
             return;
         }
     }
+    cancel_pending_legacy_overlay_restore(app);
     move_overlay_to_primary(app, window);
+}
+
+pub(crate) fn cancel_pending_legacy_overlay_restore(app: &tauri::AppHandle) {
+    if let Some(state) = app.try_state::<AppState>() {
+        state
+            .overlay_placement
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .cancel_pending_legacy_restore();
+    }
+}
+
+pub(crate) fn pending_legacy_overlay_restore_position(
+    app: &tauri::AppHandle,
+    monitor: &tauri::Monitor,
+    window_size: tauri::PhysicalSize<u32>,
+) -> Option<tauri::PhysicalPosition<i32>> {
+    let state = app.state::<AppState>();
+    let id = monitor_id(monitor);
+    let pending = state
+        .overlay_placement
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .pending_legacy_restore_monitor
+        .as_deref()
+        == Some(id.as_str());
+    if !pending {
+        return None;
+    }
+    let bounds = state
+        .storage
+        .get_preference(&format!("overlay.position.{id}"))
+        .ok()
+        .flatten()
+        .and_then(|raw| serde_json::from_str::<StoredBounds>(&raw).ok())?;
+    if bounds.window_width.is_some() {
+        return None;
+    }
+    let work_area = monitor.work_area();
+    Some(restored_overlay_position(
+        &bounds,
+        work_area.position,
+        work_area.size,
+        window_size,
+        monitor.scale_factor(),
+    ))
+}
+
+pub(crate) fn complete_pending_legacy_overlay_restore(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+    position: tauri::PhysicalPosition<i32>,
+) {
+    persist_overlay_state_at(app, window, position);
+    cancel_pending_legacy_overlay_restore(app);
 }

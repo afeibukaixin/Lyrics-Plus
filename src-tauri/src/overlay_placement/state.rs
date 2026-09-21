@@ -48,6 +48,8 @@ pub(crate) struct MonitorTopologyEntry {
 #[derive(Default)]
 pub(crate) struct OverlayPlacementState {
     pub(crate) preferred_monitor: Option<String>,
+    /// 旧版位置记录没有窗口宽度，需在首次内容适配后用最终宽度完成一次恢复。
+    pub(crate) pending_legacy_restore_monitor: Option<String>,
     pub(crate) topology: Vec<MonitorTopologyEntry>,
     pub(crate) toolbar_placement: ToolbarPlacement,
     pub(crate) drag_active: bool,
@@ -56,6 +58,10 @@ pub(crate) struct OverlayPlacementState {
 }
 
 impl OverlayPlacementState {
+    pub(crate) fn cancel_pending_legacy_restore(&mut self) {
+        self.pending_legacy_restore_monitor = None;
+    }
+
     pub(crate) fn update_topology(&mut self, next: Vec<MonitorTopologyEntry>) -> bool {
         if self.topology.is_empty() {
             self.topology = next;
@@ -65,6 +71,7 @@ impl OverlayPlacementState {
             return false;
         }
         self.topology = next;
+        self.pending_legacy_restore_monitor = None;
         self.expected_programmatic_position = None;
         self.programmatic_move_started_at = None;
         true
