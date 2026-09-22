@@ -1,5 +1,6 @@
 import type {
   CompactKaraokeStyle,
+  ListLyricsKaraokeStyle,
   ListLyricsPreferences,
   LyricsDisplayPreferences,
   LyricsModeStyleInheritance,
@@ -188,6 +189,7 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
     return <>
       <SettingsSection id="mode-state" title={t("settings.style.modeControls.displayInteraction")}>
         <ToggleRow label={t("settings.display.listWindow.show")} value={value.enabled} onChange={(enabled) => save({ ...value, enabled })} />
+        <ToggleRow label={t("settings.display.listWindow.autoHide")} description={t("settings.display.listWindow.autoHideHint")} value={value.hideWhenNotPlaying} onChange={(hideWhenNotPlaying) => save({ ...value, hideWhenNotPlaying })} />
         <ToggleRow label={t("settings.display.listWindow.lock")} description={t("settings.display.listWindow.lockHint")} value={value.locked} onChange={updateListLocked} />
         <ToggleRow label={t("settings.display.listWindow.translation")} value={value.showTranslation} onChange={(showTranslation) => save({ ...value, showTranslation })} />
         <ToggleRow label={t("settings.display.listWindow.romanization")} value={value.showRomanization} onChange={(showRomanization) => save({ ...value, showRomanization })} />
@@ -220,6 +222,7 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
         <SelectRow label={t("settings.style.modeControls.alignment")} value={appearance.alignment} options={[["left", t("settings.style.modeControls.left")], ["center", t("settings.style.modeControls.center")], ["right", t("settings.style.modeControls.right")]]} onChange={(alignment) => save(patchAppearance(value, { alignment: alignment as ListLyricsPreferences["appearance"]["alignment"] }))} />
       </SettingsSection>
       <SettingsSection id="mode-colors" title={t("settings.style.modeControls.colorEffects")}>
+        <SelectRow label={t("settings.overlay.karaoke")} value={appearance.karaokeStyle} options={[["sweep", t("settings.overlay.karaokeSweep")], ["glow", t("settings.display.listWindow.karaokeGlow")]]} onChange={(karaokeStyle) => save(patchAppearance(value, { karaokeStyle: karaokeStyle as ListLyricsKaraokeStyle }))} />
         {!modeInheritance.inheritColors && <>
           <ColorRow label={t("settings.display.listWindow.activeColor")} description={t("settings.display.listWindow.activeColorHint")} value={appearance.activeColor} onChange={(activeColor) => save(patchAppearance(value, { activeColor }))} />
           <ColorRow label={t("settings.display.listWindow.inactiveColor")} description={t("settings.display.listWindow.inactiveColorHint")} value={appearance.inactiveColor} onChange={(inactiveColor) => save(patchAppearance(value, { inactiveColor }))} />
@@ -239,6 +242,9 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
       <SettingsSection id="mode-background" title={t("settings.style.modeControls.backgroundSize")}>
         {!modeInheritance.inheritColors && <ColorRow label={t("settings.style.modeControls.windowBackground")} value={appearance.backgroundColor} onChange={(backgroundColor) => save(patchAppearance(value, { backgroundColor }))} />}
         <RangeRow label={t("settings.overlay.backgroundOpacity")} value={appearance.backgroundOpacity} min={0} max={1} step={0.05} suffix="%" displayValue={Math.round(appearance.backgroundOpacity * 100)} onChange={(backgroundOpacity) => save(patchAppearance(value, { backgroundOpacity }))} />
+        <RangeRow label={t("settings.display.listWindow.listPaddingX")} value={appearance.listPaddingX} min={0} max={64} suffix="px" onChange={(listPaddingX) => save(patchAppearance(value, { listPaddingX }))} />
+        <RangeRow label={t("settings.display.listWindow.linePaddingX")} value={appearance.linePaddingX} min={0} max={64} suffix="px" onChange={(linePaddingX) => save(patchAppearance(value, { linePaddingX }))} />
+        <RangeRow label={t("settings.display.listWindow.linePaddingY")} value={appearance.linePaddingY} min={0} max={64} suffix="px" onChange={(linePaddingY) => save(patchAppearance(value, { linePaddingY }))} />
       </SettingsSection>
     </>;
   }

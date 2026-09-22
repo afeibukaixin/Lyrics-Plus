@@ -6,6 +6,8 @@ import type { LyricsWord } from "../../shared/types";
 gsap.registerPlugin(useGSAP);
 
 const KARAOKE_FILL_SELECTOR = "[data-karaoke-fill]";
+const KARAOKE_EFFECT_STACK_SELECTOR = "[data-karaoke-effect-stack]";
+const KARAOKE_WORD_SELECTOR = "[data-karaoke-word]";
 const KARAOKE_RESYNC_THRESHOLD_SECONDS = 0.15;
 
 // 重要：该值参与 GSAP 逐帧插值，必须与 inset 的其它值统一使用百分比。
@@ -34,15 +36,23 @@ export type KaraokeWordClasses = {
   fillText: string;
 };
 
+type KaraokeWordEffectClasses = {
+  stack: string;
+  farGlow: string;
+  nearGlow: string;
+  glowText: string;
+};
+
 type KaraokeWordProps = {
   text: string;
   current: boolean;
   complete: boolean;
   axis: "x" | "y";
   classes: KaraokeWordClasses;
+  effectClasses?: KaraokeWordEffectClasses;
 };
 
-type KaraokeSweepTimelineOptions = {
+type KaraokeTimelineOptions = {
   axis: "x" | "y";
   scopeRef: RefObject<HTMLElement | null>;
   lineStartMs: number;
@@ -52,13 +62,17 @@ type KaraokeSweepTimelineOptions = {
   enabled: boolean;
   playing: boolean;
   fontLayoutKey?: string;
+  effect?: KaraokeTimelineEffect;
+  liftDistancePx?: number;
 };
 
+export type KaraokeTimelineEffect = "sweep" | "glow-lift";
+
 /**
- * 按歌词行创建一个稳定的扫光时间轴。时间轴只更新文字裁剪区域，不参与 React 的
- * 100ms 状态刷新；拖动或播放器校时产生较大偏差时才重新定位。
+ * 按歌词行创建一个稳定的卡拉 OK 时间轴。时间轴直接推进扫光裁剪或泛光进度变量，
+ * 不参与 React 的 100ms 状态刷新；拖动或播放器校时产生较大偏差时才重新定位。
  */
-export function useKaraokeSweepTimeline({
+export function useKaraokeTimeline({
   axis,
   scopeRef,
   lineStartMs,
@@ -68,7 +82,9 @@ export function useKaraokeSweepTimeline({
   enabled,
   playing,
   fontLayoutKey = "",
-}: KaraokeSweepTimelineOptions) {
+  effect = "sweep",
+  liftDistancePx = 3,
+}: KaraokeTimelineOptions) {
   const positionRef = useRef(positionMs);
   positionRef.current = positionMs;
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
@@ -99,37 +115,90 @@ export function useKaraokeSweepTimeline({
     }
 
     const fills = Array.from(scope.querySelectorAll<HTMLElement>(KARAOKE_FILL_SELECTOR));
+    const effectStacks = Array.from(scope.querySelectorAll<HTMLElement>(KARAOKE_EFFECT_STACK_SELECTOR));
+    const wordElements = Array.from(scope.querySelectorAll<HTMLElement>(KARAOKE_WORD_SELECTOR));
     const timeline = gsap.timeline({ paused: true });
-    // 扫光只在播放轴上裁切；交叉轴由百分比和绘制盒保留字形余量。
-    const { initial: initialClipPath, complete: completeClipPath } = karaokeClipPaths(axis);
     const timelineOriginMs = Math.min(
       lineStartMs,
       ...words.map((word) => word.startMs),
     );
     timelineOriginRef.current = timelineOriginMs;
 
-    fills.forEach((fill, index) => {
-      gsap.set(fill, { clipPath: initialClipPath });
-      const word = words[index];
-      if (!word) return;
-      const startSeconds = Math.max(0, (word.startMs - timelineOriginMs) / 1_000);
-      const durationSeconds = Math.max(0, word.endMs - word.startMs) / 1_000;
-      if (durationSeconds === 0) {
-        timeline.set(fill, { clipPath: completeClipPath }, startSeconds);
-        return;
-      }
-      timeline.fromTo(
-        fill,
-        { clipPath: initialClipPath },
-        {
-          clipPath: completeClipPath,
-          duration: durationSeconds,
-          ease: "none",
-          immediateRender: false,
-        },
-        startSeconds,
-      );
-    });
+    if (effect === "glow-lift") {
+      wordElements.forEach((wordElement, index) => {
+        const word = words[index];
+        if (!word) return;
+        const effectStack = effectStacks[index];
+        const startSeconds = Math.max(0, (word.startMs - timelineOriginMs) / 1_000);
+        const nextWordStartMs = words[index + 1]?.startMs;
+        // 重叠逐字时间以后一字的开始时间为视觉边界，避免两段泛光同时推进。
+        const visualEndMs = nextWordStartMs === undefined
+          ? word.endMs
+          : Math.min(word.endMs, nextWordStartMs);
+        const durationSeconds = Math.max(0, visualEndMs - word.startMs) / 1_000;
+        gsap.set(wordElement, { "--karaoke-progress": "0%", y: 0 });
+        if (effectStack) {
+          gsap.set(effectStack, { autoAlpha: 0 });
+          timeline.set(effectStack, { autoAlpha: 1 }, startSeconds);
+        }
+        if (durationSeconds === 0) {
+          timeline.set(wordElement, {
+            "--karaoke-progress": "100%",
+            ...(!reducedMotion && { y: -liftDistancePx }),
+          }, startSeconds);
+          return;
+        }
+        timeline.fromTo(
+          wordElement,
+          { "--karaoke-progress": "0%" },
+          {
+            "--karaoke-progress": "100%",
+            duration: durationSeconds,
+            ease: "none",
+            immediateRender: false,
+          },
+          startSeconds,
+        );
+        if (!reducedMotion) {
+          timeline.fromTo(
+            wordElement,
+            { y: 0 },
+            {
+              y: -liftDistancePx,
+              duration: durationSeconds,
+              ease: "power1.out",
+              immediateRender: false,
+            },
+            startSeconds,
+          );
+        }
+      });
+    } else {
+      // 普通扫光继续只在播放轴上裁切，保持其它歌词窗口的现有行为。
+      const { initial: initialClipPath, complete: completeClipPath } = karaokeClipPaths(axis);
+      fills.forEach((fill, index) => {
+        gsap.set(fill, { clipPath: initialClipPath });
+        const word = words[index];
+        if (!word) return;
+        const startSeconds = Math.max(0, (word.startMs - timelineOriginMs) / 1_000);
+        const durationSeconds = Math.max(0, word.endMs - word.startMs) / 1_000;
+        if (durationSeconds === 0) {
+          timeline.set(fill, { clipPath: completeClipPath }, startSeconds);
+          return;
+        }
+        timeline.fromTo(
+          fill,
+          { clipPath: initialClipPath },
+          {
+            clipPath: completeClipPath,
+            duration: durationSeconds,
+            ease: "none",
+            immediateRender: false,
+          },
+          startSeconds,
+        );
+      });
+    }
 
     timelineRef.current = timeline;
     const desiredTime = getTimelineTime(
@@ -149,7 +218,7 @@ export function useKaraokeSweepTimeline({
       fills.forEach((fill) => fill.style.removeProperty("clip-path"));
     };
   }, {
-    dependencies: [axis, enabled, lineStartMs, scopeRef, wordsSignature, fontLayoutKey],
+    dependencies: [axis, effect, enabled, lineStartMs, scopeRef, wordsSignature, fontLayoutKey, liftDistancePx, reducedMotion],
     scope: scopeRef,
     revertOnUpdate: true,
   });
@@ -203,6 +272,7 @@ export const KaraokeWord = memo(function KaraokeWord({
   complete,
   axis,
   classes,
+  effectClasses,
 }: KaraokeWordProps) {
   return (
     <span
@@ -210,16 +280,39 @@ export const KaraokeWord = memo(function KaraokeWord({
       data-complete={complete}
       data-current={current}
       data-karaoke-axis={axis}
+      data-karaoke-word="true"
     >
       <span className={classes.base}>{text}</span>
-      <span
-        aria-hidden="true"
-        className={classes.fill}
-        data-karaoke-axis={axis}
-        data-karaoke-fill="true"
-      >
-        <span className={classes.fillText}>{text}</span>
-      </span>
+      {effectClasses ? (
+        <span
+          aria-hidden="true"
+          className={effectClasses.stack}
+          data-karaoke-effect-stack="true"
+        >
+          <span className={effectClasses.farGlow}>
+            <span className={effectClasses.glowText}>{text}</span>
+          </span>
+          <span className={effectClasses.nearGlow}>
+            <span className={effectClasses.glowText}>{text}</span>
+          </span>
+          <span
+            className={classes.fill}
+            data-karaoke-axis={axis}
+            data-karaoke-fill="true"
+          >
+            <span className={classes.fillText}>{text}</span>
+          </span>
+        </span>
+      ) : (
+        <span
+          aria-hidden="true"
+          className={classes.fill}
+          data-karaoke-axis={axis}
+          data-karaoke-fill="true"
+        >
+          <span className={classes.fillText}>{text}</span>
+        </span>
+      )}
     </span>
   );
 });

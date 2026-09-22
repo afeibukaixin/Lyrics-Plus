@@ -281,7 +281,7 @@ pub(super) fn fit_overlay_bounds_with_minimum(
     (tauri::PhysicalPosition::new(x as i32, y as i32), size)
 }
 
-// 横排以工具栏相反侧为锚点；竖排保持窗口横向中心，靠工作区边缘时限制位置。
+// 横排以工具栏相反侧为锚点；竖排按已记录的贴边侧或窗口中心调整宽度。
 pub(super) fn fit_overlay_content_bounds(
     position: tauri::PhysicalPosition<i32>,
     current_size: tauri::PhysicalSize<u32>,
@@ -291,6 +291,7 @@ pub(super) fn fit_overlay_content_bounds(
     monitor_position: tauri::PhysicalPosition<i32>,
     monitor_size: tauri::PhysicalSize<u32>,
     toolbar_placement: Option<crate::ToolbarPlacement>,
+    horizontal_anchor: crate::HorizontalAnchor,
     minimum_width_logical: f64,
 ) -> (tauri::PhysicalPosition<i32>, tauri::PhysicalSize<u32>) {
     let (mut next_position, mut next_size) = fit_overlay_bounds_with_minimum(
@@ -320,10 +321,19 @@ pub(super) fn fit_overlay_content_bounds(
 
     match toolbar_placement {
         crate::ToolbarPlacement::Left | crate::ToolbarPlacement::Right => {
-            let centered_x = position.x as i64
-                + ((current_size.width as f64 - next_size.width as f64) / 2.0).round() as i64;
+            let anchored_x = match horizontal_anchor {
+                crate::HorizontalAnchor::Left => position.x as i64,
+                crate::HorizontalAnchor::Right => {
+                    position.x as i64 + current_size.width as i64 - next_size.width as i64
+                }
+                crate::HorizontalAnchor::Free => {
+                    position.x as i64
+                        + ((current_size.width as f64 - next_size.width as f64) / 2.0).round()
+                            as i64
+                }
+            };
             let maximum_x = (work_right - next_size.width as i64).max(work_left);
-            next_position.x = fixed_position_limit(centered_x.clamp(work_left, maximum_x));
+            next_position.x = fixed_position_limit(anchored_x.clamp(work_left, maximum_x));
         }
         crate::ToolbarPlacement::Top => {
             let fixed_bottom =

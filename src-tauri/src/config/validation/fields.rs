@@ -122,6 +122,10 @@ pub(super) fn validate_field_types_and_options(
         ("/lyrics/displays/listWindow/alwaysOnTop", "alwaysOnTop"),
         ("/lyrics/displays/listWindow/locked", "locked"),
         (
+            "/lyrics/displays/listWindow/hideWhenNotPlaying",
+            "hideWhenNotPlaying",
+        ),
+        (
             "/lyrics/displays/listWindow/showTranslation",
             "showTranslation",
         ),
@@ -339,6 +343,11 @@ pub(super) fn validate_field_types_and_options(
             "/lyrics/displays/listWindow/appearance/backgroundMode",
             "backgroundMode",
             &["solid", "transparent"] as &[&str],
+        ),
+        (
+            "/lyrics/displays/listWindow/appearance/karaokeStyle",
+            "karaokeStyle",
+            &["sweep", "glow"] as &[&str],
         ),
         (
             "/lyrics/displays/statusBar/appearance/karaokeStyle",

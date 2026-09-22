@@ -124,6 +124,7 @@ pub(crate) fn set_overlay_position(
 }
 
 pub(crate) fn move_overlay_to_primary(app: &tauri::AppHandle, window: &tauri::WebviewWindow) {
+    crate::set_overlay_horizontal_anchor(app, crate::HorizontalAnchor::Free);
     if let Ok(Some(monitor)) = window.primary_monitor() {
         let work_area = monitor.work_area();
         let window_width = window.outer_size().map(|size| size.width).unwrap_or(760);

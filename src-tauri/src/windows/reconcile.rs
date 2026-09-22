@@ -92,8 +92,11 @@ pub(crate) fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Resu
             }
         }
     }
-    if displays.list_window.enabled {
+    let show_list_window = displays.list_window.enabled
+        && (!displays.list_window.hide_when_not_playing || playback.is_playing_for_display());
+    if show_list_window {
         cancel_surface_destroy(app, "lyrics-list");
+        cancel_surface_destroy(app, "lyrics-list-unlock-handle");
         if !surface_is_destroying(app, "lyrics-list") {
             create_list_lyrics_window(app).map_err(|error| error.to_string())?;
             if let Some(window) = app.get_webview_window("lyrics-list") {
@@ -110,11 +113,22 @@ pub(crate) fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Resu
                 sync_list_unlock_handle(app);
             }
         }
-    } else {
+    } else if !displays.list_window.enabled {
         hide_surface(app, "lyrics-list")?;
         hide_surface(app, "lyrics-list-unlock-handle")?;
         schedule_surface_destroy(app, "lyrics-list");
         schedule_surface_destroy(app, "lyrics-list-unlock-handle");
+        if let Some(window) = app.get_webview_window("lyrics-list") {
+            apply_list_lyrics_window_space_behavior(&window, lyrics_windows_show_on_all_spaces)
+                .map_err(|error| error.to_string())?;
+        }
+        sync_list_unlock_handle(app);
+    } else {
+        // 自动隐藏只让窗口休眠，保留窗口实例及其位置、尺寸和交互状态。
+        cancel_surface_destroy(app, "lyrics-list");
+        cancel_surface_destroy(app, "lyrics-list-unlock-handle");
+        hide_surface(app, "lyrics-list")?;
+        hide_surface(app, "lyrics-list-unlock-handle")?;
         if let Some(window) = app.get_webview_window("lyrics-list") {
             apply_list_lyrics_window_space_behavior(&window, lyrics_windows_show_on_all_spaces)
                 .map_err(|error| error.to_string())?;

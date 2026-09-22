@@ -458,6 +458,8 @@ export type LyricsStyleMode = "desktop" | "statusBar" | "listWindow" | "notch";
 
 export type CompactKaraokeStyle = "sweep" | "highlight";
 
+export type ListLyricsKaraokeStyle = "sweep" | "glow";
+
 export type StatusBarAlignment = "left" | "center" | "right";
 
 export type ListLyricsLineKind = "original" | "translation" | "romanization";
@@ -545,6 +547,10 @@ export type ListLyricsAppearance = {
   lineHeight: number;
   lineGap: number;
   secondaryLineGap: number;
+  listPaddingX: number;
+  linePaddingX: number;
+  linePaddingY: number;
+  karaokeStyle: ListLyricsKaraokeStyle;
   activeColor: string;
   inactiveColor: string;
   activeOpacity: number;
@@ -612,6 +618,7 @@ export type LyricsDisplayPreferences = {
     enabled: boolean;
     alwaysOnTop: boolean;
     locked: boolean;
+    hideWhenNotPlaying: boolean;
     showTranslation: boolean;
     showRomanization: boolean;
     lineOrder: ListLyricsLineOrder;

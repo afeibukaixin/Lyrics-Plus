@@ -16,6 +16,8 @@ import { useLyricsPresentation } from "./useLyricsPresentation";
 import { cn } from "@/lib/utils";
 import styles from "./LyricsListWindow.module.scss";
 
+const LIST_HEADER_HEIGHT = 76;
+
 export default function LyricsListWindow() {
   const { t } = useTranslation();
   const { config, setLyricsDisplayPreferences, setListLyricsLocked } = useAppConfig();
@@ -32,11 +34,13 @@ export default function LyricsListWindow() {
   const lines = lyrics.document?.tracks.original.lines ?? [];
   const offsetMs = lyrics.document?.offsetMs ?? 0;
   const transparentBackground = appearance.backgroundMode === "transparent";
-  const backdropKeepAlive = isMacTauriRuntime() && transparentBackground;
+  const macTauriRuntime = isMacTauriRuntime();
+  const backdropKeepAlive = macTauriRuntime && transparentBackground;
   const translationAvailable = Boolean(lyrics.document?.tracks.translation);
   const romanizationAvailable = Boolean(lyrics.document?.tracks.romanization);
 
   const following = useListLyricsFollowing({
+    active: playback.active,
     trackKey: lyrics.trackKey,
     activeIndex: lyrics.activeIndex,
     hasLines: lines.length > 0,
@@ -93,6 +97,9 @@ export default function LyricsListWindow() {
         "--list-line-height": appearance.lineHeight,
         "--list-line-gap": `${appearance.lineGap}px`,
         "--list-secondary-line-gap": `${appearance.secondaryLineGap}px`,
+        "--list-padding-x": `${appearance.listPaddingX}px`,
+        "--list-line-padding-x": `${appearance.linePaddingX}px`,
+        "--list-line-padding-y": `${appearance.linePaddingY}px`,
         "--list-active-color": appearance.activeColor,
         "--list-inactive-color": appearance.inactiveColor,
         "--list-active-opacity": appearance.activeOpacity,
@@ -149,6 +156,7 @@ export default function LyricsListWindow() {
         onLineClick={canSeek ? seekToLine : undefined}
         activeIndex={lyrics.activeIndex}
         activeRef={following.activeRef}
+        viewportRef={following.viewportRef}
         following={following.following}
         onPauseFollowing={following.pauseFollowing}
         onResumeFollowing={following.resumeFollowing}
@@ -156,9 +164,15 @@ export default function LyricsListWindow() {
         error={lyrics.error}
         canChooseLyrics={Boolean(playback.snapshot.title && playback.snapshot.artist)}
         onChooseLyrics={windowInteractions.openQuickLyrics}
+        karaokeStyle={appearance.karaokeStyle}
+        positionMs={lyrics.adjustedPositionMs}
+        positionObservedAtMs={lyrics.positionObservedAtMs}
+        playing={playback.active && playback.snapshot.isPlaying}
+        fontLayoutKey={`${appearance.fontFamily}:${appearance.fontFamilies}:${appearance.fontWeight}:${appearance.fontSize}:${appearance.lineHeight}`}
+        visibleTopInset={appearance.backgroundMode === "solid" && !locked ? LIST_HEADER_HEIGHT : 0}
       />
 
-      {!locked && windowInteractions.resizeDirections.map(({ direction, className }) => (
+      {!locked && !macTauriRuntime && windowInteractions.resizeDirections.map(({ direction, className }) => (
         <div key={direction} className={cn(styles.resizeHandle, className)} aria-hidden="true" onPointerDown={windowInteractions.startResize(direction)} />
       ))}
     </main>

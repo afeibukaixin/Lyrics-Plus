@@ -168,6 +168,7 @@ pub fn set_overlay_style(
         .unwrap_or_else(|error| error.into_inner()) = style.clone();
     if previous.orientation != style.orientation {
         crate::cancel_pending_legacy_overlay_restore(&app);
+        crate::set_overlay_horizontal_anchor(&app, crate::HorizontalAnchor::Free);
         crate::reset_overlay_toolbar_placement(&app, style.orientation);
     }
     persist_overlay_style_for_current_monitor(&app, &state, &style)?;
@@ -431,14 +432,16 @@ pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Re
     let current_height = current_size.height as f64 / scale;
     let (width, height) =
         fixed_axis_content_size(&style, width, height, current_width, current_height, locked);
-    let toolbar_placement = Some(
-        state
+    let (toolbar_placement, horizontal_anchor) = {
+        let placement = state
             .overlay_placement
             .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .toolbar_placement
-            .normalized(style.orientation),
-    );
+            .unwrap_or_else(|error| error.into_inner());
+        (
+            Some(placement.toolbar_placement.normalized(style.orientation)),
+            placement.horizontal_anchor,
+        )
+    };
     let minimum_width_logical = match style.orientation {
         OverlayOrientation::Horizontal => MIN_HORIZONTAL_WINDOW_WIDTH,
         OverlayOrientation::Vertical => MIN_VERTICAL_HOST_WIDTH,
@@ -452,6 +455,7 @@ pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Re
         work_area.position,
         work_area.size,
         toolbar_placement,
+        horizontal_anchor,
         minimum_width_logical,
     );
     let legacy_restore_position = (style.orientation == OverlayOrientation::Vertical)

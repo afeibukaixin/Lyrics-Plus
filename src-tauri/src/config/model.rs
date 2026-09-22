@@ -543,6 +543,7 @@ pub struct ListLyricsPreferences {
     pub enabled: bool,
     pub always_on_top: bool,
     pub locked: bool,
+    pub hide_when_not_playing: bool,
     pub show_translation: bool,
     pub show_romanization: bool,
     pub line_order: [ListLyricsLineKind; 3],
@@ -585,6 +586,7 @@ impl Default for ListLyricsPreferences {
             enabled: false,
             always_on_top: false,
             locked: false,
+            hide_when_not_playing: false,
             show_translation: true,
             show_romanization: false,
             line_order: [
@@ -608,6 +610,10 @@ pub struct ListLyricsAppearance {
     pub line_height: f64,
     pub line_gap: f64,
     pub secondary_line_gap: f64,
+    pub list_padding_x: f64,
+    pub line_padding_x: f64,
+    pub line_padding_y: f64,
+    pub karaoke_style: String,
     pub active_color: String,
     pub inactive_color: String,
     pub active_opacity: f64,
@@ -638,6 +644,10 @@ impl Default for ListLyricsAppearance {
             line_height: 1.45,
             line_gap: 8.0,
             secondary_line_gap: 5.0,
+            list_padding_x: 28.0,
+            line_padding_x: 12.0,
+            line_padding_y: 9.0,
+            karaoke_style: "glow".into(),
             active_color: "#a3e635".into(),
             inactive_color: "#ecfccb".into(),
             active_opacity: 1.0,
@@ -1069,6 +1079,9 @@ impl AppConfig {
         list_appearance.line_height = list_appearance.line_height.clamp(0.8, 2.0);
         list_appearance.line_gap = list_appearance.line_gap.clamp(0.0, 32.0);
         list_appearance.secondary_line_gap = list_appearance.secondary_line_gap.clamp(0.0, 32.0);
+        list_appearance.list_padding_x = list_appearance.list_padding_x.clamp(0.0, 64.0);
+        list_appearance.line_padding_x = list_appearance.line_padding_x.clamp(0.0, 64.0);
+        list_appearance.line_padding_y = list_appearance.line_padding_y.clamp(0.0, 64.0);
         list_appearance.active_opacity = list_appearance.active_opacity.clamp(0.0, 1.0);
         list_appearance.inactive_opacity = list_appearance.inactive_opacity.clamp(0.0, 1.0);
         list_appearance.background_opacity =
@@ -1084,6 +1097,9 @@ impl AppConfig {
             "solid" | "transparent"
         ) {
             list_appearance.background_mode = "solid".into();
+        }
+        if !matches!(list_appearance.karaoke_style.as_str(), "sweep" | "glow") {
+            list_appearance.karaoke_style = "glow".into();
         }
         if !matches!(
             list_appearance.alignment.as_str(),

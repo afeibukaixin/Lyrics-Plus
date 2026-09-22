@@ -37,13 +37,15 @@ export function useLyricsPresentation(
   active = true,
   { timing = "continuous" }: LyricsPresentationOptions = {},
 ) {
+  const trackKey = useMemo(() => trackKeyOf(snapshot), [snapshot]);
   const [runtime, setRuntime] = useState<LyricsRuntimeSnapshot>(emptySnapshot);
   const [linePosition, setLinePosition] = useState(() => ({
+    trackKey,
+    hasDocument: false,
     positionMs: snapshot.positionMs ?? positionMs,
     observedAtMs: snapshot.observedAtMs,
   }));
   const [lineTick, setLineTick] = useState(0);
-  const trackKey = useMemo(() => trackKeyOf(snapshot), [snapshot]);
 
   useEffect(() => {
     if (!active || !isTauriRuntime()) {
@@ -70,8 +72,13 @@ export function useLyricsPresentation(
     if (timing !== "line" || !active) return;
 
     const currentPositionMs = estimatedPosition(snapshot, positionMs);
-    // 位置和来源时间戳必须原子更新，避免追光拿新时间戳校准旧位置。
-    setLinePosition({ positionMs: currentPositionMs, observedAtMs: snapshot.observedAtMs });
+    // 歌曲、位置和来源时间戳必须原子更新，避免追光拿新快照校准旧位置。
+    setLinePosition({
+      trackKey,
+      hasDocument: Boolean(document),
+      positionMs: currentPositionMs,
+      observedAtMs: snapshot.observedAtMs,
+    });
     if (!snapshot.isPlaying || !document) return;
 
     const adjustedPositionMs = currentPositionMs + document.offsetMs;
@@ -83,9 +90,20 @@ export function useLyricsPresentation(
       setLineTick((value) => value + 1);
     }, delayMs);
     return () => window.clearTimeout(timer);
-  }, [active, document, lineTick, positionMs, snapshot, timing]);
+  }, [active, document, lineTick, positionMs, snapshot, timing, trackKey]);
 
-  const resolvedPositionMs = timing === "line" ? linePosition.positionMs : positionMs;
+  const linePositionMatchesSnapshot = linePosition.trackKey === trackKey
+    && linePosition.observedAtMs === snapshot.observedAtMs
+    && linePosition.hasDocument === Boolean(document);
+  const resolvedLinePosition = linePositionMatchesSnapshot
+    ? linePosition
+    : {
+        trackKey,
+        hasDocument: Boolean(document),
+        positionMs: estimatedPosition(snapshot, positionMs),
+        observedAtMs: snapshot.observedAtMs,
+      };
+  const resolvedPositionMs = timing === "line" ? resolvedLinePosition.positionMs : positionMs;
   const activeIndex = useMemo(() => {
     if (!document) return -1;
     const adjusted = resolvedPositionMs + document.offsetMs;
@@ -118,7 +136,7 @@ export function useLyricsPresentation(
     trackKey,
     document,
     positionMs: resolvedPositionMs,
-    positionObservedAtMs: timing === "line" ? linePosition.observedAtMs : snapshot.observedAtMs,
+    positionObservedAtMs: timing === "line" ? resolvedLinePosition.observedAtMs : snapshot.observedAtMs,
     status: runtime.trackKey === trackKey ? runtime.status : "loading" as const,
     error: runtime.trackKey === trackKey ? runtime.error : null,
     activeIndex,

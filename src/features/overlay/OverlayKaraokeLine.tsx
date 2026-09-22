@@ -1,6 +1,6 @@
 import { useMemo, useRef } from "react";
 import type { LyricsLine, OverlayStyle } from "../../shared/types";
-import { KaraokeWord, useKaraokeSweepTimeline } from "../lyrics/KaraokeWord";
+import { KaraokeWord, useKaraokeTimeline } from "../lyrics/KaraokeWord";
 import styles from "./Overlay.module.scss";
 
 const karaokeWordClasses = {
@@ -25,7 +25,7 @@ export function OverlayKaraokeLine({ line, fallback, positionMs, positionObserve
     [line?.words],
   );
   const scopeRef = useRef<HTMLSpanElement>(null);
-  useKaraokeSweepTimeline({
+  useKaraokeTimeline({
     axis: style.orientation === "vertical" ? "y" : "x",
     enabled: style.karaokeStyle === "sweep",
     lineStartMs: line?.startMs ?? 0,

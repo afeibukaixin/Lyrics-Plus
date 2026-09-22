@@ -42,30 +42,13 @@ fn clamp_axis(position: i32, start: i32, work_length: u32, window_length: u32) -
     (position as i64).clamp(start as i64, maximum.max(start as i64)) as i32
 }
 
-fn restored_overlay_position(
-    bounds: &StoredBounds,
-    work_position: tauri::PhysicalPosition<i32>,
-    work_size: tauri::PhysicalSize<u32>,
-    window_size: tauri::PhysicalSize<u32>,
-    scale_factor: f64,
-) -> tauri::PhysicalPosition<i32> {
-    restored_overlay_position_with_anchor(
-        bounds,
-        work_position,
-        work_size,
-        window_size,
-        scale_factor,
-        false,
-    )
-}
-
 fn restored_overlay_position_with_anchor(
     bounds: &StoredBounds,
     work_position: tauri::PhysicalPosition<i32>,
     work_size: tauri::PhysicalSize<u32>,
     window_size: tauri::PhysicalSize<u32>,
     scale_factor: f64,
-    preserve_vertical_center: bool,
+    horizontal_anchor: Option<HorizontalAnchor>,
 ) -> tauri::PhysicalPosition<i32> {
     let same_work_area = bounds.work_x == Some(work_position.x)
         && bounds.work_y == Some(work_position.y)
@@ -91,12 +74,40 @@ fn restored_overlay_position_with_anchor(
         )
     };
 
-    // 竖排窗口按中心缩放。先用保存时的宽度对齐中心，后续内容适配就不会再次移位。
-    if same_work_area && preserve_vertical_center {
+    // 竖排窗口恢复时沿用保存的横向锚点，内容适配改变宽度后仍保持同一边缘或中心。
+    if same_work_area {
         if let Some(saved_width) = bounds.window_width {
-            let center_offset =
-                ((saved_width as f64 - window_size.width as f64) / 2.0).round() as i64;
-            x = (x as i64 + center_offset).clamp(i32::MIN as i64, i32::MAX as i64) as i32;
+            let width_delta = saved_width as i64 - window_size.width as i64;
+            let offset = match horizontal_anchor {
+                Some(HorizontalAnchor::Right) => width_delta,
+                Some(HorizontalAnchor::Free) => (width_delta as f64 / 2.0).round() as i64,
+                Some(HorizontalAnchor::Left) | None => 0,
+            };
+            x = (x as i64 + offset).clamp(i32::MIN as i64, i32::MAX as i64) as i32;
+        }
+    } else if let (Some(anchor), Some(saved_work_x), Some(saved_work_width), Some(saved_width)) = (
+        horizontal_anchor,
+        bounds.work_x,
+        bounds.work_width,
+        bounds.window_width,
+    ) {
+        let saved_scale = bounds.scale_factor.filter(|scale| scale.is_finite() && *scale > 0.0);
+        let scale_ratio = saved_scale.map_or(1.0, |saved| scale_factor / saved);
+        match anchor {
+            HorizontalAnchor::Left => {
+                let saved_gap = bounds.x as i64 - saved_work_x as i64;
+                x = work_position.x.saturating_add((saved_gap as f64 * scale_ratio).round() as i32);
+            }
+            HorizontalAnchor::Right => {
+                let saved_right = saved_work_x as i64 + saved_work_width as i64;
+                let saved_gap = saved_right - (bounds.x as i64 + saved_width as i64);
+                let gap = (saved_gap as f64 * scale_ratio).round() as i64;
+                x = (work_position.x as i64 + work_size.width as i64
+                    - window_size.width as i64
+                    - gap)
+                    .clamp(i32::MIN as i64, i32::MAX as i64) as i32;
+            }
+            HorizontalAnchor::Free => {}
         }
     }
 
@@ -111,6 +122,7 @@ fn stored_bounds(
     window_size: tauri::PhysicalSize<u32>,
     monitor: &tauri::Monitor,
     toolbar_placement: ToolbarPlacement,
+    horizontal_anchor: HorizontalAnchor,
 ) -> StoredBounds {
     let work_area = monitor.work_area();
     StoredBounds {
@@ -136,7 +148,85 @@ fn stored_bounds(
             window_size.height,
         )),
         toolbar_placement: Some(toolbar_placement),
+        horizontal_anchor: Some(horizontal_anchor),
     }
+}
+
+fn resolved_horizontal_anchor(
+    bounds: &StoredBounds,
+    orientation: crate::OverlayOrientation,
+    scale_factor: f64,
+) -> HorizontalAnchor {
+    if orientation != crate::OverlayOrientation::Vertical {
+        return HorizontalAnchor::Free;
+    }
+    if let Some(anchor) = bounds.horizontal_anchor {
+        return anchor;
+    }
+
+    // 旧记录没有显式锚点：相对位置为 0/1 时可直接判定贴左/右边。
+    if bounds.relative_x.is_some_and(|relative| relative <= 0.001) {
+        return HorizontalAnchor::Left;
+    }
+    if bounds.relative_x.is_some_and(|relative| relative >= 0.999) {
+        return HorizontalAnchor::Right;
+    }
+
+    let (Some(work_x), Some(work_width), Some(window_width)) =
+        (bounds.work_x, bounds.work_width, bounds.window_width)
+    else {
+        return HorizontalAnchor::Free;
+    };
+    let work_right = work_x as i64 + work_width as i64;
+    let left_gap = bounds.x as i64 - work_x as i64;
+    let right_gap = work_right - (bounds.x as i64 + window_width as i64);
+    let inset = (crate::overlay_surface::VERTICAL_OVERLAY_SURFACE_INSET * scale_factor).round()
+        as i64;
+    let edge_distance = |gap: i64| gap.unsigned_abs().min(gap.abs_diff(inset));
+    let left_distance = edge_distance(left_gap);
+    let right_distance = edge_distance(right_gap);
+    let threshold = crate::overlay_placement::OVERLAY_EDGE_SNAP_DISTANCE as u64;
+
+    if left_distance <= threshold && left_distance <= right_distance {
+        HorizontalAnchor::Left
+    } else if right_distance <= threshold {
+        HorizontalAnchor::Right
+    } else {
+        HorizontalAnchor::Free
+    }
+}
+
+pub(crate) fn update_overlay_horizontal_anchor(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+    snapped_position: tauri::PhysicalPosition<i32>,
+) {
+    let state = app.state::<AppState>();
+    let orientation = state
+        .overlay_style
+        .read()
+        .unwrap_or_else(|error| error.into_inner())
+        .orientation;
+    let anchor = if orientation == crate::OverlayOrientation::Vertical {
+        let (Ok(Some(monitor)), Ok(window_size)) =
+            (window.current_monitor(), window.outer_size())
+        else {
+            set_overlay_horizontal_anchor(app, HorizontalAnchor::Free);
+            return;
+        };
+        let monitor_position = monitor.position();
+        let monitor_right = monitor_position.x as i64 + monitor.size().width as i64;
+        if snapped_position.x == monitor_position.x {
+            HorizontalAnchor::Left
+        } else if snapped_position.x as i64 + window_size.width as i64 == monitor_right {
+            HorizontalAnchor::Right
+        } else {
+            HorizontalAnchor::Free
+        }
+    } else {
+        HorizontalAnchor::Free
+    };
+    set_overlay_horizontal_anchor(app, anchor);
 }
 
 fn persist_overlay_state_at(
@@ -169,12 +259,20 @@ fn persist_overlay_state_at(
     let Ok(window_size) = window.outer_size() else {
         return;
     };
-    let toolbar_placement = state
-        .overlay_placement
-        .lock()
-        .unwrap_or_else(|error| error.into_inner())
-        .toolbar_placement;
-    let bounds = stored_bounds(position, window_size, &monitor, toolbar_placement);
+    let (toolbar_placement, horizontal_anchor) = {
+        let placement = state
+            .overlay_placement
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        (placement.toolbar_placement, placement.horizontal_anchor)
+    };
+    let bounds = stored_bounds(
+        position,
+        window_size,
+        &monitor,
+        toolbar_placement,
+        horizontal_anchor,
+    );
     if let Ok(raw) = serde_json::to_string(&bounds) {
         let _ = state.storage.set_preference("overlay.last_monitor", &id);
         let _ = state
@@ -243,13 +341,14 @@ fn apply_stored_overlay_position(
         .unwrap_or_else(|error| error.into_inner())
         .orientation;
     let work_area = monitor.work_area();
+    let horizontal_anchor = resolved_horizontal_anchor(&bounds, orientation, monitor.scale_factor());
     let position = restored_overlay_position_with_anchor(
         &bounds,
         work_area.position,
         work_area.size,
         window_size,
         monitor.scale_factor(),
-        orientation == crate::OverlayOrientation::Vertical,
+        (orientation == crate::OverlayOrientation::Vertical).then_some(horizontal_anchor),
     );
     let legacy_vertical_position =
         orientation == crate::OverlayOrientation::Vertical && bounds.window_width.is_none();
@@ -260,6 +359,7 @@ fn apply_stored_overlay_position(
             .unwrap_or_else(|| ToolbarPlacement::for_orientation(orientation))
             .normalized(orientation),
     );
+    set_overlay_horizontal_anchor(app, horizontal_anchor);
     set_overlay_position(app, window, position);
     if mark_legacy_restore {
         state
@@ -373,6 +473,7 @@ pub(crate) fn restore_overlay_position(app: &tauri::AppHandle, window: &tauri::W
         }
     }
     cancel_pending_legacy_overlay_restore(app);
+    set_overlay_horizontal_anchor(app, HorizontalAnchor::Free);
     move_overlay_to_primary(app, window);
 }
 
@@ -413,12 +514,30 @@ pub(crate) fn pending_legacy_overlay_restore_position(
         return None;
     }
     let work_area = monitor.work_area();
-    Some(restored_overlay_position(
+    let anchor = resolved_horizontal_anchor(
+        &bounds,
+        crate::OverlayOrientation::Vertical,
+        monitor.scale_factor(),
+    );
+    if anchor == HorizontalAnchor::Right && bounds.window_width.is_none() {
+        return Some(tauri::PhysicalPosition::new(
+            work_area.position.x
+                + work_area.size.width.saturating_sub(window_size.width) as i32,
+            clamp_axis(
+                bounds.y,
+                work_area.position.y,
+                work_area.size.height,
+                window_size.height,
+            ),
+        ));
+    }
+    Some(restored_overlay_position_with_anchor(
         &bounds,
         work_area.position,
         work_area.size,
         window_size,
         monitor.scale_factor(),
+        Some(anchor),
     ))
 }
 

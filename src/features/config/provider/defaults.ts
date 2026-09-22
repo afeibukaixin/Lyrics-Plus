@@ -19,7 +19,7 @@ const defaultTitleFilterKeywords = [
 ];
 
 export const defaultConfig: AppConfig = {
-  schemaVersion: 73,
+  schemaVersion: 76,
   app: { theme: "dark", uiFontFamily: null, language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, hideMenuBarIcon: false, silentStartup: false, autoCheckUpdates: true, lyricsWindowsShowOnAllSpaces: false, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     chineseConversion: "original",
@@ -54,7 +54,7 @@ export const defaultConfig: AppConfig = {
         appearance: defaultDesktopLyricsAppearance,
       },
       statusBar: { enabled: false, hideWhenNotPlaying: false, presentation: defaultStatusBarLyricsPresentation, appearance: defaultStatusBarLyricsAppearance },
-      listWindow: { enabled: false, alwaysOnTop: false, locked: false, showTranslation: true, showRomanization: false, lineOrder: defaultListLyricsLineOrder, appearance: defaultListLyricsAppearance },
+      listWindow: { enabled: false, alwaysOnTop: false, locked: false, hideWhenNotPlaying: false, showTranslation: true, showRomanization: false, lineOrder: defaultListLyricsLineOrder, appearance: defaultListLyricsAppearance },
       notch: {
         enabled: false,
         hideWhenNotPlaying: false,
