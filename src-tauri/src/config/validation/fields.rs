@@ -345,6 +345,11 @@ pub(super) fn validate_field_types_and_options(
             &["solid", "transparent"] as &[&str],
         ),
         (
+            "/lyrics/displays/listWindow/appearance/karaokeStyle",
+            "karaokeStyle",
+            &["sweep", "glow"] as &[&str],
+        ),
+        (
             "/lyrics/displays/statusBar/appearance/karaokeStyle",
             "karaokeStyle",
             &["sweep", "highlight"] as &[&str],

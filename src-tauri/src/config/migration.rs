@@ -802,6 +802,22 @@ pub(crate) fn migrate_v73_font_families(user: &mut Value, version: u16) {
     }
 }
 
+pub(crate) fn migrate_v76_list_karaoke_and_spacing(user: &mut Value, version: u16) {
+    if version >= 76 {
+        return;
+    }
+    let Some(appearance) = user
+        .pointer_mut("/lyrics/displays/listWindow/appearance")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    appearance.remove("listPaddingYPercent");
+    appearance
+        .entry("karaokeStyle")
+        .or_insert_with(|| Value::from("glow"));
+}
+
 fn remove_retired_fullscreen_space_preferences(user: &mut Value) {
     if let Some(overlay) = user.pointer_mut("/overlay").and_then(Value::as_object_mut) {
         overlay.remove("joinOtherAppsFullscreen");

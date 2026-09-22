@@ -611,9 +611,9 @@ pub struct ListLyricsAppearance {
     pub line_gap: f64,
     pub secondary_line_gap: f64,
     pub list_padding_x: f64,
-    pub list_padding_y_percent: f64,
     pub line_padding_x: f64,
     pub line_padding_y: f64,
+    pub karaoke_style: String,
     pub active_color: String,
     pub inactive_color: String,
     pub active_opacity: f64,
@@ -645,9 +645,9 @@ impl Default for ListLyricsAppearance {
             line_gap: 8.0,
             secondary_line_gap: 5.0,
             list_padding_x: 28.0,
-            list_padding_y_percent: 38.0,
             line_padding_x: 12.0,
             line_padding_y: 9.0,
+            karaoke_style: "glow".into(),
             active_color: "#a3e635".into(),
             inactive_color: "#ecfccb".into(),
             active_opacity: 1.0,
@@ -1080,8 +1080,6 @@ impl AppConfig {
         list_appearance.line_gap = list_appearance.line_gap.clamp(0.0, 32.0);
         list_appearance.secondary_line_gap = list_appearance.secondary_line_gap.clamp(0.0, 32.0);
         list_appearance.list_padding_x = list_appearance.list_padding_x.clamp(0.0, 64.0);
-        list_appearance.list_padding_y_percent =
-            list_appearance.list_padding_y_percent.clamp(0.0, 50.0);
         list_appearance.line_padding_x = list_appearance.line_padding_x.clamp(0.0, 64.0);
         list_appearance.line_padding_y = list_appearance.line_padding_y.clamp(0.0, 64.0);
         list_appearance.active_opacity = list_appearance.active_opacity.clamp(0.0, 1.0);
@@ -1099,6 +1097,9 @@ impl AppConfig {
             "solid" | "transparent"
         ) {
             list_appearance.background_mode = "solid".into();
+        }
+        if !matches!(list_appearance.karaoke_style.as_str(), "sweep" | "glow") {
+            list_appearance.karaoke_style = "glow".into();
         }
         if !matches!(
             list_appearance.alignment.as_str(),

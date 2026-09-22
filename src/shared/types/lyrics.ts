@@ -458,6 +458,8 @@ export type LyricsStyleMode = "desktop" | "statusBar" | "listWindow" | "notch";
 
 export type CompactKaraokeStyle = "sweep" | "highlight";
 
+export type ListLyricsKaraokeStyle = "sweep" | "glow";
+
 export type StatusBarAlignment = "left" | "center" | "right";
 
 export type ListLyricsLineKind = "original" | "translation" | "romanization";
@@ -546,9 +548,9 @@ export type ListLyricsAppearance = {
   lineGap: number;
   secondaryLineGap: number;
   listPaddingX: number;
-  listPaddingYPercent: number;
   linePaddingX: number;
   linePaddingY: number;
+  karaokeStyle: ListLyricsKaraokeStyle;
   activeColor: string;
   inactiveColor: string;
   activeOpacity: number;
