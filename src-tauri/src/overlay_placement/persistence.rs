@@ -1,5 +1,7 @@
 use crate::overlay_model::OverlayStyleSettings;
 
+use super::state::HorizontalAnchor;
+
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct StoredBounds {
@@ -25,6 +27,8 @@ pub(crate) struct StoredBounds {
     pub(crate) relative_y: Option<f64>,
     #[serde(default)]
     pub(crate) toolbar_placement: Option<super::state::ToolbarPlacement>,
+    #[serde(default)]
+    pub(crate) horizontal_anchor: Option<HorizontalAnchor>,
 }
 
 #[derive(Default, serde::Serialize, serde::Deserialize)]

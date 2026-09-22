@@ -4,6 +4,7 @@ mod persistence;
 mod state;
 mod toolbar;
 
+pub(crate) use geometry::OVERLAY_EDGE_SNAP_DISTANCE;
 #[cfg(test)]
 pub(crate) use geometry::{centered_position, toolbar_placement_after_move};
 pub(crate) use main_window::{
@@ -12,12 +13,14 @@ pub(crate) use main_window::{
 };
 pub(crate) use persistence::{overlay_geometry, StoredBounds, StoredOverlayGeometry};
 pub use state::ToolbarPlacement;
-pub(crate) use state::{monitor_topology, should_show_main_window, OverlayPlacementState};
+pub(crate) use state::{
+    monitor_topology, should_show_main_window, HorizontalAnchor, OverlayPlacementState,
+};
 #[cfg(test)]
 pub(crate) use state::{MonitorTopologyEntry, PROGRAMMATIC_MOVE_SUPPRESSION};
 pub(crate) use toolbar::{
     overlay_drag_active, reset_overlay_toolbar_placement, set_overlay_drag_active,
-    set_overlay_toolbar_placement, settle_overlay_position_at,
+    set_overlay_horizontal_anchor, set_overlay_toolbar_placement, settle_overlay_position_at,
     update_overlay_toolbar_placement_during_drag, NotchPointerSamplePayload,
     NOTCH_POINTER_SAMPLE_EVENT, OVERLAY_HOVER_EVENT, OVERLAY_POINTER_MONITOR_INTERVAL,
     UNLOCK_HANDLE_BACKGROUND_GAP, UNLOCK_HANDLE_HIDE_DELAY, UNLOCK_HANDLE_HOVER_EVENT,

@@ -5,7 +5,7 @@ use crate::overlay_placement::geometry::toolbar_placement_after_move;
 use crate::AppState;
 use tauri::{Emitter, Manager};
 
-use super::state::ToolbarPlacement;
+use super::state::{HorizontalAnchor, ToolbarPlacement};
 
 pub(crate) const UNLOCK_HANDLE_BACKGROUND_GAP: f64 = 6.0;
 pub(crate) const OVERLAY_POINTER_MONITOR_INTERVAL: Duration = Duration::from_millis(50);
@@ -40,6 +40,19 @@ pub(crate) fn set_overlay_toolbar_placement(app: &tauri::AppHandle, placement: T
     };
     if changed {
         let _ = app.emit(OVERLAY_TOOLBAR_PLACEMENT_EVENT, placement);
+    }
+}
+
+pub(crate) fn set_overlay_horizontal_anchor(
+    app: &tauri::AppHandle,
+    anchor: HorizontalAnchor,
+) {
+    if let Some(state) = app.try_state::<AppState>() {
+        state
+            .overlay_placement
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .horizontal_anchor = anchor;
     }
 }
 
@@ -146,6 +159,7 @@ pub(crate) fn settle_overlay_position_at(
 ) {
     crate::cancel_pending_legacy_overlay_restore(app);
     let snapped = crate::snapped_position(window, position);
+    crate::update_overlay_horizontal_anchor(app, window, snapped);
     let adjusted = adjust_overlay_toolbar_for_move(app, window, snapped);
     if adjusted != position {
         crate::set_overlay_position(app, window, adjusted);

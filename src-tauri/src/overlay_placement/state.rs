@@ -14,6 +14,15 @@ pub enum ToolbarPlacement {
     Right,
 }
 
+#[derive(Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum HorizontalAnchor {
+    Left,
+    Right,
+    #[default]
+    Free,
+}
+
 impl ToolbarPlacement {
     pub(crate) fn for_orientation(orientation: OverlayOrientation) -> Self {
         match orientation {
@@ -52,6 +61,7 @@ pub(crate) struct OverlayPlacementState {
     pub(crate) pending_legacy_restore_monitor: Option<String>,
     pub(crate) topology: Vec<MonitorTopologyEntry>,
     pub(crate) toolbar_placement: ToolbarPlacement,
+    pub(crate) horizontal_anchor: HorizontalAnchor,
     pub(crate) drag_active: bool,
     pub(crate) expected_programmatic_position: Option<tauri::PhysicalPosition<i32>>,
     pub(crate) programmatic_move_started_at: Option<Instant>,
