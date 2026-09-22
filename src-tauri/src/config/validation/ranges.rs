@@ -126,6 +126,30 @@ pub(super) fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), Co
             32.0,
         ),
         (
+            "listPaddingX",
+            value.pointer("/lyrics/displays/listWindow/appearance/listPaddingX"),
+            0.0,
+            64.0,
+        ),
+        (
+            "listPaddingYPercent",
+            value.pointer("/lyrics/displays/listWindow/appearance/listPaddingYPercent"),
+            0.0,
+            50.0,
+        ),
+        (
+            "linePaddingX",
+            value.pointer("/lyrics/displays/listWindow/appearance/linePaddingX"),
+            0.0,
+            64.0,
+        ),
+        (
+            "linePaddingY",
+            value.pointer("/lyrics/displays/listWindow/appearance/linePaddingY"),
+            0.0,
+            64.0,
+        ),
+        (
             "activeOpacity",
             value.pointer("/lyrics/displays/listWindow/appearance/activeOpacity"),
             0.0,

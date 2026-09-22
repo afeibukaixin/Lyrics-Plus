@@ -545,6 +545,10 @@ export type ListLyricsAppearance = {
   lineHeight: number;
   lineGap: number;
   secondaryLineGap: number;
+  listPaddingX: number;
+  listPaddingYPercent: number;
+  linePaddingX: number;
+  linePaddingY: number;
   activeColor: string;
   inactiveColor: string;
   activeOpacity: number;
@@ -612,6 +616,7 @@ export type LyricsDisplayPreferences = {
     enabled: boolean;
     alwaysOnTop: boolean;
     locked: boolean;
+    hideWhenNotPlaying: boolean;
     showTranslation: boolean;
     showRomanization: boolean;
     lineOrder: ListLyricsLineOrder;

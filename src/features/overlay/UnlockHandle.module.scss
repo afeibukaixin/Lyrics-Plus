@@ -1,7 +1,7 @@
 .handle {
   width: 28px; height: 28px; display: grid; place-items: center; overflow: hidden;
   border: 1px solid rgba(255,255,255,.14); border-radius: 9px;
-  background: rgba(18,19,25,.38); color: rgba(255,255,255,.36); opacity: .2;
+  background: rgba(18,19,25,.38); color: rgba(255,255,255,.36); opacity: .82;
   backdrop-filter: blur(10px); transition: opacity .16s, background .16s, color .16s;
 }
 .handle[data-target="list"] {
@@ -10,6 +10,6 @@
 .handle[data-hover="true"], .handle:focus-visible { background: rgba(24,24,32,.9); color: #fff; opacity: 1; }
 .handle > svg { width: 14px; height: 14px; }
 
-:global(html:not(.dark)) .handle { border-color: rgb(0 0 0 / 14%); background: rgb(255 255 255 / 72%); color: rgb(0 0 0 / 45%); }
+:global(html:not(.dark)) .handle { border-color: rgb(0 0 0 / 14%); background: rgb(255 255 255 / 72%); color: rgb(0 0 0 / 45%); opacity: .86; }
 :global(html:not(.dark)) .handle[data-target="list"] { background: rgb(255 255 255 / 88%); color: rgb(0 0 0 / 65%); opacity: .86; }
 :global(html:not(.dark)) .handle[data-hover="true"], :global(html:not(.dark)) .handle:focus-visible { background: rgb(255 255 255 / 94%); color: #006be0; }

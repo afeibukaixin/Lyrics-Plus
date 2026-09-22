@@ -188,6 +188,7 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
     return <>
       <SettingsSection id="mode-state" title={t("settings.style.modeControls.displayInteraction")}>
         <ToggleRow label={t("settings.display.listWindow.show")} value={value.enabled} onChange={(enabled) => save({ ...value, enabled })} />
+        <ToggleRow label={t("settings.display.listWindow.autoHide")} description={t("settings.display.listWindow.autoHideHint")} value={value.hideWhenNotPlaying} onChange={(hideWhenNotPlaying) => save({ ...value, hideWhenNotPlaying })} />
         <ToggleRow label={t("settings.display.listWindow.lock")} description={t("settings.display.listWindow.lockHint")} value={value.locked} onChange={updateListLocked} />
         <ToggleRow label={t("settings.display.listWindow.translation")} value={value.showTranslation} onChange={(showTranslation) => save({ ...value, showTranslation })} />
         <ToggleRow label={t("settings.display.listWindow.romanization")} value={value.showRomanization} onChange={(showRomanization) => save({ ...value, showRomanization })} />
@@ -239,6 +240,10 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
       <SettingsSection id="mode-background" title={t("settings.style.modeControls.backgroundSize")}>
         {!modeInheritance.inheritColors && <ColorRow label={t("settings.style.modeControls.windowBackground")} value={appearance.backgroundColor} onChange={(backgroundColor) => save(patchAppearance(value, { backgroundColor }))} />}
         <RangeRow label={t("settings.overlay.backgroundOpacity")} value={appearance.backgroundOpacity} min={0} max={1} step={0.05} suffix="%" displayValue={Math.round(appearance.backgroundOpacity * 100)} onChange={(backgroundOpacity) => save(patchAppearance(value, { backgroundOpacity }))} />
+        <RangeRow label={t("settings.display.listWindow.listPaddingX")} value={appearance.listPaddingX} min={0} max={64} suffix="px" onChange={(listPaddingX) => save(patchAppearance(value, { listPaddingX }))} />
+        <RangeRow label={t("settings.display.listWindow.listPaddingY")} value={appearance.listPaddingYPercent} min={0} max={50} suffix="%" onChange={(listPaddingYPercent) => save(patchAppearance(value, { listPaddingYPercent }))} />
+        <RangeRow label={t("settings.display.listWindow.linePaddingX")} value={appearance.linePaddingX} min={0} max={64} suffix="px" onChange={(linePaddingX) => save(patchAppearance(value, { linePaddingX }))} />
+        <RangeRow label={t("settings.display.listWindow.linePaddingY")} value={appearance.linePaddingY} min={0} max={64} suffix="px" onChange={(linePaddingY) => save(patchAppearance(value, { linePaddingY }))} />
       </SettingsSection>
     </>;
   }

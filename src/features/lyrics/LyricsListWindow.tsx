@@ -37,6 +37,7 @@ export default function LyricsListWindow() {
   const romanizationAvailable = Boolean(lyrics.document?.tracks.romanization);
 
   const following = useListLyricsFollowing({
+    active: playback.active,
     trackKey: lyrics.trackKey,
     activeIndex: lyrics.activeIndex,
     hasLines: lines.length > 0,
@@ -93,6 +94,10 @@ export default function LyricsListWindow() {
         "--list-line-height": appearance.lineHeight,
         "--list-line-gap": `${appearance.lineGap}px`,
         "--list-secondary-line-gap": `${appearance.secondaryLineGap}px`,
+        "--list-padding-x": `${appearance.listPaddingX}px`,
+        "--list-padding-y": `${appearance.listPaddingYPercent}vh`,
+        "--list-line-padding-x": `${appearance.linePaddingX}px`,
+        "--list-line-padding-y": `${appearance.linePaddingY}px`,
         "--list-active-color": appearance.activeColor,
         "--list-inactive-color": appearance.inactiveColor,
         "--list-active-opacity": appearance.activeOpacity,

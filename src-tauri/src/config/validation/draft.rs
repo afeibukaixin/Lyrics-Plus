@@ -147,6 +147,8 @@ pub(super) fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftEr
     // Version 72 changes the on-disk representation from a generated full
     // configuration to explicit user overrides. Version 73 separates a legacy
     // CSS font stack into its primary family and comma-separated fallbacks.
+    // Version 74 adds the independently persisted lyrics-window auto-hide preference.
+    // Version 75 adds configurable outer-list and per-line padding.
     // Compress older files once; current-version files retain values the user
     // explicitly entered.
     let user = if version < CONFIG_SCHEMA_VERSION {

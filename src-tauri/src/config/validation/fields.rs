@@ -122,6 +122,10 @@ pub(super) fn validate_field_types_and_options(
         ("/lyrics/displays/listWindow/alwaysOnTop", "alwaysOnTop"),
         ("/lyrics/displays/listWindow/locked", "locked"),
         (
+            "/lyrics/displays/listWindow/hideWhenNotPlaying",
+            "hideWhenNotPlaying",
+        ),
+        (
             "/lyrics/displays/listWindow/showTranslation",
             "showTranslation",
         ),

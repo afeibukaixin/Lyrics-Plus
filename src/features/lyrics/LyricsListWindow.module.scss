@@ -1,4 +1,6 @@
 .shell {
+  --list-header-height: 76px;
+
   position: relative;
   display: flex;
   width: 100%;
@@ -25,11 +27,13 @@
 }
 
 .header {
-  position: relative;
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
   z-index: 2;
   display: flex;
-  min-height: 76px;
-  flex: none;
+  min-height: var(--list-header-height);
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -84,7 +88,7 @@
 }
 
 .shell[data-background-mode="transparent"] .header {
-  // 透明模式保留标题栏和边框占位，避免切换背景时改变歌词区域的位置与高度。
+  // 头部始终悬浮在歌词上方，切换背景或锁定状态都不会改变滚动区域尺寸。
   border-bottom-color: transparent;
   background: transparent;
   opacity: 1;
@@ -234,6 +238,11 @@
   flex: 1;
 }
 
+// 纯色背景下隐藏头部后方的歌词，同时保持滚动区域尺寸和跟随位置不变。
+.shell[data-background-mode="solid"][data-locked="false"] .workspace {
+  clip-path: inset(var(--list-header-height) 0 0);
+}
+
 .scroller { height: 100%; }
 
 .shell[data-background-mode="transparent"] .scroller :global([data-slot="scroll-area-scrollbar"]) {
@@ -256,14 +265,14 @@
   display: flex;
   flex-direction: column;
   gap: var(--list-line-gap);
-  padding: 38vh 28px;
+  padding: var(--list-padding-y) var(--list-padding-x);
 }
 
 .line {
   display: flex;
   flex-direction: column;
   gap: var(--list-secondary-line-gap);
-  padding: 9px 12px;
+  padding: var(--list-line-padding-y) var(--list-line-padding-x);
   border-radius: 6px;
   color: var(--list-inactive-color);
   pointer-events: none;
@@ -351,9 +360,9 @@
 
 .resizeNorth,
 .resizeSouth {
-  right: 10px;
-  left: 10px;
-  height: 7px;
+  right: 12px;
+  left: 12px;
+  height: 12px;
   cursor: ns-resize;
 }
 
@@ -362,9 +371,9 @@
 
 .resizeEast,
 .resizeWest {
-  top: 10px;
-  bottom: 10px;
-  width: 7px;
+  top: 12px;
+  bottom: 12px;
+  width: 12px;
   cursor: ew-resize;
 }
 
