@@ -125,7 +125,7 @@ export const zhCN = {
       toggleBackgroundTitle: "切换歌词背景（当前：{{value}}）", backgroundVisible: "显示背景", backgroundTransparent: "透明背景",
       showTrack: "显示{{track}}", hideTrack: "关闭{{track}}",
       unsupportedLayout: "{{action}}（当前布局不显示副歌词）", unavailableTrack: "{{action}}（当前歌词无{{track}}，开启后暂显示下一句）",
-      translationGlyph: "文", romanizationGlyph: "音", hide: "隐藏桌面歌词", openSettings: "打开桌面歌词设置",
+      translationGlyph: "文", romanizationGlyph: "音", opacity: "调整歌词不透明度", opacityTitle: "歌词不透明度：{{value}}%", hide: "隐藏桌面歌词", openSettings: "打开桌面歌词设置",
     },
   },
   notchLyrics: {
