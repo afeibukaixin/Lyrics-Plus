@@ -1,4 +1,5 @@
 export const libraryManagerEn = {
+  noBindMatches: "No matching results. Try a different search.", bindResultsLimited: "Showing {{count}} of {{total}} results. Narrow your search to find the right item.", binding: "Binding…", refreshing: "Updating results…",
   batchSimilarSongs: "Process safe matches", batchSimilarSongsTitle: "Process similar songs in bulk?", batchSimilarSongsDescription: "{{merge}} pairs meet the automatic merge rules. {{skip}} pairs will stay in the queue. Each pair is checked again before merging.", batchSimilarSongsConfirm: "Merge eligible pairs", batchSimilarSongsDone: "Merged {{merged}} pairs · Skipped {{skipped}} · Failed {{failed}}",
   title: "Library", description: "Manage the songs, lyrics, and artists already known to Lyrics Plus.", tabsLabel: "Library categories",
   tabs: { songs: "Songs", lyrics: "Lyrics", artists: "Artists" },
@@ -24,6 +25,7 @@ export const libraryManagerEn = {
 
 export const libraryManagerZhCN = {
   ...libraryManagerEn,
+  noBindMatches: "没有匹配的结果，请换个关键词。", bindResultsLimited: "显示前 {{count}} 项，共 {{total}} 项；请缩小搜索范围。", binding: "正在绑定…", refreshing: "正在更新结果…",
   batchSimilarSongs: "批量处理", batchSimilarSongsTitle: "批量处理相似歌曲？", batchSimilarSongsDescription: "{{merge}} 对符合自动合并条件，{{skip}} 对会保留在队列。合并前会逐对重新校验。", batchSimilarSongsConfirm: "合并符合条件的歌曲", batchSimilarSongsDone: "已合并 {{merged}} 对 · 跳过 {{skipped}} 对 · 失败 {{failed}} 对",
   title: "资料库", description: "集中管理 Lyrics Plus 已知的歌曲、歌词与歌手。", tabsLabel: "资料库分类", tabs: { songs: "歌曲", lyrics: "歌词", artists: "歌手" },
   search: "搜索资料库", searchPlaceholder: "搜索歌名、歌手、专辑、别名或来源", loading: "正在载入…", preview: "快速预览", openDetail: "打开完整详情", back: "返回", breadcrumbLabel: "资料库导航", none: "无", previousPage: "上一页", nextPage: "下一页", pageSummary: "第 {{page}} / {{totalPages}} 页 · 共 {{total}} 项",
@@ -45,6 +47,7 @@ export const libraryManagerZhCN = {
 
 export const libraryManagerZhTW = {
   ...libraryManagerZhCN,
+  noBindMatches: "沒有符合的結果，請換個關鍵字。", bindResultsLimited: "顯示前 {{count}} 項，共 {{total}} 項；請縮小搜尋範圍。", binding: "正在綁定…", refreshing: "正在更新結果…",
   batchSimilarSongs: "批量處理", batchSimilarSongsTitle: "批量處理相似歌曲？", batchSimilarSongsDescription: "{{merge}} 對符合自動合併條件，{{skip}} 對會保留在佇列。合併前會逐對重新檢查。", batchSimilarSongsConfirm: "合併符合條件的歌曲", batchSimilarSongsDone: "已合併 {{merged}} 對 · 跳過 {{skipped}} 對 · 失敗 {{failed}} 對",
   breadcrumbLabel: "資料庫導覽",
   paginationLabel: "資料庫分頁", itemsPerPage: "每頁筆數", pageSizeOption: "每頁 {{count}} 筆", goToPage: "前往第 {{page}} 頁",
@@ -56,6 +59,7 @@ export const libraryManagerZhTW = {
 
 export const libraryManagerJa = {
   ...libraryManagerEn,
+  noBindMatches: "一致する結果がありません。別の語句で検索してください。", bindResultsLimited: "{{total}}件中{{count}}件を表示しています。検索語句を絞り込んでください。", binding: "関連付け中…", refreshing: "結果を更新中…",
   batchSimilarSongs: "一括処理", batchSimilarSongsTitle: "類似曲を一括処理しますか？", batchSimilarSongsDescription: "{{merge}}組は自動統合の条件を満たします。{{skip}}組はキューに残ります。統合前に各組を再確認します。", batchSimilarSongsConfirm: "対象を統合", batchSimilarSongsDone: "統合 {{merged}}組 · スキップ {{skipped}}組 · 失敗 {{failed}}組",
   breadcrumbLabel: "ライブラリのナビゲーション",
   title: "ライブラリ", description: "Lyrics Plus が認識した曲、歌詞、アーティストを管理します。", tabsLabel: "ライブラリ分類", tabs: { songs: "曲", lyrics: "歌詞", artists: "アーティスト" }, search: "ライブラリを検索", searchPlaceholder: "曲名、アーティスト、アルバム、別名、ソースを検索", loading: "読み込み中…", preview: "クイックプレビュー", openDetail: "詳細を開く", back: "戻る", none: "なし", song: "曲", lyric: "歌詞", artist: "アーティスト", album: "アルバム", duration: "時間", platforms: "プラットフォーム", lyricsCount: "歌詞", songCount: "曲数", size: "サイズ", format: "形式", capabilities: "機能", sources: "ソース", bindings: "関連付け", statusLabel: "状態", actions: "操作", details: "詳細", emptySongs: "認識済みの曲はありません", emptyLyrics: "条件に合う歌詞はありません", emptyArtists: "認識済みのアーティストはいません", defaultLyric: "既定の歌詞", candidateLyric: "候補", unavailable: "利用不可", aliases: "別名", canonicalName: "正式名", manageArtist: "アーティストを管理", platformTracks: "ソースの観測", songSources: "ソース", systemSource: "システム · {{app}}", unknownSourceApp: "不明なアプリ", relatedSongs: "関連曲", boundSongs: "関連付け済みの曲", bindLyric: "歌詞を関連付け", bindSong: "曲に関連付け", bind: "関連付け", unbind: "解除", status: { all: "すべて", inUse: "使用中", candidate: "候補のみ", unbound: "未関連付け" }, source: { all: "すべてのソース", managed: "管理対象", cache: "キャッシュ", local: "外部ローカル", legacy: "読み取り専用履歴" }, similarLyrics: "類似歌詞", similarTitle: "類似歌詞キュー", analyzing: "歌詞を分析中…", noSimilar: "未処理の類似歌詞はありません", notDuplicate: "別々に保持", merge: "統合", cleanup: "未関連付けを整理", readOnly: "読み取り専用", lyricPreview: "歌詞プレビュー", formattedLyrics: "整形済み歌詞", rawLyrics: "原文歌詞", addAlias: "別名を追加",
@@ -65,6 +69,7 @@ export const libraryManagerJa = {
 
 export const libraryManagerKo = {
   ...libraryManagerEn,
+  noBindMatches: "일치하는 결과가 없습니다. 다른 검색어를 입력하세요.", bindResultsLimited: "{{total}}개 중 {{count}}개를 표시합니다. 검색어를 더 구체적으로 입력하세요.", binding: "연결 중…", refreshing: "결과 업데이트 중…",
   batchSimilarSongs: "일괄 처리", batchSimilarSongsTitle: "유사 노래를 일괄 처리할까요?", batchSimilarSongsDescription: "{{merge}}쌍이 자동 병합 조건을 충족합니다. {{skip}}쌍은 대기열에 남습니다. 병합 전에 각 쌍을 다시 확인합니다.", batchSimilarSongsConfirm: "대상 병합", batchSimilarSongsDone: "병합 {{merged}}쌍 · 건너뜀 {{skipped}}쌍 · 실패 {{failed}}쌍",
   breadcrumbLabel: "라이브러리 탐색",
   title: "라이브러리", description: "Lyrics Plus가 알고 있는 노래, 가사, 아티스트를 관리합니다.", tabsLabel: "라이브러리 분류", tabs: { songs: "노래", lyrics: "가사", artists: "아티스트" }, search: "라이브러리 검색", searchPlaceholder: "제목, 아티스트, 앨범, 별칭 또는 소스 검색", loading: "불러오는 중…", preview: "빠른 미리보기", openDetail: "전체 세부 정보 열기", back: "뒤로", none: "없음", song: "노래", lyric: "가사", artist: "아티스트", album: "앨범", duration: "길이", platforms: "플랫폼", lyricsCount: "가사", songCount: "노래 수", size: "크기", format: "형식", capabilities: "기능", sources: "소스", bindings: "연결", statusLabel: "상태", actions: "작업", details: "상세", emptySongs: "알려진 노래가 없습니다", emptyLyrics: "필터와 일치하는 가사가 없습니다", emptyArtists: "알려진 아티스트가 없습니다", defaultLyric: "기본 가사", candidateLyric: "후보", unavailable: "사용 불가", aliases: "별칭", canonicalName: "표준 이름", manageArtist: "아티스트 관리", platformTracks: "소스 관측", songSources: "소스", systemSource: "시스템 · {{app}}", unknownSourceApp: "알 수 없는 앱", relatedSongs: "연결된 노래", boundSongs: "연결된 노래", bindLyric: "가사 연결", bindSong: "노래에 연결", bind: "연결", unbind: "연결 해제", status: { all: "모든 상태", inUse: "사용 중", candidate: "후보만", unbound: "연결 안 됨" }, source: { all: "모든 소스", managed: "앱 관리", cache: "캐시", local: "외부 로컬", legacy: "읽기 전용 기록" }, similarLyrics: "유사 가사", similarTitle: "유사 가사 대기열", analyzing: "가사 분석 중…", noSimilar: "처리할 유사 가사가 없습니다", notDuplicate: "별도로 유지", merge: "병합", cleanup: "미연결 가사 정리", readOnly: "읽기 전용", lyricPreview: "가사 미리보기", formattedLyrics: "서식 있는 가사", rawLyrics: "원본 가사", addAlias: "별칭 추가",
