@@ -60,6 +60,7 @@ export const defaultConfig: AppConfig = {
         hideWhenNotPlaying: false,
         monitorId: null,
         showLyrics: false,
+        showTrackInfoWhenLyricsHidden: false,
         leftSlot: "artwork",
         rightSlot: "spectrum",
         presentation: defaultNotchLyricsPresentation,

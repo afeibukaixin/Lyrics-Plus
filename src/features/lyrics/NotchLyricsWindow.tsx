@@ -178,12 +178,19 @@ export default function NotchLyricsWindow() {
     && notch.inlineLyricsOnNonNotch
     && notch.showLyrics
     && hasPrimaryLine;
-  const title = playback.snapshot.title?.trim() || "Lyrics Plus";
+  const trackTitle = playback.snapshot.title?.trim() || "";
   const artist = playback.snapshot.artist?.trim() || "";
+  const title = trackTitle || "Lyrics Plus";
+  const trackInfoText = [trackTitle, artist].filter(Boolean).join(" · ");
+  const showTrackInfo = !layout.hasNotch
+    && !notch.showLyrics
+    && notch.showTrackInfoWhenLyricsHidden
+    && Boolean(trackInfoText);
+  const inlineCenterContent = inlineLyricsOnNonNotch || showTrackInfo;
   const slotText = (slot: NotchSlotContent) => slot === "title" ? title : slot === "artist" ? artist : "";
 
   useLayoutEffect(() => {
-    if (!inlineLyricsOnNonNotch) return;
+    if (!inlineCenterContent) return;
     const leftMeasure = leftSlotMeasureRef.current;
     const rightMeasure = rightSlotMeasureRef.current;
     if (!leftMeasure || !rightMeasure) return;
@@ -195,7 +202,8 @@ export default function NotchLyricsWindow() {
       const contentWidth = leftWidth > 0 && rightWidth > 0
         ? Math.min(leftWidth, rightWidth)
         : Math.max(leftWidth, rightWidth);
-      const width = Math.min(INLINE_SLOT_MAX_WIDTH, Math.ceil(contentWidth));
+      // 歌曲信息居中时缩小两侧槽位上限，保证最小岛宽仍有足够的文字空间。
+      const width = Math.min(showTrackInfo ? 56 : INLINE_SLOT_MAX_WIDTH, Math.ceil(contentWidth));
       setInlineSideWidth((previous) => previous === width ? previous : width);
     };
     const observer = new ResizeObserver(measure);
@@ -203,7 +211,7 @@ export default function NotchLyricsWindow() {
     observer.observe(rightMeasure);
     measure();
     return () => observer.disconnect();
-  }, [inlineLyricsOnNonNotch, notch.leftSlot, notch.rightSlot, title, artist, fontFamily, appearance.fontSize, compactSlotSize]);
+  }, [inlineCenterContent, showTrackInfo, notch.leftSlot, notch.rightSlot, title, artist, fontFamily, appearance.fontSize, compactSlotSize]);
 
   // 空白歌词行也要保留容器，避免把时间轴上的停顿压掉。
   const primaryLineElement = hasPrimaryLine && (
@@ -457,15 +465,23 @@ export default function NotchLyricsWindow() {
                 </div>
               )}
               <div className={styles.content} data-inline-double-line={inlineDoubleLine || undefined} ref={contentRef}>
-                <header className={styles.metadata} data-inline-lyrics={inlineLyricsOnNonNotch || undefined}>
+                <header className={styles.metadata} data-center-content={inlineCenterContent || undefined} data-inline-lyrics={inlineLyricsOnNonNotch || undefined}>
                   <div className={styles.slot} data-side="left" data-slot={notch.leftSlot}>
                     {renderSlot(notch.leftSlot, "left")}
-                    {inlineLyricsOnNonNotch && <span aria-hidden="true" className={styles.slotMeasure} ref={leftSlotMeasureRef}>{slotText(notch.leftSlot)}</span>}
+                    {inlineCenterContent && <span aria-hidden="true" className={styles.slotMeasure} ref={leftSlotMeasureRef}>{slotText(notch.leftSlot)}</span>}
                   </div>
-                  {inlineLyricsOnNonNotch ? inlineTopLineElement : <span className={styles.notchGap} aria-hidden="true" />}
+                  {inlineLyricsOnNonNotch ? inlineTopLineElement : showTrackInfo ? (
+                    <div className={styles.trackInfo}>
+                      <OverflowText
+                        align="center"
+                        contentKey={`${playback.snapshot.trackId ?? "fallback"}:${trackInfoText}`}
+                        paused={marqueePaused}
+                      >{trackInfoText}</OverflowText>
+                    </div>
+                  ) : <span className={styles.notchGap} aria-hidden="true" />}
                   <div className={styles.slot} data-side="right" data-slot={notch.rightSlot}>
                     {renderSlot(notch.rightSlot, "right")}
-                    {inlineLyricsOnNonNotch && <span aria-hidden="true" className={styles.slotMeasure} ref={rightSlotMeasureRef}>{slotText(notch.rightSlot)}</span>}
+                    {inlineCenterContent && <span aria-hidden="true" className={styles.slotMeasure} ref={rightSlotMeasureRef}>{slotText(notch.rightSlot)}</span>}
                   </div>
                 </header>
                 {notch.showLyrics && ((hasPrimaryLine && !inlineLyricsOnNonNotch) || supportingLines.length > 0) && (

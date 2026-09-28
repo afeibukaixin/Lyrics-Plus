@@ -140,6 +140,10 @@ pub(super) fn validate_field_types_and_options(
         ),
         ("/lyrics/displays/notch/showLyrics", "showLyrics"),
         (
+            "/lyrics/displays/notch/showTrackInfoWhenLyricsHidden",
+            "showTrackInfoWhenLyricsHidden",
+        ),
+        (
             "/lyrics/displays/notch/presentation/showTranslation",
             "showTranslation",
         ),

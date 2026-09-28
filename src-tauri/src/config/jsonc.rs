@@ -520,6 +520,7 @@ fn ordered_keys<'a>(
             "hideWhenNotPlaying",
             "monitorId",
             "showLyrics",
+            "showTrackInfoWhenLyricsHidden",
             "leftSlot",
             "rightSlot",
             "presentation",

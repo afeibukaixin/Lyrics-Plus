@@ -303,6 +303,7 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
                         "hideWhenNotPlaying",
                         "monitorId",
                         "showLyrics",
+                        "showTrackInfoWhenLyricsHidden",
                         "leftSlot",
                         "rightSlot",
                         "presentation",

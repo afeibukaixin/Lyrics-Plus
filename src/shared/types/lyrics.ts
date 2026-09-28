@@ -647,6 +647,7 @@ export type LyricsDisplayPreferences = {
     hideWhenNotPlaying: boolean;
     monitorId: string | null;
     showLyrics: boolean;
+    showTrackInfoWhenLyricsHidden: boolean;
     leftSlot: NotchSlotContent;
     rightSlot: NotchSlotContent;
     presentation: CompactLyricsPresentation;

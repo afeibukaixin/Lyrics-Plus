@@ -749,7 +749,7 @@
   padding-block: var(--notch-slot-vertical-padding);
 }
 
-.shell:not([data-has-notch]) .metadata[data-inline-lyrics="true"] {
+.shell:not([data-has-notch]) .metadata[data-center-content="true"] {
   grid-template-columns:
     minmax(0, var(--notch-inline-side-width))
     minmax(0, 1fr)
@@ -757,9 +757,17 @@
   column-gap: 8px;
 }
 
-.metadata[data-inline-lyrics="true"] .slot {
+.metadata[data-center-content="true"] .slot {
   width: 100%;
   overflow: hidden;
+}
+
+.trackInfo {
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+  color: white;
+  font-weight: 600;
 }
 
 .slotMeasure {
