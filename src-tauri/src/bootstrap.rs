@@ -343,6 +343,8 @@ pub fn run() {
             commands::analyze_library_song_similarity,
             commands::list_library_song_similarity,
             commands::dismiss_library_song_similarity,
+            commands::preview_library_song_similarity_batch,
+            commands::apply_library_song_similarity_batch,
             commands::merge_library_song,
             commands::delete_library_song,
             commands::split_library_song,

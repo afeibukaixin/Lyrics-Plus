@@ -19,7 +19,7 @@ import { CandidateEvidence } from "@/features/lyrics/quickLyrics/details/Candida
 import { associationReasonLabel } from "@/features/lyrics/quickLyrics/details/helpers";
 import { lyricsApi } from "@/shared/api/lyrics";
 import { messageOf } from "@/shared/api";
-import type { LibraryLyricSummary, LibraryPage, LibrarySongDetail, LibrarySongSummary, SongAssociationCandidate, SongSimilarityPair } from "@/shared/types/lyrics";
+import type { LibraryLyricSummary, LibraryPage, LibrarySongDetail, LibrarySongSummary, SongAssociationCandidate, SongSimilarityBatchPreview, SongSimilarityPair } from "@/shared/types/lyrics";
 import { ConfirmAction, formatDuration, LibraryDetailHeader, LibraryDetailSection, LibraryRelationItem, LibraryRelationList, LibraryState, LibraryToolbar, PageControls, TruncatedText, useLibraryNavigation } from "./shared";
 import styles from "./library.module.scss";
 
@@ -134,6 +134,10 @@ function SongSimilarityQueue({ onBack }: { onBack: () => void }) {
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [progress, setProgress] = useState("");
+  const [batchPreview, setBatchPreview] = useState<SongSimilarityBatchPreview | null>(null);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchPreviewBusy, setBatchPreviewBusy] = useState(false);
+  const [batchApplying, setBatchApplying] = useState(false);
   const busyPairRef = useRef<string | null>(null);
 
   const applyPairs = (value: SongSimilarityPair[]) => {
@@ -142,7 +146,13 @@ function SongSimilarityQueue({ onBack }: { onBack: () => void }) {
     setError("");
   };
   const refresh = async () => {
-    try { const value = await lyricsApi.listLibrarySongSimilarity(page, pageSize); applyPairs(value.items); setTotal(value.total); }
+    try {
+      const value = await lyricsApi.listLibrarySongSimilarity(page, pageSize);
+      const lastPage = Math.max(1, Math.ceil(value.total / pageSize));
+      if (page > lastPage) { setPage(lastPage); return; }
+      applyPairs(value.items);
+      setTotal(value.total);
+    }
     catch (reason) { setError(messageOf(reason)); setPairs([]); }
   };
   useEffect(() => { void refresh(); }, [page, pageSize]);
@@ -164,7 +174,7 @@ function SongSimilarityQueue({ onBack }: { onBack: () => void }) {
     setBusyPairId(pair.pairId);
     try {
       await lyricsApi.dismissLibrarySongSimilarity(pair.songs[0].recordingId, pair.songs[1].recordingId);
-      setPairs((current) => current?.filter((item) => item.pairId !== pair.pairId) ?? []);
+      await refresh();
       toast.success(t("library.manager.similarSongsKeptSeparate"));
     } catch (reason) { toast.error(messageOf(reason)); }
     finally { busyPairRef.current = null; setBusyPairId(null); }
@@ -178,17 +188,51 @@ function SongSimilarityQueue({ onBack }: { onBack: () => void }) {
     setBusyPairId(pair.pairId);
     try {
       await lyricsApi.mergeLibrarySong(keeper, redundant.recordingId);
-      setPairs((current) => current?.filter((item) => item.pairId !== pair.pairId) ?? []);
-      setTotal((current) => Math.max(0, current - 1));
+      await refresh();
       toast.success(t("library.manager.similarSongsMerged"));
     } catch (reason) { toast.error(messageOf(reason)); }
     finally { busyPairRef.current = null; setBusyPairId(null); }
+  };
+
+  const previewBatch = async () => {
+    if (batchPreviewBusy || batchApplying || busyPairRef.current !== null) return;
+    setBatchPreviewBusy(true);
+    try {
+      setBatchPreview(await lyricsApi.previewLibrarySongSimilarityBatch());
+      setBatchOpen(true);
+    } catch (reason) { toast.error(messageOf(reason)); }
+    finally { setBatchPreviewBusy(false); }
+  };
+
+  const applyBatch = async () => {
+    if (!batchPreview || batchApplying) return;
+    setBatchApplying(true);
+    try {
+      const result = await lyricsApi.applyLibrarySongSimilarityBatch(batchPreview.candidates);
+      setBatchOpen(false);
+      setBatchPreview(null);
+      if (page === 1) await refresh();
+      else setPage(1);
+      const summary = t("library.manager.batchSimilarSongsDone", {
+        merged: result.mergedCount,
+        skipped: batchPreview.skippedCount + result.skippedCount,
+        failed: result.failedCount,
+      });
+      if (result.failedCount) toast.error(summary);
+      else toast.success(summary);
+    } catch (reason) { toast.error(messageOf(reason)); }
+    finally { setBatchApplying(false); }
   };
 
   return (
     <Card className={`${styles.panel} ${styles.queuePanel}`}>
       <LibraryDetailHeader title={t("library.manager.similarSongsTitle")} description={t("library.manager.similarSongsDescription")} onBack={onBack} />
       <CardContent className={styles.similarity}>
+        <div className={styles.relationActions}>
+          <Button size="sm" variant="outline" disabled={pairs === null || total === 0 || batchPreviewBusy || batchApplying || busyPairId !== null} onClick={() => void previewBatch()}>
+            <GitMerge data-icon="inline-start" />{t("library.manager.batchSimilarSongs")}
+          </Button>
+        </div>
         {error ? <LibraryState state="error" message={error} /> : null}
         {pairs === null ? <LibraryState state="loading" message={`${t("library.manager.analyzingSimilarSongs")}${progress}`} /> : pairs.length === 0 && !error ? <LibraryState state="empty" message={t("library.manager.noSimilarSongs")} /> : pairs?.map((pair) => {
           const keeper = keepers[pair.pairId];
@@ -198,7 +242,7 @@ function SongSimilarityQueue({ onBack }: { onBack: () => void }) {
           const conflictTarget = pair.songs
             .filter((song) => observationCount(song) > 1 && song.sources.some((source) => conflictPlatforms.some((platform) => normalizedPlatform(platform) === normalizedPlatform(source.platform))))
             .sort((left, right) => observationCount(right) - observationCount(left))[0];
-          const busy = busyPairId !== null;
+          const busy = busyPairId !== null || batchApplying;
           return (
             <section className={styles.section} key={pair.pairId}>
               <div className={styles.sectionHeader}>
@@ -235,7 +279,6 @@ function SongSimilarityQueue({ onBack }: { onBack: () => void }) {
                 {pair.evidence.matchReasons.length ? <p>{pair.evidence.matchReasons.map((reason) => associationReasonLabel(reason, t)).join(" · ")}</p> : null}
                 <CandidateEvidence candidate={pair.evidence} t={t} />
               </div>
-              {!pair.evidence.canAssociate && !conflictTarget ? <Alert variant="destructive"><AlertDescription>{t("library.manager.platformConflictUnresolvable", { platforms: conflictPlatforms.join(" / ") || "—" })}</AlertDescription></Alert> : null}
               <div className={styles.relationActions}>
                 <Button size="sm" variant="outline" disabled={busy} onClick={() => void dismiss(pair)}>{t("library.manager.notSameSong")}</Button>
                 {!pair.evidence.canAssociate && conflictTarget ? <Button size="sm" variant="outline" disabled={busy} onClick={() => { setDetailConflictPlatforms(conflictPlatforms); setDetailId(conflictTarget.recordingId); }}><AlertTriangle data-icon="inline-start" />{t("library.manager.resolvePlatformConflict")}</Button> : null}
@@ -254,6 +297,21 @@ function SongSimilarityQueue({ onBack }: { onBack: () => void }) {
         })}
       </CardContent>
       {pairs ? <PageControls page={page} pageSize={pageSize} total={total} onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} /> : null}
+      <Dialog open={batchOpen} onOpenChange={(open) => { if (!batchApplying) setBatchOpen(open); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("library.manager.batchSimilarSongsTitle")}</DialogTitle>
+            <DialogDescription>{t("library.manager.batchSimilarSongsDescription", {
+              merge: batchPreview?.candidates.length ?? 0,
+              skip: batchPreview?.skippedCount ?? 0,
+            })}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" disabled={batchApplying} onClick={() => setBatchOpen(false)}>{t("common.actions.cancel")}</Button>
+            <Button disabled={batchApplying || !batchPreview?.candidates.length} onClick={() => void applyBatch()}>{t("library.manager.batchSimilarSongsConfirm")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

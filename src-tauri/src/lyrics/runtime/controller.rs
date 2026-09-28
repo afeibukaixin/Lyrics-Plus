@@ -31,6 +31,14 @@ pub(crate) fn playback_track_key(snapshot: &PlaybackSnapshot) -> Option<String> 
     if title.is_empty() || artist.is_empty() {
         return None;
     }
+    if player == PlayerKind::Spotify
+        && snapshot
+            .track_id
+            .as_deref()
+            .is_some_and(|id| crate::spotify_media::is_dj_interlude(id, artist))
+    {
+        return None;
+    }
     if let Some(track_id) = snapshot
         .track_id
         .as_deref()

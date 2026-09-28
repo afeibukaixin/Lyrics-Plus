@@ -5,6 +5,7 @@ mod lyrics;
 mod models;
 
 pub(super) use candidates::collect_song_association_candidates_for_targets;
+pub(super) use candidates::safe_auto_merge_candidate;
 pub(super) use identity::exact_track_external_id;
 pub(super) use identity::recording_version_tags;
 pub(super) use identity::{

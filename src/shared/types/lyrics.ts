@@ -231,6 +231,23 @@ export type SongSimilarityPair = {
   evidence: SongAssociationCandidate;
 };
 
+export type SongSimilarityBatchCandidate = {
+  leftRecordingId: number;
+  rightRecordingId: number;
+  keeperRecordingId: number;
+};
+
+export type SongSimilarityBatchPreview = {
+  candidates: SongSimilarityBatchCandidate[];
+  skippedCount: number;
+};
+
+export type SongSimilarityBatchResult = {
+  mergedCount: number;
+  skippedCount: number;
+  failedCount: number;
+};
+
 export type LibraryLyricStatus = "inUse" | "candidate" | "unbound";
 
 export type LibraryLyricPage = LibraryPage<LibraryLyricSummary> & {

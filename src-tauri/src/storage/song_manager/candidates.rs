@@ -70,6 +70,76 @@ pub(in crate::storage) fn collect_song_association_candidates_for_targets(
     )
 }
 
+/// 批量合并使用固定的严格条件，预览和写入时都调用此函数。
+pub(in crate::storage) fn safe_auto_merge_candidate(
+    connection: &rusqlite::Connection,
+    left_recording_id: i64,
+    right_recording_id: i64,
+    settings: &ProviderSettings,
+) -> Result<Option<SongAssociationCandidate>, String> {
+    if left_recording_id == right_recording_id {
+        return Ok(None);
+    }
+    let ignored = connection
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM song_similarity_ignores
+             WHERE left_recording_id=?1 AND right_recording_id=?2)",
+            rusqlite::params![
+                left_recording_id.min(right_recording_id),
+                left_recording_id.max(right_recording_id)
+            ],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(|error| format!("读取相似歌曲决定失败：{error}"))?;
+    if ignored {
+        return Ok(None);
+    }
+    let Some(observation) = load_observations(connection, left_recording_id)?
+        .into_iter()
+        .next()
+    else {
+        return Ok(None);
+    };
+    let Some(candidate) = collect_song_association_candidates_for_target(
+        connection,
+        &observation.platform,
+        &observation.track_key,
+        settings,
+        Some(right_recording_id),
+    )?
+    .into_iter()
+    .find(|item| item.recording_id == right_recording_id)
+    else {
+        return Ok(None);
+    };
+    let gates = &candidate.gates;
+    if !(gates.title && gates.artist && gates.duration && gates.version) {
+        return Ok(None);
+    }
+
+    let left_ids = load_external_identifiers(connection, left_recording_id)?;
+    let confirmed_isrc = left_ids.iter().filter(|id| {
+        id.confirmed
+            && (id.namespace.eq_ignore_ascii_case("isrc")
+                || id.id_kind.eq_ignore_ascii_case("isrc"))
+    }).any(|left| {
+        candidate.external_identifiers.iter().any(|right| {
+            right.confirmed
+                && (right.namespace.eq_ignore_ascii_case("isrc")
+                    || right.id_kind.eq_ignore_ascii_case("isrc"))
+                && !left.value.trim().is_empty()
+                && left.value.eq_ignore_ascii_case(&right.value)
+        })
+    });
+    if candidate.lyrics_content_same
+        || (confirmed_isrc && candidate.duration_delta_ms.is_some())
+    {
+        Ok(Some(candidate))
+    } else {
+        Ok(None)
+    }
+}
+
 fn collect_song_association_candidates_filtered(
     connection: &rusqlite::Connection,
     platform: &str,

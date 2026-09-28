@@ -14,6 +14,7 @@ mod overlay_surface;
 mod player;
 mod player_lifecycle;
 mod runtime_model;
+mod spotify_media;
 mod state;
 mod storage;
 mod telemetry;
