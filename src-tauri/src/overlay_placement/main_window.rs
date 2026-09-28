@@ -70,8 +70,13 @@ pub(crate) fn show_main_window_at(
         let path = route
             .map(|route| format!("index.html{route}"))
             .unwrap_or_else(|| "index.html".to_string());
+        let title = if cfg!(debug_assertions) {
+            "Lyrics Plus Dev"
+        } else {
+            "Lyrics Plus"
+        };
         WebviewWindowBuilder::new(app, "main", crate::webview_url(app, &path))
-            .title("Lyrics Plus")
+            .title(title)
             .inner_size(980.0, 720.0)
             .min_inner_size(760.0, 560.0)
             .resizable(false)

@@ -39,7 +39,10 @@ export function AppI18nProvider({ children }: { children: React.ReactNode }) {
     };
     const titleKey = titleKeys[view ?? ""] ?? "window.main";
     void appI18n.changeLanguage(language).then(() => {
-      document.title = appI18n.t(titleKey as "window.main");
+      const title = appI18n.t(titleKey as "window.main");
+      document.title = import.meta.env.DEV && titleKey === "window.main"
+        ? `${title} Dev`
+        : title;
     });
     if (isTauriRuntime()) void api.setNativeLanguage(nativeLanguageFor(language)).catch(() => undefined);
   }, [language]);
