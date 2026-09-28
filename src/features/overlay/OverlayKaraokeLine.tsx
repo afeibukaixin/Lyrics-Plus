@@ -10,6 +10,13 @@ const karaokeWordClasses = {
   fillText: styles.karaokeWordFillText,
 };
 
+const karaokeGlowEffectClasses = {
+  stack: styles.karaokeWordEffects,
+  farGlow: styles.karaokeWordGlowFar,
+  nearGlow: styles.karaokeWordGlowNear,
+  glowText: styles.karaokeWordGlowText,
+};
+
 export function OverlayKaraokeLine({ line, fallback, positionMs, positionObservedAtMs, style, playing, fitScale }: {
   line: LyricsLine | null;
   fallback: string;
@@ -27,7 +34,8 @@ export function OverlayKaraokeLine({ line, fallback, positionMs, positionObserve
   const scopeRef = useRef<HTMLSpanElement>(null);
   useKaraokeTimeline({
     axis: style.orientation === "vertical" ? "y" : "x",
-    enabled: style.karaokeStyle === "sweep",
+    effect: style.karaokeStyle === "glow" ? "glow-lift" : "sweep",
+    enabled: style.karaokeStyle === "sweep" || style.karaokeStyle === "glow",
     lineStartMs: line?.startMs ?? 0,
     playing,
     positionMs,
@@ -51,6 +59,7 @@ export function OverlayKaraokeLine({ line, fallback, positionMs, positionObserve
             complete={complete}
             key={`${word.startMs}-${index}`}
             current={current}
+            effectClasses={style.karaokeStyle === "glow" ? karaokeGlowEffectClasses : undefined}
             text={word.text}
           />
         );

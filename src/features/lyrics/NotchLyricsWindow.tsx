@@ -96,8 +96,8 @@ export default function NotchLyricsWindow() {
     lastObservedGeometryRef,
     reconcileHoverStateRef,
   } = useNotchWindowState({ appearance });
-  // 扫光由 GSAP 自己推进，无需用 100ms React 时钟重复刷新整棵灵动岛组件树。
-  const needsContinuousPosition = appearance.karaokeStyle !== "sweep";
+  // 逐词时间轴由 GSAP 自己推进，无需用 100ms React 时钟重复刷新整棵灵动岛组件树。
+  const needsContinuousPosition = appearance.karaokeStyle === "highlight";
   const playback = usePlayback({
     loadArtwork: true,
     trackPosition: needsContinuousPosition,
@@ -107,7 +107,7 @@ export default function NotchLyricsWindow() {
     positionMs: playback.positionMs,
     active: playback.active,
     timing: needsContinuousPosition ? "continuous" : "line",
-    holdSweepFrame: appearance.karaokeStyle === "sweep",
+    holdSweepFrame: !needsContinuousPosition,
     presentation: notch.presentation,
     offsetErrorMessage: "Failed to update the Dynamic Island lyrics offset",
   });
@@ -222,6 +222,7 @@ export default function NotchLyricsWindow() {
             positionMs={lyrics.positionMs + offsetMs}
             positionObservedAtMs={lyrics.positionObservedAtMs}
             karaokeStyle={appearance.karaokeStyle}
+            fontSizePx={appearance.fontSize}
           />
           : primaryText}
       </OverflowText>
@@ -401,6 +402,7 @@ export default function NotchLyricsWindow() {
       data-island-visible={islandVisible || undefined}
       data-width-motion={widthMotionActive || undefined}
       data-width-preview={previewActive || undefined}
+      data-karaoke-style={appearance.karaokeStyle}
       ref={shellRef}
       style={{
         "--notch-font-family": fontFamily,
@@ -488,6 +490,7 @@ export default function NotchLyricsWindow() {
                   <ExpandedPlayer
                     active={expandedPlayerActive}
                     karaokeStyle={appearance.karaokeStyle}
+                    fontSizePx={appearance.fontSize}
                     marqueePaused={marqueePaused || !expandedPlayerActive}
                     playback={playback}
                     previewLine={notch.showLyrics ? previewLine : null}

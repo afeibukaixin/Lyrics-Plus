@@ -377,7 +377,7 @@ pub(super) fn validate_field_types_and_options(
         (
             "/lyrics/displays/notch/appearance/karaokeStyle",
             "karaokeStyle",
-            &["sweep", "highlight"] as &[&str],
+            &["sweep", "highlight", "glow"] as &[&str],
         ),
         (
             "/lyrics/displays/notch/leftSlot",
@@ -452,7 +452,7 @@ pub(super) fn validate_field_types_and_options(
         (
             "/lyrics/displays/desktop/appearance/karaokeStyle",
             "karaokeStyle",
-            &["sweep", "bounce", "highlight"],
+            &["sweep", "bounce", "highlight", "glow"],
         ),
     ] {
         validate_string_option(value, raw, pointer, key, options)?;

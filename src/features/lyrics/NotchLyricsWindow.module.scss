@@ -1,3 +1,5 @@
+@use "./karaokeGlow";
+
 .shell {
   display: flex;
   width: 100%;
@@ -250,6 +252,12 @@
   // 横向跑马灯只裁左右边界，上下保留字形下伸部。
   clip-path: inset(-0.25em 0% -0.25em 0%);
   white-space: nowrap;
+}
+
+.shell[data-karaoke-style="glow"] .currentLine .overflowViewport,
+.shell[data-karaoke-style="glow"] .playerLyricsCurrent .overflowViewport {
+  // 跑马灯只保留左右裁切；让抬升与模糊在歌词行内完整绘制。
+  clip-path: inset(-1.5em 0% -1.5em 0%);
 }
 
 .overflowContent {
@@ -732,6 +740,7 @@
 .karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] .karaokeWordFill[data-karaoke-axis="y"] {
   clip-path: inset(0% -25% 0% -25%);
 }
+@include karaokeGlow.karaoke-glow(var(--notch-active-color), pre);
 
 .shell:not([data-has-notch]) .metadata {
   grid-template-columns: minmax(30px, 1fr) 24px minmax(30px, 1fr);

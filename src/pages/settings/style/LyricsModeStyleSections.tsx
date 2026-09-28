@@ -10,6 +10,7 @@ import type {
   ListLyricsLineKind,
   ListLyricsLineOrder,
   NotchSlotContent,
+  NotchKaraokeStyle,
   NotchLyricsPreferences,
   StatusBarLyricsPreferences,
 } from "../../../shared/types";
@@ -222,7 +223,7 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
         <SelectRow label={t("settings.style.modeControls.alignment")} value={appearance.alignment} options={[["left", t("settings.style.modeControls.left")], ["center", t("settings.style.modeControls.center")], ["right", t("settings.style.modeControls.right")]]} onChange={(alignment) => save(patchAppearance(value, { alignment: alignment as ListLyricsPreferences["appearance"]["alignment"] }))} />
       </SettingsSection>
       <SettingsSection id="mode-colors" title={t("settings.style.modeControls.colorEffects")}>
-        <SelectRow label={t("settings.overlay.karaoke")} value={appearance.karaokeStyle} options={[["sweep", t("settings.overlay.karaokeSweep")], ["glow", t("settings.display.listWindow.karaokeGlow")]]} onChange={(karaokeStyle) => save(patchAppearance(value, { karaokeStyle: karaokeStyle as ListLyricsKaraokeStyle }))} />
+        <SelectRow label={t("settings.overlay.karaoke")} value={appearance.karaokeStyle} options={[["sweep", t("settings.overlay.karaokeSweep")], ["glow", t("settings.overlay.karaokeGlow")]]} onChange={(karaokeStyle) => save(patchAppearance(value, { karaokeStyle: karaokeStyle as ListLyricsKaraokeStyle }))} />
         {!modeInheritance.inheritColors && <>
           <ColorRow label={t("settings.display.listWindow.activeColor")} description={t("settings.display.listWindow.activeColorHint")} value={appearance.activeColor} onChange={(activeColor) => save(patchAppearance(value, { activeColor }))} />
           <ColorRow label={t("settings.display.listWindow.inactiveColor")} description={t("settings.display.listWindow.inactiveColorHint")} value={appearance.inactiveColor} onChange={(inactiveColor) => save(patchAppearance(value, { inactiveColor }))} />
@@ -329,7 +330,7 @@ export default function LyricsModeStyleSections({ mode, displays, inheritance, u
       <RangeRow label={t("settings.style.modeControls.lineGap")} disabled={value.presentation.layout !== "double"} value={appearance.lineGap} min={0} max={32} suffix="px" onChange={(lineGap) => save(patchAppearance(value, { lineGap }))} />
     </SettingsSection>
     <SettingsSection id="mode-colors" title={t("settings.style.modeControls.colorEffects")}>
-      <SelectRow label={t("settings.overlay.karaoke")} value={appearance.karaokeStyle} options={[["sweep", t("settings.overlay.karaokeSweep")], ["highlight", t("settings.overlay.karaokeHighlight")]]} onChange={(karaokeStyle) => save(patchAppearance(value, { karaokeStyle: karaokeStyle as CompactKaraokeStyle }))} />
+      <SelectRow label={t("settings.overlay.karaoke")} value={appearance.karaokeStyle} options={[["sweep", t("settings.overlay.karaokeSweep")], ["highlight", t("settings.overlay.karaokeHighlight")], ["glow", t("settings.overlay.karaokeGlow")]]} onChange={(karaokeStyle) => save(patchAppearance(value, { karaokeStyle: karaokeStyle as NotchKaraokeStyle }))} />
       {!modeInheritance.inheritColors && <>
         <ColorRow label={t("settings.display.notch.activeColor")} description={t("settings.display.notch.activeColorHint")} value={appearance.activeColor} onChange={(activeColor) => save(patchAppearance(value, { activeColor }))} />
         <ColorRow label={t("settings.display.notch.inactiveColor")} description={t("settings.display.notch.inactiveColorHint")} value={appearance.inactiveColor} onChange={(inactiveColor) => save(patchAppearance(value, { inactiveColor }))} />

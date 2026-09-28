@@ -333,6 +333,15 @@ pub enum CompactKaraokeStyle {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
+pub enum NotchKaraokeStyle {
+    #[default]
+    Sweep,
+    Highlight,
+    Glow,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
 pub enum StatusBarAlignment {
     #[default]
     Left,
@@ -711,7 +720,7 @@ pub struct NotchLyricsAppearance {
     pub inactive_color: String,
     pub translation_color: String,
     pub romanization_color: String,
-    pub karaoke_style: CompactKaraokeStyle,
+    pub karaoke_style: NotchKaraokeStyle,
     pub line_gap: f64,
     pub border_radius: f64,
     pub expanded_border_radius: f64,
@@ -732,7 +741,7 @@ impl Default for NotchLyricsAppearance {
             inactive_color: "#ecfccb".into(),
             translation_color: "#d9f99d".into(),
             romanization_color: "#bef264".into(),
-            karaoke_style: CompactKaraokeStyle::Sweep,
+            karaoke_style: NotchKaraokeStyle::Sweep,
             line_gap: 8.0,
             border_radius: 12.0,
             expanded_border_radius: 16.0,

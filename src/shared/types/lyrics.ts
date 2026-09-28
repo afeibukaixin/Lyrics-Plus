@@ -474,6 +474,7 @@ export type NotchLayoutMetrics = {
 export type LyricsStyleMode = "desktop" | "statusBar" | "listWindow" | "notch";
 
 export type CompactKaraokeStyle = "sweep" | "highlight";
+export type NotchKaraokeStyle = CompactKaraokeStyle | "glow";
 
 export type ListLyricsKaraokeStyle = "sweep" | "glow";
 
@@ -597,7 +598,7 @@ export type NotchLyricsAppearance = {
   inactiveColor: string;
   translationColor: string;
   romanizationColor: string;
-  karaokeStyle: CompactKaraokeStyle;
+  karaokeStyle: NotchKaraokeStyle;
   lineGap: number;
   borderRadius: number;
   expandedBorderRadius: number;

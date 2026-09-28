@@ -6,7 +6,7 @@ import { ToolbarIconButton } from "@/components/ui/toolbar-icon-button";
 import { Slider } from "@/components/ui/slider";
 import { usePlayback } from "../player/usePlayback";
 import { usePlaybackPosition } from "../player/playback/position";
-import type { CompactKaraokeStyle, LyricsLine } from "../../shared/types";
+import type { LyricsLine, NotchKaraokeStyle } from "../../shared/types";
 import { ArtworkTransitionImage } from "./NotchArtwork";
 import { KaraokeLine } from "./NotchKaraokeLine";
 import { OverflowText } from "./NotchMarquee";
@@ -31,6 +31,7 @@ type ExpandedPreviewSupportingLine = {
 export function ExpandedPlayer({
   active,
   karaokeStyle,
+  fontSizePx,
   playback,
   previewLine,
   previewSupportingLine,
@@ -46,7 +47,8 @@ export function ExpandedPlayer({
   t,
 }: {
   active: boolean;
-  karaokeStyle: CompactKaraokeStyle;
+  karaokeStyle: NotchKaraokeStyle;
+  fontSizePx: number;
   playback: PlaybackController;
   previewLine: LyricsLine | null;
   previewSupportingLine: ExpandedPreviewSupportingLine | null;
@@ -78,13 +80,13 @@ export function ExpandedPlayer({
   const [draftPositionMs, setDraftPositionMs] = useState<number | null>(null);
   const [pendingSeek, setPendingSeek] = useState<{ trackKey: string; positionMs: number } | null>(null);
   const playerProgressRef = useRef<HTMLDivElement>(null);
-  // 扫光模式只在展开播放器内部刷新时间，避免带动外层灵动岛持续重渲染。
+  // 逐词模式只在展开播放器内部刷新时间，避免带动外层灵动岛持续重渲染。
   const locallyTrackedPositionMs = usePlaybackPosition(
     active && playback.active,
-    karaokeStyle === "sweep",
+    karaokeStyle !== "highlight",
     playback.snapshot,
   );
-  const currentPlaybackPositionMs = karaokeStyle === "sweep"
+  const currentPlaybackPositionMs = karaokeStyle !== "highlight"
     ? locallyTrackedPositionMs
     : playback.positionMs;
   const pendingPositionMs = pendingSeek?.trackKey === trackKey ? pendingSeek.positionMs : null;
@@ -180,9 +182,10 @@ export function ExpandedPlayer({
                 key={`${trackKey}:${previewLine.startMs}`}
                 line={previewLine}
                 playing={active && playback.active && playback.snapshot.isPlaying}
-                positionMs={(karaokeStyle === "sweep" ? previewPositionMs : currentPlaybackPositionMs) + previewOffsetMs}
-                positionObservedAtMs={karaokeStyle === "sweep" ? previewPositionObservedAtMs : playback.snapshot.observedAtMs}
+                positionMs={(karaokeStyle !== "highlight" ? previewPositionMs : currentPlaybackPositionMs) + previewOffsetMs}
+                positionObservedAtMs={karaokeStyle !== "highlight" ? previewPositionObservedAtMs : playback.snapshot.observedAtMs}
                 karaokeStyle={karaokeStyle}
+                fontSizePx={fontSizePx}
               />
             </OverflowText>
           </div>

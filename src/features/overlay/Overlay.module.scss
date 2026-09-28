@@ -1,3 +1,5 @@
+@use "../lyrics/karaokeGlow";
+
 .overlay {
   --lyric-size: 30px;
   --surface-top-inset: 46px;
@@ -152,6 +154,14 @@
 .karaokeText[data-karaoke="bounce"] .karaokeWord[data-current="true"] {
   display: inline-grid; animation: word-bounce .42s ease-out both;
 }
+@include karaokeGlow.karaoke-glow(var(--active-color), pre);
+.karaokeText[data-karaoke="glow"] .karaokeWordEffects .karaokeWordFill {
+  // 扫光的安全外扩不参与泛光进度，否则用户调安全位移时渐变起点会偏离字形。
+  position: relative;
+  inset: 0;
+  padding: 0;
+}
+
 .active[data-empty="true"], .next[data-empty="true"] { visibility: hidden; }
 .overlay[data-long-text="shrink"] .active,
 .overlay[data-long-text="shrink"] .next {
