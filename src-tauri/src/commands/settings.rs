@@ -222,6 +222,9 @@ pub fn reset_lyrics_display_position(
         LyricsStyleMode::Notch => "lyrics-notch",
         LyricsStyleMode::Desktop => return Err("桌面歌词请使用桌面位置复位命令".into()),
     };
+    if label == "lyrics-list" {
+        return crate::windows::reset_list_lyrics_position(&app);
+    }
     if label == "lyrics-status-bar" {
         state
             .storage
@@ -362,6 +365,7 @@ pub fn reset_settings_section(
             state
                 .storage
                 .remove_preferences_with_prefix("overlay.position.")?;
+            state.storage.remove_preference(crate::window_placement::OVERLAY_POSITION_KEY)?;
             state
                 .storage
                 .remove_preferences_with_prefix("overlay.geometry.")?;
@@ -388,11 +392,9 @@ pub fn reset_settings_section(
                 .overlay_monitor
                 .write()
                 .unwrap_or_else(|error| error.into_inner()) = None;
-            state
-                .overlay_placement
-                .lock()
-                .unwrap_or_else(|error| error.into_inner())
-                .preferred_monitor = None;
+            #[cfg(not(target_os = "macos"))]
+            app.state::<crate::window_placement::LyricsWindowPlacements>().overlay.lock()
+                .unwrap_or_else(|error| error.into_inner()).reset();
             *state
                 .overlay_settings
                 .write()
@@ -412,6 +414,9 @@ pub fn reset_settings_section(
             let _ = window.set_focusable(true);
             crate::refresh_overlay_mouse_tracking(&window);
             let _ = window.set_resizable(false);
+            #[cfg(target_os = "macos")]
+            crate::reset_native_overlay_position(&app, &window)?;
+            #[cfg(not(target_os = "macos"))]
             crate::restore_overlay_position(&app, &window);
             crate::reconcile_overlay_visibility(&app)?;
             crate::sync_tray_overlay_checked(&app, true);

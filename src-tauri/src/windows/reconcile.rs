@@ -107,6 +107,8 @@ pub(crate) fn reconcile_auxiliary_lyrics_windows(app: &tauri::AppHandle) -> Resu
                 apply_list_lyrics_window_space_behavior(&window, lyrics_windows_show_on_all_spaces)
                     .map_err(|error| error.to_string())?;
                 if !window.is_visible().unwrap_or(false) {
+                    #[cfg(not(target_os = "macos"))]
+                    super::list_lyrics_position::restore_list_lyrics_position(app, &window);
                     window.show().map_err(|error| error.to_string())?;
                     set_surface_runtime_state(app, &window, SurfaceRuntimeState::Active);
                 }

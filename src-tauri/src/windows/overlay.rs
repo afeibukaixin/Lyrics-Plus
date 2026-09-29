@@ -65,6 +65,16 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
     .visible(false)
     .build()?;
 
+    #[cfg(target_os = "macos")]
+    let restored = super::platform::enable_native_frame_autosave(
+        &window,
+        super::platform::OVERLAY_FRAME_AUTOSAVE_NAME,
+        false,
+    )?;
+    #[cfg(target_os = "macos")]
+    super::restore_screen_affinity(app, &window, restored);
+    #[cfg(target_os = "macos")]
+    crate::overlay_placement::restore_overlay_content_position(app, &window);
     apply_joining_other_apps_fullscreen(&window)?;
     let enabled = app
         .state::<AppState>()

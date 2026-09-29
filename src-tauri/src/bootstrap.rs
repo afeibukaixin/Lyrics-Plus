@@ -13,14 +13,18 @@ pub fn run() {
                 .target(Target::new(TargetKind::Webview))
                 .build(),
         )
-        .plugin(
-            tauri_plugin_window_state::Builder::default()
+        .plugin({
+            let window_state = tauri_plugin_window_state::Builder::default()
                 .skip_initial_state("main")
                 .skip_initial_state("lyrics-overlay")
+                // 旧状态可能记录 decorated=false；自动恢复会覆盖 macOS 的原生圆角窗口。
+                .skip_initial_state("lyrics-list")
                 .skip_initial_state("quick-lyrics")
-                .skip_initial_state("lyrics-notch")
-                .build(),
-        )
+                .skip_initial_state("lyrics-notch");
+            #[cfg(target_os = "macos")]
+            let window_state = window_state.with_denylist(&["lyrics-overlay", "lyrics-list"]);
+            window_state.build()
+        })
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_macos_fps::init())
@@ -69,6 +73,13 @@ pub fn run() {
             let mut overlay_style = configured.lyrics.displays.desktop.into_style();
             overlay_style.horizontal_max_width = geometry.horizontal_max_width;
             overlay_style.vertical_max_height = geometry.vertical_max_height;
+            #[cfg(target_os = "macos")]
+            let initial_toolbar_placement = overlay_placement::load_overlay_toolbar_placement(
+                &storage,
+                last_overlay_monitor.as_deref(),
+                overlay_style.orientation,
+            );
+            #[cfg(not(target_os = "macos"))]
             let initial_toolbar_placement =
                 ToolbarPlacement::for_orientation(overlay_style.orientation);
             let http = reqwest::Client::builder()
@@ -96,7 +107,6 @@ pub fn run() {
                 overlay_style: Arc::new(RwLock::new(overlay_style)),
                 overlay_monitor: Arc::new(RwLock::new(last_overlay_monitor.clone())),
                 overlay_placement: Arc::new(Mutex::new(OverlayPlacementState {
-                    preferred_monitor: last_overlay_monitor,
                     toolbar_placement: initial_toolbar_placement,
                     ..OverlayPlacementState::default()
                 })),
@@ -124,6 +134,10 @@ pub fn run() {
                 http,
                 ui_update,
             });
+            #[cfg(not(target_os = "macos"))]
+            app.manage(crate::window_placement::LyricsWindowPlacements::default());
+            #[cfg(target_os = "macos")]
+            crate::windows::install_screen_observer(app.handle());
 
             tauri::async_runtime::spawn(async move {
                 let mut interval = tokio::time::interval(Duration::from_millis(500));
@@ -264,6 +278,30 @@ pub fn run() {
                 }
             }
             if window.label() == "lyrics-list" {
+                #[cfg(target_os = "macos")]
+                if let Some(list) = window.app_handle().get_webview_window("lyrics-list") {
+                    match event {
+                        tauri::WindowEvent::Moved(_) if crate::overlay_placement::primary_mouse_button_pressed() => {
+                            crate::windows::save_user_placement(window.app_handle(), &list);
+                        }
+                        tauri::WindowEvent::Resized(_) => {
+                            crate::windows::save_geometry_on_target(window.app_handle(), &list);
+                        }
+                        _ => {}
+                    }
+                }
+                #[cfg(not(target_os = "macos"))]
+                if let tauri::WindowEvent::Moved(position) = event {
+                    if let Some(list) = window.app_handle().get_webview_window("lyrics-list") {
+                        crate::windows::list_lyrics_window_moved(window.app_handle(), &list, *position);
+                    }
+                }
+                #[cfg(not(target_os = "macos"))]
+                if matches!(event, tauri::WindowEvent::Resized(_)) {
+                    if let Some(list) = window.app_handle().get_webview_window("lyrics-list") {
+                        crate::windows::list_lyrics_window_resized(window.app_handle(), &list);
+                    }
+                }
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     if let Some(state) = window.app_handle().try_state::<AppState>() {
@@ -301,18 +339,8 @@ pub fn run() {
                             );
                             return;
                         }
-                        if ignore_overlay_move(window.app_handle(), &overlay, *position) {
-                            return;
-                        }
-                        settle_overlay_position_at(window.app_handle(), &overlay, *position);
-                    }
-                }
-                if matches!(event, tauri::WindowEvent::Resized(_)) {
-                    if let Some(overlay) = window.app_handle().get_webview_window("lyrics-overlay")
-                    {
-                        if !suppress_overlay_persistence(window.app_handle(), &overlay) {
-                            persist_overlay_state(window.app_handle(), &overlay);
-                        }
+                        #[cfg(not(target_os = "macos"))]
+                        handle_overlay_move(window.app_handle(), &overlay, *position);
                     }
                 }
             }

@@ -105,18 +105,25 @@ pub(crate) fn show_main_window_at(
     window.set_focus().map_err(|error| error.to_string())
 }
 
+#[cfg(not(target_os = "macos"))]
 pub(crate) fn mark_overlay_programmatic_position(
     app: &tauri::AppHandle,
     position: tauri::PhysicalPosition<i32>,
 ) {
-    if let Some(state) = app.try_state::<AppState>() {
-        let mut placement = state
-            .overlay_placement
+    if let Some(placements) = app.try_state::<crate::window_placement::LyricsWindowPlacements>() {
+        placements
+            .overlay
             .lock()
-            .unwrap_or_else(|error| error.into_inner());
-        placement.expected_programmatic_position = Some(position);
-        placement.programmatic_move_started_at = Some(std::time::Instant::now());
+            .unwrap_or_else(|error| error.into_inner())
+            .mark_programmatic(position);
     }
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn mark_overlay_programmatic_position(
+    _app: &tauri::AppHandle,
+    _position: tauri::PhysicalPosition<i32>,
+) {
 }
 
 pub(crate) fn set_overlay_position(
@@ -126,18 +133,6 @@ pub(crate) fn set_overlay_position(
 ) {
     mark_overlay_programmatic_position(app, position);
     let _ = window.set_position(position);
-}
-
-pub(crate) fn move_overlay_to_primary(app: &tauri::AppHandle, window: &tauri::WebviewWindow) {
-    crate::set_overlay_horizontal_anchor(app, crate::HorizontalAnchor::Free);
-    if let Ok(Some(monitor)) = window.primary_monitor() {
-        let work_area = monitor.work_area();
-        let window_width = window.outer_size().map(|size| size.width).unwrap_or(760);
-        let x =
-            work_area.position.x + (work_area.size.width.saturating_sub(window_width) / 2) as i32;
-        let y = work_area.position.y + 72;
-        set_overlay_position(app, window, tauri::PhysicalPosition::new(x, y));
-    }
 }
 
 #[cfg(target_os = "macos")]

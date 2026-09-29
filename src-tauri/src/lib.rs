@@ -19,6 +19,13 @@ mod state;
 mod storage;
 mod telemetry;
 mod ui_update;
+#[cfg(not(target_os = "macos"))]
+mod window_placement;
+#[cfg(target_os = "macos")]
+mod window_placement {
+    pub(crate) const OVERLAY_POSITION_KEY: &str = "lyrics-window-placement.overlay";
+    pub(crate) const LIST_POSITION_KEY: &str = "lyrics-window-placement.list";
+}
 mod windows;
 
 use std::sync::{Arc, Mutex, RwLock};
@@ -28,22 +35,19 @@ use config::ConfigStore;
 pub(crate) use overlay_model::{OverlayOrientation, OverlayStyleSettings};
 pub use overlay_placement::ToolbarPlacement;
 #[cfg(test)]
-use overlay_placement::{
-    centered_position, toolbar_placement_after_move, MonitorTopologyEntry,
-    PROGRAMMATIC_MOVE_SUPPRESSION,
-};
+use overlay_placement::{centered_position, toolbar_placement_after_move};
 pub(crate) use overlay_placement::{
-    mark_overlay_programmatic_position, move_overlay_to_primary, primary_mouse_button_pressed,
+    mark_overlay_programmatic_position, primary_mouse_button_pressed,
     reset_overlay_toolbar_placement, set_overlay_drag_active, settle_overlay_position_at,
     show_main_window_at, show_main_window_centered, update_overlay_toolbar_placement_during_drag,
     HorizontalAnchor, OverlayPlacementState, StoredOverlayGeometry,
 };
 use overlay_placement::{
-    monitor_topology, overlay_drag_active, overlay_geometry, set_overlay_position,
-    set_overlay_horizontal_anchor, set_overlay_toolbar_placement, should_show_main_window,
-    StoredBounds,
-    UNLOCK_HANDLE_HOVER_EVENT,
+    overlay_drag_active, overlay_geometry, set_overlay_position,
+    set_overlay_horizontal_anchor, should_show_main_window, UNLOCK_HANDLE_HOVER_EVENT,
 };
+#[cfg(not(target_os = "macos"))]
+use overlay_placement::{set_overlay_toolbar_placement, StoredBounds};
 use overlay_pointer::position_unlock_handle;
 pub(crate) use overlay_pointer::{
     activate_runtime, sync_list_unlock_handle, sync_unlock_handle, wake_overlay_pointer_monitor,

@@ -1,7 +1,11 @@
 use tauri::{Manager, WebviewWindowBuilder};
 
+#[cfg(not(target_os = "macos"))]
+use super::list_lyrics_position::restore_list_lyrics_position;
 use super::platform::{apply_list_lyrics_window_space_behavior, refresh_overlay_mouse_tracking};
 use crate::{sync_list_unlock_handle, AppState};
+#[cfg(not(target_os = "macos"))]
+use tauri_plugin_window_state::{StateFlags, WindowExt};
 
 const LIST_LYRICS_DEFAULT_WIDTH: f64 = 520.0;
 const LIST_LYRICS_DEFAULT_HEIGHT: f64 = 720.0;
@@ -104,16 +108,29 @@ pub(super) fn create_list_lyrics_window(app: &tauri::AppHandle) -> tauri::Result
     .maximizable(false)
     .minimizable(true)
     .always_on_top(always_on_top)
-    .visible(false)
-    .center();
+    .visible(false);
     #[cfg(target_os = "macos")]
     let window_builder = window_builder
         .decorations(true)
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true);
     #[cfg(not(target_os = "macos"))]
-    let window_builder = window_builder.decorations(false);
+    let window_builder = window_builder.decorations(false).center();
     let window = window_builder.build()?;
+    #[cfg(not(target_os = "macos"))]
+    if let Err(error) = window.restore_state(StateFlags::SIZE) {
+        log::warn!("恢复歌词窗口尺寸失败：{error}");
+    }
+    #[cfg(target_os = "macos")]
+    let restored = super::platform::enable_native_frame_autosave(
+        &window,
+        super::platform::LIST_FRAME_AUTOSAVE_NAME,
+        true,
+    )?;
+    #[cfg(target_os = "macos")]
+    super::restore_screen_affinity(app, &window, restored);
+    #[cfg(not(target_os = "macos"))]
+    restore_list_lyrics_position(app, &window);
     #[cfg(target_os = "macos")]
     hide_list_lyrics_window_controls(&window)?;
     let enabled = app

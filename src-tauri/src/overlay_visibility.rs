@@ -81,6 +81,7 @@ pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<boo
     }
     let is_visible = window.is_visible().unwrap_or(false);
     if should_show {
+        #[cfg(not(target_os = "macos"))]
         if !is_visible {
             restore_overlay_position(app, &window);
         }
@@ -204,9 +205,17 @@ fn start_player_monitor(app: tauri::AppHandle) {
             if let Err(error) = reconcile_overlay_visibility(&app) {
                 log::warn!("Failed to reconcile overlay visibility with playback state: {error}");
             }
-            if let Some(window) = app.get_webview_window("lyrics-overlay") {
-                if window.is_visible().unwrap_or(false) {
-                    reconcile_overlay_placement(&app, &window);
+            #[cfg(not(target_os = "macos"))]
+            {
+                if let Some(window) = app.get_webview_window("lyrics-overlay") {
+                    if window.is_visible().unwrap_or(false) {
+                        reconcile_overlay_placement(&app, &window);
+                    }
+                }
+                if let Some(window) = app.get_webview_window("lyrics-list") {
+                    if window.is_visible().unwrap_or(false) {
+                        crate::windows::reconcile_list_lyrics_placement(&app, &window);
+                    }
                 }
             }
             let any_window_visible = app

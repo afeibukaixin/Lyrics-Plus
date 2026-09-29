@@ -53,7 +53,7 @@ block2 = "0.6"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["NSAttributedString", "NSBitmapImageRep", "NSButton", "NSColor", "NSControl", "NSEvent", "NSFont", "NSFontDescriptor", "NSFontManager", "NSFontPanel", "NSGraphics", "NSGraphicsContext", "NSImage", "NSImageRep", "NSMenu", "NSPanel", "NSResponder", "NSRunningApplication", "NSScreen", "NSStatusBarButton", "NSStatusItem", "NSUserInterfaceItemIdentification", "NSView", "NSWindow", "NSWorkspace", "libc", "objc2-core-graphics", "objc2-quartz-core"] }
 objc2-core-graphics = { version = "0.3", default-features = false, features = ["CGColor", "CGDirectDisplay"] }
-objc2-core-foundation = { version = "0.3", default-features = false, features = ["objc2"] }
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["objc2", "CFUUID"] }
 objc2-core-video = { version = "0.3", default-features = false, features = ["CVBase", "CVDisplayLink", "CVReturn", "objc2", "objc2-core-graphics"] }
 objc2-core-services = { version = "0.3", default-features = false, features = ["AE", "AEDataModel"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["block2", "NSArray", "NSAppleEventDescriptor", "NSAttributedString", "NSBundle", "NSDictionary", "NSEnumerator", "NSError", "NSGeometry", "NSLocale", "NSObjCRuntime", "NSNotification", "NSObject", "NSOperation", "NSRange", "NSRunLoop", "NSString", "NSURL", "NSValue"] }
