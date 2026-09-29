@@ -303,6 +303,13 @@ fn query(
     duration_scale: u64,
     track_id_property: AEKeyword,
 ) -> PlaybackSnapshot {
+    if !is_application_running(bundle_id) {
+        return PlaybackSnapshot::unavailable_with_code(
+            Some(kind),
+            PlaybackErrorCode::Waiting,
+            "播放器未运行".into(),
+        );
+    }
     let result = with_application(bundle_id, REQUEST_TIMEOUT_TICKS, |session| {
         let state = session.type_code(session.app, PLAYER_STATE)?;
         if is_stopped(state) {
@@ -346,7 +353,12 @@ fn query(
     result.unwrap_or_else(|error| {
         PlaybackSnapshot::unavailable_with_code(
             Some(kind),
-            error.playback_code(),
+            // 查询期间退出也是正常的未运行状态，不把它报告成读取故障。
+            if is_application_running(bundle_id) {
+                error.playback_code()
+            } else {
+                PlaybackErrorCode::Waiting
+            },
             error.user_message(),
         )
     })

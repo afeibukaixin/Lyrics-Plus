@@ -143,6 +143,7 @@ export const jaJP = {
   settings: {
     shell: {
       navigation: "設定カテゴリー", onThisPage: "このページ", closeToast: "閉じる", advanced: "高度なツール", resetTitle: "カテゴリーのデフォルトに戻す",
+      currentPlayer: "現在のプレーヤー", noCurrentPlayer: "プレーヤー未接続", systemMedia: "システムメディア",
       nav: {
         style: "スタイル", display: "表示と操作", lyrics: "歌詞", library: "ライブラリ", player: "プレーヤー",
         application: "アプリケーション", debug: "デバッグログ", config: "設定ファイル", about: "情報とアップデート",

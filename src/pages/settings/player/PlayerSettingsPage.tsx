@@ -6,7 +6,7 @@ import { Plus } from "lucide-react";
 import type { PlayerFollowerServiceState, PlayerSelection, SystemMediaFilterMode } from "../../../shared/types";
 import { api, messageOf } from "../../../shared/api";
 import { playbackStatusText } from "../../../features/i18n/userText";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -182,7 +182,17 @@ export default function PlayerSettingsPage() {
   const canReregisterFollower = Boolean(config.app.playerFollowerApplication) && !followerUnavailable;
   const systemMediaAllowlist = config.app.systemMediaFilterMode === "allowlist";
   const playbackStatus = playbackStatusText(playback.snapshot, t);
-  const playbackNeutral = playback.snapshot.errorCode === "waiting" || playback.snapshot.errorCode === "no_unique_player";
+  const playbackWarning = [
+    "not_installed",
+    "automation_denied",
+    "response_timeout",
+    "invalid_response",
+    "multiple_playing",
+    "unavailable",
+  ].includes(playback.snapshot.errorCode ?? "")
+    ? playbackStatus
+    : null;
+  const playbackWarningText = playback.configError ?? playback.snapshotLoadError ?? playbackWarning;
   const playbackHasActions = playback.snapshot.errorCode === "automation_denied"
     || playback.snapshot.errorCode === "multiple_playing"
     || ["not_installed", "response_timeout", "invalid_response", "unavailable"].includes(playback.snapshot.errorCode ?? "");
@@ -199,13 +209,10 @@ export default function PlayerSettingsPage() {
       resetting={resettingSection === "player"}
       confirming={confirmingReset === "player"}
     />
-    {(playbackStatus || playback.configError || playback.snapshotLoadError) && <Alert variant={playbackNeutral && !playback.configError && !playback.snapshotLoadError ? "default" : "warning"} className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 p-3">
-      <div className="min-w-[min(16rem,100%)] flex-1">
-        <AlertTitle className="mb-0">{playbackNeutral ? t("settings.player.idleStatus") : t("settings.player.attentionStatus")}</AlertTitle>
-        <AlertDescription className="mt-0.5">
-          <span>{playback.configError ?? playback.snapshotLoadError ?? playbackStatus}</span>
-        </AlertDescription>
-      </div>
+    {playbackWarningText && <Alert variant="warning" className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2">
+      <AlertDescription className="min-w-[min(16rem,100%)] flex-1">
+        <span>{playbackWarningText}</span>
+      </AlertDescription>
       {playbackHasActions && <div className="flex flex-none flex-wrap gap-2">
         {playback.snapshot.errorCode === "automation_denied" && <Button size="sm" variant="outline" onClick={() => void api.openAutomationSystemSettings().catch((error) => setError(messageOf(error)))}>{t("settings.player.openAutomationSettings")}</Button>}
         {playback.snapshot.errorCode === "multiple_playing" && <><Button size="sm" variant="outline" onClick={() => void playback.setSelection("apple_music").catch((error) => setError(messageOf(error)))}>Apple Music</Button><Button size="sm" variant="outline" onClick={() => void playback.setSelection("spotify").catch((error) => setError(messageOf(error)))}>Spotify</Button></>}

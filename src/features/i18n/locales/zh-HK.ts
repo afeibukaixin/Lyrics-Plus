@@ -144,6 +144,7 @@ export const zhHK = {
   settings: {
     shell: {
       navigation: "設定分類", onThisPage: "本頁目錄", closeToast: "關閉", advanced: "進階工具", resetTitle: "還原分類預設設定",
+      currentPlayer: "目前播放器", noCurrentPlayer: "未連接播放器", systemMedia: "系統媒體",
       nav: {
         style: "樣式", display: "顯示與互動", lyrics: "歌詞", library: "資料庫", player: "播放器",
         application: "應用程式", debug: "偵錯紀錄", config: "設定檔", about: "關於與更新",

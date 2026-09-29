@@ -1,7 +1,7 @@
 import type { TFunction } from "i18next";
 import { NavLink } from "react-router";
-import { TriangleAlert } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import type { PlaybackSnapshot } from "../../../shared/types";
 import {
   Sidebar,
   SidebarContent,
@@ -10,7 +10,6 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
@@ -18,22 +17,37 @@ export type SettingsNavigationItem = {
   to: string;
   label: string;
   icon: LucideIcon;
-  warning?: boolean;
 };
 
 type SettingsSidebarProps = {
   t: TFunction;
   locationPathname: string;
+  playbackSnapshot: PlaybackSnapshot;
   primaryNavigation: SettingsNavigationItem[];
   advancedNavigation: SettingsNavigationItem[];
 };
 
+function currentPlayerName(snapshot: PlaybackSnapshot, t: TFunction): string {
+  if (!snapshot.isRunning || snapshot.errorCode !== null) {
+    return t("settings.shell.noCurrentPlayer");
+  }
+  switch (snapshot.player) {
+    case "apple_music": return "Apple Music";
+    case "spotify": return "Spotify";
+    case "system": return snapshot.sourceAppName?.trim() || t("settings.shell.systemMedia");
+    default: return t("settings.shell.noCurrentPlayer");
+  }
+}
+
 export function SettingsSidebar({
   t,
   locationPathname,
+  playbackSnapshot,
   primaryNavigation,
   advancedNavigation,
 }: SettingsSidebarProps) {
+  const playerName = currentPlayerName(playbackSnapshot, t);
+
   return (
     <Sidebar collapsible="icon" aria-label={t("settings.shell.navigation")}>
       <SidebarContent>
@@ -47,7 +61,6 @@ export function SettingsSidebar({
                     <SidebarMenuButton render={<NavLink to={item.to} />} isActive={locationPathname === item.to || locationPathname.startsWith(`${item.to.split("/songs")[0]}/`)} tooltip={item.label}>
                       <Icon aria-hidden="true" /><span>{item.label}</span>
                     </SidebarMenuButton>
-                    {item.warning && <SidebarMenuBadge><TriangleAlert role="img" aria-label={t("settings.player.attentionStatus")} className="text-warning" /></SidebarMenuBadge>}
                   </SidebarMenuItem>
                 );
               })}
@@ -56,6 +69,10 @@ export function SettingsSidebar({
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
+        <div className="min-w-0 px-2 pb-2 group-data-[collapsible=icon]:hidden">
+          <p className="text-xs text-sidebar-foreground/70">{t("settings.shell.currentPlayer")}</p>
+          <p className="truncate text-sm" title={playerName}>{playerName}</p>
+        </div>
         <SidebarGroup className="p-0">
           <SidebarGroupLabel>{t("settings.shell.advanced")}</SidebarGroupLabel>
           <SidebarGroupContent>

@@ -142,6 +142,7 @@ export const enUS = {
   settings: {
     shell: {
       navigation: "Settings categories", onThisPage: "On this page", closeToast: "Close", advanced: "Advanced tools", resetTitle: "Restore category defaults",
+      currentPlayer: "Current player", noCurrentPlayer: "No player connected", systemMedia: "System Media",
       nav: {
         style: "Style", display: "Display & Interaction", lyrics: "Lyrics", library: "Library", player: "Player",
         application: "Application", debug: "Debug Logs", config: "Configuration", about: "About & Updates",

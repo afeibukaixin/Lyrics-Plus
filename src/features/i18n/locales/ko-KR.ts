@@ -143,6 +143,7 @@ export const koKR = {
   settings: {
     shell: {
       navigation: "설정 카테고리", onThisPage: "이 페이지", closeToast: "닫기", advanced: "고급 도구", resetTitle: "카테고리 기본값 복원",
+      currentPlayer: "현재 플레이어", noCurrentPlayer: "연결된 플레이어 없음", systemMedia: "시스템 미디어",
       nav: {
         style: "스타일", display: "표시 및 상호 작용", lyrics: "가사", library: "라이브러리", player: "플레이어",
         application: "애플리케이션", debug: "디버그 로그", config: "구성", about: "정보 및 업데이트",

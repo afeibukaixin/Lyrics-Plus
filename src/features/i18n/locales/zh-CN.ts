@@ -140,6 +140,7 @@ export const zhCN = {
   settings: {
     shell: {
       navigation: "设置分类", onThisPage: "本页目录", closeToast: "关闭", advanced: "高级工具", resetTitle: "恢复分类默认设置",
+      currentPlayer: "当前播放器", noCurrentPlayer: "未连接播放器", systemMedia: "系统媒体",
       nav: {
         style: "样式", display: "显示与交互", lyrics: "歌词", library: "资料库", player: "播放器",
         application: "应用", debug: "调试日志", config: "配置", about: "关于与更新",

@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/sidebar";
 
 import type { UpdateStatus } from "../../../features/update/UpdateProvider";
-import type { SettingsSection } from "../../../shared/types";
+import type { PlaybackSnapshot, SettingsSection } from "../../../shared/types";
 
 import { SettingsResetDialog } from "./SettingsResetDialog";
 import { SettingsSidebar, type SettingsNavigationItem } from "./SettingsSidebar";
@@ -25,6 +25,7 @@ type SettingsShellProps = {
   confirmingReset: SettingsSection | null;
   context: SettingsOutletContext;
   locationPathname: string;
+  playbackSnapshot: PlaybackSnapshot;
   onConfirmReset: () => void;
   onOpenResetChange: (open: boolean) => void;
   onThemeToggle: () => void;
@@ -44,6 +45,7 @@ export function SettingsShell({
   confirmingReset,
   context,
   locationPathname,
+  playbackSnapshot,
   onConfirmReset,
   onOpenResetChange,
   onThemeToggle,
@@ -64,6 +66,7 @@ export function SettingsShell({
       <SettingsSidebar
         advancedNavigation={advancedNavigation}
         locationPathname={locationPathname}
+        playbackSnapshot={playbackSnapshot}
         primaryNavigation={primaryNavigation}
         t={t}
       />
