@@ -5,7 +5,7 @@ use crate::overlay_placement::geometry::toolbar_placement_after_move;
 use crate::AppState;
 use tauri::{Emitter, Manager};
 
-use super::state::{HorizontalAnchor, ToolbarPlacement};
+use super::state::ToolbarPlacement;
 
 pub(crate) const UNLOCK_HANDLE_BACKGROUND_GAP: f64 = 6.0;
 pub(crate) const OVERLAY_POINTER_MONITOR_INTERVAL: Duration = Duration::from_millis(50);
@@ -39,59 +39,9 @@ pub(crate) fn set_overlay_toolbar_placement(app: &tauri::AppHandle, placement: T
         }
     };
     if changed {
-        #[cfg(target_os = "macos")]
-        if let Ok(raw) = serde_json::to_string(&placement) {
-            if let Err(error) = state
-                .storage
-                .set_preference(super::persistence::OVERLAY_TOOLBAR_PLACEMENT_KEY, &raw)
-            {
-                log::warn!("保存桌面歌词工具栏方向失败：{error}");
-            }
-        }
+        super::desktop::persist_toolbar_placement(app);
         let _ = app.emit(OVERLAY_TOOLBAR_PLACEMENT_EVENT, placement);
     }
-}
-
-pub(crate) fn set_overlay_horizontal_anchor(app: &tauri::AppHandle, anchor: HorizontalAnchor) {
-    if let Some(state) = app.try_state::<AppState>() {
-        state
-            .overlay_placement
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .horizontal_anchor = anchor;
-    }
-}
-
-fn update_overlay_horizontal_anchor(
-    app: &tauri::AppHandle,
-    window: &tauri::WebviewWindow,
-    snapped_position: tauri::PhysicalPosition<i32>,
-) {
-    let orientation = app
-        .state::<AppState>()
-        .overlay_style
-        .read()
-        .unwrap_or_else(|error| error.into_inner())
-        .orientation;
-    let anchor = if orientation == OverlayOrientation::Vertical {
-        let (Ok(Some(monitor)), Ok(window_size)) = (window.current_monitor(), window.outer_size())
-        else {
-            set_overlay_horizontal_anchor(app, HorizontalAnchor::Free);
-            return;
-        };
-        let monitor_position = monitor.position();
-        let monitor_right = monitor_position.x as i64 + monitor.size().width as i64;
-        if snapped_position.x == monitor_position.x {
-            HorizontalAnchor::Left
-        } else if snapped_position.x as i64 + window_size.width as i64 == monitor_right {
-            HorizontalAnchor::Right
-        } else {
-            HorizontalAnchor::Free
-        }
-    } else {
-        HorizontalAnchor::Free
-    };
-    set_overlay_horizontal_anchor(app, anchor);
 }
 
 pub(crate) fn reset_overlay_toolbar_placement(
@@ -143,12 +93,11 @@ pub(crate) fn adjust_overlay_toolbar_for_move(
     window: &tauri::WebviewWindow,
     position: tauri::PhysicalPosition<i32>,
 ) -> tauri::PhysicalPosition<i32> {
-    let Some((next_placement, next_position)) = overlay_toolbar_move_result(app, window, position)
-    else {
+    let Some((next_placement, _)) = overlay_toolbar_move_result(app, window, position) else {
         return position;
     };
     set_overlay_toolbar_placement(app, next_placement);
-    next_position
+    position
 }
 
 /// 原生拖动期间只更新工具栏方位，不修改窗口坐标，避免破坏系统拖动的抓点和流畅性。
@@ -171,9 +120,6 @@ pub(crate) fn set_overlay_drag_active(app: &tauri::AppHandle, active: bool) {
         .overlay_placement
         .lock()
         .unwrap_or_else(|error| error.into_inner());
-    if active {
-        crate::cancel_overlay_pending_fit(app);
-    }
     placement.drag_active = active;
 }
 
@@ -195,29 +141,10 @@ pub(crate) fn settle_overlay_position_at(
     window: &tauri::WebviewWindow,
     position: tauri::PhysicalPosition<i32>,
 ) {
-    crate::cancel_overlay_pending_fit(app);
-    let snapped = crate::snapped_position(window, position);
-    update_overlay_horizontal_anchor(app, window, snapped);
-    let adjusted = adjust_overlay_toolbar_for_move(app, window, snapped);
-    if adjusted != position {
-        crate::set_overlay_position(app, window, adjusted);
-    }
-    crate::persist_overlay_state_at(app, window, adjusted);
-}
-
-#[cfg(target_os = "macos")]
-pub(crate) fn restore_overlay_content_position(
-    app: &tauri::AppHandle,
-    window: &tauri::WebviewWindow,
-) {
-    let Ok(position) = window.outer_position() else {
-        return;
-    };
-    // AppKit 恢复窗口外框后，先还原贴边锚点和工具栏方向，再让首次内容适配调整尺寸。
-    let snapped = crate::snapped_position(window, position);
-    update_overlay_horizontal_anchor(app, window, snapped);
-    let adjusted = adjust_overlay_toolbar_for_move(app, window, position);
-    if adjusted != position {
-        crate::set_overlay_position(app, window, adjusted);
+    let _ = adjust_overlay_toolbar_for_move(app, window, position);
+    if let Some(snapped) = super::desktop::capture_overlay_position(app, window, position) {
+        if snapped != position {
+            crate::set_overlay_position(app, window, snapped);
+        }
     }
 }

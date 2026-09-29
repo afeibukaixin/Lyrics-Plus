@@ -40,14 +40,14 @@ pub(crate) use overlay_placement::{
     mark_overlay_programmatic_position, primary_mouse_button_pressed,
     reset_overlay_toolbar_placement, set_overlay_drag_active, settle_overlay_position_at,
     show_main_window_at, show_main_window_centered, update_overlay_toolbar_placement_during_drag,
-    HorizontalAnchor, OverlayPlacementState, StoredOverlayGeometry,
+    OverlayPlacementState, StoredOverlayGeometry,
 };
 use overlay_placement::{
-    overlay_drag_active, overlay_geometry, set_overlay_position,
-    set_overlay_horizontal_anchor, should_show_main_window, UNLOCK_HANDLE_HOVER_EVENT,
+    overlay_drag_active, overlay_geometry, set_overlay_position, should_show_main_window,
+    UNLOCK_HANDLE_HOVER_EVENT,
 };
 #[cfg(not(target_os = "macos"))]
-use overlay_placement::{set_overlay_toolbar_placement, StoredBounds};
+use overlay_placement::set_overlay_toolbar_placement;
 use overlay_pointer::position_unlock_handle;
 pub(crate) use overlay_pointer::{
     activate_runtime, sync_list_unlock_handle, sync_unlock_handle, wake_overlay_pointer_monitor,

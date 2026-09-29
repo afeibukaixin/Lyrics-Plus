@@ -80,11 +80,7 @@ pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<boo
         refresh_overlay_mouse_tracking(&window);
     }
     let is_visible = window.is_visible().unwrap_or(false);
-    if should_show {
-        #[cfg(not(target_os = "macos"))]
-        if !is_visible {
-            restore_overlay_position(app, &window);
-        }
+    if should_show && crate::overlay_placement::overlay_layout_ready(app) {
         // 显示前同步统一的歌词窗口 Space 行为，避免窗口重新显示时使用旧状态。
         crate::apply_joining_other_apps_fullscreen(&window).map_err(|error| error.to_string())?;
         crate::apply_lyrics_window_space_behavior(
@@ -108,7 +104,7 @@ pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<boo
         .map_err(|error| error.to_string())?;
     }
     sync_unlock_handle(app);
-    Ok(should_show)
+    Ok(should_show && crate::overlay_placement::overlay_layout_ready(app))
 }
 
 fn start_player_monitor(app: tauri::AppHandle) {

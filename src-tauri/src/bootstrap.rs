@@ -73,15 +73,11 @@ pub fn run() {
             let mut overlay_style = configured.lyrics.displays.desktop.into_style();
             overlay_style.horizontal_max_width = geometry.horizontal_max_width;
             overlay_style.vertical_max_height = geometry.vertical_max_height;
-            #[cfg(target_os = "macos")]
-            let initial_toolbar_placement = overlay_placement::load_overlay_toolbar_placement(
-                &storage,
-                last_overlay_monitor.as_deref(),
-                overlay_style.orientation,
-            );
-            #[cfg(not(target_os = "macos"))]
-            let initial_toolbar_placement =
-                ToolbarPlacement::for_orientation(overlay_style.orientation);
+            let saved_desktop_placement = overlay_placement::load_desktop_placement(&storage);
+            let initial_toolbar_placement = saved_desktop_placement
+                .as_ref()
+                .map(|saved| saved.toolbar_placement.normalized(overlay_style.orientation))
+                .unwrap_or_else(|| ToolbarPlacement::for_orientation(overlay_style.orientation));
             let http = reqwest::Client::builder()
                 .user_agent(concat!(
                     "Lyrics Plus/",
@@ -108,8 +104,10 @@ pub fn run() {
                 overlay_monitor: Arc::new(RwLock::new(last_overlay_monitor.clone())),
                 overlay_placement: Arc::new(Mutex::new(OverlayPlacementState {
                     toolbar_placement: initial_toolbar_placement,
+                    record: saved_desktop_placement,
                     ..OverlayPlacementState::default()
                 })),
+                overlay_fit_lock: Arc::new(tokio::sync::Mutex::new(())),
                 last_snapshot: Arc::new(RwLock::new(player::PlaybackSnapshot::empty())),
                 spectrum: Arc::new(player::PlaybackSpectrumService::default()),
                 pointer_monitor_wake: Arc::new(tokio::sync::Notify::new()),
@@ -339,8 +337,7 @@ pub fn run() {
                             );
                             return;
                         }
-                        #[cfg(not(target_os = "macos"))]
-                        handle_overlay_move(window.app_handle(), &overlay, *position);
+                        // 只有用户拖动收尾会更新位置记录，系统移动不写入用户坐标。
                     }
                 }
             }
@@ -435,6 +432,7 @@ pub fn run() {
             commands::set_overlay_locked,
             commands::get_overlay_style,
             commands::get_overlay_toolbar_placement,
+            commands::get_overlay_startup_state,
             commands::set_overlay_style,
             commands::start_overlay_drag,
             commands::nudge_overlay,

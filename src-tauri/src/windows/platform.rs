@@ -4,8 +4,6 @@ use tauri::Manager;
 use objc2_app_kit::NSWindowCollectionBehavior;
 
 #[cfg(target_os = "macos")]
-pub(crate) const OVERLAY_FRAME_AUTOSAVE_NAME: &str = "lyrics-overlay";
-#[cfg(target_os = "macos")]
 pub(super) const LIST_FRAME_AUTOSAVE_NAME: &str = "lyrics-list";
 
 #[cfg(target_os = "macos")]

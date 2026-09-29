@@ -1,3 +1,4 @@
+use super::desktop::DesktopPlacement;
 use crate::overlay_model::OverlayOrientation;
 
 #[derive(Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
@@ -8,15 +9,6 @@ pub enum ToolbarPlacement {
     Bottom,
     Left,
     Right,
-}
-
-#[derive(Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum HorizontalAnchor {
-    Left,
-    Right,
-    #[default]
-    Free,
 }
 
 impl ToolbarPlacement {
@@ -39,8 +31,11 @@ impl ToolbarPlacement {
 #[derive(Default)]
 pub(crate) struct OverlayPlacementState {
     pub(crate) toolbar_placement: ToolbarPlacement,
-    pub(crate) horizontal_anchor: HorizontalAnchor,
     pub(crate) drag_active: bool,
+    pub(crate) record: Option<DesktopPlacement>,
+    pub(crate) window_generation: u64,
+    pub(crate) latest_fit_sequence: u64,
+    pub(crate) layout_ready: bool,
 }
 
 pub(crate) fn should_show_main_window(notice_accepted: bool, silent_startup: bool) -> bool {

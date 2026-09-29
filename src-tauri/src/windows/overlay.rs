@@ -45,6 +45,8 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
         .native_labels()
         .overlay_title;
 
+    // 在 WebView 加载前分配代次，首个启动状态请求不能拿到旧窗口代次。
+    let generation = crate::overlay_placement::begin_overlay_window(app);
     let window = WebviewWindowBuilder::new(
         app,
         "lyrics-overlay",
@@ -65,16 +67,10 @@ pub(crate) fn create_overlay(app: &tauri::AppHandle) -> tauri::Result<()> {
     .visible(false)
     .build()?;
 
-    #[cfg(target_os = "macos")]
-    let restored = super::platform::enable_native_frame_autosave(
-        &window,
-        super::platform::OVERLAY_FRAME_AUTOSAVE_NAME,
-        false,
-    )?;
-    #[cfg(target_os = "macos")]
-    super::restore_screen_affinity(app, &window, restored);
-    #[cfg(target_os = "macos")]
-    crate::overlay_placement::restore_overlay_content_position(app, &window);
+    let fallback_app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        crate::overlay_placement::fallback_overlay_layout(fallback_app, generation).await;
+    });
     apply_joining_other_apps_fullscreen(&window)?;
     let enabled = app
         .state::<AppState>()

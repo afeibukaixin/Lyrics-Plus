@@ -414,10 +414,13 @@ pub fn reset_settings_section(
             let _ = window.set_focusable(true);
             crate::refresh_overlay_mouse_tracking(&window);
             let _ = window.set_resizable(false);
-            #[cfg(target_os = "macos")]
-            crate::reset_native_overlay_position(&app, &window)?;
-            #[cfg(not(target_os = "macos"))]
-            crate::restore_overlay_position(&app, &window);
+            crate::overlay_placement::reset_desktop_placement(&app)?;
+            let monitor = window.primary_monitor().map_err(|error| error.to_string())?
+                .ok_or_else(|| "没有可用的显示器".to_string())?;
+            let size = window.outer_size().map_err(|error| error.to_string())?;
+            let position = crate::overlay_placement::overlay_position_for_size(&app, &monitor, size);
+            crate::set_overlay_position(&app, &window, position);
+            let _ = crate::overlay_placement::capture_overlay_position_on_monitor(&app, &window, &monitor, position);
             crate::reconcile_overlay_visibility(&app)?;
             crate::sync_tray_overlay_checked(&app, true);
             app.emit("overlay://settings", get_overlay_settings_inner(&state))

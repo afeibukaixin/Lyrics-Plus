@@ -36,6 +36,7 @@ function wrapLineHeight(fontSize: number, lineHeight: number, textStrokeWidth: n
 
 export default function Overlay() {
   const {
+    configLoaded,
     changeLyricsOffset,
     hideOverlay,
     lockOverlay,
@@ -73,6 +74,8 @@ export default function Overlay() {
   const [overlayHovered, setOverlayHovered] = useState(false);
   const [unlockFeedback, setUnlockFeedback] = useState(false);
   const [toolbarSide, setToolbarSide] = useState<ToolbarPlacement>("top");
+  const [startupGeneration, setStartupGeneration] = useState<number | null>(null);
+  const fitSequence = useRef(0);
   const [toolbarMinimums, setToolbarMinimums] = useState({
     horizontal: MIN_HORIZONTAL_WIDTH,
     vertical: MIN_VERTICAL_HEIGHT,
@@ -181,6 +184,7 @@ export default function Overlay() {
     : t("overlay.toolbar.backgroundVisible");
 
   useOverlayWindowLayout({
+    setStartupGeneration,
     clearResizeState,
     finishResizeRef,
     fitLimits,
@@ -234,6 +238,8 @@ export default function Overlay() {
     style.textStrokeWidth, style.textStrokeColor, fitScale,
   ]);
   const paintRevision = useOverlayContentFit({
+    startupGeneration: configLoaded ? startupGeneration : null,
+    fitSequence,
     activeRef,
     constrained,
     fitFrame,

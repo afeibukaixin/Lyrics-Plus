@@ -45,6 +45,7 @@ pub struct AppState {
     pub overlay_style: Arc<RwLock<crate::overlay_model::OverlayStyleSettings>>,
     pub overlay_monitor: Arc<RwLock<Option<String>>>,
     pub overlay_placement: Arc<Mutex<OverlayPlacementState>>,
+    pub overlay_fit_lock: Arc<tokio::sync::Mutex<()>>,
     pub last_snapshot: Arc<RwLock<PlaybackSnapshot>>,
     pub spectrum: Arc<PlaybackSpectrumService>,
     pub pointer_monitor_wake: Arc<tokio::sync::Notify>,

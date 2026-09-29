@@ -36,12 +36,12 @@ pub(crate) use notch::{
 pub(crate) use overlay::create_overlay;
 #[cfg(test)]
 pub(crate) use overlay::initial_overlay_dimensions;
+#[cfg(target_os = "macos")]
+pub(crate) use platform::clear_native_frame_autosave;
 pub(crate) use platform::{
     apply_joining_other_apps_fullscreen, apply_lyrics_window_space_behavior,
     apply_lyrics_windows_space_behavior, refresh_overlay_mouse_tracking,
 };
-#[cfg(target_os = "macos")]
-pub(crate) use platform::{clear_native_frame_autosave, OVERLAY_FRAME_AUTOSAVE_NAME};
 pub(crate) use quick_lyrics::{show_quick_lyrics_window, toggle_quick_lyrics_window};
 pub(crate) use reconcile::{
     position_auxiliary_lyrics_window_default, reconcile_auxiliary_lyrics_windows,

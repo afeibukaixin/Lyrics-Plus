@@ -256,9 +256,6 @@ fn reconcile_on_main(
                     != Some(&saved.display_uuid)
             {
                 native.setFrame_display(projected_frame(frame, &target, &saved), false);
-                if !initial && window.label() == "lyrics-overlay" {
-                    crate::overlay_placement::restore_overlay_content_position(app, window);
-                }
             }
         } else {
             TEMPORARY_SCREEN_WINDOWS.with(|labels| {
@@ -412,10 +409,11 @@ pub(crate) fn install_screen_observer(app: &tauri::AppHandle) {
                         }
                         let queued = app.clone();
                         let _ = app.run_on_main_thread(move || {
-                            for label in ["lyrics-overlay", "lyrics-list"] {
-                                if let Some(window) = queued.get_webview_window(label) {
-                                    reconcile_on_main(&queued, &window, false, true);
-                                }
+                            if let Some(window) = queued.get_webview_window("lyrics-overlay") {
+                                crate::overlay_placement::adopt_system_monitor(&queued, &window);
+                            }
+                            if let Some(window) = queued.get_webview_window("lyrics-list") {
+                                reconcile_on_main(&queued, &window, false, true);
                             }
                         });
                     });
