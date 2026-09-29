@@ -68,6 +68,7 @@ export function SettingsShell({
         locationPathname={locationPathname}
         playbackSnapshot={playbackSnapshot}
         primaryNavigation={primaryNavigation}
+        setError={context.setError}
         t={t}
       />
 
