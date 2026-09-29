@@ -183,12 +183,12 @@ export function SettingsSidebar({
           <SidebarGroupContent>
             {noCurrentPlayer ? (
               <Tooltip>
-                <TooltipTrigger render={<button type="button" className={styles.noPlayerTrigger} />}>
+                <TooltipTrigger delay={0} render={<button type="button" className={styles.noPlayerTrigger} />}>
                   <Music2 className="size-5 shrink-0" aria-hidden="true" />
                   <span className="min-w-0 truncate">{playerName}</span>
                 </TooltipTrigger>
                 <TooltipContent side="right" align="end" sideOffset={10} className={styles.noPlayerTooltip}>
-                  <img src={systemMediaControlCenter} alt={t("settings.shell.systemMediaHelpImageAlt")} className={styles.noPlayerScreenshot} />
+                  <img src={systemMediaControlCenter} alt={t("settings.shell.systemMediaHelpImageAlt")} className={styles.noPlayerScreenshot} width={664} height={993} decoding="async" />
                   <p>{t("settings.shell.systemMediaHelp")}</p>
                 </TooltipContent>
               </Tooltip>
