@@ -141,6 +141,8 @@ export const zhCN = {
     shell: {
       navigation: "设置分类", onThisPage: "本页目录", closeToast: "关闭", advanced: "高级工具", resetTitle: "恢复分类默认设置",
       currentPlayer: "当前播放器", noCurrentPlayer: "未连接播放器", systemMedia: "系统媒体",
+      systemMediaHelp: "使用系统媒体通道时，请打开 macOS 控制中心，检查红框中的“正在播放”卡片是否显示正在播放的音频。Apple Music 和 Spotify 使用各自的自动化通道，不会自动回退到系统媒体。",
+      systemMediaHelpImageAlt: "macOS 控制中心截图，红框标出了正在播放卡片",
       nav: {
         style: "样式", display: "显示与交互", lyrics: "歌词", library: "资料库", player: "播放器",
         application: "应用", debug: "调试日志", config: "配置", about: "关于与更新",

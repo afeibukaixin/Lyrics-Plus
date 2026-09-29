@@ -5,6 +5,9 @@ import { NavLink } from "react-router";
 import { MessageCircle, Music2, type LucideIcon } from "lucide-react";
 import { api, messageOf } from "../../../shared/api";
 import type { PlaybackSnapshot } from "../../../shared/types";
+import systemMediaControlCenter from "../../../assets/system-media-control-center.png";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import styles from "../settings.module.scss";
 import {
   Sidebar,
   SidebarContent,
@@ -91,6 +94,7 @@ export function SettingsSidebar({
 }: SettingsSidebarProps) {
   const playerName = currentPlayerName(playbackSnapshot, t);
   const playerBundleId = currentPlayerBundleId(playbackSnapshot);
+  const noCurrentPlayer = !playbackSnapshot.isRunning || playbackSnapshot.errorCode !== null || playbackSnapshot.player === null;
   const [applicationIcons, setApplicationIcons] = useState<Record<string, string>>({});
   const [qqGroup, setQqGroup] = useState<QqGroupConfig | null>(null);
   const playerIcon = playerBundleId ? applicationIcons[playerBundleId] : null;
@@ -177,10 +181,23 @@ export function SettingsSidebar({
         <SidebarGroup className="p-0 group-data-[collapsible=icon]:hidden">
           <SidebarGroupLabel>{t("settings.shell.currentPlayer")}</SidebarGroupLabel>
           <SidebarGroupContent>
-            <div className="flex h-8 min-w-0 items-center gap-2 px-2">
-              {playerIcon ? <img className="size-5 shrink-0 object-contain" src={playerIcon} alt="" /> : <Music2 className="size-5 shrink-0" aria-hidden="true" />}
-              <span className="min-w-0 truncate" title={playerName}>{playerName}</span>
-            </div>
+            {noCurrentPlayer ? (
+              <Tooltip>
+                <TooltipTrigger render={<button type="button" className={styles.noPlayerTrigger} />}>
+                  <Music2 className="size-5 shrink-0" aria-hidden="true" />
+                  <span className="min-w-0 truncate">{playerName}</span>
+                </TooltipTrigger>
+                <TooltipContent side="right" align="end" sideOffset={10} className={styles.noPlayerTooltip}>
+                  <img src={systemMediaControlCenter} alt={t("settings.shell.systemMediaHelpImageAlt")} className={styles.noPlayerScreenshot} />
+                  <p>{t("settings.shell.systemMediaHelp")}</p>
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <div className="flex h-8 min-w-0 items-center gap-2 px-2">
+                {playerIcon ? <img className="size-5 shrink-0 object-contain" src={playerIcon} alt="" /> : <Music2 className="size-5 shrink-0" aria-hidden="true" />}
+                <span className="min-w-0 truncate" title={playerName}>{playerName}</span>
+              </div>
+            )}
           </SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup className="p-0">

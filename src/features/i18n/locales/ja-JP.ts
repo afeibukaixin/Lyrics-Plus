@@ -144,6 +144,8 @@ export const jaJP = {
     shell: {
       navigation: "設定カテゴリー", onThisPage: "このページ", closeToast: "閉じる", advanced: "高度なツール", resetTitle: "カテゴリーのデフォルトに戻す",
       currentPlayer: "現在のプレーヤー", noCurrentPlayer: "プレーヤー未接続", systemMedia: "システムメディア",
+      systemMediaHelp: "システムメディアを使用している場合は、macOS のコントロールセンターを開き、赤枠の「再生中」カードに再生中の音声が表示されているか確認してください。Apple Music と Spotify はそれぞれ専用の自動化経路を使用し、システムメディアへ自動的に切り替わりません。",
+      systemMediaHelpImageAlt: "macOS のコントロールセンター。赤枠で「再生中」カードを示しています",
       nav: {
         style: "スタイル", display: "表示と操作", lyrics: "歌詞", library: "ライブラリ", player: "プレーヤー",
         application: "アプリケーション", debug: "デバッグログ", config: "設定ファイル", about: "情報とアップデート",

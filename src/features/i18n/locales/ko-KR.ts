@@ -144,6 +144,8 @@ export const koKR = {
     shell: {
       navigation: "설정 카테고리", onThisPage: "이 페이지", closeToast: "닫기", advanced: "고급 도구", resetTitle: "카테고리 기본값 복원",
       currentPlayer: "현재 플레이어", noCurrentPlayer: "연결된 플레이어 없음", systemMedia: "시스템 미디어",
+      systemMediaHelp: "시스템 미디어 채널을 사용할 때는 macOS 제어 센터를 열고 빨간색 테두리의 ‘지금 재생 중’ 카드에 재생 중인 오디오가 표시되는지 확인하세요. Apple Music과 Spotify는 각각의 자동화 채널을 사용하며 시스템 미디어로 자동 전환되지 않습니다.",
+      systemMediaHelpImageAlt: "‘지금 재생 중’ 카드가 빨간색 테두리로 표시된 macOS 제어 센터 화면",
       nav: {
         style: "스타일", display: "표시 및 상호 작용", lyrics: "가사", library: "라이브러리", player: "플레이어",
         application: "애플리케이션", debug: "디버그 로그", config: "구성", about: "정보 및 업데이트",

@@ -145,6 +145,8 @@ export const zhTW = {
     shell: {
       navigation: "設定分類", onThisPage: "本頁目錄", closeToast: "關閉", advanced: "進階工具", resetTitle: "恢復分類預設設定",
       currentPlayer: "目前播放器", noCurrentPlayer: "未連接播放器", systemMedia: "系統媒體",
+      systemMediaHelp: "使用系統媒體通道時，請開啟 macOS 控制中心，檢查紅框中的「播放中」卡片是否顯示正在播放的音訊。Apple Music 和 Spotify 使用各自的自動化通道，不會自動退回系統媒體。",
+      systemMediaHelpImageAlt: "macOS 控制中心截圖，紅框標示播放中卡片",
       nav: {
         style: "樣式", display: "顯示與互動", lyrics: "歌詞", library: "資料庫", player: "播放器",
         application: "應用程式", debug: "偵錯紀錄", config: "設定檔", about: "關於與更新",

@@ -143,6 +143,8 @@ export const enUS = {
     shell: {
       navigation: "Settings categories", onThisPage: "On this page", closeToast: "Close", advanced: "Advanced tools", resetTitle: "Restore category defaults",
       currentPlayer: "Current player", noCurrentPlayer: "No player connected", systemMedia: "System Media",
+      systemMediaHelp: "When using the System Media channel, open macOS Control Center and check whether the Now Playing card outlined in red shows audio playing. Apple Music and Spotify use their own automation channels and do not automatically fall back to System Media.",
+      systemMediaHelpImageAlt: "macOS Control Center screenshot with the Now Playing card outlined in red",
       nav: {
         style: "Style", display: "Display & Interaction", lyrics: "Lyrics", library: "Library", player: "Player",
         application: "Application", debug: "Debug Logs", config: "Configuration", about: "About & Updates",

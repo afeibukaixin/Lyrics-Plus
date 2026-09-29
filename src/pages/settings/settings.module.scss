@@ -1,4 +1,10 @@
 .shell { height: 100vh; min-height: 0; overflow: hidden; }
+.noPlayerTrigger { display: flex; width: 100%; min-width: 0; height: 32px; align-items: center; gap: 8px; padding: 0 8px; border-radius: var(--radius); text-align: left; }
+.noPlayerTrigger:hover { background: var(--sidebar-accent); }
+.noPlayerTrigger:focus-visible { outline: 2px solid var(--sidebar-ring); outline-offset: -2px; }
+.noPlayerTooltip { width: min(280px, calc(100vw - 32px)); max-height: calc(100vh - 24px); display: grid; gap: 8px; overflow-y: auto; padding: 10px; }
+.noPlayerTooltip p { margin: 0; overflow-wrap: anywhere; }
+.noPlayerScreenshot { display: block; width: 100%; height: auto; max-height: min(52vh, 420px); object-fit: contain; }
 .settingsLayout { --settings-content-padding-inline: clamp(24px, 5vw, 56px); min-width: 0; min-height: 0; height: 100vh; overflow: hidden; }
 .sidebarTriggerRow { position: absolute; z-index: 2; top: 10px; left: calc(var(--settings-content-padding-inline) / 2); display: flex; flex-direction: column; align-items: center; gap: 4px; transform: translateX(-50%); }
 .updateStatusButton { position: relative; margin-top: 4px; border-radius: 50%; color: var(--primary); }
