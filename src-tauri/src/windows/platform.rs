@@ -4,6 +4,70 @@ use tauri::Manager;
 use objc2_app_kit::NSWindowCollectionBehavior;
 
 #[cfg(target_os = "macos")]
+pub(super) const LIST_FRAME_AUTOSAVE_NAME: &str = "lyrics-list";
+
+#[cfg(target_os = "macos")]
+pub(super) fn enable_native_frame_autosave(
+    window: &tauri::WebviewWindow,
+    name: &'static str,
+    center_if_missing: bool,
+) -> tauri::Result<bool> {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::NSWindow;
+    use objc2_foundation::NSString;
+
+    run_window_collection_behavior_update(window, move |window| {
+        if MainThreadMarker::new().is_none() {
+            return Err(std::io::Error::other(
+                "AppKit window frame setup requires the main thread",
+            )
+            .into());
+        }
+        let ns_window = window.ns_window()?;
+        let ns_window = unsafe { &*ns_window.cast::<NSWindow>() };
+        let name = NSString::from_str(name);
+        // 先读取旧记录，再注册自动保存；初始窗口尺寸和默认位置不能覆盖旧记录。
+        let restored = ns_window.setFrameUsingName_force(&name, true);
+        if !restored && center_if_missing {
+            ns_window.center();
+        }
+        if !ns_window.setFrameAutosaveName(&name) {
+            return Err(
+                std::io::Error::other("AppKit rejected the window frame autosave name").into(),
+            );
+        }
+        Ok(restored)
+    })
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn clear_native_frame_autosave(
+    app: &tauri::AppHandle,
+    name: &'static str,
+) -> tauri::Result<()> {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::NSWindow;
+    use objc2_foundation::NSString;
+
+    if let Some(mtm) = MainThreadMarker::new() {
+        NSWindow::removeFrameUsingName(&NSString::from_str(name), mtm);
+        return Ok(());
+    }
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    app.run_on_main_thread(move || {
+        let result = MainThreadMarker::new()
+            .ok_or_else(|| "AppKit window frame reset requires the main thread".to_string())
+            .map(|mtm| NSWindow::removeFrameUsingName(&NSString::from_str(name), mtm));
+        let _ = sender.send(result);
+    })?;
+    match receiver.recv() {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(error)) => Err(std::io::Error::other(error).into()),
+        Err(error) => Err(std::io::Error::other(error.to_string()).into()),
+    }
+}
+
+#[cfg(target_os = "macos")]
 fn apply_joining_other_apps_fullscreen_on_main(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     use objc2::MainThreadMarker;
     use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
@@ -39,10 +103,10 @@ fn apply_joining_other_apps_fullscreen_on_main(window: &tauri::WebviewWindow) ->
 }
 
 #[cfg(target_os = "macos")]
-fn run_window_collection_behavior_update(
+fn run_window_collection_behavior_update<T: Send + 'static>(
     window: &tauri::WebviewWindow,
-    operation: impl FnOnce(&tauri::WebviewWindow) -> tauri::Result<()> + Send + 'static,
-) -> tauri::Result<()> {
+    operation: impl FnOnce(&tauri::WebviewWindow) -> tauri::Result<T> + Send + 'static,
+) -> tauri::Result<T> {
     use objc2::MainThreadMarker;
 
     if MainThreadMarker::new().is_some() {
@@ -50,7 +114,7 @@ fn run_window_collection_behavior_update(
     }
 
     // Playback monitoring can reconcile visibility off the main thread. AppKit
-    // collection behavior must still be changed on the main thread.
+    // window operations must still run on the main thread.
     let target = window.clone();
     let (result_sender, result_receiver) = std::sync::mpsc::sync_channel(1);
     window.run_on_main_thread(move || {
@@ -58,7 +122,7 @@ fn run_window_collection_behavior_update(
         let _ = result_sender.send(result);
     })?;
     match result_receiver.recv() {
-        Ok(Ok(())) => Ok(()),
+        Ok(Ok(value)) => Ok(value),
         Ok(Err(error)) => Err(std::io::Error::other(error).into()),
         Err(error) => Err(std::io::Error::other(format!(
             "macOS window behavior update was interrupted: {error}"

@@ -349,6 +349,30 @@ pub fn dismiss_library_song_similarity(
 }
 
 #[tauri::command]
+pub fn preview_library_song_similarity_batch(
+    state: State<'_, AppState>,
+) -> Result<crate::storage::SongSimilarityBatchPreview, String> {
+    let settings = state.providers.settings_view().settings;
+    state.storage.preview_library_song_similarity_batch(&settings)
+}
+
+#[tauri::command]
+pub fn apply_library_song_similarity_batch(
+    app: tauri::AppHandle,
+    candidates: Vec<crate::storage::SongSimilarityBatchCandidate>,
+    state: State<'_, AppState>,
+) -> crate::storage::SongSimilarityBatchResult {
+    let settings = state.providers.settings_view().settings;
+    let (result, track_keys) = state
+        .storage
+        .apply_library_song_similarity_batch(&candidates, &settings);
+    for track_key in track_keys {
+        publish_song_management_change(&app, &state, &track_key);
+    }
+    result
+}
+
+#[tauri::command]
 pub fn merge_library_song(
     app: tauri::AppHandle,
     input: MergeLibrarySongInput,

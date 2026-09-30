@@ -1,36 +1,5 @@
 use crate::overlay_model::OverlayStyleSettings;
 
-use super::state::HorizontalAnchor;
-
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct StoredBounds {
-    pub(crate) x: i32,
-    pub(crate) y: i32,
-    #[serde(default)]
-    pub(crate) window_width: Option<u32>,
-    #[serde(default)]
-    pub(crate) window_height: Option<u32>,
-    #[serde(default)]
-    pub(crate) work_x: Option<i32>,
-    #[serde(default)]
-    pub(crate) work_y: Option<i32>,
-    #[serde(default)]
-    pub(crate) work_width: Option<u32>,
-    #[serde(default)]
-    pub(crate) work_height: Option<u32>,
-    #[serde(default)]
-    pub(crate) scale_factor: Option<f64>,
-    #[serde(default)]
-    pub(crate) relative_x: Option<f64>,
-    #[serde(default)]
-    pub(crate) relative_y: Option<f64>,
-    #[serde(default)]
-    pub(crate) toolbar_placement: Option<super::state::ToolbarPlacement>,
-    #[serde(default)]
-    pub(crate) horizontal_anchor: Option<HorizontalAnchor>,
-}
-
 #[derive(Default, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub(crate) struct StoredOverlayGeometry {

@@ -78,6 +78,7 @@ pub enum KaraokeStyle {
     Fill,
     Bounce,
     Highlight,
+    Glow,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]

@@ -1,3 +1,5 @@
+@use "./karaokeGlow";
+
 .shell {
   --list-header-height: 76px;
 
@@ -337,8 +339,6 @@
 .karaokeText { white-space: pre-wrap; }
 
 .karaokeWord {
-  --karaoke-progress: 0%;
-
   position: relative;
   display: inline-grid;
   vertical-align: baseline;
@@ -369,102 +369,7 @@
   white-space: pre-wrap;
 }
 
-.karaokeText[data-karaoke="glow"] .karaokeWord { will-change: transform; }
-
-.karaokeWordEffects {
-  display: inline-grid;
-  align-self: stretch;
-  justify-self: stretch;
-  opacity: 0;
-  pointer-events: none;
-  visibility: hidden;
-}
-
-.karaokeWordEffects .karaokeWordFill,
-.karaokeWordGlowNear,
-.karaokeWordGlowFar {
-  grid-area: 1 / 1;
-  align-self: stretch;
-  justify-self: stretch;
-  color: var(--list-active-color);
-  pointer-events: none;
-  white-space: pre-wrap;
-}
-
-.karaokeText[data-karaoke="glow"] .karaokeWordFill {
-  clip-path: none;
-  -webkit-mask-image: linear-gradient(
-    to right,
-    #000 0,
-    #000 var(--karaoke-progress),
-    rgb(0 0 0 / 35%) calc(var(--karaoke-progress) + 6px),
-    transparent calc(var(--karaoke-progress) + 12px)
-  );
-  mask-image: linear-gradient(
-    to right,
-    #000 0,
-    #000 var(--karaoke-progress),
-    rgb(0 0 0 / 35%) calc(var(--karaoke-progress) + 6px),
-    transparent calc(var(--karaoke-progress) + 12px)
-  );
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  will-change: auto;
-}
-
-.karaokeWordGlowNear {
-  opacity: .28;
-  filter: blur(4px);
-}
-
-.karaokeWordGlowNear .karaokeWordGlowText {
-  -webkit-mask-image: linear-gradient(
-    to right,
-    #000 0,
-    #000 var(--karaoke-progress),
-    rgb(0 0 0 / 45%) calc(var(--karaoke-progress) + 8px),
-    transparent calc(var(--karaoke-progress) + 20px)
-  );
-  mask-image: linear-gradient(
-    to right,
-    #000 0,
-    #000 var(--karaoke-progress),
-    rgb(0 0 0 / 45%) calc(var(--karaoke-progress) + 8px),
-    transparent calc(var(--karaoke-progress) + 20px)
-  );
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-}
-
-.karaokeWordGlowFar {
-  opacity: .14;
-  filter: blur(12px);
-}
-
-.karaokeWordGlowFar .karaokeWordGlowText {
-  -webkit-mask-image: linear-gradient(
-    to right,
-    #000 0,
-    #000 var(--karaoke-progress),
-    rgb(0 0 0 / 25%) calc(var(--karaoke-progress) + 14px),
-    transparent calc(var(--karaoke-progress) + 36px)
-  );
-  mask-image: linear-gradient(
-    to right,
-    #000 0,
-    #000 var(--karaoke-progress),
-    rgb(0 0 0 / 25%) calc(var(--karaoke-progress) + 14px),
-    transparent calc(var(--karaoke-progress) + 36px)
-  );
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-}
-
-.karaokeWordGlowText {
-  display: block;
-  color: var(--list-active-color);
-  white-space: pre-wrap;
-}
+@include karaokeGlow.karaoke-glow(var(--list-active-color), pre-wrap);
 
 .followButton {
   position: absolute;

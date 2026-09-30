@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { Navigate, useNavigate, useParams } from "react-router";
+import { Navigate, useLocation, useNavigate, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Bubbles, Mic2, Music2, ScrollText } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { LibraryLyricStatus } from "@/shared/types/lyrics";
@@ -12,20 +11,21 @@ import ArtistsLibrary from "./ArtistsLibrary";
 import LyricsLibrary from "./LyricsLibrary";
 import SongsLibrary from "./SongsLibrary";
 import { librarySections, type LibrarySection } from "./shared";
+import { useLibraryViewState } from "./viewState";
 import styles from "./library.module.scss";
-
-type SimilaritySection = Exclude<LibrarySection, "artists">;
 
 export default function LibraryPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const { section, id } = useParams();
   const [lyricStatusCounts, setLyricStatusCounts] = useState<Record<LibraryLyricStatus, number>>({
     inUse: 0,
     candidate: 0,
     unbound: 0,
   });
-  const [similaritySection, setSimilaritySection] = useState<SimilaritySection | null>(null);
+  const songsView = useLibraryViewState("songs");
+  const lyricsView = useLibraryViewState("lyrics");
 
   if (!librarySections.includes(section as LibrarySection)) {
     return <Navigate to="/settings/library/songs" replace />;
@@ -45,8 +45,7 @@ export default function LibraryPage() {
         className={styles.libraryTabs}
         value={activeSection}
         onValueChange={(value) => {
-          setSimilaritySection(null);
-          navigate(`/settings/library/${String(value)}`);
+          navigate(`/settings/library/${String(value)}${location.search}`);
         }}
       >
         <div className={styles.sectionBar}>
@@ -59,15 +58,22 @@ export default function LibraryPage() {
             <div className={styles.sectionActions}>
               {activeSection === "lyrics" ? (
                 <div className={styles.sectionSummary}>
-                  <Badge>{t("library.manager.status.inUse")} {lyricStatusCounts.inUse}</Badge>
-                  <Badge variant="secondary">{t("library.manager.status.candidate")} {lyricStatusCounts.candidate}</Badge>
-                  <Badge variant="outline">{t("library.manager.status.unbound")} {lyricStatusCounts.unbound}</Badge>
+                  {(["inUse", "candidate", "unbound"] as const).map((status) => (
+                    <Button
+                      key={status}
+                      type="button"
+                      size="sm"
+                      variant={lyricsView.status === status ? "secondary" : "outline"}
+                      aria-pressed={lyricsView.status === status}
+                      onClick={() => lyricsView.update({ status: lyricsView.status === status ? "all" : status, page: 1, view: "list" })}
+                    >{t(`library.manager.status.${status}`)} {lyricStatusCounts[status]}</Button>
+                  ))}
                 </div>
               ) : null}
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setSimilaritySection(activeSection)}
+                onClick={() => (activeSection === "songs" ? songsView : lyricsView).update({ view: "similar" })}
               >
                 <Bubbles data-icon="inline-start" />
                 {t(`library.manager.similar${activeSection === "songs" ? "Songs" : "Lyrics"}`)}
@@ -78,16 +84,16 @@ export default function LibraryPage() {
         <TabsContent value="songs" className={styles.libraryContent}>
           <SongsLibrary
             detailId={validId}
-            similarityOpen={similaritySection === "songs"}
-            onSimilarityClose={() => setSimilaritySection(null)}
+            similarityOpen={songsView.view === "similar"}
+            onSimilarityClose={() => songsView.update({ view: "list" })}
           />
         </TabsContent>
         <TabsContent value="lyrics" className={styles.libraryContent}>
           <LyricsLibrary
             detailId={validId}
             onStatusCountsChange={setLyricStatusCounts}
-            similarityOpen={similaritySection === "lyrics"}
-            onSimilarityClose={() => setSimilaritySection(null)}
+            similarityOpen={lyricsView.view === "similar"}
+            onSimilarityClose={() => lyricsView.update({ view: "list" })}
           />
         </TabsContent>
         <TabsContent value="artists" className={styles.libraryContent}>

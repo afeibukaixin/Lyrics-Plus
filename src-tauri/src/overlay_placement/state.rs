@@ -1,8 +1,5 @@
-use std::time::{Duration, Instant};
-
+use super::desktop::DesktopPlacement;
 use crate::overlay_model::OverlayOrientation;
-
-pub(crate) const PROGRAMMATIC_MOVE_SUPPRESSION: Duration = Duration::from_secs(2);
 
 #[derive(Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -12,15 +9,6 @@ pub enum ToolbarPlacement {
     Bottom,
     Left,
     Right,
-}
-
-#[derive(Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum HorizontalAnchor {
-    Left,
-    Right,
-    #[default]
-    Free,
 }
 
 impl ToolbarPlacement {
@@ -40,108 +28,14 @@ impl ToolbarPlacement {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct MonitorTopologyEntry {
-    pub(crate) id: String,
-    pub(crate) x: i32,
-    pub(crate) y: i32,
-    pub(crate) width: u32,
-    pub(crate) height: u32,
-    pub(crate) work_x: i32,
-    pub(crate) work_y: i32,
-    pub(crate) work_width: u32,
-    pub(crate) work_height: u32,
-    pub(crate) scale_factor_bits: u64,
-}
-
 #[derive(Default)]
 pub(crate) struct OverlayPlacementState {
-    pub(crate) preferred_monitor: Option<String>,
-    /// 旧版位置记录没有窗口宽度，需在首次内容适配后用最终宽度完成一次恢复。
-    pub(crate) pending_legacy_restore_monitor: Option<String>,
-    pub(crate) topology: Vec<MonitorTopologyEntry>,
     pub(crate) toolbar_placement: ToolbarPlacement,
-    pub(crate) horizontal_anchor: HorizontalAnchor,
     pub(crate) drag_active: bool,
-    pub(crate) expected_programmatic_position: Option<tauri::PhysicalPosition<i32>>,
-    pub(crate) programmatic_move_started_at: Option<Instant>,
-}
-
-impl OverlayPlacementState {
-    pub(crate) fn cancel_pending_legacy_restore(&mut self) {
-        self.pending_legacy_restore_monitor = None;
-    }
-
-    pub(crate) fn update_topology(&mut self, next: Vec<MonitorTopologyEntry>) -> bool {
-        if self.topology.is_empty() {
-            self.topology = next;
-            return false;
-        }
-        if self.topology == next {
-            return false;
-        }
-        self.topology = next;
-        self.pending_legacy_restore_monitor = None;
-        self.expected_programmatic_position = None;
-        self.programmatic_move_started_at = None;
-        true
-    }
-
-    pub(crate) fn consume_programmatic_move(
-        &mut self,
-        position: tauri::PhysicalPosition<i32>,
-    ) -> bool {
-        let expected = self.expected_programmatic_position.take();
-        self.programmatic_move_started_at = None;
-        let Some(expected) = expected else {
-            return false;
-        };
-        expected.x.abs_diff(position.x) <= 2 && expected.y.abs_diff(position.y) <= 2
-    }
-
-    pub(crate) fn suppress_persistence(&mut self, now: Instant) -> bool {
-        let active = self.programmatic_move_started_at.is_some_and(|started| {
-            now.saturating_duration_since(started) <= PROGRAMMATIC_MOVE_SUPPRESSION
-        });
-        if !active {
-            self.expected_programmatic_position = None;
-            self.programmatic_move_started_at = None;
-        }
-        active
-    }
-}
-
-pub(crate) fn monitor_topology(monitors: &[tauri::Monitor]) -> Vec<MonitorTopologyEntry> {
-    let mut topology = monitors
-        .iter()
-        .map(|monitor| {
-            let position = monitor.position();
-            let size = monitor.size();
-            let work_area = monitor.work_area();
-            MonitorTopologyEntry {
-                id: crate::monitor_id(monitor),
-                x: position.x,
-                y: position.y,
-                width: size.width,
-                height: size.height,
-                work_x: work_area.position.x,
-                work_y: work_area.position.y,
-                work_width: work_area.size.width,
-                work_height: work_area.size.height,
-                scale_factor_bits: monitor.scale_factor().to_bits(),
-            }
-        })
-        .collect::<Vec<_>>();
-    topology.sort_by(|left, right| {
-        (&left.id, left.x, left.y, left.width, left.height).cmp(&(
-            &right.id,
-            right.x,
-            right.y,
-            right.width,
-            right.height,
-        ))
-    });
-    topology
+    pub(crate) record: Option<DesktopPlacement>,
+    pub(crate) window_generation: u64,
+    pub(crate) latest_fit_sequence: u64,
+    pub(crate) layout_ready: bool,
 }
 
 pub(crate) fn should_show_main_window(notice_accepted: bool, silent_startup: bool) -> bool {

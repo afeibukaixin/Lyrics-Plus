@@ -1,5 +1,6 @@
 use super::{
-    candidates::collect_song_association_candidates_for_target, identity::*, lyrics::*, models::*,
+    candidates::{collect_song_association_candidates_for_target, safe_auto_merge_candidate},
+    identity::*, lyrics::*, models::*,
 };
 use crate::lyrics::provider::{version_tags_from_title, ProviderSettings};
 use crate::storage::{load_observations, Storage};
@@ -106,6 +107,52 @@ impl Storage {
         Ok(result)
     }
 
+    /// 每一对独立事务重新确认批量合并条件，条件变化时保持原样。
+    pub(crate) fn merge_library_song_recordings_if_safe(
+        &self,
+        target_recording_id: i64,
+        source_recording_id: i64,
+        settings: &ProviderSettings,
+    ) -> Result<Option<Vec<String>>, String> {
+        if target_recording_id == source_recording_id {
+            return Ok(None);
+        }
+        let mut connection = self
+            .connection
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| format!("开始批量合并歌曲失败：{error}"))?;
+        let existing_count = transaction
+            .query_row(
+                "SELECT COUNT(*) FROM recordings WHERE recording_id IN (?1, ?2)",
+                rusqlite::params![target_recording_id, source_recording_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .map_err(|error| format!("读取批量合并歌曲失败：{error}"))?;
+        if existing_count != 2
+            || safe_auto_merge_candidate(
+                &transaction,
+                target_recording_id.min(source_recording_id),
+                target_recording_id.max(source_recording_id),
+                settings,
+            )?
+            .is_none()
+        {
+            return Ok(None);
+        }
+        let (_, track_keys) = merge_recordings(
+            &transaction,
+            target_recording_id,
+            source_recording_id,
+        )?;
+        transaction
+            .commit()
+            .map_err(|error| format!("提交批量合并歌曲失败：{error}"))?;
+        Ok(Some(track_keys))
+    }
+
     /// 将当前播放器曲目拆到新 Recording，并记录来源以便后续恢复。
     pub(crate) fn detach_platform_track(
         &self,
@@ -200,6 +247,17 @@ impl Storage {
             )
             .map_err(|error| format!("创建独立歌曲失败：{error}"))?;
         let new_recording_id = transaction.last_insert_rowid();
+        // 主动拆分就是明确的“保持分开”决定；原关联候选不应再次进入队列。
+        transaction
+            .execute(
+                "INSERT OR IGNORE INTO song_similarity_ignores
+                   (left_recording_id, right_recording_id) VALUES (?1, ?2)",
+                rusqlite::params![
+                    source_recording_id.min(new_recording_id),
+                    source_recording_id.max(new_recording_id)
+                ],
+            )
+            .map_err(|error| format!("保存拆分歌曲决定失败：{error}"))?;
         transaction
             .execute(
                 "INSERT INTO recording_artist_credits
@@ -332,13 +390,49 @@ fn merge_recordings(
         set_shared_lyrics_default(transaction, target_recording_id, source_lyrics.as_ref())?;
     }
     move_platform_overrides(transaction, source_recording_id, target_recording_id)?;
+    // 冗余歌曲消失后，把它已确认的“保持分开”关系迁到保留歌曲。
+    // 保留歌曲自身的决定不能因为本次合并而被清空。
+    let ignored_partners = {
+        let mut statement = transaction
+            .prepare(
+                "SELECT left_recording_id, right_recording_id, created_at
+                 FROM song_similarity_ignores
+                 WHERE left_recording_id=?1 OR right_recording_id=?1",
+            )
+            .map_err(|error| format!("读取相似歌曲忽略记录失败：{error}"))?;
+        let rows = statement
+            .query_map(rusqlite::params![source_recording_id], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?))
+            })
+            .map_err(|error| format!("读取相似歌曲忽略记录失败：{error}"))?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(|error| format!("解析相似歌曲忽略记录失败：{error}"))?;
+        rows
+    };
+    for (left, right, created_at) in ignored_partners {
+        let other = if left == source_recording_id { right } else { left };
+        if other == target_recording_id {
+            continue;
+        }
+        transaction
+            .execute(
+                "INSERT OR IGNORE INTO song_similarity_ignores
+                   (left_recording_id, right_recording_id, created_at) VALUES (?1, ?2, ?3)",
+                rusqlite::params![
+                    target_recording_id.min(other),
+                    target_recording_id.max(other),
+                    created_at
+                ],
+            )
+            .map_err(|error| format!("迁移相似歌曲忽略记录失败：{error}"))?;
+    }
     transaction
         .execute(
             "DELETE FROM song_similarity_ignores
-             WHERE left_recording_id IN (?1, ?2) OR right_recording_id IN (?1, ?2)",
-            rusqlite::params![target_recording_id, source_recording_id],
+             WHERE left_recording_id=?1 OR right_recording_id=?1",
+            rusqlite::params![source_recording_id],
         )
-        .map_err(|error| format!("清理相似歌曲忽略记录失败：{error}"))?;
+        .map_err(|error| format!("清理冗余歌曲忽略记录失败：{error}"))?;
     transaction
         .execute(
             "UPDATE track_observations SET split_from_recording_id=NULL

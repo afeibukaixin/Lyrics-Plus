@@ -83,67 +83,6 @@ mod tests {
     }
 
     #[test]
-    fn old_position_records_remain_compatible() {
-        let bounds: StoredBounds =
-            serde_json::from_str(r#"{"x":12,"y":34,"width":760,"height":156}"#).unwrap();
-        assert_eq!((bounds.x, bounds.y), (12, 34));
-        assert_eq!(bounds.relative_x, None);
-        assert_eq!(bounds.work_width, None);
-        assert_eq!(bounds.toolbar_placement, None);
-    }
-
-    #[test]
-    fn old_position_records_are_clamped_to_the_current_work_area() {
-        let bounds: StoredBounds = serde_json::from_str(r#"{"x":900,"y":700}"#).unwrap();
-        assert_eq!(
-            restored_overlay_position(
-                &bounds,
-                tauri::PhysicalPosition::new(0, 0),
-                tauri::PhysicalSize::new(800, 600),
-                tauri::PhysicalSize::new(200, 100),
-                2.0,
-            ),
-            tauri::PhysicalPosition::new(600, 500),
-        );
-    }
-
-    #[test]
-    fn relative_position_adapts_to_resolution_and_monitor_origin_changes() {
-        let bounds: StoredBounds = serde_json::from_str(
-            r#"{"x":400,"y":200,"workX":0,"workY":0,"workWidth":1000,"workHeight":800,"scaleFactor":2.0,"relativeX":0.5,"relativeY":0.25}"#,
-        )
-        .unwrap();
-        assert_eq!(
-            restored_overlay_position(
-                &bounds,
-                tauri::PhysicalPosition::new(1920, 0),
-                tauri::PhysicalSize::new(2000, 1200),
-                tauri::PhysicalSize::new(200, 100),
-                1.0,
-            ),
-            tauri::PhysicalPosition::new(2820, 275),
-        );
-    }
-
-    #[test]
-    fn unchanged_work_area_preserves_exact_saved_position() {
-        let bounds: StoredBounds = serde_json::from_str(
-            r#"{"x":321,"y":234,"workX":0,"workY":24,"workWidth":1440,"workHeight":876,"scaleFactor":2.0,"relativeX":0.1,"relativeY":0.9}"#,
-        )
-        .unwrap();
-        assert_eq!(
-            restored_overlay_position(
-                &bounds,
-                tauri::PhysicalPosition::new(0, 24),
-                tauri::PhysicalSize::new(1440, 876),
-                tauri::PhysicalSize::new(760, 156),
-                2.0,
-            ),
-            tauri::PhysicalPosition::new(321, 234),
-        );
-    }
-
-    #[test]
     fn main_window_is_centered_inside_negative_origin_work_area() {
         assert_eq!(
             centered_position(
@@ -153,51 +92,6 @@ mod tests {
             ),
             tauri::PhysicalPosition::new(-1450, 192),
         );
-    }
-
-    #[test]
-    fn topology_changes_preserve_preferred_monitor_and_clear_programmatic_move() {
-        let topology = |width| {
-            vec![MonitorTopologyEntry {
-                id: "external".into(),
-                x: 0,
-                y: 0,
-                width,
-                height: 1080,
-                work_x: 0,
-                work_y: 24,
-                work_width: width,
-                work_height: 1056,
-                scale_factor_bits: 1.0_f64.to_bits(),
-            }]
-        };
-        let mut placement = OverlayPlacementState {
-            preferred_monitor: Some("external".into()),
-            expected_programmatic_position: Some(tauri::PhysicalPosition::new(10, 20)),
-            ..OverlayPlacementState::default()
-        };
-        assert!(!placement.update_topology(topology(1920)));
-        assert!(placement.consume_programmatic_move(tauri::PhysicalPosition::new(10, 20)));
-        placement.expected_programmatic_position = Some(tauri::PhysicalPosition::new(30, 40));
-        placement.programmatic_move_started_at = Some(Instant::now());
-        assert!(placement.update_topology(topology(2560)));
-        assert_eq!(placement.preferred_monitor.as_deref(), Some("external"));
-        assert_eq!(placement.expected_programmatic_position, None);
-        assert_eq!(placement.programmatic_move_started_at, None);
-    }
-
-    #[test]
-    fn programmatic_move_suppression_expires() {
-        let now = Instant::now();
-        let mut placement = OverlayPlacementState {
-            expected_programmatic_position: Some(tauri::PhysicalPosition::new(10, 20)),
-            programmatic_move_started_at: Some(
-                now - PROGRAMMATIC_MOVE_SUPPRESSION - Duration::from_millis(1),
-            ),
-            ..OverlayPlacementState::default()
-        };
-        assert!(!placement.suppress_persistence(now));
-        assert_eq!(placement.expected_programmatic_position, None);
     }
 
     #[test]

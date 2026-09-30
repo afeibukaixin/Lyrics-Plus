@@ -19,8 +19,9 @@ import { CandidateEvidence } from "@/features/lyrics/quickLyrics/details/Candida
 import { associationReasonLabel } from "@/features/lyrics/quickLyrics/details/helpers";
 import { lyricsApi } from "@/shared/api/lyrics";
 import { messageOf } from "@/shared/api";
-import type { LibraryLyricSummary, LibraryPage, LibrarySongDetail, LibrarySongSummary, SongAssociationCandidate, SongSimilarityPair } from "@/shared/types/lyrics";
-import { ConfirmAction, formatDuration, LibraryDetailHeader, LibraryDetailSection, LibraryRelationItem, LibraryRelationList, LibraryState, LibraryToolbar, PageControls, TruncatedText, useLibraryNavigation } from "./shared";
+import type { LibraryLyricSummary, LibraryPage, LibrarySongDetail, LibrarySongSummary, SongAssociationCandidate, SongSimilarityBatchPreview, SongSimilarityPair } from "@/shared/types/lyrics";
+import { ConfirmAction, formatDuration, LibraryDetailHeader, LibraryDetailSection, LibraryRefreshing, LibraryRelationItem, LibraryRelationList, LibraryState, LibraryToolbar, PageControls, TruncatedText, useLibraryNavigation } from "./shared";
+import { useLibraryViewState } from "./viewState";
 import styles from "./library.module.scss";
 
 function songSourceLabel(
@@ -68,23 +69,30 @@ export default function SongsLibrary({ detailId, similarityOpen, onSimilarityClo
     detailsLabel: t("library.manager.details"),
     detailId: null,
   });
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const view = useLibraryViewState("songs");
+  const { query, page, pageSize } = view;
   const [data, setData] = useState<LibraryPage<LibrarySongSummary> | null>(null);
+  const [loading, setLoading] = useState(true);
   const [loadingError, setLoadingError] = useState("");
 
   useEffect(() => {
+    if (detailId !== null || similarityOpen) return;
     let live = true;
+    let correctingPage = false;
+    setLoading(true);
+    setLoadingError("");
     const timer = window.setTimeout(() => {
       lyricsApi.listLibrarySongs(query, page, pageSize).then((result) => {
         if (!live) return;
+        const lastPage = Math.max(1, Math.ceil(result.total / pageSize));
+        if (page > lastPage) { correctingPage = true; view.update({ page: lastPage }, true); return; }
         setData(result);
         setLoadingError("");
-      }).catch((error) => live && setLoadingError(messageOf(error)));
+      }).catch((error) => { if (live) setLoadingError(messageOf(error)); })
+        .finally(() => { if (live && !correctingPage) setLoading(false); });
     }, 180);
     return () => { live = false; window.clearTimeout(timer); };
-  }, [query, page, pageSize, detailId]);
+  }, [query, page, pageSize, detailId, similarityOpen]);
 
   if (detailId) return <SongDetail recordingId={detailId} />;
   if (similarityOpen) return <SongSimilarityQueue onBack={onSimilarityClose} />;
@@ -93,11 +101,12 @@ export default function SongsLibrary({ detailId, similarityOpen, onSimilarityClo
       <Card className={`${styles.panel} ${styles.listPanel}`}>
         <LibraryToolbar
           query={query}
-          onQueryChange={(value) => { setQuery(value); setPage(1); }}
+          onQueryChange={(value) => view.update({ query: value, page: 1 }, true)}
         />
-        <CardContent className={styles.tableContent}>
+        <CardContent className={styles.tableContent} aria-busy={loading}>
+        {loading && data ? <LibraryRefreshing /> : null}
         {loadingError ? <LibraryState state="error" message={loadingError} /> : data === null ? <LibraryState state="loading" message={t("library.manager.loading")} /> : data.items.length ? (
-          <Table className={`${styles.adaptiveTable} ${styles.dataTable}`}>
+          <Table inert={loading} className={`${styles.adaptiveTable} ${styles.dataTable}`}>
             <colgroup>
               <col className={styles.songTitleColumn} />
               <col className={styles.songSourcesColumn} />
@@ -116,7 +125,7 @@ export default function SongsLibrary({ detailId, similarityOpen, onSimilarityClo
           </Table>
         ) : <LibraryState state="empty" message={t("library.manager.emptySongs")} />}
         </CardContent>
-        {data ? <PageControls page={data.page} pageSize={data.pageSize} total={data.total} onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} /> : null}
+        {data ? <PageControls disabled={loading || !!loadingError} page={page} pageSize={pageSize} total={data.total} onPageChange={(value) => view.update({ page: value })} onPageSizeChange={(value) => view.update({ pageSize: value, page: 1 })} /> : null}
       </Card>
     </div>
   );
@@ -124,17 +133,24 @@ export default function SongsLibrary({ detailId, similarityOpen, onSimilarityClo
 
 function SongSimilarityQueue({ onBack }: { onBack: () => void }) {
   const { t } = useTranslation();
+  const view = useLibraryViewState("songs");
+  const page = view.similarPage;
+  const pageSize = view.similarPageSize;
   const [pairs, setPairs] = useState<SongSimilarityPair[] | null>(null);
   const [keepers, setKeepers] = useState<Record<string, number>>({});
   const [busyPairId, setBusyPairId] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
   const [detailConflictPlatforms, setDetailConflictPlatforms] = useState<string[]>([]);
   const [error, setError] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [progress, setProgress] = useState("");
+  const [batchPreview, setBatchPreview] = useState<SongSimilarityBatchPreview | null>(null);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchPreviewBusy, setBatchPreviewBusy] = useState(false);
+  const [batchApplying, setBatchApplying] = useState(false);
+  const [refreshRevision, setRefreshRevision] = useState(0);
   const busyPairRef = useRef<string | null>(null);
+  const requestSequence = useRef(0);
 
   const applyPairs = (value: SongSimilarityPair[]) => {
     setPairs(value);
@@ -142,10 +158,18 @@ function SongSimilarityQueue({ onBack }: { onBack: () => void }) {
     setError("");
   };
   const refresh = async () => {
-    try { const value = await lyricsApi.listLibrarySongSimilarity(page, pageSize); applyPairs(value.items); setTotal(value.total); }
-    catch (reason) { setError(messageOf(reason)); setPairs([]); }
+    const sequence = ++requestSequence.current;
+    try {
+      const value = await lyricsApi.listLibrarySongSimilarity(page, pageSize);
+      if (sequence !== requestSequence.current) return;
+      const lastPage = Math.max(1, Math.ceil(value.total / pageSize));
+      if (page > lastPage) { view.update({ similarPage: lastPage }, true); return; }
+      applyPairs(value.items);
+      setTotal(value.total);
+    }
+    catch (reason) { if (sequence === requestSequence.current) { setError(messageOf(reason)); setPairs([]); } }
   };
-  useEffect(() => { void refresh(); }, [page, pageSize]);
+  useEffect(() => { setPairs(null); void refresh(); return () => { requestSequence.current++; }; }, [page, pageSize, refreshRevision]);
   useEffect(() => {
     if (pairs !== null) return;
     const update = () => { void lyricsApi.getLibraryIndexStatus().then((value) => { const index = value.indexes.find((item) => item.indexKind === "song_similarity"); setProgress(index && index.total > 0 ? ` ${index.processed}/${index.total}` : ""); }).catch(() => undefined); };
@@ -155,7 +179,7 @@ function SongSimilarityQueue({ onBack }: { onBack: () => void }) {
   }, [pairs]);
 
   if (detailId !== null) {
-    return <SongDetail recordingId={detailId} conflictPlatforms={detailConflictPlatforms} detailPath="/settings/library/songs" onBack={() => { setDetailId(null); setDetailConflictPlatforms([]); void refresh(); }} />;
+    return <SongDetail recordingId={detailId} conflictPlatforms={detailConflictPlatforms} detailPath="/settings/library/songs" onBack={() => { setDetailId(null); setDetailConflictPlatforms([]); setRefreshRevision((value) => value + 1); }} />;
   }
 
   const dismiss = async (pair: SongSimilarityPair) => {
@@ -164,7 +188,7 @@ function SongSimilarityQueue({ onBack }: { onBack: () => void }) {
     setBusyPairId(pair.pairId);
     try {
       await lyricsApi.dismissLibrarySongSimilarity(pair.songs[0].recordingId, pair.songs[1].recordingId);
-      setPairs((current) => current?.filter((item) => item.pairId !== pair.pairId) ?? []);
+      setRefreshRevision((value) => value + 1);
       toast.success(t("library.manager.similarSongsKeptSeparate"));
     } catch (reason) { toast.error(messageOf(reason)); }
     finally { busyPairRef.current = null; setBusyPairId(null); }
@@ -178,17 +202,50 @@ function SongSimilarityQueue({ onBack }: { onBack: () => void }) {
     setBusyPairId(pair.pairId);
     try {
       await lyricsApi.mergeLibrarySong(keeper, redundant.recordingId);
-      setPairs((current) => current?.filter((item) => item.pairId !== pair.pairId) ?? []);
-      setTotal((current) => Math.max(0, current - 1));
+      setRefreshRevision((value) => value + 1);
       toast.success(t("library.manager.similarSongsMerged"));
     } catch (reason) { toast.error(messageOf(reason)); }
     finally { busyPairRef.current = null; setBusyPairId(null); }
+  };
+
+  const previewBatch = async () => {
+    if (batchPreviewBusy || batchApplying || busyPairRef.current !== null) return;
+    setBatchPreviewBusy(true);
+    try {
+      setBatchPreview(await lyricsApi.previewLibrarySongSimilarityBatch());
+      setBatchOpen(true);
+    } catch (reason) { toast.error(messageOf(reason)); }
+    finally { setBatchPreviewBusy(false); }
+  };
+
+  const applyBatch = async () => {
+    if (!batchPreview || batchApplying) return;
+    setBatchApplying(true);
+    try {
+      const result = await lyricsApi.applyLibrarySongSimilarityBatch(batchPreview.candidates);
+      setBatchOpen(false);
+      setBatchPreview(null);
+      setRefreshRevision((value) => value + 1);
+      const summary = t("library.manager.batchSimilarSongsDone", {
+        merged: result.mergedCount,
+        skipped: batchPreview.skippedCount + result.skippedCount,
+        failed: result.failedCount,
+      });
+      if (result.failedCount) toast.error(summary);
+      else toast.success(summary);
+    } catch (reason) { toast.error(messageOf(reason)); }
+    finally { setBatchApplying(false); }
   };
 
   return (
     <Card className={`${styles.panel} ${styles.queuePanel}`}>
       <LibraryDetailHeader title={t("library.manager.similarSongsTitle")} description={t("library.manager.similarSongsDescription")} onBack={onBack} />
       <CardContent className={styles.similarity}>
+        <div className={styles.relationActions}>
+          <Button size="sm" variant="outline" disabled={pairs === null || total === 0 || batchPreviewBusy || batchApplying || busyPairId !== null} onClick={() => void previewBatch()}>
+            <GitMerge data-icon="inline-start" />{t("library.manager.batchSimilarSongs")}
+          </Button>
+        </div>
         {error ? <LibraryState state="error" message={error} /> : null}
         {pairs === null ? <LibraryState state="loading" message={`${t("library.manager.analyzingSimilarSongs")}${progress}`} /> : pairs.length === 0 && !error ? <LibraryState state="empty" message={t("library.manager.noSimilarSongs")} /> : pairs?.map((pair) => {
           const keeper = keepers[pair.pairId];
@@ -198,7 +255,7 @@ function SongSimilarityQueue({ onBack }: { onBack: () => void }) {
           const conflictTarget = pair.songs
             .filter((song) => observationCount(song) > 1 && song.sources.some((source) => conflictPlatforms.some((platform) => normalizedPlatform(platform) === normalizedPlatform(source.platform))))
             .sort((left, right) => observationCount(right) - observationCount(left))[0];
-          const busy = busyPairId !== null;
+          const busy = busyPairId !== null || batchApplying;
           return (
             <section className={styles.section} key={pair.pairId}>
               <div className={styles.sectionHeader}>
@@ -235,7 +292,6 @@ function SongSimilarityQueue({ onBack }: { onBack: () => void }) {
                 {pair.evidence.matchReasons.length ? <p>{pair.evidence.matchReasons.map((reason) => associationReasonLabel(reason, t)).join(" · ")}</p> : null}
                 <CandidateEvidence candidate={pair.evidence} t={t} />
               </div>
-              {!pair.evidence.canAssociate && !conflictTarget ? <Alert variant="destructive"><AlertDescription>{t("library.manager.platformConflictUnresolvable", { platforms: conflictPlatforms.join(" / ") || "—" })}</AlertDescription></Alert> : null}
               <div className={styles.relationActions}>
                 <Button size="sm" variant="outline" disabled={busy} onClick={() => void dismiss(pair)}>{t("library.manager.notSameSong")}</Button>
                 {!pair.evidence.canAssociate && conflictTarget ? <Button size="sm" variant="outline" disabled={busy} onClick={() => { setDetailConflictPlatforms(conflictPlatforms); setDetailId(conflictTarget.recordingId); }}><AlertTriangle data-icon="inline-start" />{t("library.manager.resolvePlatformConflict")}</Button> : null}
@@ -253,7 +309,22 @@ function SongSimilarityQueue({ onBack }: { onBack: () => void }) {
           );
         })}
       </CardContent>
-      {pairs ? <PageControls page={page} pageSize={pageSize} total={total} onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} /> : null}
+      {pairs ? <PageControls page={page} pageSize={pageSize} total={total} onPageChange={(value) => view.update({ similarPage: value })} onPageSizeChange={(value) => view.update({ similarPageSize: value, similarPage: 1 })} /> : null}
+      <Dialog open={batchOpen} onOpenChange={(open) => { if (!batchApplying) setBatchOpen(open); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("library.manager.batchSimilarSongsTitle")}</DialogTitle>
+            <DialogDescription>{t("library.manager.batchSimilarSongsDescription", {
+              merge: batchPreview?.candidates.length ?? 0,
+              skip: batchPreview?.skippedCount ?? 0,
+            })}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" disabled={batchApplying} onClick={() => setBatchOpen(false)}>{t("common.actions.cancel")}</Button>
+            <Button disabled={batchApplying || !batchPreview?.candidates.length} onClick={() => void applyBatch()}>{t("library.manager.batchSimilarSongsConfirm")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
@@ -449,17 +520,37 @@ function BindLyricDialog({ open, onOpenChange, recordingId, onBound }: { open: b
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<LibraryLyricSummary[]>([]);
+  const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [replace, setReplace] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   useEffect(() => {
     if (!open) return;
-    const timer = window.setTimeout(() => lyricsApi.listLibraryLyrics(query).then((value) => setItems(value.items)).catch((error) => toast.error(messageOf(error))), 180);
-    return () => window.clearTimeout(timer);
+    setQuery(""); setItems([]); setTotal(0); setSelected(null); setReplace(false); setError("");
+  }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    setLoading(true);
+    setError("");
+    const timer = window.setTimeout(() => lyricsApi.listLibraryLyrics(query).then((value) => {
+      if (!live) return;
+      setItems(value.items); setTotal(value.total);
+    }).catch((reason) => {
+      if (!live) return;
+      setItems([]); setTotal(0); setError(messageOf(reason));
+    }).finally(() => { if (live) setLoading(false); }), 180);
+    return () => { live = false; window.clearTimeout(timer); };
   }, [open, query]);
   const bind = async () => {
-    if (!selected) return;
+    if (!selected || busyRef.current) return;
+    busyRef.current = true; setBusy(true);
     try { onBound(await lyricsApi.bindLibraryLyric(recordingId, selected, replace)); onOpenChange(false); toast.success(t("library.manager.bound")); }
     catch (reason) { toast.error(messageOf(reason)); }
+    finally { busyRef.current = false; setBusy(false); }
   };
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>{t("library.manager.bindLyric")}</DialogTitle><DialogDescription>{t("library.manager.bindRule")}</DialogDescription></DialogHeader><Field><FieldLabel htmlFor="bind-lyric-search" className="sr-only">{t("library.manager.search")}</FieldLabel><InputGroup><InputGroupAddon><Search data-icon="inline-start" /></InputGroupAddon><InputGroupInput id="bind-lyric-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("library.manager.searchPlaceholder")} /></InputGroup></Field><ItemGroup className={styles.dialogItemList}>{items.map((item) => <Item render={<button type="button" />} variant="outline" className={styles.selectableItem} data-selected={selected === item.assetId} aria-pressed={selected === item.assetId} key={item.assetId} onClick={() => setSelected(item.assetId)}><ItemContent><ItemTitle>{item.title}</ItemTitle><ItemDescription>{item.artist}</ItemDescription></ItemContent>{selected === item.assetId ? <ItemActions><Check className={styles.checkRowSelectionIcon} aria-hidden="true" /></ItemActions> : null}</Item>)}</ItemGroup><Item render={<label />} variant="outline" className={styles.checkboxItem}><Checkbox checked={replace} onCheckedChange={(value) => setReplace(value === true)} /><ItemContent><ItemTitle>{t("library.manager.replaceDefault")}</ItemTitle></ItemContent></Item><DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>{t("common.actions.cancel")}</Button><Button disabled={!selected} onClick={() => void bind()}><Link2 data-icon="inline-start" />{t("library.manager.bind")}</Button></DialogFooter></DialogContent></Dialog>;
+  return <Dialog open={open} onOpenChange={(value) => { if (!busyRef.current) onOpenChange(value); }}><DialogContent><DialogHeader><DialogTitle>{t("library.manager.bindLyric")}</DialogTitle><DialogDescription>{t("library.manager.bindRule")}</DialogDescription></DialogHeader><Field><FieldLabel htmlFor="bind-lyric-search" className="sr-only">{t("library.manager.search")}</FieldLabel><InputGroup><InputGroupAddon><Search data-icon="inline-start" /></InputGroupAddon><InputGroupInput id="bind-lyric-search" disabled={busy} value={query} onChange={(event) => { setQuery(event.target.value); setSelected(null); }} placeholder={t("library.manager.searchPlaceholder")} /></InputGroup></Field>{error ? <LibraryState state="error" message={error} /> : null}{loading ? <LibraryState state="loading" message={t("library.manager.loading")} /> : !error && !items.length ? <LibraryState state="empty" message={t("library.manager.noBindMatches")} /> : !error ? <ItemGroup className={styles.dialogItemList} inert={busy}>{items.map((item) => <Item render={<button type="button" />} variant="outline" className={styles.selectableItem} data-selected={selected === item.assetId} aria-pressed={selected === item.assetId} key={item.assetId} onClick={() => setSelected(item.assetId)}><ItemContent><ItemTitle>{item.title}</ItemTitle><ItemDescription>{item.artist}</ItemDescription></ItemContent>{selected === item.assetId ? <ItemActions><Check className={styles.checkRowSelectionIcon} aria-hidden="true" /></ItemActions> : null}</Item>)}</ItemGroup> : null}{!loading && !error && total > items.length ? <p className={styles.dialogHint}>{t("library.manager.bindResultsLimited", { count: items.length, total })}</p> : null}<Item render={<label />} variant="outline" className={styles.checkboxItem}><Checkbox disabled={busy} checked={replace} onCheckedChange={(value) => setReplace(value === true)} /><ItemContent><ItemTitle>{t("library.manager.replaceDefault")}</ItemTitle></ItemContent></Item><DialogFooter><Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>{t("common.actions.cancel")}</Button><Button disabled={!selected || loading || busy} onClick={() => void bind()}><Link2 data-icon="inline-start" />{t(busy ? "library.manager.binding" : "library.manager.bind")}</Button></DialogFooter></DialogContent></Dialog>;
 }

@@ -25,12 +25,12 @@ import type { SettingsNavigationItem } from "./SettingsSidebar";
 
 export const themeCycle: readonly ThemePreference[] = ["dark", "light", "system"];
 
-export function buildSettingsNavigation(t: TFunction, playerHasWarning: boolean) {
+export function buildSettingsNavigation(t: TFunction) {
   const primaryNavigation: SettingsNavigationItem[] = [
     { to: "/settings/style", label: t("settings.shell.nav.style"), icon: Palette },
     { to: "/settings/lyrics", label: t("settings.shell.nav.lyrics"), icon: ScrollText },
     { to: "/settings/library/songs", label: t("settings.shell.nav.library"), icon: LibraryBig },
-    { to: "/settings/player", label: t("settings.shell.nav.player"), icon: MonitorUp, warning: playerHasWarning },
+    { to: "/settings/player", label: t("settings.shell.nav.player"), icon: MonitorUp },
     { to: "/settings/application", label: t("settings.shell.nav.application"), icon: Settings2 },
     { to: "/settings/about", label: t("settings.shell.nav.about"), icon: Info },
   ];

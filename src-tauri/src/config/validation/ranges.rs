@@ -4,6 +4,15 @@ use super::error_at_key;
 use crate::config::ConfigDraftError;
 
 pub(super) fn validate_numeric_ranges(value: &Value, raw: &str) -> Result<(), ConfigDraftError> {
+    if let Some(hours) = value.pointer("/app/dailyQuote/updateIntervalHours") {
+        if !hours.as_u64().is_some_and(|hours| (1..=24).contains(&hours)) {
+            return Err(error_at_key(
+                raw,
+                "updateIntervalHours",
+                "每日一句更新间隔必须是 1–24 小时的整数",
+            ));
+        }
+    }
     let checks = [
         (
             "fontSize",

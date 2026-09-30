@@ -36,6 +36,7 @@ function wrapLineHeight(fontSize: number, lineHeight: number, textStrokeWidth: n
 
 export default function Overlay() {
   const {
+    configLoaded,
     changeLyricsOffset,
     hideOverlay,
     lockOverlay,
@@ -73,6 +74,8 @@ export default function Overlay() {
   const [overlayHovered, setOverlayHovered] = useState(false);
   const [unlockFeedback, setUnlockFeedback] = useState(false);
   const [toolbarSide, setToolbarSide] = useState<ToolbarPlacement>("top");
+  const [startupGeneration, setStartupGeneration] = useState<number | null>(null);
+  const fitSequence = useRef(0);
   const [toolbarMinimums, setToolbarMinimums] = useState({
     horizontal: MIN_HORIZONTAL_WIDTH,
     vertical: MIN_VERTICAL_HEIGHT,
@@ -154,8 +157,9 @@ export default function Overlay() {
   // 绘制留白与用户设置的位移分开；滤镜模糊和字体墨迹不会进入 DOM 的布局尺寸。
   const largestFontSize = Math.max(style.fontSize, ...supportingLines.map((line) => line.baseSize));
   // 按未缩小的字号预留滤镜内部空间，避免缩放时绘制边界来回收缩。
+  // 泛光最远层的 12px 模糊与 3px 抬升也必须计入含 paint 裁切的留白。
   const paintSpread = Math.ceil(largestFontSize * 0.5 + style.textStrokeWidth / 2
-    + style.textShadowBlur * 3 + 1);
+    + style.textShadowBlur * 3 + 1 + (style.karaokeStyle === "glow" ? 39 : 0));
   const paintOutset = {
     left: paintSpread + Math.max(0, -style.textShadowOffsetX),
     right: paintSpread + Math.max(0, style.textShadowOffsetX),
@@ -180,6 +184,7 @@ export default function Overlay() {
     : t("overlay.toolbar.backgroundVisible");
 
   useOverlayWindowLayout({
+    setStartupGeneration,
     clearResizeState,
     finishResizeRef,
     fitLimits,
@@ -233,6 +238,8 @@ export default function Overlay() {
     style.textStrokeWidth, style.textStrokeColor, fitScale,
   ]);
   const paintRevision = useOverlayContentFit({
+    startupGeneration: configLoaded ? startupGeneration : null,
+    fitSequence,
     activeRef,
     constrained,
     fitFrame,

@@ -91,6 +91,7 @@ pnpm tauri build
 - [MxIris-LyricsX-Project/LyricsX](https://github.com/MxIris-LyricsX-Project/LyricsX)
 - [ddddxxx/LyricsX](https://github.com/ddddxxx/LyricsX)
 - [ChouChiu/Lyrics-Helper](https://github.com/ChouChiu/Lyrics-Helper)
+- [MediaRemoteAdapter](https://github.com/ungive/mediaremote-adapter)，作者 Jonas van den Berg 及贡献者，为 macOS 系统媒体读取提供支持。许可证详情见[第三方声明](THIRD_PARTY_NOTICES.md)。
 
 ## ❤️ 支持 Lyrics Plus
 

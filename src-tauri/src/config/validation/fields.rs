@@ -9,6 +9,7 @@ pub(super) fn validate_field_types_and_options(
 ) -> Result<(), ConfigDraftError> {
     for (pointer, key) in [
         ("/app", "app"),
+        ("/app/dailyQuote", "dailyQuote"),
         ("/app/shortcuts", "shortcuts"),
         ("/lyrics", "lyrics"),
         ("/lyrics/providers", "providers"),
@@ -140,6 +141,10 @@ pub(super) fn validate_field_types_and_options(
         ),
         ("/lyrics/displays/notch/showLyrics", "showLyrics"),
         (
+            "/lyrics/displays/notch/showTrackInfoWhenLyricsHidden",
+            "showTrackInfoWhenLyricsHidden",
+        ),
+        (
             "/lyrics/displays/notch/presentation/showTranslation",
             "showTranslation",
         ),
@@ -263,6 +268,31 @@ pub(super) fn validate_field_types_and_options(
             return Err(error_at_key(raw, key, &format!("{key} 必须是整数")));
         }
     }
+    if let Some(categories) = value.pointer("/app/dailyQuote/categories") {
+        let categories = categories.as_array().ok_or_else(|| {
+            error_at_key(raw, "categories", "每日一句 categories 必须是数组")
+        })?;
+        if categories.is_empty() {
+            return Err(error_at_key(
+                raw,
+                "categories",
+                "每日一句至少选择一个句子来源",
+            ));
+        }
+        for category in categories {
+            if !category.as_str().is_some_and(|code| {
+                crate::config::DailyQuoteCategory::ALL
+                    .iter()
+                    .any(|category| category.as_str() == code)
+            }) {
+                return Err(error_at_key(
+                    raw,
+                    "categories",
+                    "每日一句来源必须是 a–l 的分类代码",
+                ));
+            }
+        }
+    }
     validate_language_preference(value, raw)?;
     if let Some(candidate) = value.pointer("/lyrics/displays/notch/monitorId") {
         if !candidate.is_null() && !candidate.is_string() {
@@ -274,6 +304,13 @@ pub(super) fn validate_field_types_and_options(
         }
     }
     validate_list_line_order(value, raw)?;
+    validate_string_option(
+        value,
+        raw,
+        "/app/dailyQuote/mode",
+        "mode",
+        &["off", "every_open", "hourly"],
+    )?;
     validate_string_option(
         value,
         raw,
@@ -347,7 +384,7 @@ pub(super) fn validate_field_types_and_options(
         (
             "/lyrics/displays/listWindow/appearance/karaokeStyle",
             "karaokeStyle",
-            &["sweep", "glow"] as &[&str],
+            &["sweep", "highlight", "glow"] as &[&str],
         ),
         (
             "/lyrics/displays/statusBar/appearance/karaokeStyle",
@@ -377,7 +414,7 @@ pub(super) fn validate_field_types_and_options(
         (
             "/lyrics/displays/notch/appearance/karaokeStyle",
             "karaokeStyle",
-            &["sweep", "highlight"] as &[&str],
+            &["sweep", "highlight", "glow"] as &[&str],
         ),
         (
             "/lyrics/displays/notch/leftSlot",
@@ -452,7 +489,7 @@ pub(super) fn validate_field_types_and_options(
         (
             "/lyrics/displays/desktop/appearance/karaokeStyle",
             "karaokeStyle",
-            &["sweep", "bounce", "highlight"],
+            &["sweep", "bounce", "highlight", "glow"],
         ),
     ] {
         validate_string_option(value, raw, pointer, key, options)?;

@@ -30,6 +30,7 @@ pub struct AppPreferences {
     pub hide_menu_bar_icon: bool,
     pub silent_startup: bool,
     pub auto_check_updates: bool,
+    pub daily_quote: DailyQuoteSettings,
     pub lyrics_windows_show_on_all_spaces: bool,
     pub shortcuts: GlobalShortcutSettings,
 }
@@ -48,10 +49,114 @@ impl Default for AppPreferences {
             hide_menu_bar_icon: false,
             silent_startup: false,
             auto_check_updates: true,
+            daily_quote: DailyQuoteSettings::default(),
             lyrics_windows_show_on_all_spaces: false,
             shortcuts: GlobalShortcutSettings::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DailyQuoteSettings {
+    pub mode: DailyQuoteMode,
+    pub update_interval_hours: u8,
+    pub categories: Vec<DailyQuoteCategory>,
+}
+
+impl Default for DailyQuoteSettings {
+    fn default() -> Self {
+        Self {
+            mode: DailyQuoteMode::Hourly,
+            update_interval_hours: 24,
+            categories: vec![DailyQuoteCategory::J],
+        }
+    }
+}
+
+impl DailyQuoteSettings {
+    pub fn is_enabled(&self) -> bool {
+        self.mode != DailyQuoteMode::Off
+    }
+
+    /// 按官方分类顺序去重，避免勾选顺序影响请求和缓存比较。
+    pub(crate) fn normalized_categories(&self) -> Vec<DailyQuoteCategory> {
+        let mut categories = self.categories.clone();
+        categories.sort_unstable();
+        categories.dedup();
+        categories
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.categories.is_empty() {
+            return Err("每日一句至少选择一个句子来源".into());
+        }
+        if !(1..=24).contains(&self.update_interval_hours) {
+            return Err("每日一句更新间隔必须是 1–24 小时的整数".into());
+        }
+        Ok(())
+    }
+}
+
+/// 一言官方句子分类代码：https://developer.hitokoto.cn/sentence/
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "lowercase")]
+pub enum DailyQuoteCategory {
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+    I,
+    J,
+    K,
+    L,
+}
+
+impl DailyQuoteCategory {
+    pub(crate) const ALL: [Self; 12] = [
+        Self::A,
+        Self::B,
+        Self::C,
+        Self::D,
+        Self::E,
+        Self::F,
+        Self::G,
+        Self::H,
+        Self::I,
+        Self::J,
+        Self::K,
+        Self::L,
+    ];
+
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::A => "a",
+            Self::B => "b",
+            Self::C => "c",
+            Self::D => "d",
+            Self::E => "e",
+            Self::F => "f",
+            Self::G => "g",
+            Self::H => "h",
+            Self::I => "i",
+            Self::J => "j",
+            Self::K => "k",
+            Self::L => "l",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum DailyQuoteMode {
+    Off,
+    EveryOpen,
+    #[default]
+    Hourly,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -329,6 +434,15 @@ pub enum CompactKaraokeStyle {
     #[default]
     Sweep,
     Highlight,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum NotchKaraokeStyle {
+    #[default]
+    Sweep,
+    Highlight,
+    Glow,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -676,6 +790,7 @@ pub struct NotchLyricsPreferences {
     pub hide_when_not_playing: bool,
     pub monitor_id: Option<String>,
     pub show_lyrics: bool,
+    pub show_track_info_when_lyrics_hidden: bool,
     pub left_slot: NotchSlotContent,
     pub right_slot: NotchSlotContent,
     pub presentation: CompactLyricsPresentation,
@@ -690,6 +805,7 @@ impl Default for NotchLyricsPreferences {
             hide_when_not_playing: false,
             monitor_id: None,
             show_lyrics: false,
+            show_track_info_when_lyrics_hidden: false,
             left_slot: NotchSlotContent::Artwork,
             right_slot: NotchSlotContent::Spectrum,
             presentation: CompactLyricsPresentation::default(),
@@ -711,7 +827,7 @@ pub struct NotchLyricsAppearance {
     pub inactive_color: String,
     pub translation_color: String,
     pub romanization_color: String,
-    pub karaoke_style: CompactKaraokeStyle,
+    pub karaoke_style: NotchKaraokeStyle,
     pub line_gap: f64,
     pub border_radius: f64,
     pub expanded_border_radius: f64,
@@ -732,7 +848,7 @@ impl Default for NotchLyricsAppearance {
             inactive_color: "#ecfccb".into(),
             translation_color: "#d9f99d".into(),
             romanization_color: "#bef264".into(),
-            karaoke_style: CompactKaraokeStyle::Sweep,
+            karaoke_style: NotchKaraokeStyle::Sweep,
             line_gap: 8.0,
             border_radius: 12.0,
             expanded_border_radius: 16.0,
@@ -984,6 +1100,7 @@ impl AppConfig {
             ));
         }
         self.schema_version = CONFIG_SCHEMA_VERSION;
+        self.app.daily_quote.validate()?;
         if let Some(ui_font_family) = self.app.ui_font_family.as_mut() {
             *ui_font_family = ui_font_family.trim().to_owned();
             if ui_font_family.is_empty() {
@@ -1098,7 +1215,10 @@ impl AppConfig {
         ) {
             list_appearance.background_mode = "solid".into();
         }
-        if !matches!(list_appearance.karaoke_style.as_str(), "sweep" | "glow") {
+        if !matches!(
+            list_appearance.karaoke_style.as_str(),
+            "sweep" | "highlight" | "glow"
+        ) {
             list_appearance.karaoke_style = "glow".into();
         }
         if !matches!(

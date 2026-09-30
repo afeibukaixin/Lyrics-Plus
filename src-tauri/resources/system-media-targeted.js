@@ -138,14 +138,24 @@ function query(bundleIds, includeArtwork) {
   }
   return states.map(state => {
     if (state.failed || !state.infoDone) {
-      return { bundleIdentifier: state.bundleIdentifier, status: "error" }
+      return {
+        bundleIdentifier: state.bundleIdentifier,
+        status: "error",
+        errorReason: state.failed ? "request_failed" : "info_timeout",
+      }
     }
     if (state.infoError === 1) {
       return { bundleIdentifier: state.bundleIdentifier, status: "missing" }
     }
     if (state.infoError !== null || !state.playingDone ||
         state.playingError !== null || state.playing === null) {
-      return { bundleIdentifier: state.bundleIdentifier, status: "error" }
+      return {
+        bundleIdentifier: state.bundleIdentifier,
+        status: "error",
+        errorCode: state.infoError ?? state.playingError,
+        errorReason: state.infoError !== null ? "info_failed" :
+          !state.playingDone ? "playing_timeout" : "playing_failed",
+      }
     }
     if (isNil(state.info)) {
       return { bundleIdentifier: state.bundleIdentifier, status: "missing" }

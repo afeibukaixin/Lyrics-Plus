@@ -231,6 +231,23 @@ export type SongSimilarityPair = {
   evidence: SongAssociationCandidate;
 };
 
+export type SongSimilarityBatchCandidate = {
+  leftRecordingId: number;
+  rightRecordingId: number;
+  keeperRecordingId: number;
+};
+
+export type SongSimilarityBatchPreview = {
+  candidates: SongSimilarityBatchCandidate[];
+  skippedCount: number;
+};
+
+export type SongSimilarityBatchResult = {
+  mergedCount: number;
+  skippedCount: number;
+  failedCount: number;
+};
+
 export type LibraryLyricStatus = "inUse" | "candidate" | "unbound";
 
 export type LibraryLyricPage = LibraryPage<LibraryLyricSummary> & {
@@ -457,8 +474,9 @@ export type NotchLayoutMetrics = {
 export type LyricsStyleMode = "desktop" | "statusBar" | "listWindow" | "notch";
 
 export type CompactKaraokeStyle = "sweep" | "highlight";
+export type NotchKaraokeStyle = CompactKaraokeStyle | "glow";
 
-export type ListLyricsKaraokeStyle = "sweep" | "glow";
+export type ListLyricsKaraokeStyle = "sweep" | "highlight" | "glow";
 
 export type StatusBarAlignment = "left" | "center" | "right";
 
@@ -580,7 +598,7 @@ export type NotchLyricsAppearance = {
   inactiveColor: string;
   translationColor: string;
   romanizationColor: string;
-  karaokeStyle: CompactKaraokeStyle;
+  karaokeStyle: NotchKaraokeStyle;
   lineGap: number;
   borderRadius: number;
   expandedBorderRadius: number;
@@ -629,6 +647,7 @@ export type LyricsDisplayPreferences = {
     hideWhenNotPlaying: boolean;
     monitorId: string | null;
     showLyrics: boolean;
+    showTrackInfoWhenLyricsHidden: boolean;
     leftSlot: NotchSlotContent;
     rightSlot: NotchSlotContent;
     presentation: CompactLyricsPresentation;

@@ -64,14 +64,18 @@ pub(crate) fn show_main_window_at(
     }
 
     let existing = app.get_webview_window("main");
+    let opening = existing.as_ref().is_none_or(|window| {
+        !window.is_visible().unwrap_or(false) || window.is_minimized().unwrap_or(false)
+    });
     let window = if let Some(window) = existing.as_ref() {
         window.clone()
     } else {
         let path = route
             .map(|route| format!("index.html{route}"))
             .unwrap_or_else(|| "index.html".to_string());
+        let title = crate::daily_quote::base_window_title();
         WebviewWindowBuilder::new(app, "main", crate::webview_url(app, &path))
-            .title("Lyrics Plus")
+            .title(title)
             .inner_size(980.0, 720.0)
             .min_inner_size(760.0, 560.0)
             .resizable(false)
@@ -95,23 +99,39 @@ pub(crate) fn show_main_window_at(
     if let Err(error) = window.unminimize() {
         log::warn!("Failed to unminimize the main window: {error}");
     }
+    if let Some(state) = app.try_state::<AppState>() {
+        let enabled = state.config.snapshot().app.daily_quote.is_enabled();
+        if let Err(error) = window.set_title(&state.daily_quote.window_title(enabled)) {
+            log::warn!("Failed to apply the cached daily quote: {error}");
+        }
+    }
     window.show().map_err(|error| error.to_string())?;
+    if opening {
+        crate::daily_quote::on_main_window_opened(app);
+    }
     crate::set_surface_runtime_state(app, &window, SurfaceRuntimeState::Active);
     window.set_focus().map_err(|error| error.to_string())
 }
 
+#[cfg(not(target_os = "macos"))]
 pub(crate) fn mark_overlay_programmatic_position(
     app: &tauri::AppHandle,
     position: tauri::PhysicalPosition<i32>,
 ) {
-    if let Some(state) = app.try_state::<AppState>() {
-        let mut placement = state
-            .overlay_placement
+    if let Some(placements) = app.try_state::<crate::window_placement::LyricsWindowPlacements>() {
+        placements
+            .overlay
             .lock()
-            .unwrap_or_else(|error| error.into_inner());
-        placement.expected_programmatic_position = Some(position);
-        placement.programmatic_move_started_at = Some(std::time::Instant::now());
+            .unwrap_or_else(|error| error.into_inner())
+            .mark_programmatic(position);
     }
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn mark_overlay_programmatic_position(
+    _app: &tauri::AppHandle,
+    _position: tauri::PhysicalPosition<i32>,
+) {
 }
 
 pub(crate) fn set_overlay_position(
@@ -121,18 +141,6 @@ pub(crate) fn set_overlay_position(
 ) {
     mark_overlay_programmatic_position(app, position);
     let _ = window.set_position(position);
-}
-
-pub(crate) fn move_overlay_to_primary(app: &tauri::AppHandle, window: &tauri::WebviewWindow) {
-    crate::set_overlay_horizontal_anchor(app, crate::HorizontalAnchor::Free);
-    if let Ok(Some(monitor)) = window.primary_monitor() {
-        let work_area = monitor.work_area();
-        let window_width = window.outer_size().map(|size| size.width).unwrap_or(760);
-        let x =
-            work_area.position.x + (work_area.size.width.saturating_sub(window_width) / 2) as i32;
-        let y = work_area.position.y + 72;
-        set_overlay_position(app, window, tauri::PhysicalPosition::new(x, y));
-    }
 }
 
 #[cfg(target_os = "macos")]

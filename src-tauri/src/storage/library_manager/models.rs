@@ -88,6 +88,29 @@ pub struct SongSimilarityPair {
 
 #[derive(Debug, Clone, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SongSimilarityBatchCandidate {
+    pub left_recording_id: i64,
+    pub right_recording_id: i64,
+    pub keeper_recording_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SongSimilarityBatchPreview {
+    pub candidates: Vec<SongSimilarityBatchCandidate>,
+    pub skipped_count: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SongSimilarityBatchResult {
+    pub merged_count: u64,
+    pub skipped_count: u64,
+    pub failed_count: u64,
+}
+
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LibraryLyricSummary {
     pub asset_id: i64,
     pub title: String,

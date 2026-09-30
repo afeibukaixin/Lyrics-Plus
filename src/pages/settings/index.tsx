@@ -40,6 +40,7 @@ export default function Settings() {
     setDockIconHidden,
     setMenuBarIconHidden,
     setSilentStartup,
+    setDailyQuoteSettings,
     setLyricsWindowsShowOnAllSpaces,
     setOverlayHideWhenNotPlaying,
     setStatusBarLyricsEnabled,
@@ -159,6 +160,7 @@ export default function Settings() {
     setDockIconHidden,
     setMenuBarIconHidden,
     setSilentStartup,
+    setDailyQuoteSettings,
     setLyricsWindowsShowOnAllSpaces,
     setOverlayHideWhenNotPlaying,
     setStatusBarLyricsEnabled,
@@ -208,10 +210,7 @@ export default function Settings() {
     syncAppliedConfig,
   };
 
-  const playerHasWarning = Boolean(playback.configError || playback.snapshotLoadError)
-    || (Boolean(playback.snapshot.errorCode)
-      && !["waiting", "no_unique_player", "source_not_allowed"].includes(playback.snapshot.errorCode ?? ""));
-  const { primaryNavigation, advancedNavigation } = buildSettingsNavigation(t, playerHasWarning);
+  const { primaryNavigation, advancedNavigation } = buildSettingsNavigation(t);
   const themeToggle = getThemeToggle(t, config.app.theme);
   const updateIndicator = getUpdateIndicator(t, updateStatus, progressPercentage, updateKind);
 
@@ -221,6 +220,7 @@ export default function Settings() {
       confirmingReset={confirmingReset}
       context={context}
       locationPathname={location.pathname}
+      playbackSnapshot={playback.snapshot}
       onConfirmReset={() => void confirmResetSection()}
       onOpenResetChange={(open) => { if (!open && !resettingSection) setConfirmingReset(null); }}
       onThemeToggle={() => void setTheme(themeToggle.nextTheme).catch((value) => setError(messageOf(value)))}

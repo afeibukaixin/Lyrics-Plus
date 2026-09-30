@@ -2,6 +2,7 @@ import { createContext, startTransition, useCallback, useContext, useEffect, use
 import { attachLogger, LogLevel } from "@tauri-apps/plugin-log";
 import { frontendErrorDetail, reportFrontendError } from "../../shared/debugLog";
 import { disposeTauriListener } from "../../shared/tauriEvent";
+import { useSurfaceActivity } from "../window/useSurfaceActivity";
 
 export type DebugLogLevel = "debug" | "info" | "warn" | "error";
 
@@ -12,7 +13,7 @@ export type DebugLogEntry = {
   message: string;
 };
 
-const MAX_LOG_ENTRIES = 300;
+export const MAX_LOG_ENTRIES = 1000;
 const LOG_FLUSH_DELAY_MS = 100;
 export const debugLogLevels: DebugLogLevel[] = ["debug", "info", "warn", "error"];
 
@@ -38,6 +39,7 @@ function levelOf(level: LogLevel): DebugLogLevel | null {
 }
 
 export function DebugLogProvider({ children }: { children: React.ReactNode }) {
+  const surfaceActive = useSurfaceActivity();
   const [enabled, setEnabledState] = useState(false);
   const [entries, setEntries] = useState<DebugLogEntry[]>([]);
   const [visibleLevels, setVisibleLevels] = useState<Set<DebugLogLevel>>(
@@ -108,7 +110,7 @@ export function DebugLogProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !surfaceActive) return;
     let disposed = false;
     let detach: (() => void) | undefined;
 
@@ -123,14 +125,17 @@ export function DebugLogProvider({ children }: { children: React.ReactNode }) {
       detach = unlisten;
       append("info", "Frontend debug log stream attached; showing entries from this session only.");
     }).catch((error) => {
+      if (disposed) return;
       reportFrontendError("Failed to attach the frontend debug log stream", error);
-      if (!disposed) append("error", `Failed to attach the frontend debug log stream: ${frontendErrorDetail(error)}`);
+      append("error", `Failed to attach the frontend debug log stream: ${frontendErrorDetail(error)}`);
     });
 
     const handleWindowError = (event: ErrorEvent) => {
+      if (disposed) return;
       reportFrontendError("Unhandled error in the main window", event.error ?? event.message);
     };
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (disposed) return;
       reportFrontendError("Unhandled promise rejection in the main window", event.reason);
     };
     window.addEventListener("error", handleWindowError);
@@ -143,7 +148,7 @@ export function DebugLogProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("error", handleWindowError);
       window.removeEventListener("unhandledrejection", handleUnhandledRejection);
     };
-  }, [append, cancelPendingFlush, enabled]);
+  }, [append, cancelPendingFlush, enabled, surfaceActive]);
 
   const value = useMemo<DebugLogContextValue>(() => ({
     enabled,

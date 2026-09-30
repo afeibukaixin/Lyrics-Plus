@@ -2,6 +2,11 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      if (new URLSearchParams(location.search).get("view") === "overlay") {
+        document.documentElement.dataset.window = "overlay";
+      }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lyrics Plus</title>
   </head>

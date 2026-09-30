@@ -222,6 +222,9 @@ pub fn reset_lyrics_display_position(
         LyricsStyleMode::Notch => "lyrics-notch",
         LyricsStyleMode::Desktop => return Err("桌面歌词请使用桌面位置复位命令".into()),
     };
+    if label == "lyrics-list" {
+        return crate::windows::reset_list_lyrics_position(&app);
+    }
     if label == "lyrics-status-bar" {
         state
             .storage
@@ -362,6 +365,7 @@ pub fn reset_settings_section(
             state
                 .storage
                 .remove_preferences_with_prefix("overlay.position.")?;
+            state.storage.remove_preference(crate::window_placement::OVERLAY_POSITION_KEY)?;
             state
                 .storage
                 .remove_preferences_with_prefix("overlay.geometry.")?;
@@ -388,11 +392,9 @@ pub fn reset_settings_section(
                 .overlay_monitor
                 .write()
                 .unwrap_or_else(|error| error.into_inner()) = None;
-            state
-                .overlay_placement
-                .lock()
-                .unwrap_or_else(|error| error.into_inner())
-                .preferred_monitor = None;
+            #[cfg(not(target_os = "macos"))]
+            app.state::<crate::window_placement::LyricsWindowPlacements>().overlay.lock()
+                .unwrap_or_else(|error| error.into_inner()).reset();
             *state
                 .overlay_settings
                 .write()
@@ -412,7 +414,13 @@ pub fn reset_settings_section(
             let _ = window.set_focusable(true);
             crate::refresh_overlay_mouse_tracking(&window);
             let _ = window.set_resizable(false);
-            crate::restore_overlay_position(&app, &window);
+            crate::overlay_placement::reset_desktop_placement(&app)?;
+            let monitor = window.primary_monitor().map_err(|error| error.to_string())?
+                .ok_or_else(|| "没有可用的显示器".to_string())?;
+            let size = window.outer_size().map_err(|error| error.to_string())?;
+            let position = crate::overlay_placement::overlay_position_for_size(&app, &monitor, size);
+            crate::set_overlay_position(&app, &window, position);
+            let _ = crate::overlay_placement::capture_overlay_position_on_monitor(&app, &window, &monitor, position);
             crate::reconcile_overlay_visibility(&app)?;
             crate::sync_tray_overlay_checked(&app, true);
             app.emit("overlay://settings", get_overlay_settings_inner(&state))
@@ -473,6 +481,7 @@ pub fn reset_settings_section(
                 "/app/hideMenuBarIcon",
                 "/app/shortcuts",
                 "/app/silentStartup",
+                "/app/dailyQuote",
                 "/app/lyricsWindowsShowOnAllSpaces",
             ]) {
                 let _ = crate::apply_global_shortcuts(&app, &defaults, &previous.app.shortcuts);
@@ -480,6 +489,7 @@ pub fn reset_settings_section(
                 let _ = crate::apply_dock_icon_hidden(&app, previous.app.hide_dock_icon);
                 return Err(error);
             }
+            crate::daily_quote::sync_main_window_title(&app);
             crate::apply_lyrics_windows_space_behavior(&app, false)
                 .map_err(|error| error.to_string())?;
         }

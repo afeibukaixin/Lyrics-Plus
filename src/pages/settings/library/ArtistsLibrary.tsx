@@ -12,7 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { lyricsApi } from "@/shared/api/lyrics";
 import { messageOf } from "@/shared/api";
 import type { LibraryArtistDetail, LibraryArtistSummary, LibraryPage } from "@/shared/types/lyrics";
-import { LibraryDetailHeader, LibraryDetailSection, LibraryRelationItem, LibraryRelationList, LibraryState, LibraryToolbar, PageControls, TruncatedText, useLibraryNavigation } from "./shared";
+import { LibraryDetailHeader, LibraryDetailSection, LibraryRefreshing, LibraryRelationItem, LibraryRelationList, LibraryState, LibraryToolbar, PageControls, TruncatedText, useLibraryNavigation } from "./shared";
+import { useLibraryViewState } from "./viewState";
 import styles from "./library.module.scss";
 
 export default function ArtistsLibrary({ detailId }: { detailId: number | null }) {
@@ -23,28 +24,35 @@ export default function ArtistsLibrary({ detailId }: { detailId: number | null }
     detailsLabel: t("library.manager.details"),
     detailId: null,
   });
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const view = useLibraryViewState("artists");
+  const { query, page, pageSize } = view;
   const [data, setData] = useState<LibraryPage<LibraryArtistSummary> | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const requestSequence = useRef(0);
   useEffect(() => {
+    if (detailId !== null) return;
     const sequence = ++requestSequence.current;
+    let correctingPage = false;
+    setLoading(true);
+    setError("");
     const timer = window.setTimeout(() => lyricsApi.listLibraryArtists(query, page, pageSize).then((value) => {
       if (sequence !== requestSequence.current) return;
+      const lastPage = Math.max(1, Math.ceil(value.total / pageSize));
+      if (page > lastPage) { correctingPage = true; view.update({ page: lastPage }, true); return; }
       setData(value); setError("");
     }).catch((reason) => {
       if (sequence === requestSequence.current) setError(messageOf(reason));
-    }), 180);
-    return () => window.clearTimeout(timer);
+    }).finally(() => { if (sequence === requestSequence.current && !correctingPage) setLoading(false); }), 180);
+    return () => { requestSequence.current++; window.clearTimeout(timer); };
   }, [query, page, pageSize, detailId]);
   if (detailId) return <ArtistDetail artistId={detailId} />;
   return (
     <div className={styles.workspace}>
       <Card className={`${styles.panel} ${styles.listPanel}`}>
-        <LibraryToolbar query={query} onQueryChange={(value) => { setQuery(value); setPage(1); }} />
-        <CardContent className={styles.tableContent}>
+        <LibraryToolbar query={query} onQueryChange={(value) => view.update({ query: value, page: 1 }, true)} />
+        <CardContent className={styles.tableContent} aria-busy={loading}>
+        {loading && data ? <LibraryRefreshing /> : null}
         {error ? (
           <LibraryState state="error" message={error} />
         ) : data === null ? (
@@ -52,7 +60,7 @@ export default function ArtistsLibrary({ detailId }: { detailId: number | null }
         ) : (
           <>
             {data.items.length ? (
-              <Table className={`${styles.adaptiveTable} ${styles.dataTable}`}>
+              <Table inert={loading} className={`${styles.adaptiveTable} ${styles.dataTable}`}>
                 <colgroup>
                   <col className={styles.artistNameColumn} />
                   <col className={styles.artistAliasesColumn} />
@@ -69,7 +77,7 @@ export default function ArtistsLibrary({ detailId }: { detailId: number | null }
           </>
         )}
         </CardContent>
-        {data ? <PageControls page={data.page} pageSize={data.pageSize} total={data.total} onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} /> : null}
+        {data ? <PageControls disabled={loading || !!error} page={page} pageSize={pageSize} total={data.total} onPageChange={(value) => view.update({ page: value })} onPageSizeChange={(value) => view.update({ pageSize: value, page: 1 })} /> : null}
       </Card>
     </div>
   );

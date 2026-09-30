@@ -453,6 +453,9 @@ impl Storage {
             observations
         };
         for (track_key, title, artist) in rows {
+            if is_spotify_dj_legacy_track(&track_key, &artist) {
+                continue;
+            }
             let platform = platform_from_track_key(&track_key);
             let exists = self.connection.lock().unwrap_or_else(|error| error.into_inner())
                 .query_row(
@@ -558,6 +561,9 @@ impl Storage {
             bindings
         };
         for row in rows {
+            if is_spotify_dj_legacy_track(&row.track_key, &row.artist) {
+                continue;
+            }
             // 启动迁移不能覆盖用户已管理的歌曲，尤其是明确选择暂不绑定的曲目。
             if self.has_managed_recording(&row.track_key)? {
                 continue;
@@ -688,6 +694,16 @@ fn split_legacy_artist_credits(value: &str) -> Vec<String> {
         .filter(|artist| !artist.is_empty())
         .map(str::to_owned)
         .collect()
+}
+
+/// 旧数据每次启动都会重放，过滤口播以免清理后又生成歌曲或歌词绑定。
+fn is_spotify_dj_legacy_track(track_key: &str, artist: &str) -> bool {
+    let Some(track_id) = track_key.strip_prefix("spotify:") else {
+        return false;
+    };
+    split_legacy_artist_credits(artist)
+        .iter()
+        .any(|name| crate::spotify_media::is_dj_interlude(track_id, name))
 }
 
 fn binding_duration_from_track_key(track_key: &str) -> Option<u64> {

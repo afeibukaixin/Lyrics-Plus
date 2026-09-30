@@ -7,6 +7,9 @@ import type {
   LibrarySongSummary,
   LibrarySongDetail,
   SongSimilarityPair,
+  SongSimilarityBatchCandidate,
+  SongSimilarityBatchPreview,
+  SongSimilarityBatchResult,
   LibraryLyricPage,
   LibraryLyricSimilarityPage,
   LibraryLyricStatus,
@@ -54,6 +57,10 @@ export const lyricsApi = {
     invoke<LibraryPage<SongSimilarityPair>>("list_library_song_similarity", { page, pageSize }),
   dismissLibrarySongSimilarity: (leftRecordingId: number, rightRecordingId: number) =>
     invoke<void>("dismiss_library_song_similarity", { leftRecordingId, rightRecordingId }),
+  previewLibrarySongSimilarityBatch: () =>
+    invoke<SongSimilarityBatchPreview>("preview_library_song_similarity_batch"),
+  applyLibrarySongSimilarityBatch: (candidates: SongSimilarityBatchCandidate[]) =>
+    invoke<SongSimilarityBatchResult>("apply_library_song_similarity_batch", { candidates }),
   mergeLibrarySong: (recordingId: number, candidateRecordingId: number, manualOverride = false) =>
     invoke<LibrarySongDetail>("merge_library_song", {
       input: { recordingId, candidateRecordingId, manualOverride },

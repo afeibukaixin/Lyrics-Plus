@@ -17,7 +17,7 @@ import { usePlayback } from "../player/usePlayback";
 
 export function useOverlayController() {
   const { t } = useTranslation();
-  const { config } = useAppConfig();
+  const { config, loaded: configLoaded } = useAppConfig();
   const playback = usePlayback();
   const [style, setStyle] = useState<OverlayStyle>(defaultOverlayStyle);
   const [settings, setSettings] = useState<OverlaySettings>({ visible: true, locked: false });
@@ -35,7 +35,7 @@ export function useOverlayController() {
     snapshot: playback.snapshot,
     positionMs: playback.positionMs,
     active: playback.active,
-    holdSweepFrame: style.karaokeStyle === "sweep",
+    holdSweepFrame: style.karaokeStyle === "sweep" || style.karaokeStyle === "glow",
     presentation,
     primaryLinePosition: style.primaryLinePosition,
     offsetErrorMessage: "Failed to update the desktop lyrics offset",
@@ -84,6 +84,7 @@ export function useOverlayController() {
   };
 
   return {
+    configLoaded,
     changeLyricsOffset,
     hideOverlay,
     lockOverlay,

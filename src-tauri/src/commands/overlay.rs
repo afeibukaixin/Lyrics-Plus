@@ -113,6 +113,36 @@ pub fn get_overlay_toolbar_placement(state: State<'_, AppState>) -> crate::Toolb
         .toolbar_placement
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OverlayStartupState {
+    generation: u64,
+    style: OverlayStyleSettings,
+    settings: OverlaySettings,
+    toolbar_placement: crate::ToolbarPlacement,
+}
+
+#[tauri::command]
+pub fn get_overlay_startup_state(state: State<'_, AppState>) -> OverlayStartupState {
+    let (generation, toolbar_placement) = {
+        let placement = state
+            .overlay_placement
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        (placement.window_generation, placement.toolbar_placement)
+    };
+    OverlayStartupState {
+        generation,
+        style: state
+            .overlay_style
+            .read()
+            .unwrap_or_else(|error| error.into_inner())
+            .clone(),
+        settings: get_overlay_settings_inner(&state),
+        toolbar_placement,
+    }
+}
+
 #[tauri::command]
 pub fn set_overlay_style(
     app: tauri::AppHandle,
@@ -136,10 +166,12 @@ pub fn set_overlay_style(
             let monitor = window
                 .current_monitor()
                 .map_err(|error| error.to_string())?
-                .or(window.primary_monitor().map_err(|error| error.to_string())?)
+                .or(window
+                    .primary_monitor()
+                    .map_err(|error| error.to_string())?)
                 .ok_or_else(|| "无法读取显示器信息".to_string())?;
             let work_area = monitor.work_area();
-            let (next_position, next_size) = fit_directional_safety_bounds(
+            let (_, next_size) = fit_directional_safety_bounds(
                 current_position,
                 current_size,
                 &previous,
@@ -148,6 +180,8 @@ pub fn set_overlay_style(
                 work_area.position,
                 work_area.size,
             );
+            let next_position =
+                crate::overlay_placement::overlay_position_for_size(&app, &monitor, next_size);
             if next_position != current_position || next_size != current_size {
                 crate::mark_overlay_programmatic_position(&app, next_position);
                 crate::set_window_frame(
@@ -159,6 +193,7 @@ pub fn set_overlay_style(
                     scale,
                 )
                 .map_err(|error| error.to_string())?;
+                crate::overlay_placement::record_overlay_size(&app, &monitor, next_size);
             }
         }
     }
@@ -167,8 +202,6 @@ pub fn set_overlay_style(
         .write()
         .unwrap_or_else(|error| error.into_inner()) = style.clone();
     if previous.orientation != style.orientation {
-        crate::cancel_pending_legacy_overlay_restore(&app);
-        crate::set_overlay_horizontal_anchor(&app, crate::HorizontalAnchor::Free);
         crate::reset_overlay_toolbar_placement(&app, style.orientation);
     }
     persist_overlay_style_for_current_monitor(&app, &state, &style)?;
@@ -190,14 +223,17 @@ pub fn nudge_overlay(app: tauri::AppHandle, dx: i32, dy: i32) -> Result<(), Stri
     let window = app
         .get_webview_window("lyrics-overlay")
         .ok_or_else(|| "歌词浮窗不存在".to_string())?;
-    crate::cancel_pending_legacy_overlay_restore(&app);
     let position = window.outer_position().map_err(|error| error.to_string())?;
+    let next = tauri::PhysicalPosition::new(
+        position.x.saturating_add(dx.clamp(-20, 20)),
+        position.y.saturating_add(dy.clamp(-20, 20)),
+    );
+    crate::mark_overlay_programmatic_position(&app, next);
     window
-        .set_position(tauri::PhysicalPosition::new(
-            position.x.saturating_add(dx.clamp(-20, 20)),
-            position.y.saturating_add(dy.clamp(-20, 20)),
-        ))
-        .map_err(|error| error.to_string())
+        .set_position(next)
+        .map_err(|error| error.to_string())?;
+    crate::settle_overlay_position_at(&app, &window, next);
+    Ok(())
 }
 
 #[tauri::command]
@@ -292,9 +328,7 @@ pub fn reset_overlay_bounds(app: tauri::AppHandle) -> Result<OverlayStyleSetting
         clear_manual_overlay_bounds(&mut current);
         current.clone()
     };
-    state
-        .storage
-        .remove_preferences_with_prefix("overlay.position.")?;
+    crate::overlay_placement::reset_desktop_placement(&app)?;
     state
         .storage
         .remove_preferences_with_prefix("overlay.geometry.")?;
@@ -303,11 +337,6 @@ pub fn reset_overlay_bounds(app: tauri::AppHandle) -> Result<OverlayStyleSetting
         .overlay_monitor
         .write()
         .unwrap_or_else(|error| error.into_inner()) = None;
-    state
-        .overlay_placement
-        .lock()
-        .unwrap_or_else(|error| error.into_inner())
-        .preferred_monitor = None;
     let (reset_width, reset_height) =
         reset_overlay_dimensions(style.orientation, current_width, current_height);
     window
@@ -321,7 +350,17 @@ pub fn reset_overlay_bounds(app: tauri::AppHandle) -> Result<OverlayStyleSetting
         crate::refresh_overlay_mouse_tracking(&window);
     }
     let _ = window.set_resizable(false);
-    crate::move_overlay_to_primary(&app, &window);
+    crate::reset_overlay_toolbar_placement(&app, style.orientation);
+    let monitor = window
+        .primary_monitor()
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "没有可用的显示器".to_string())?;
+    let size = window.outer_size().map_err(|error| error.to_string())?;
+    let position = crate::overlay_placement::overlay_position_for_size(&app, &monitor, size);
+    crate::set_overlay_position(&app, &window, position);
+    let _ = crate::overlay_placement::capture_overlay_position_on_monitor(
+        &app, &window, &monitor, position,
+    );
     persist_overlay_style_for_current_monitor(&app, &state, &style)?;
     state
         .overlay_settings
@@ -380,6 +419,7 @@ pub fn resize_overlay_edge(
         work_area.position,
         work_area.size,
     );
+    crate::mark_overlay_programmatic_position(&app, next_position);
     if current_size != next_size {
         window
             .set_size(next_size)
@@ -391,6 +431,7 @@ pub fn resize_overlay_edge(
             .map_err(|error| error.to_string())?;
     }
     let applied = window.outer_size().unwrap_or(next_size);
+    crate::settle_overlay_position_at(&app, &window, next_position);
     crate::sync_unlock_handle(&app);
     Ok(OverlayResizeBounds {
         width: applied.width as f64 / scale,
@@ -399,7 +440,39 @@ pub fn resize_overlay_edge(
 }
 
 #[tauri::command]
-pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Result<bool, String> {
+pub async fn fit_overlay_content(
+    app: tauri::AppHandle,
+    width: f64,
+    height: f64,
+    generation: u64,
+    sequence: u64,
+) -> Result<bool, String> {
+    let app_state = app.state::<AppState>();
+    {
+        let mut placement = app_state
+            .overlay_placement
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if placement.window_generation != generation || sequence <= placement.latest_fit_sequence {
+            return Ok(false);
+        }
+        // 请求进入时先登记序号，排队中的旧请求拿到锁后会直接退出。
+        placement.latest_fit_sequence = sequence;
+    }
+    let fit_lock = app_state.overlay_fit_lock.clone();
+    let _fit = fit_lock.lock().await;
+    {
+        let placement = app_state
+            .overlay_placement
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if placement.window_generation != generation
+            || sequence != placement.latest_fit_sequence
+            || placement.drag_active
+        {
+            return Ok(false);
+        }
+    }
     let window = app
         .get_webview_window("lyrics-overlay")
         .ok_or_else(|| "歌词浮窗不存在".to_string())?;
@@ -408,14 +481,15 @@ pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Re
     }
     let position = window.outer_position().map_err(|error| error.to_string())?;
     let current_size = window.outer_size().map_err(|error| error.to_string())?;
-    let scale = window.scale_factor().map_err(|error| error.to_string())?;
-    let monitor = window
-        .current_monitor()
-        .map_err(|error| error.to_string())?
+    let monitor = crate::overlay_placement::overlay_target_monitor(&app, &window)
+        .or(window
+            .current_monitor()
+            .map_err(|error| error.to_string())?)
         .or(window
             .primary_monitor()
             .map_err(|error| error.to_string())?)
         .ok_or_else(|| "无法读取显示器信息".to_string())?;
+    let scale = monitor.scale_factor();
     let work_area = monitor.work_area();
     let state = app.state::<AppState>();
     let style = state
@@ -432,38 +506,21 @@ pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Re
     let current_height = current_size.height as f64 / scale;
     let (width, height) =
         fixed_axis_content_size(&style, width, height, current_width, current_height, locked);
-    let (toolbar_placement, horizontal_anchor) = {
-        let placement = state
-            .overlay_placement
-            .lock()
-            .unwrap_or_else(|error| error.into_inner());
-        (
-            Some(placement.toolbar_placement.normalized(style.orientation)),
-            placement.horizontal_anchor,
-        )
-    };
     let minimum_width_logical = match style.orientation {
         OverlayOrientation::Horizontal => MIN_HORIZONTAL_WINDOW_WIDTH,
         OverlayOrientation::Vertical => MIN_VERTICAL_HOST_WIDTH,
     };
-    let (mut next_position, next_size) = fit_overlay_content_bounds(
+    let (_, next_size) = fit_overlay_bounds_with_minimum(
         position,
-        current_size,
         width,
         height,
         scale,
         work_area.position,
         work_area.size,
-        toolbar_placement,
-        horizontal_anchor,
         minimum_width_logical,
     );
-    let legacy_restore_position = (style.orientation == OverlayOrientation::Vertical)
-        .then(|| crate::pending_legacy_overlay_restore_position(&app, &monitor, next_size))
-        .flatten();
-    if let Some(position) = legacy_restore_position {
-        next_position = position;
-    }
+    let next_position =
+        crate::overlay_placement::overlay_position_for_size(&app, &monitor, next_size);
     let size_changed = current_size.width.abs_diff(next_size.width) > 2
         || current_size.height.abs_diff(next_size.height) > 2;
     if size_changed || position != next_position {
@@ -478,10 +535,30 @@ pub fn fit_overlay_content(app: tauri::AppHandle, width: f64, height: f64) -> Re
         )
         .map_err(|error| error.to_string())?;
     }
-    if legacy_restore_position.is_some() {
-        // 旧记录在最终内容宽度确定后升级，后续启动即可直接按中心锚点恢复。
-        crate::complete_pending_legacy_overlay_restore(&app, &window, next_position);
+    {
+        let mut placement = state
+            .overlay_placement
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        placement.layout_ready = true;
     }
+    if state
+        .overlay_placement
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .record
+        .is_none()
+    {
+        let _ = crate::overlay_placement::capture_overlay_position_on_monitor(
+            &app,
+            &window,
+            &monitor,
+            next_position,
+        );
+    } else {
+        crate::overlay_placement::record_overlay_size(&app, &monitor, next_size);
+    }
+    crate::reconcile_overlay_visibility(&app)?;
     crate::sync_unlock_handle(&app);
     Ok(true)
 }

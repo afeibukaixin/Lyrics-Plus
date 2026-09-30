@@ -7,6 +7,9 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
     check_keys(value, raw, &["schemaVersion", "app", "lyrics"])?;
     if let Some(app) = value.get("app") {
         check_keys(app, raw, APP_CONFIG_KEYS)?;
+        if let Some(daily_quote) = app.get("dailyQuote") {
+            check_keys(daily_quote, raw, &["mode", "updateIntervalHours", "categories"])?;
+        }
         if let Some(shortcuts) = app.get("shortcuts") {
             check_keys(
                 shortcuts,
@@ -303,6 +306,7 @@ pub(super) fn validate_known_fields(value: &Value, raw: &str) -> Result<(), Conf
                         "hideWhenNotPlaying",
                         "monitorId",
                         "showLyrics",
+                        "showTrackInfoWhenLyricsHidden",
                         "leftSlot",
                         "rightSlot",
                         "presentation",

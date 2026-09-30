@@ -1,6 +1,7 @@
 import { invoke } from "./core";
 import type {
   AppConfig,
+  DailyQuoteSettings,
   GlobalShortcutSettings,
   GlobalShortcutStatus,
   LanguagePreference,
@@ -26,6 +27,8 @@ export const applicationApi = {
   setTelemetryEnabled: (enabled: boolean) =>
     invoke<TelemetrySettings>("set_telemetry_enabled", { enabled }),
   setTheme: (theme: ThemePreference) => invoke<AppConfig>("set_theme", { theme }),
+  setDailyQuoteSettings: (settings: DailyQuoteSettings) =>
+    invoke<AppConfig>("set_daily_quote_settings", { settings }),
   resolveSystemMediaApplications: (paths: string[]) =>
     invoke<RegisteredApplication[]>("resolve_system_media_applications", { paths }),
   setSystemMediaFilterMode: (mode: SystemMediaFilterMode) =>

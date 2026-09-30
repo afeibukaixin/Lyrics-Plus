@@ -19,8 +19,8 @@ const defaultTitleFilterKeywords = [
 ];
 
 export const defaultConfig: AppConfig = {
-  schemaVersion: 76,
-  app: { theme: "dark", uiFontFamily: null, language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, hideMenuBarIcon: false, silentStartup: false, autoCheckUpdates: true, lyricsWindowsShowOnAllSpaces: false, shortcuts: defaultGlobalShortcuts },
+  schemaVersion: 78,
+  app: { theme: "dark", uiFontFamily: null, language: "system", playerSelection: "auto", systemMediaFilterMode: "allowlist", systemMediaApplications: [], playerFollowerApplication: null, hideDockIcon: false, hideMenuBarIcon: false, silentStartup: false, autoCheckUpdates: true, dailyQuote: { mode: "hourly", updateIntervalHours: 24, categories: ["j"] }, lyricsWindowsShowOnAllSpaces: false, shortcuts: defaultGlobalShortcuts },
   lyrics: {
     chineseConversion: "original",
     repairSimplifiedJapanese: false,
@@ -60,6 +60,7 @@ export const defaultConfig: AppConfig = {
         hideWhenNotPlaying: false,
         monitorId: null,
         showLyrics: false,
+        showTrackInfoWhenLyricsHidden: false,
         leftSlot: "artwork",
         rightSlot: "spectrum",
         presentation: defaultNotchLyricsPresentation,

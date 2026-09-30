@@ -50,7 +50,8 @@ mod library_manager;
 pub use library_manager::{
     ClearCandidateLyricsResult, LibraryArtistDetail, LibraryArtistSummary, LibraryIndexStatus,
     LibraryLyricDetail, LibraryLyricPage, LibraryLyricSimilarityPage, LibraryPage,
-    LibrarySongDetail, LibrarySongSummary, LyricSimilarityGroup, SongSimilarityPair,
+    LibrarySongDetail, LibrarySongSummary, LyricSimilarityGroup, SongSimilarityBatchCandidate,
+    SongSimilarityBatchPreview, SongSimilarityBatchResult, SongSimilarityPair,
     UnboundCleanupPreview, UnboundCleanupResult,
 };
 

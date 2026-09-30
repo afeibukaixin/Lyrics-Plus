@@ -80,10 +80,7 @@ pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<boo
         refresh_overlay_mouse_tracking(&window);
     }
     let is_visible = window.is_visible().unwrap_or(false);
-    if should_show {
-        if !is_visible {
-            restore_overlay_position(app, &window);
-        }
+    if should_show && crate::overlay_placement::overlay_layout_ready(app) {
         // 显示前同步统一的歌词窗口 Space 行为，避免窗口重新显示时使用旧状态。
         crate::apply_joining_other_apps_fullscreen(&window).map_err(|error| error.to_string())?;
         crate::apply_lyrics_window_space_behavior(
@@ -107,7 +104,7 @@ pub(crate) fn reconcile_overlay_visibility(app: &tauri::AppHandle) -> Result<boo
         .map_err(|error| error.to_string())?;
     }
     sync_unlock_handle(app);
-    Ok(should_show)
+    Ok(should_show && crate::overlay_placement::overlay_layout_ready(app))
 }
 
 fn start_player_monitor(app: tauri::AppHandle) {
@@ -151,7 +148,6 @@ fn start_player_monitor(app: tauri::AppHandle) {
                 })
                 .unwrap_or_default();
 
-            let publication_started = Instant::now();
             let query_system_media = system_media.clone();
             let (mut snapshot, next_auto_player) =
                 tauri::async_runtime::spawn_blocking(move || {
@@ -187,16 +183,6 @@ fn start_player_monitor(app: tauri::AppHandle) {
                 state.status_bar_wake.notify_one();
             }
             let _ = app.emit("playback://snapshot", &snapshot);
-            if snapshot.player == Some(player::PlayerKind::System) {
-                log::debug!(
-                    "系统媒体快照发布 title={:?} playing={} display_playing={} observed_at_ms={} elapsed_us={}",
-                    snapshot.title,
-                    snapshot.is_playing,
-                    snapshot.is_playing_for_display(),
-                    snapshot.observed_at_ms,
-                    publication_started.elapsed().as_micros()
-                );
-            }
             if let Some(state) = app.try_state::<AppState>() {
                 state.spectrum.sync_snapshot(&app, &snapshot);
             }
@@ -204,9 +190,17 @@ fn start_player_monitor(app: tauri::AppHandle) {
             if let Err(error) = reconcile_overlay_visibility(&app) {
                 log::warn!("Failed to reconcile overlay visibility with playback state: {error}");
             }
-            if let Some(window) = app.get_webview_window("lyrics-overlay") {
-                if window.is_visible().unwrap_or(false) {
-                    reconcile_overlay_placement(&app, &window);
+            #[cfg(not(target_os = "macos"))]
+            {
+                if let Some(window) = app.get_webview_window("lyrics-overlay") {
+                    if window.is_visible().unwrap_or(false) {
+                        reconcile_overlay_placement(&app, &window);
+                    }
+                }
+                if let Some(window) = app.get_webview_window("lyrics-list") {
+                    if window.is_visible().unwrap_or(false) {
+                        crate::windows::reconcile_list_lyrics_placement(&app, &window);
+                    }
                 }
             }
             let any_window_visible = app

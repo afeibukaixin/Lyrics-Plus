@@ -5,7 +5,7 @@ use crate::overlay_placement::geometry::toolbar_placement_after_move;
 use crate::AppState;
 use tauri::{Emitter, Manager};
 
-use super::state::{HorizontalAnchor, ToolbarPlacement};
+use super::state::ToolbarPlacement;
 
 pub(crate) const UNLOCK_HANDLE_BACKGROUND_GAP: f64 = 6.0;
 pub(crate) const OVERLAY_POINTER_MONITOR_INTERVAL: Duration = Duration::from_millis(50);
@@ -39,20 +39,8 @@ pub(crate) fn set_overlay_toolbar_placement(app: &tauri::AppHandle, placement: T
         }
     };
     if changed {
+        super::desktop::persist_toolbar_placement(app);
         let _ = app.emit(OVERLAY_TOOLBAR_PLACEMENT_EVENT, placement);
-    }
-}
-
-pub(crate) fn set_overlay_horizontal_anchor(
-    app: &tauri::AppHandle,
-    anchor: HorizontalAnchor,
-) {
-    if let Some(state) = app.try_state::<AppState>() {
-        state
-            .overlay_placement
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .horizontal_anchor = anchor;
     }
 }
 
@@ -105,12 +93,11 @@ pub(crate) fn adjust_overlay_toolbar_for_move(
     window: &tauri::WebviewWindow,
     position: tauri::PhysicalPosition<i32>,
 ) -> tauri::PhysicalPosition<i32> {
-    let Some((next_placement, next_position)) = overlay_toolbar_move_result(app, window, position)
-    else {
+    let Some((next_placement, _)) = overlay_toolbar_move_result(app, window, position) else {
         return position;
     };
     set_overlay_toolbar_placement(app, next_placement);
-    next_position
+    position
 }
 
 /// 原生拖动期间只更新工具栏方位，不修改窗口坐标，避免破坏系统拖动的抓点和流畅性。
@@ -133,9 +120,6 @@ pub(crate) fn set_overlay_drag_active(app: &tauri::AppHandle, active: bool) {
         .overlay_placement
         .lock()
         .unwrap_or_else(|error| error.into_inner());
-    if active {
-        placement.cancel_pending_legacy_restore();
-    }
     placement.drag_active = active;
 }
 
@@ -157,12 +141,10 @@ pub(crate) fn settle_overlay_position_at(
     window: &tauri::WebviewWindow,
     position: tauri::PhysicalPosition<i32>,
 ) {
-    crate::cancel_pending_legacy_overlay_restore(app);
-    let snapped = crate::snapped_position(window, position);
-    crate::update_overlay_horizontal_anchor(app, window, snapped);
-    let adjusted = adjust_overlay_toolbar_for_move(app, window, snapped);
-    if adjusted != position {
-        crate::set_overlay_position(app, window, adjusted);
+    let _ = adjust_overlay_toolbar_for_move(app, window, position);
+    if let Some(snapped) = super::desktop::capture_overlay_position(app, window, position) {
+        if snapped != position {
+            crate::set_overlay_position(app, window, snapped);
+        }
     }
-    crate::persist_overlay_state_at(app, window, adjusted);
 }

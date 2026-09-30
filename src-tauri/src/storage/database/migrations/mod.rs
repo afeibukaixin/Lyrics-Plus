@@ -3,6 +3,8 @@ use rusqlite::{params, Connection};
 mod v01_v07;
 mod v08_v14;
 mod v15_v17;
+mod v20;
+mod v21;
 
 use v01_v07::{
     migrate_artist_credit_schema, migrate_base_schema, migrate_compatibility_schema,
@@ -18,6 +20,8 @@ use v15_v17::{
     migrate_library_performance_schema, migrate_song_similarity_schema,
     migrate_system_source_app_schema,
 };
+use v20::remove_spotify_dj_interludes;
+use v21::remove_reimported_spotify_dj_interludes;
 
 pub(super) const BASE_SCHEMA_VERSION: i64 = 1;
 pub(super) const COMPATIBILITY_SCHEMA_VERSION: i64 = 2;
@@ -37,7 +41,9 @@ pub(super) const SONG_SIMILARITY_SCHEMA_VERSION: i64 = 16;
 pub(super) const LIBRARY_PERFORMANCE_SCHEMA_VERSION: i64 = 17;
 pub(super) const LIBRARY_PERFORMANCE_REPAIR_SCHEMA_VERSION: i64 = 18;
 pub(super) const SYSTEM_SOURCE_APP_SCHEMA_VERSION: i64 = 19;
-pub(super) const STORAGE_SCHEMA_VERSION: i64 = SYSTEM_SOURCE_APP_SCHEMA_VERSION;
+pub(super) const SPOTIFY_DJ_CLEANUP_SCHEMA_VERSION: i64 = 20;
+pub(super) const SPOTIFY_DJ_REIMPORT_CLEANUP_SCHEMA_VERSION: i64 = 21;
+pub(super) const STORAGE_SCHEMA_VERSION: i64 = SPOTIFY_DJ_REIMPORT_CLEANUP_SCHEMA_VERSION;
 
 /// Applies the versioned base schema. Column backfills below remain a
 /// compatibility bridge for databases created before `user_version` existed.
@@ -98,6 +104,14 @@ pub(super) fn migrate_schema(connection: &mut Connection) -> rusqlite::Result<()
         (
             SYSTEM_SOURCE_APP_SCHEMA_VERSION,
             migrate_system_source_app_schema,
+        ),
+        (
+            SPOTIFY_DJ_CLEANUP_SCHEMA_VERSION,
+            remove_spotify_dj_interludes,
+        ),
+        (
+            SPOTIFY_DJ_REIMPORT_CLEANUP_SCHEMA_VERSION,
+            remove_reimported_spotify_dj_interludes,
         ),
     ] {
         if current_version >= target_version {

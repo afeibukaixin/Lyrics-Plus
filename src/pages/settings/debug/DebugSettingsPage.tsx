@@ -1,11 +1,10 @@
 import { memo, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { debugLogLevels, useDebugLogs, type DebugLogEntry, type DebugLogLevel } from "../../../features/debug/DebugLogProvider";
+import { MAX_LOG_ENTRIES, debugLogLevels, useDebugLogs, type DebugLogEntry, type DebugLogLevel } from "../../../features/debug/DebugLogProvider";
 import { useAppLanguage } from "../../../features/i18n/I18nProvider";
 import styles from "../settings.module.scss";
 import { PageHeader, SettingsSection, ToggleRow } from "../shared/components";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -72,10 +71,23 @@ export default function DebugSettingsPage() {
     return () => window.cancelAnimationFrame(frame);
   }, [debugLogs.enabled, lastVisibleEntryId, visibleEntries.length]);
 
+  const exportLogs = () => {
+    if (debugLogs.entries.length === 0) return;
+    const content = debugLogs.entries
+      .map((entry) => `[${new Date(entry.receivedAt).toISOString()}] [${debugLevelLabels[entry.level]}] ${entry.message}`)
+      .join("\n") + "\n";
+    const url = URL.createObjectURL(new Blob([content], { type: "text/plain;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `lyrics-plus-debug-${new Date().toISOString().replace(/[:.]/g, "-")}.log`;
+    anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
+
   return (
-    <>
+    <div className={debugLogs.enabled ? styles.debugPageExpanded : undefined}>
       <PageHeader title={t("settings.debug.title")} description={t("settings.debug.description")} />
-      <SettingsSection id="debug-live" title={t("settings.debug.live")} trailing={debugLogs.enabled && <span className={styles.debugLogCount}>{debugLogs.entries.length} / 300</span>}>
+      <SettingsSection id="debug-live" title={t("settings.debug.live")} trailing={debugLogs.enabled && <span className={styles.debugLogCount}>{debugLogs.entries.length} / {MAX_LOG_ENTRIES}</span>}>
         <ToggleRow label={t("settings.debug.toggle")} description={t("settings.debug.toggleHint")} value={debugLogs.enabled} onChange={debugLogs.setEnabled} />
         {debugLogs.enabled ? (
           <>
@@ -96,16 +108,19 @@ export default function DebugSettingsPage() {
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
-              <Button type="button" variant="outline" size="sm" onClick={debugLogs.clear} disabled={debugLogs.entries.length === 0}>{t("settings.debug.clear")}</Button>
+              <div className={styles.debugLogActions}>
+                <Button type="button" variant="outline" size="sm" onClick={exportLogs} disabled={debugLogs.entries.length === 0}>{t("settings.debug.export")}</Button>
+                <Button type="button" variant="outline" size="sm" onClick={debugLogs.clear} disabled={debugLogs.entries.length === 0}>{t("settings.debug.clear")}</Button>
+              </div>
             </div>
-            <ScrollArea className={styles.debugLogViewport} viewportRef={viewport} role="log" aria-live="polite">
+            <div className={styles.debugLogViewport} ref={viewport} role="log" aria-live="polite">
               {visibleEntries.length === 0 ? (
                 <p>{debugLogs.entries.length === 0 ? t("settings.debug.waiting") : t("settings.debug.filteredEmpty")}</p>
               ) : visibleEntries.map((entry) => <DebugLogEntryRow entry={entry} key={entry.id} language={language} />)}
-            </ScrollArea>
+            </div>
           </>
         ) : null}
       </SettingsSection>
-    </>
+    </div>
   );
 }

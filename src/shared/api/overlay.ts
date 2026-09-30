@@ -15,6 +15,12 @@ export const overlayApi = {
   getOverlayStyle: () => invoke<OverlayStyle>("get_overlay_style"),
   getOverlayToolbarPlacement: () =>
     invoke<ToolbarPlacement>("get_overlay_toolbar_placement"),
+  getOverlayStartupState: () => invoke<{
+    generation: number;
+    style: OverlayStyle;
+    settings: OverlaySettings;
+    toolbarPlacement: ToolbarPlacement;
+  }>("get_overlay_startup_state"),
   setOverlayStyle: (style: OverlayStyle) =>
     invoke<OverlayStyle>("set_overlay_style", { style }),
   startOverlayDrag: () => invoke<void>("start_overlay_drag"),
@@ -22,8 +28,8 @@ export const overlayApi = {
   resetOverlayBounds: () => invoke<OverlayStyle>("reset_overlay_bounds"),
   resizeOverlayEdge: (edge: OverlayResizeEdge, mainSize: number, minimumMainSize: number) =>
     invoke<OverlayResizeBounds>("resize_overlay_edge", { edge, mainSize, minimumMainSize }),
-  fitOverlayContent: (width: number, height: number) =>
-    invoke<boolean>("fit_overlay_content", { width, height }),
+  fitOverlayContent: (width: number, height: number, generation: number, sequence: number) =>
+    invoke<boolean>("fit_overlay_content", { width, height, generation, sequence }),
   fitNotchLyricsContent: (width: number, height: number) =>
     invoke<NotchWindowFitResponse>("fit_notch_lyrics_content", { width, height }),
   setNotchPointerInteractive: (interactive: boolean) =>

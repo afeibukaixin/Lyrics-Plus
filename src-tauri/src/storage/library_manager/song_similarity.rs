@@ -6,7 +6,10 @@ use rusqlite::{params, Connection};
 
 use super::super::{load_observations, song_manager, SongAssociationCandidate, Storage};
 use super::index::search_trigrams;
-use super::models::{LibraryPage, LibrarySongSummary, SongSimilarityPair};
+use super::models::{
+    LibraryPage, LibrarySongSummary, SongSimilarityBatchCandidate, SongSimilarityBatchPreview,
+    SongSimilarityBatchResult, SongSimilarityPair,
+};
 use super::pagination::{library_page, library_page_parameters};
 use super::songs::library_song_summary;
 
@@ -554,6 +557,76 @@ impl Storage {
             )
             .map_err(|error| format!("更新相似歌曲缓存失败：{error}"))?;
         Ok(())
+    }
+
+    pub fn preview_library_song_similarity_batch(
+        &self,
+        settings: &crate::lyrics::provider::ProviderSettings,
+    ) -> Result<SongSimilarityBatchPreview, String> {
+        let pairs = self.analyze_library_song_similarity(settings)?;
+        let connection = self
+            .connection
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let mut candidates = Vec::new();
+        for pair in &pairs {
+            let left = pair.songs[0].recording_id.min(pair.songs[1].recording_id);
+            let right = pair.songs[0].recording_id.max(pair.songs[1].recording_id);
+            if song_manager::safe_auto_merge_candidate(&connection, left, right, settings)?.is_some() {
+                candidates.push(SongSimilarityBatchCandidate {
+                    left_recording_id: left,
+                    right_recording_id: right,
+                    keeper_recording_id: pair.recommended_recording_id,
+                });
+            }
+        }
+        Ok(SongSimilarityBatchPreview {
+            skipped_count: (pairs.len() - candidates.len()) as u64,
+            candidates,
+        })
+    }
+
+    pub fn apply_library_song_similarity_batch(
+        &self,
+        candidates: &[SongSimilarityBatchCandidate],
+        settings: &crate::lyrics::provider::ProviderSettings,
+    ) -> (SongSimilarityBatchResult, Vec<String>) {
+        let mut result = SongSimilarityBatchResult {
+            merged_count: 0,
+            skipped_count: 0,
+            failed_count: 0,
+        };
+        let mut seen = HashSet::new();
+        let mut affected_track_keys = HashSet::new();
+        for candidate in candidates {
+            let left = candidate.left_recording_id;
+            let right = candidate.right_recording_id;
+            if left >= right
+                || !seen.insert((left, right))
+                || (candidate.keeper_recording_id != left
+                    && candidate.keeper_recording_id != right)
+            {
+                result.skipped_count += 1;
+                continue;
+            }
+            let redundant = if candidate.keeper_recording_id == left { right } else { left };
+            match self.merge_library_song_recordings_if_safe(
+                candidate.keeper_recording_id,
+                redundant,
+                settings,
+            ) {
+                Ok(Some(track_keys)) => {
+                    result.merged_count += 1;
+                    affected_track_keys.extend(track_keys);
+                }
+                Ok(None) => result.skipped_count += 1,
+                Err(error) => {
+                    result.failed_count += 1;
+                    log::warn!("批量合并歌曲 {}-{} 失败：{}", left, right, error);
+                }
+            }
+        }
+        (result, affected_track_keys.into_iter().collect())
     }
 }
 

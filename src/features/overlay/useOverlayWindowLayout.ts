@@ -3,6 +3,7 @@ import { LogicalSize } from "@tauri-apps/api/dpi";
 import { listen } from "@tauri-apps/api/event";
 import { currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
 import { api, isTauriRuntime } from "../../shared/api";
+import { reportFrontendError } from "../../shared/debugLog";
 import { createTauriListenerCleanup } from "../../shared/tauriEvent";
 import type { OverlaySettings, OverlayStyle, ToolbarPlacement } from "../../shared/types";
 import { MIN_VERTICAL_HOST_WIDTH } from "./OverlayLayout";
@@ -13,6 +14,7 @@ const MIN_HORIZONTAL_WIDTH = 320;
 const MIN_VERTICAL_HEIGHT = 280;
 
 type UseOverlayWindowLayoutOptions = {
+  setStartupGeneration: Dispatch<SetStateAction<number | null>>;
   style: OverlayStyle;
   styleRef: MutableRefObject<OverlayStyle>;
   settings: OverlaySettings;
@@ -37,6 +39,7 @@ type UseOverlayWindowLayoutOptions = {
 };
 
 export function useOverlayWindowLayout({
+  setStartupGeneration,
   style,
   styleRef,
   settings,
@@ -71,12 +74,16 @@ export function useOverlayWindowLayout({
   useEffect(() => {
     document.documentElement.dataset.window = "overlay";
     if (!isTauriRuntime()) return;
-    void api.getOverlayStyle().then((saved) => {
-      styleRef.current = saved;
-      setStyle(saved);
-    });
-    void api.getOverlaySettings().then(setSettings);
-    void api.getOverlayToolbarPlacement().then(setToolbarSide);
+    let cancelled = false;
+    void api.getOverlayStartupState().then(async (startup) => {
+      if (cancelled) return;
+      styleRef.current = startup.style;
+      setStyle(startup.style);
+      setSettings(startup.settings);
+      setToolbarSide(startup.toolbarPlacement);
+      await document.fonts.ready;
+      if (!cancelled) setStartupGeneration(startup.generation);
+    }).catch((error) => reportFrontendError("Failed to load desktop lyrics startup state", error));
     const cleanupStyleListener = createTauriListenerCleanup(listen<OverlayStyle>("overlay://style", ({ payload }) => {
       clearResizeState();
       styleRef.current = payload;
@@ -102,6 +109,7 @@ export function useOverlayWindowLayout({
       }, 1_500);
     }));
     return () => {
+      cancelled = true;
       if (unlockFeedbackTimer.current !== null) clearTimeout(unlockFeedbackTimer.current);
       cleanupStyleListener();
       cleanupSettingsListener();
@@ -109,7 +117,7 @@ export function useOverlayWindowLayout({
       cleanupToolbarPlacementListener();
       cleanupUnlockFeedbackListener();
     };
-  }, [clearResizeState, setOverlayHovered, setSettings, setStyle, setToolbarSide, setUnlockFeedback, styleRef, unlockFeedbackTimer]);
+  }, [clearResizeState, setOverlayHovered, setSettings, setStartupGeneration, setStyle, setToolbarSide, setUnlockFeedback, styleRef, unlockFeedbackTimer]);
 
   useEffect(() => {
     const clearSelection = () => {

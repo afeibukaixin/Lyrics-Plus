@@ -46,7 +46,7 @@ export type OverlayStyle = {
   longText: "shrink" | "wrap" | "marquee";
   secondaryDisplay: "next" | "translation" | "romanization" | "translation_romanization";
   autoCenterWithTranslationOrRomanization: boolean;
-  karaokeStyle: "sweep" | "bounce" | "highlight";
+  karaokeStyle: "sweep" | "bounce" | "highlight" | "glow";
   secondaryFontScale: number;
   translationFontScale: number;
   romanizationFontScale: number;

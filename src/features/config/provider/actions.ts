@@ -10,6 +10,7 @@ import { api, isTauriRuntime } from "../../../shared/api";
 import {
   defaultLyricsBaseAppearance,
   type AppConfig,
+  type DailyQuoteSettings,
   type ChineseConversion,
   type GlobalShortcutSettings,
   type LanguagePreference,
@@ -35,6 +36,7 @@ export type ConfigActions = {
   setDockIconHidden: (hidden: boolean) => Promise<void>;
   setMenuBarIconHidden: (hidden: boolean) => Promise<void>;
   setSilentStartup: (enabled: boolean) => Promise<void>;
+  setDailyQuoteSettings: (settings: DailyQuoteSettings) => Promise<void>;
   setAutoCheckUpdates: (enabled: boolean) => Promise<void>;
   setLyricsWindowsShowOnAllSpaces: (enabled: boolean) => Promise<void>;
   setOverlayHideWhenNotPlaying: (hidden: boolean) => Promise<void>;
@@ -199,6 +201,13 @@ export function useConfigActions(
         return;
       }
       setConfig(await api.setAutoCheckUpdates(enabled));
+    },
+    setDailyQuoteSettings: async (settings) => {
+      if (!isTauriRuntime()) {
+        setConfig((current) => ({ ...current, app: { ...current.app, dailyQuote: settings } }));
+        return;
+      }
+      setConfig(await api.setDailyQuoteSettings(settings));
     },
     setLyricsWindowsShowOnAllSpaces: async (enabled) => {
       if (!isTauriRuntime()) {

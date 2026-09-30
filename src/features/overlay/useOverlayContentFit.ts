@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject, type RefObject } from "react";
 import { api, isTauriRuntime } from "../../shared/api";
+import { reportFrontendError } from "../../shared/debugLog";
 import type { OverlayStyle } from "../../shared/types";
 import {
   combinedContentSize,
@@ -16,6 +17,8 @@ const MARQUEE_SPEED_PX_PER_SECOND = 35;
 const DEFAULT_MARQUEE_DURATION_SECONDS = 4;
 
 type UseOverlayContentFitOptions = {
+  startupGeneration: number | null;
+  fitSequence: MutableRefObject<number>;
   linesRef: RefObject<HTMLDivElement | null>;
   activeRef: RefObject<HTMLDivElement | null>;
   supportingRefs: MutableRefObject<Array<HTMLDivElement | null>>;
@@ -54,6 +57,8 @@ type UseOverlayContentFitOptions = {
 };
 
 export function useOverlayContentFit({
+  startupGeneration,
+  fitSequence,
   linesRef,
   activeRef,
   supportingRefs,
@@ -160,7 +165,7 @@ export function useOverlayContentFit({
   }, [fitLimits.height, fitLimits.width, fitRetryTimer, fitFrame, preserveSizeForEmptyLine, primaryLineKey, shrinkTimer, supportingKey, style.backgroundPaddingX, style.backgroundPaddingY, style.fontFamily, style.fontFamilies, style.fontSize, style.fontWeight, style.horizontalMaxWidth, style.layout, style.lineGap, style.lineHeight, style.longText, style.orientation, style.romanizationFontScale, style.safetyInsetX, style.safetyInsetY, style.secondaryFontScale, style.secondaryFontWeight, style.textShadowBlur, style.textShadowOffsetX, style.textShadowOffsetY, style.textStrokeWidth, style.translationFontScale, style.verticalMaxHeight]);
 
   useLayoutEffect(() => {
-    if (!settingsVisible || resizing) {
+    if (!settingsVisible || resizing || startupGeneration === null) {
       lastRequestedSize.current = null;
       if (fitFrame.current !== null) cancelAnimationFrame(fitFrame.current);
       fitFrame.current = null;
@@ -295,13 +300,14 @@ export function useOverlayContentFit({
     let cancelled = false;
     const applySize = (nextSize: { width: number; height: number }) => {
       if (cancelled || !isTauriRuntime()) return;
-      void api.fitOverlayContent(nextSize.width, nextSize.height).then((applied) => {
+      if (startupGeneration === null) return;
+      void api.fitOverlayContent(nextSize.width, nextSize.height, startupGeneration, ++fitSequence.current).then((applied) => {
         if (cancelled || applied || lastRequestedSize.current !== nextSize) return;
         fitRetryTimer.current = setTimeout(() => {
           fitRetryTimer.current = null;
           if (!cancelled && lastRequestedSize.current === nextSize) applySize(nextSize);
         }, FIT_RETRY_DELAY_MS);
-      });
+      }).catch((error) => reportFrontendError("Failed to fit desktop lyrics window", error));
     };
     const requestSize = (nextSize: { width: number; height: number }) => {
       if (fitFrame.current !== null) cancelAnimationFrame(fitFrame.current);
@@ -334,7 +340,7 @@ export function useOverlayContentFit({
       if (shrinkTimer.current !== null) clearTimeout(shrinkTimer.current);
       shrinkTimer.current = null;
     };
-  }, [constrained, fitLimits.height, fitLimits.width, fitScale, horizontalContentLimit, horizontalWindowLimit, marqueeHorizontalLimit, marqueeMetrics, marqueeTimeLimit, marqueeVerticalLimit, overlayHorizontalPadding, overlayVerticalPadding, paintRevision, preserveSizeForEmptyLine, primaryText, resizing, settingsVisible, style.fontFamily, style.fontFamilies, style.fontSize, style.fontWeight, style.layout, style.lineGap, style.lineHeight, style.longText, style.orientation, style.romanizationFontScale, style.safetyInsetX, style.safetyInsetY, style.secondaryFontScale, style.secondaryFontWeight, style.textShadowBlur, style.textShadowOffsetX, style.textShadowOffsetY, style.textStrokeWidth, style.translationFontScale, supportingKey, vertical, verticalContentLimit, verticalWindowLimit, wrapped]);
+  }, [constrained, fitLimits.height, fitLimits.width, fitScale, horizontalContentLimit, horizontalWindowLimit, marqueeHorizontalLimit, marqueeMetrics, marqueeTimeLimit, marqueeVerticalLimit, overlayHorizontalPadding, overlayVerticalPadding, paintRevision, preserveSizeForEmptyLine, primaryText, resizing, settingsVisible, startupGeneration, style.fontFamily, style.fontFamilies, style.fontSize, style.fontWeight, style.layout, style.lineGap, style.lineHeight, style.longText, style.orientation, style.romanizationFontScale, style.safetyInsetX, style.safetyInsetY, style.secondaryFontScale, style.secondaryFontWeight, style.textShadowBlur, style.textShadowOffsetX, style.textShadowOffsetY, style.textStrokeWidth, style.translationFontScale, supportingKey, vertical, verticalContentLimit, verticalWindowLimit, wrapped]);
 
   return paintRevision;
 }

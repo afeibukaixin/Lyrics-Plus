@@ -1,6 +1,6 @@
 [package]
 name = "lyrics-plus"
-version = "2.2.19"
+version = "2.2.20"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -30,6 +30,7 @@ serde_json = "1"
 serde-saphyr = { version = "1.2", default-features = false, features = ["deserialize"] }
 base64 = "0.22"
 encoding_rs = "0.8"
+chrono = { version = "0.4", default-features = false, features = ["std"] }
 minisign-verify = "0.2.5"
 lyrics-crypto = { git = "https://github.com/ChouChiu/Lyrics-Helper.git", package = "lyrics-crypto" }
 futures = "0.3"
@@ -53,7 +54,7 @@ block2 = "0.6"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["NSAttributedString", "NSBitmapImageRep", "NSButton", "NSColor", "NSControl", "NSEvent", "NSFont", "NSFontDescriptor", "NSFontManager", "NSFontPanel", "NSGraphics", "NSGraphicsContext", "NSImage", "NSImageRep", "NSMenu", "NSPanel", "NSResponder", "NSRunningApplication", "NSScreen", "NSStatusBarButton", "NSStatusItem", "NSUserInterfaceItemIdentification", "NSView", "NSWindow", "NSWorkspace", "libc", "objc2-core-graphics", "objc2-quartz-core"] }
 objc2-core-graphics = { version = "0.3", default-features = false, features = ["CGColor", "CGDirectDisplay"] }
-objc2-core-foundation = { version = "0.3", default-features = false, features = ["objc2"] }
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["objc2", "CFUUID"] }
 objc2-core-video = { version = "0.3", default-features = false, features = ["CVBase", "CVDisplayLink", "CVReturn", "objc2", "objc2-core-graphics"] }
 objc2-core-services = { version = "0.3", default-features = false, features = ["AE", "AEDataModel"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["block2", "NSArray", "NSAppleEventDescriptor", "NSAttributedString", "NSBundle", "NSDictionary", "NSEnumerator", "NSError", "NSGeometry", "NSLocale", "NSObjCRuntime", "NSNotification", "NSObject", "NSOperation", "NSRange", "NSRunLoop", "NSString", "NSURL", "NSValue"] }
