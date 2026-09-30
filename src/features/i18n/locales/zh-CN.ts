@@ -247,7 +247,7 @@ export const zhCN = {
     debug: {
       title: "调试日志", description: "查看后端、AppleScript 和前端操作产生的实时错误与调试信息。", live: "实时日志",
       toggle: "实时调试日志", toggleHint: "仅收集本次开启后的日志；关闭、再次开启或重启应用都会清空",
-      filter: "日志级别筛选", clear: "清空", waiting: "等待新的日志…", filteredEmpty: "当前筛选条件下没有日志。",
+      filter: "日志级别筛选", export: "导出日志", clear: "清空", waiting: "等待新的日志…", filteredEmpty: "当前筛选条件下没有日志。",
       disabledHint: "开启后开始收集日志；该页面没有“恢复默认”，也不会受到应用设置重置影响。",
     },
     config: {

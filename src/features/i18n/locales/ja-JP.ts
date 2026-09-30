@@ -250,7 +250,7 @@ export const jaJP = {
     debug: {
       title: "デバッグログ", description: "バックエンド、AppleScript、フロントエンド操作の診断情報をリアルタイムで表示します。", live: "ライブログ",
       toggle: "ライブデバッグログ", toggleHint: "有効にした後に生成されたログのみ収集します。無効化、再有効化、再起動で消去されます",
-      filter: "ログレベルのフィルター", clear: "クリア", waiting: "新しいログを待機中…", filteredEmpty: "現在のフィルターに一致するログはありません。",
+      filter: "ログレベルのフィルター", export: "ログをエクスポート", clear: "クリア", waiting: "新しいログを待機中…", filteredEmpty: "現在のフィルターに一致するログはありません。",
       disabledHint: "ログを有効にすると収集を開始します。このページにはデフォルトに戻す操作はなく、アプリケーション設定のリセットにも影響されません。",
     },
     config: {

@@ -250,7 +250,7 @@ export const koKR = {
     debug: {
       title: "디버그 로그", description: "백엔드, AppleScript 및 프런트엔드 작업의 실시간 진단 정보를 봅니다.", live: "실시간 로그",
       toggle: "실시간 디버그 로그", toggleHint: "활성화한 후 생성된 로그만 수집합니다. 비활성화, 다시 활성화 또는 재시작하면 지워집니다",
-      filter: "로그 수준 필터", clear: "지우기", waiting: "새 로그 대기 중…", filteredEmpty: "현재 필터와 일치하는 로그가 없습니다.",
+      filter: "로그 수준 필터", export: "로그 내보내기", clear: "지우기", waiting: "새 로그 대기 중…", filteredEmpty: "현재 필터와 일치하는 로그가 없습니다.",
       disabledHint: "로깅을 활성화하면 수집을 시작합니다. 이 페이지에는 기본값 복원 작업이 없으며 애플리케이션 설정 재설정의 영향을 받지 않습니다.",
     },
     config: {

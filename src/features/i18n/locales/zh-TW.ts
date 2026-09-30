@@ -242,7 +242,7 @@ export const zhTW = {
     debug: {
       title: "偵錯紀錄", description: "檢視後端、AppleScript 和前端操作所產生的即時錯誤與偵錯資訊。", live: "即時紀錄",
       toggle: "即時偵錯紀錄", toggleHint: "只會收集本次啟用後的紀錄；停用、再次啟用或重新啟動應用程式都會清除",
-      filter: "紀錄層級篩選", clear: "清除", waiting: "等待新的紀錄…", filteredEmpty: "目前的篩選條件下沒有紀錄。",
+      filter: "紀錄層級篩選", export: "匯出紀錄", clear: "清除", waiting: "等待新的紀錄…", filteredEmpty: "目前的篩選條件下沒有紀錄。",
       disabledHint: "啟用後開始收集紀錄；此頁面沒有「恢復預設值」，也不受應用程式設定重設影響。",
     },
     config: {

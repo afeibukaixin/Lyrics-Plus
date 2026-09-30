@@ -249,7 +249,7 @@ export const enUS = {
     debug: {
       title: "Debug Logs", description: "View live diagnostics from the backend, AppleScript, and frontend operations.", live: "Live Logs",
       toggle: "Live debug logs", toggleHint: "Only logs produced after enabling are collected; disabling, enabling again, or restarting clears them",
-      filter: "Log level filters", clear: "Clear", waiting: "Waiting for new logs…", filteredEmpty: "No logs match the current filters.",
+      filter: "Log level filters", export: "Export logs", clear: "Clear", waiting: "Waiting for new logs…", filteredEmpty: "No logs match the current filters.",
       disabledHint: "Enable logging to start collecting. This page has no restore-defaults action and is unaffected by application settings resets.",
     },
     config: {
