@@ -44,7 +44,7 @@ export function ListKaraokeLine({
   useKaraokeTimeline({
     axis: "x",
     effect: karaokeStyle === "glow" ? "glow-lift" : "sweep",
-    enabled: words.length > 0,
+    enabled: karaokeStyle !== "highlight" && words.length > 0,
     lineStartMs: line.startMs,
     playing,
     positionMs,
@@ -54,7 +54,8 @@ export function ListKaraokeLine({
     fontLayoutKey,
   });
 
-  if (words.length === 0) return <span>{line.text}</span>;
+  // 纯高亮直接继承当前行颜色，不创建逐词绘制层。
+  if (karaokeStyle === "highlight" || words.length === 0) return <span>{line.text}</span>;
 
   return (
     <span ref={scopeRef} className={styles.karaokeText} data-karaoke={karaokeStyle}>

@@ -476,7 +476,7 @@ export type LyricsStyleMode = "desktop" | "statusBar" | "listWindow" | "notch";
 export type CompactKaraokeStyle = "sweep" | "highlight";
 export type NotchKaraokeStyle = CompactKaraokeStyle | "glow";
 
-export type ListLyricsKaraokeStyle = "sweep" | "glow";
+export type ListLyricsKaraokeStyle = "sweep" | "highlight" | "glow";
 
 export type StatusBarAlignment = "left" | "center" | "right";
 

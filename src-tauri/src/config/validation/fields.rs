@@ -351,7 +351,7 @@ pub(super) fn validate_field_types_and_options(
         (
             "/lyrics/displays/listWindow/appearance/karaokeStyle",
             "karaokeStyle",
-            &["sweep", "glow"] as &[&str],
+            &["sweep", "highlight", "glow"] as &[&str],
         ),
         (
             "/lyrics/displays/statusBar/appearance/karaokeStyle",

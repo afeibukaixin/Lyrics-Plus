@@ -1109,7 +1109,10 @@ impl AppConfig {
         ) {
             list_appearance.background_mode = "solid".into();
         }
-        if !matches!(list_appearance.karaoke_style.as_str(), "sweep" | "glow") {
+        if !matches!(
+            list_appearance.karaoke_style.as_str(),
+            "sweep" | "highlight" | "glow"
+        ) {
             list_appearance.karaoke_style = "glow".into();
         }
         if !matches!(
