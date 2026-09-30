@@ -47,6 +47,25 @@ pub struct ConfigStore {
     state: RwLock<ConfigStoreState>,
 }
 
+fn migrate_v78_daily_quote_mode(user: &mut Value, version: u16) {
+    if version >= 78 {
+        return;
+    }
+    let Some(quote) = user
+        .pointer_mut("/app/dailyQuote")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    // 保留旧配置的关闭状态和小时数，显式设置的 mode 优先。
+    if let Some(enabled) = quote.get("enabled").and_then(Value::as_bool) {
+        quote.remove("enabled");
+        quote
+            .entry("mode")
+            .or_insert_with(|| Value::from(if enabled { "hourly" } else { "off" }));
+    }
+}
+
 fn configured_comment_language(preference: &LanguagePreference) -> UiLanguage {
     if preference.uses_native_chinese() {
         UiLanguage::ZhCn

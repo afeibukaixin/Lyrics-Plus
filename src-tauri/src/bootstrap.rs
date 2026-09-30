@@ -130,6 +130,9 @@ pub fn run() {
                 ),
                 system_media: Arc::new(SystemMediaService::default()),
                 http,
+                daily_quote: Arc::new(crate::daily_quote::DailyQuoteService::new(
+                    app.path().app_cache_dir().ok(),
+                )),
                 ui_update,
             });
             #[cfg(not(target_os = "macos"))]
@@ -469,6 +472,7 @@ pub fn run() {
             commands::set_dock_icon_hidden,
             commands::set_menu_bar_icon_hidden,
             commands::set_silent_startup,
+            commands::set_daily_quote_settings,
             commands::set_auto_check_updates,
             commands::set_overlay_hide_when_not_playing,
             commands::set_lyrics_windows_show_on_all_spaces,

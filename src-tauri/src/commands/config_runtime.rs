@@ -150,6 +150,8 @@ pub(super) fn apply_app_config(
         }
     };
 
+    crate::daily_quote::sync_main_window_title(app);
+
     let geometry = {
         let style = state
             .overlay_style

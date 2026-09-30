@@ -2,19 +2,21 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Monitor, Moon, Sun } from "lucide-react";
 
-import type { GlobalShortcutSettings, GlobalShortcutStatus, LanguagePreference, ThemePreference } from "../../../shared/types";
+import type { DailyQuoteCategory, DailyQuoteMode, DailyQuoteSettings, GlobalShortcutSettings, GlobalShortcutStatus, LanguagePreference, ThemePreference } from "../../../shared/types";
 import { api, messageOf } from "../../../shared/api";
 import { languageRegistry, supportedLanguages } from "../../../shared/languages";
 import { normalizeLanguagePreference } from "../../../features/i18n/i18n";
 import { Button } from "@/components/ui/button";
-import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet, FieldTitle } from "@/components/ui/field";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 import { useSettingsContext } from "../shared/SettingsContext";
 import styles from "../settings.module.scss";
-import { PageHeader, SelectRow, SettingsPage, SettingsSection, ToggleRow } from "../shared/components";
+import { PageHeader, RangeRow, SelectRow, SettingsPage, SettingsSection, ToggleRow } from "../shared/components";
 
 const languageOptions = supportedLanguages.map((code) => ({ code, label: languageRegistry[code].nativeLabel }));
+const dailyQuoteCategories: DailyQuoteCategory[] = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"];
 type ShortcutAction = keyof GlobalShortcutSettings;
 const shortcutActions: ShortcutAction[] = [
   "toggleOverlay",
@@ -62,6 +64,7 @@ export default function ApplicationSettingsPage() {
     setDockIconHidden,
     setMenuBarIconHidden,
     setSilentStartup,
+    setDailyQuoteSettings,
     setLyricsWindowsShowOnAllSpaces,
     resettingSection,
     confirmingReset,
@@ -72,6 +75,8 @@ export default function ApplicationSettingsPage() {
   const [recording, setRecording] = useState<ShortcutAction | null>(null);
   const shortcutRecorderRefs = useRef<Partial<Record<ShortcutAction, HTMLButtonElement | null>>>({});
   const [savingShortcut, setSavingShortcut] = useState(false);
+  const [savingQuoteSettings, setSavingQuoteSettings] = useState(false);
+  const quoteSettingsSaveInFlight = useRef(false);
   const [shortcutStatus, setShortcutStatus] = useState<GlobalShortcutStatus | null>(null);
 
   useEffect(() => {
@@ -110,6 +115,32 @@ export default function ApplicationSettingsPage() {
     }
   };
 
+  const saveQuoteCategory = async (category: DailyQuoteCategory, checked: boolean) => {
+    // 同步拦截同一帧内的重复操作，避免读取尚未保存的配置。
+    if (quoteSettingsSaveInFlight.current) return;
+    const categories = dailyQuoteCategories.filter((code) =>
+      code === category ? checked : config.app.dailyQuote.categories.includes(code),
+    );
+    if (categories.length === 0) {
+      setError(t("settings.app.dailyQuote.categoriesRequired"));
+      return;
+    }
+    await saveQuoteSettings({ ...config.app.dailyQuote, categories }).catch((error) => setError(messageOf(error)));
+  };
+
+  const saveQuoteSettings = async (settings: DailyQuoteSettings) => {
+    if (quoteSettingsSaveInFlight.current) return;
+    quoteSettingsSaveInFlight.current = true;
+    setSavingQuoteSettings(true);
+    setError(null);
+    try {
+      await setDailyQuoteSettings(settings);
+    } finally {
+      quoteSettingsSaveInFlight.current = false;
+      setSavingQuoteSettings(false);
+    }
+  };
+
   const unavailableShortcuts = shortcutStatus
     ? shortcutActions.filter((action) => config.app.shortcuts[action].trim() && !shortcutStatus[action])
     : [];
@@ -117,6 +148,7 @@ export default function ApplicationSettingsPage() {
   return <SettingsPage sections={[
     { id: "application-startup", label: t("settings.player.startup") },
     { id: "application-display", label: t("settings.app.display") },
+    { id: "application-daily-quote", label: t("settings.app.dailyQuote.title") },
     { id: "application-shortcuts", label: t("settings.app.shortcuts") },
   ]}>
     <PageHeader
@@ -150,6 +182,59 @@ export default function ApplicationSettingsPage() {
         value={config.app.lyricsWindowsShowOnAllSpaces}
         onChange={(enabled) => void setLyricsWindowsShowOnAllSpaces(enabled).catch((error) => setError(messageOf(error)))}
       />
+    </SettingsSection>
+    <SettingsSection id="application-daily-quote" title={t("settings.app.dailyQuote.title")}>
+      <SelectRow
+        label={t("settings.app.dailyQuote.mode")}
+        description={t("settings.app.dailyQuote.modeHint")}
+        disabled={savingQuoteSettings}
+        value={config.app.dailyQuote.mode}
+        options={[
+          ["off", t("settings.app.dailyQuote.off")],
+          ["every_open", t("settings.app.dailyQuote.everyOpen")],
+          ["hourly", t("settings.app.dailyQuote.hourly")],
+        ]}
+        onChange={(mode) => void saveQuoteSettings({ ...config.app.dailyQuote, mode: mode as DailyQuoteMode }).catch((error) => setError(messageOf(error)))}
+      />
+      <FieldGroup className={styles.dailyQuoteSources}>
+        <FieldSet disabled={savingQuoteSettings}>
+          <FieldLegend>{t("settings.app.dailyQuote.categoriesLabel")}</FieldLegend>
+          <FieldGroup className={styles.dailyQuoteSourceGrid}>
+            {dailyQuoteCategories.map((category) => {
+              const checked = config.app.dailyQuote.categories.includes(category);
+              const disabled = savingQuoteSettings || (checked && new Set(config.app.dailyQuote.categories).size === 1);
+              return <Field key={category} orientation="horizontal" data-disabled={disabled}>
+                <Checkbox
+                  id={`daily-quote-category-${category}`}
+                  checked={checked}
+                  disabled={disabled}
+                  onCheckedChange={(value) => void saveQuoteCategory(category, value)}
+                />
+                <FieldLabel htmlFor={`daily-quote-category-${category}`}>{t(`settings.app.dailyQuote.categoryNames.${category}`)}</FieldLabel>
+              </Field>;
+            })}
+          </FieldGroup>
+        </FieldSet>
+      </FieldGroup>
+      {config.app.dailyQuote.mode === "hourly" && <RangeRow
+        label={t("settings.app.dailyQuote.interval")}
+        description={t("settings.app.dailyQuote.intervalHint")}
+        disabled={savingQuoteSettings}
+        value={config.app.dailyQuote.updateIntervalHours}
+        min={1}
+        max={24}
+        step={1}
+        suffix={t("settings.app.dailyQuote.hourSuffix")}
+        onChange={(updateIntervalHours) => void saveQuoteSettings({ ...config.app.dailyQuote, updateIntervalHours }).catch((error) => setError(messageOf(error)))}
+        onValueCommitted={async (updateIntervalHours) => {
+          try {
+            await saveQuoteSettings({ ...config.app.dailyQuote, updateIntervalHours });
+          } catch (error) {
+            setError(messageOf(error));
+            throw error;
+          }
+        }}
+      />}
     </SettingsSection>
     <SettingsSection id="application-shortcuts" title={t("settings.app.shortcuts")}>
       <div className={styles.shortcutRow}><span>{t("settings.app.openSettings")}</span><kbd>⌘ ,</kbd></div>

@@ -62,5 +62,6 @@ pub struct AppState {
     pub providers: Arc<ProviderRegistry>,
     pub system_media: Arc<SystemMediaService>,
     pub http: reqwest::Client,
+    pub(crate) daily_quote: Arc<crate::daily_quote::DailyQuoteService>,
     pub(crate) ui_update: Arc<UiUpdateManager>,
 }

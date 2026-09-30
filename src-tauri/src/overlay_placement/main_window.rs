@@ -64,17 +64,16 @@ pub(crate) fn show_main_window_at(
     }
 
     let existing = app.get_webview_window("main");
+    let opening = existing.as_ref().is_none_or(|window| {
+        !window.is_visible().unwrap_or(false) || window.is_minimized().unwrap_or(false)
+    });
     let window = if let Some(window) = existing.as_ref() {
         window.clone()
     } else {
         let path = route
             .map(|route| format!("index.html{route}"))
             .unwrap_or_else(|| "index.html".to_string());
-        let title = if cfg!(debug_assertions) {
-            "Lyrics Plus Dev"
-        } else {
-            "Lyrics Plus"
-        };
+        let title = crate::daily_quote::base_window_title();
         WebviewWindowBuilder::new(app, "main", crate::webview_url(app, &path))
             .title(title)
             .inner_size(980.0, 720.0)
@@ -100,7 +99,16 @@ pub(crate) fn show_main_window_at(
     if let Err(error) = window.unminimize() {
         log::warn!("Failed to unminimize the main window: {error}");
     }
+    if let Some(state) = app.try_state::<AppState>() {
+        let enabled = state.config.snapshot().app.daily_quote.is_enabled();
+        if let Err(error) = window.set_title(&state.daily_quote.window_title(enabled)) {
+            log::warn!("Failed to apply the cached daily quote: {error}");
+        }
+    }
     window.show().map_err(|error| error.to_string())?;
+    if opening {
+        crate::daily_quote::on_main_window_opened(app);
+    }
     crate::set_surface_runtime_state(app, &window, SurfaceRuntimeState::Active);
     window.set_focus().map_err(|error| error.to_string())
 }

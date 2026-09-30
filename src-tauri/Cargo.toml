@@ -30,6 +30,7 @@ serde_json = "1"
 serde-saphyr = { version = "1.2", default-features = false, features = ["deserialize"] }
 base64 = "0.22"
 encoding_rs = "0.8"
+chrono = { version = "0.4", default-features = false, features = ["std"] }
 minisign-verify = "0.2.5"
 lyrics-crypto = { git = "https://github.com/ChouChiu/Lyrics-Helper.git", package = "lyrics-crypto" }
 futures = "0.3"

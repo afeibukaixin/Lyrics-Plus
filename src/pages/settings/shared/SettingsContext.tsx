@@ -35,6 +35,7 @@ export type SettingsOutletContext = {
   setDockIconHidden: ReturnType<typeof useAppConfig>["setDockIconHidden"];
   setMenuBarIconHidden: ReturnType<typeof useAppConfig>["setMenuBarIconHidden"];
   setSilentStartup: ReturnType<typeof useAppConfig>["setSilentStartup"];
+  setDailyQuoteSettings: ReturnType<typeof useAppConfig>["setDailyQuoteSettings"];
   setLyricsWindowsShowOnAllSpaces: ReturnType<typeof useAppConfig>["setLyricsWindowsShowOnAllSpaces"];
   setOverlayHideWhenNotPlaying: ReturnType<typeof useAppConfig>["setOverlayHideWhenNotPlaying"];
   setStatusBarLyricsEnabled: ReturnType<typeof useAppConfig>["setStatusBarLyricsEnabled"];

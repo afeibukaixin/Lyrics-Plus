@@ -63,6 +63,15 @@ fn canonical_jsonc(value: &Value, language: UiLanguage) -> Result<String, String
             line if line.starts_with("    \"autoCheckUpdates\":") => {
                 Some(("    ", ConfigComment::AutoCheckUpdates))
             }
+            line if line.starts_with("    \"dailyQuote\":") => {
+                Some(("    ", ConfigComment::DailyQuote))
+            }
+            line if line.starts_with("      \"updateIntervalHours\":") => {
+                Some(("      ", ConfigComment::DailyQuoteInterval))
+            }
+            line if line.starts_with("      \"categories\":") => {
+                Some(("      ", ConfigComment::DailyQuoteCategories))
+            }
             line if line.starts_with("    \"shortcuts\":") => {
                 Some(("    ", ConfigComment::Shortcuts))
             }
@@ -373,9 +382,11 @@ fn ordered_keys<'a>(
             "hideMenuBarIcon",
             "silentStartup",
             "autoCheckUpdates",
+            "dailyQuote",
             "lyricsWindowsShowOnAllSpaces",
             "shortcuts",
         ][..],
+        "app.dailyQuote" => &["mode", "updateIntervalHours", "categories"][..],
         "app.shortcuts" => &[
             "toggleOverlay",
             "unlockOverlay",

@@ -17,7 +17,7 @@ use crate::overlay_model::{
 use crate::player::PlayerSelection;
 use crate::storage::Storage;
 
-pub const CONFIG_SCHEMA_VERSION: u16 = 76;
+pub const CONFIG_SCHEMA_VERSION: u16 = 78;
 const DEFAULT_SWITCH_LYRICS_SHORTCUT: &str = "CommandOrControl+Shift+KeyY";
 const APP_CONFIG_KEYS: &[&str] = &[
     "theme",
@@ -31,6 +31,7 @@ const APP_CONFIG_KEYS: &[&str] = &[
     "hideMenuBarIcon",
     "silentStartup",
     "autoCheckUpdates",
+    "dailyQuote",
     "lyricsWindowsShowOnAllSpaces",
     "shortcuts",
 ];

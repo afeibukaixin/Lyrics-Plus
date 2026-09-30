@@ -21,6 +21,16 @@ export type TelemetrySettings = {
   enabled: boolean;
 };
 
+export type DailyQuoteMode = "off" | "every_open" | "hourly";
+
+export type DailyQuoteCategory = "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l";
+
+export type DailyQuoteSettings = {
+  mode: DailyQuoteMode;
+  updateIntervalHours: number;
+  categories: DailyQuoteCategory[];
+};
+
 export type AppConfig = {
   schemaVersion: number;
   app: {
@@ -35,6 +45,7 @@ export type AppConfig = {
     hideMenuBarIcon: boolean;
     silentStartup: boolean;
     autoCheckUpdates: boolean;
+    dailyQuote: DailyQuoteSettings;
     lyricsWindowsShowOnAllSpaces: boolean;
     shortcuts: GlobalShortcutSettings;
   };

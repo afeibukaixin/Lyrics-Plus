@@ -481,6 +481,7 @@ pub fn reset_settings_section(
                 "/app/hideMenuBarIcon",
                 "/app/shortcuts",
                 "/app/silentStartup",
+                "/app/dailyQuote",
                 "/app/lyricsWindowsShowOnAllSpaces",
             ]) {
                 let _ = crate::apply_global_shortcuts(&app, &defaults, &previous.app.shortcuts);
@@ -488,6 +489,7 @@ pub fn reset_settings_section(
                 let _ = crate::apply_dock_icon_hidden(&app, previous.app.hide_dock_icon);
                 return Err(error);
             }
+            crate::daily_quote::sync_main_window_title(&app);
             crate::apply_lyrics_windows_space_behavior(&app, false)
                 .map_err(|error| error.to_string())?;
         }

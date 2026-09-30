@@ -1,5 +1,6 @@
 mod commands;
 mod config;
+mod daily_quote;
 mod factory_reset;
 #[cfg(target_os = "macos")]
 mod font_weight;

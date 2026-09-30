@@ -102,6 +102,10 @@ pub(super) fn parse_config_draft(raw: &str) -> Result<ParsedDraft, ConfigDraftEr
         if version_was_omitted { 0 } else { version },
     );
     config::remove_retired_fullscreen_space_preferences(&mut user);
+    config::migrate_v78_daily_quote_mode(
+        &mut user,
+        if version_was_omitted { 0 } else { version },
+    );
     super::structure::validate_known_fields(&user, raw)?;
     super::fields::validate_field_types_and_options(&user, raw)?;
     config::migrate_status_bar_status_item_fields(&mut user);

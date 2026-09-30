@@ -566,6 +566,22 @@ pub fn set_silent_startup(
 }
 
 #[tauri::command]
+pub fn set_daily_quote_settings(
+    app: tauri::AppHandle,
+    settings: crate::config::DailyQuoteSettings,
+    state: State<'_, AppState>,
+) -> Result<AppConfig, String> {
+    settings.validate()?;
+    let config = state
+        .config
+        .update(|config| config.app.daily_quote = settings)?;
+    crate::daily_quote::sync_main_window_title(&app);
+    app.emit("config://changed", &config)
+        .map_err(|error| error.to_string())?;
+    Ok(config)
+}
+
+#[tauri::command]
 pub fn set_auto_check_updates(
     app: tauri::AppHandle,
     enabled: bool,

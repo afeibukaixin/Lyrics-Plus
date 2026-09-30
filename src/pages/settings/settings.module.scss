@@ -50,6 +50,9 @@
 .settingRow { min-height: 58px; align-items: center; justify-content: space-between; gap: 20px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
 .settingRow [data-slot="field-label"], .shortcutRow > span:first-child, .applicationItem [data-slot="item-title"], .provider [data-slot="item-title"], .applicationEmpty [data-slot="empty-title"], .currentTrack strong, .aboutHero strong, .colorPresetButton strong { font-size: 1rem; }
 .settingRow:last-child { border-bottom: 0; }
+.dailyQuoteSources { min-width: 0; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.dailyQuoteSources:last-child { border-bottom: 0; }
+.dailyQuoteSourceGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px 16px; }
 .rangeControl { width: min(330px, 60%); display: grid; grid-template-columns: 1fr 52px; gap: 10px; align-items: center; }
 .rangeControl output { text-align: right; }
 .rangePairControl { width: min(330px, 60%); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
