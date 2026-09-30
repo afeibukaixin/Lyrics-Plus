@@ -29,7 +29,7 @@ mod window_placement {
 mod windows;
 
 use std::sync::{Arc, Mutex, RwLock};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use config::ConfigStore;
 pub(crate) use overlay_model::{OverlayOrientation, OverlayStyleSettings};

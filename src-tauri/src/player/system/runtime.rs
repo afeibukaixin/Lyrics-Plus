@@ -38,6 +38,13 @@ struct RefreshSchedule {
     interval: Duration,
 }
 
+#[derive(PartialEq, Eq)]
+enum AdapterReadState {
+    Available(String),
+    Empty,
+    Failed,
+}
+
 pub(super) struct AdapterRuntime {
     pub(super) latest: RwLock<Option<TimedInfo>>,
     // 所有版本读取/比较/递增均受 latest 锁保护，包括跳转确认。
@@ -159,7 +166,6 @@ impl AdapterRuntime {
         payload: &Value,
         expected_version: Option<u64>,
     ) -> Result<bool, String> {
-        let received_at = Instant::now();
         let mut next = payload_to_timed(payload)?;
         let mut latest = self.latest.write().unwrap_or_else(|e| e.into_inner());
         if self.stopped.load(Ordering::SeqCst) {
@@ -209,7 +215,7 @@ impl AdapterRuntime {
                 self.enrichment_wake.notify_one();
             }
         }
-        let version = self.state_version.fetch_add(1, Ordering::SeqCst) + 1;
+        self.state_version.fetch_add(1, Ordering::SeqCst);
         {
             let mut presentation = self.presentation.lock().unwrap_or_else(|e| e.into_inner());
             presentation.update(next.as_ref());
@@ -219,16 +225,6 @@ impl AdapterRuntime {
         drop(queue);
         drop(latest);
         self.playback_changed.notify_one();
-        log::debug!(
-            "系统媒体提交 source={} version={} elapsed_us={}",
-            if expected_version.is_some() {
-                "get"
-            } else {
-                "stream"
-            },
-            version,
-            received_at.elapsed().as_micros()
-        );
         Ok(true)
     }
 
@@ -263,6 +259,8 @@ impl AdapterRuntime {
 
     fn stream_loop(&self) {
         let mut failures = 0_usize;
+        let mut stream_unavailable = false;
+        let mut invalid_event_logged = false;
         while !self.stopped.load(Ordering::SeqCst) {
             let started_at = Instant::now();
             let stream = {
@@ -285,7 +283,10 @@ impl AdapterRuntime {
                         stdout
                     }
                     Err(error) => {
-                        log::warn!("系统媒体监听启动失败：{error}");
+                        if !stream_unavailable {
+                            log::warn!("系统媒体监听启动失败：{error}");
+                        }
+                        stream_unavailable = true;
                         None
                     }
                 }
@@ -298,34 +299,52 @@ impl AdapterRuntime {
                     let line = match line {
                         Ok(line) => line,
                         Err(error) => {
-                            log::warn!("系统媒体监听读取失败：{error}");
+                            if !stream_unavailable {
+                                log::warn!("系统媒体监听读取失败：{error}");
+                            }
+                            stream_unavailable = true;
                             break;
                         }
                     };
-                    let received_at = Instant::now();
                     match serde_json::from_str::<Value>(&line) {
                         Ok(event)
                             if event.get("type").and_then(Value::as_str) == Some("data")
                                 && event.get("diff").and_then(Value::as_bool) == Some(false) =>
                         {
                             if let Some(payload) = event.get("payload") {
-                                if let Err(error) = self.commit(payload, None) {
-                                    log::debug!("系统媒体事件无效：{error}");
+                                match self.commit(payload, None) {
+                                    Ok(_) => {
+                                        invalid_event_logged = false;
+                                        if stream_unavailable {
+                                            log::info!("系统媒体监听已恢复");
+                                            stream_unavailable = false;
+                                        }
+                                    }
+                                    Err(error) if !invalid_event_logged => {
+                                        log::warn!("系统媒体事件无效：{error}");
+                                        invalid_event_logged = true;
+                                    }
+                                    Err(_) => {}
                                 }
-                                log::debug!(
-                                    "系统媒体事件接收至提交 elapsed_us={}",
-                                    received_at.elapsed().as_micros()
-                                );
                             }
                         }
-                        _ => log::debug!("系统媒体监听忽略无效事件"),
+                        _ => {}
                     }
                 }
             }
-            if let Some(mut child) = self.child.lock().unwrap_or_else(|e| e.into_inner()).take() {
-                let _ = child.kill();
-                let _ = child.wait();
-            }
+            let exit_status = self
+                .child
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .take()
+                .and_then(|mut child| {
+                    let status = child.try_wait().ok().flatten();
+                    if status.is_none() {
+                        let _ = child.kill();
+                    }
+                    let _ = child.wait();
+                    status
+                });
             if self.stopped.load(Ordering::SeqCst) {
                 break;
             }
@@ -334,7 +353,10 @@ impl AdapterRuntime {
             }
             let delay = [1, 2, 5][failures.min(2)];
             failures = failures.saturating_add(1);
-            log::warn!("系统媒体监听已退出，{delay} 秒后重启");
+            if !stream_unavailable {
+                log::warn!("系统媒体监听已退出 status={exit_status:?}，{delay} 秒后重启");
+                stream_unavailable = true;
+            }
             self.request_refresh();
             // 分段等待使销毁无需等待完整的重试退避时间。
             for _ in 0..delay * 10 {
@@ -348,7 +370,7 @@ impl AdapterRuntime {
 
     fn refresh_loop(&self) {
         let mut last_refresh = Instant::now();
-        let mut error_logged = false;
+        let mut last_read_state: Option<AdapterReadState> = None;
         loop {
             let mut schedule = self.refresh.lock().unwrap_or_else(|e| e.into_inner());
             while !self.stopped.load(Ordering::SeqCst)
@@ -380,7 +402,6 @@ impl AdapterRuntime {
                         .is_none_or(|timed| timed.info.album_cover.is_none()),
                 )
             };
-            let started_at = Instant::now();
             let mut arguments = vec!["get", "--now", "--micros"];
             if !needs_artwork {
                 arguments.push("--no-artwork");
@@ -390,8 +411,13 @@ impl AdapterRuntime {
                     // 上游超时可能以成功退出码打印 null 和 stderr，不能当作媒体清空。
                     if !output.status.success() || !output.stderr.is_empty() {
                         return Err(format!(
-                            "系统媒体查询失败：{}",
-                            String::from_utf8_lossy(&output.stderr).trim()
+                            "exit={} stderr={}",
+                            output.status,
+                            String::from_utf8_lossy(&output.stderr)
+                                .trim()
+                                .chars()
+                                .take(200)
+                                .collect::<String>()
                         ));
                     }
                     let mut payload: Value = serde_json::from_slice(&output.stdout)
@@ -406,22 +432,31 @@ impl AdapterRuntime {
                     {
                         payload = Value::Null;
                     }
-                    self.commit(&payload, Some(version))
+                    let bundle_id = payload
+                        .get("bundleIdentifier")
+                        .and_then(Value::as_str)
+                        .unwrap_or("unknown")
+                        .to_owned();
+                    let available = !payload.is_null()
+                        && !payload.as_object().is_some_and(|value| value.is_empty());
+                    self.commit(&payload, Some(version))?;
+                    Ok(available.then_some(bundle_id))
                 },
             );
-            if let Err(error) = result {
-                if !error_logged {
-                    log::warn!("{error}");
+            let state = match &result {
+                Ok(Some(bundle_id)) => AdapterReadState::Available(bundle_id.clone()),
+                Ok(None) => AdapterReadState::Empty,
+                Err(_) => AdapterReadState::Failed,
+            };
+            if last_read_state.as_ref() != Some(&state) {
+                match &result {
+                    Ok(Some(bundle_id)) => log::info!("系统媒体适配器读取成功 bundle={bundle_id}"),
+                    Ok(None) => log::info!("系统媒体适配器返回空结果"),
+                    Err(error) => log::warn!("系统媒体适配器读取失败：{error}"),
                 }
-                error_logged = true;
-            } else {
-                error_logged = false;
+                last_read_state = Some(state);
             }
             last_refresh = Instant::now();
-            log::debug!(
-                "系统媒体后台校准 elapsed_ms={}",
-                started_at.elapsed().as_millis()
-            );
         }
     }
 

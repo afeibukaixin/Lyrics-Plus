@@ -148,7 +148,6 @@ fn start_player_monitor(app: tauri::AppHandle) {
                 })
                 .unwrap_or_default();
 
-            let publication_started = Instant::now();
             let query_system_media = system_media.clone();
             let (mut snapshot, next_auto_player) =
                 tauri::async_runtime::spawn_blocking(move || {
@@ -184,16 +183,6 @@ fn start_player_monitor(app: tauri::AppHandle) {
                 state.status_bar_wake.notify_one();
             }
             let _ = app.emit("playback://snapshot", &snapshot);
-            if snapshot.player == Some(player::PlayerKind::System) {
-                log::debug!(
-                    "系统媒体快照发布 title={:?} playing={} display_playing={} observed_at_ms={} elapsed_us={}",
-                    snapshot.title,
-                    snapshot.is_playing,
-                    snapshot.is_playing_for_display(),
-                    snapshot.observed_at_ms,
-                    publication_started.elapsed().as_micros()
-                );
-            }
             if let Some(state) = app.try_state::<AppState>() {
                 state.spectrum.sync_snapshot(&app, &snapshot);
             }

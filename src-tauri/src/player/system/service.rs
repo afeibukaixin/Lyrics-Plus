@@ -22,6 +22,8 @@ pub struct SystemMediaService {
     targeted_sources: Mutex<HashMap<String, TargetedSource>>,
     targeted_artwork_cache: Mutex<Option<PlaybackArtwork>>,
     control_gate: Mutex<()>,
+    targeted_diagnostic: Mutex<Option<String>>,
+    selection_diagnostic: Mutex<Option<String>>,
 }
 
 impl Default for SystemMediaService {
@@ -32,6 +34,8 @@ impl Default for SystemMediaService {
             targeted_sources: Mutex::new(HashMap::new()),
             targeted_artwork_cache: Mutex::new(None),
             control_gate: Mutex::new(()),
+            targeted_diagnostic: Mutex::new(None),
+            selection_diagnostic: Mutex::new(None),
         }
     }
 }
@@ -39,7 +43,13 @@ impl Default for SystemMediaService {
 impl SystemMediaService {
     fn player(&self) -> Result<&adapter::AdapterClient, String> {
         self.player
-            .get_or_init(adapter::initialize)
+            .get_or_init(|| {
+                let result = adapter::initialize();
+                if let Err(error) = &result {
+                    log::warn!("系统媒体适配器初始化失败：{error}");
+                }
+                result
+            })
             .as_ref()
             .map_err(Clone::clone)
     }
@@ -72,10 +82,6 @@ impl SystemMediaService {
             .latest
             .read()
             .unwrap_or_else(|error| error.into_inner());
-        let version = player
-            .runtime
-            .state_version
-            .load(std::sync::atomic::Ordering::SeqCst);
         let display_is_playing = player
             .runtime
             .presentation
@@ -95,14 +101,42 @@ impl SystemMediaService {
         };
         let mut snapshot = metadata::snapshot_from_info(info);
         snapshot.display_is_playing = Some(display_is_playing);
-        log::debug!(
-            "系统媒体快照读取 version={} observed_at_ms={} received_age_us={}",
-            version,
-            snapshot.observed_at_ms,
-            info.received_at.elapsed().as_micros()
-        );
         artwork::invalidate_cache(&self.artwork_cache, &snapshot);
         snapshot
+    }
+
+    /// 仅在最终播放器或可诊断状态变化时记录，避免轮询刷屏。
+    pub(crate) fn log_selection(&self, snapshot: &PlaybackSnapshot) {
+        let status = format!(
+            "player={:?} bundle={} playing={} error={:?}",
+            snapshot.player,
+            snapshot.source_app_bundle_id.as_deref().unwrap_or("none"),
+            snapshot.is_playing,
+            snapshot.error_code,
+        );
+        let mut previous = self
+            .selection_diagnostic
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if previous.as_deref() != Some(&status) {
+            log::info!("系统媒体最终选源：{status}");
+            *previous = Some(status);
+        }
+    }
+
+    fn log_targeted_diagnostic(&self, status: String, failed: bool) {
+        let mut previous = self
+            .targeted_diagnostic
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if previous.as_deref() != Some(&status) {
+            if failed {
+                log::warn!("指定播放器查询：{status}");
+            } else {
+                log::info!("指定播放器查询：{status}");
+            }
+            *previous = Some(status);
+        }
     }
 
     /// 每次只保留本轮查询到的来源；退出或查询失败的应用不可继续显示旧快照。
@@ -111,6 +145,7 @@ impl SystemMediaService {
         applications: &[RegisteredApplication],
     ) -> Result<(Vec<(PlaybackSnapshot, Option<f64>)>, bool), String> {
         let result = targeted::query(applications).map_err(|error| {
+            self.log_targeted_diagnostic(format!("failed reason={error}"), true);
             self.targeted_sources
                 .lock()
                 .unwrap_or_else(|poison| poison.into_inner())
@@ -121,6 +156,7 @@ impl SystemMediaService {
                 .take();
             error
         })?;
+        self.log_targeted_diagnostic(result.diagnostics.join(", "), result.had_error);
         let mut sources = self
             .targeted_sources
             .lock()

@@ -46,14 +46,16 @@ pub fn query_selected_player(
     system_media_applications: &[RegisteredApplication],
 ) -> (PlaybackSnapshot, Option<PlayerKind>) {
     let current_system_snapshot = system_media.snapshot();
-    let system_snapshot = if matches!(selection, PlayerSelection::System | PlayerSelection::Auto)
+    // 当前允许的播放媒体已由 adapter 确认，无需再依赖指定播放器查询。
+    let mut system_snapshot = if matches!(selection, PlayerSelection::System | PlayerSelection::Auto)
         && system_media_filter_mode == SystemMediaFilterMode::Allowlist
         && !(current_system_snapshot.is_playing
-            && current_system_snapshot
-                .source_app_bundle_id
-                .as_deref()
-                .is_some_and(is_dedicated_player_bundle_id))
-    {
+            && current_system_snapshot.title.is_some()
+            && system_source_allowed(
+                &current_system_snapshot,
+                SystemMediaFilterMode::Allowlist,
+                system_media_applications,
+            )) {
         choose_allowlisted_source(
             current_system_snapshot.clone(),
             previous_system_bundle_id,
@@ -63,6 +65,20 @@ pub fn query_selected_player(
     } else {
         current_system_snapshot.clone()
     };
+    // adapter 的应用名称异步补全；播放时直接采用当前快照也要保留允许列表中的名称。
+    if system_media_filter_mode == SystemMediaFilterMode::Allowlist
+        && system_snapshot.is_playing
+        && system_snapshot
+            .source_app_name
+            .as_deref()
+            .is_none_or(|name| name.trim().is_empty())
+    {
+        if let Some(application) = system_media_applications.iter().find(|application| {
+            system_snapshot.source_app_bundle_id.as_deref() == Some(application.bundle_id.as_str())
+        }) {
+            system_snapshot.source_app_name = Some(application.name.clone());
+        }
+    }
     let (mut snapshot, next_auto_player) = match selection {
         PlayerSelection::AppleMusic => (automation::snapshot(PlayerKind::AppleMusic), None),
         PlayerSelection::Spotify => (automation::snapshot(PlayerKind::Spotify), None),
@@ -84,6 +100,7 @@ pub fn query_selected_player(
     };
     snapshot.system_control_available = snapshot.same_system_media(&current_system_snapshot);
     attach_system_artwork(&mut snapshot, &current_system_snapshot);
+    system_media.log_selection(&snapshot);
     (snapshot, next_auto_player)
 }
 
@@ -98,6 +115,9 @@ fn choose_allowlisted_source(
     let (candidates, had_error) = match system_media.allowlisted_snapshots(applications) {
         Ok(result) => result,
         Err(error) => {
+            if current_allowed && current.title.is_some() {
+                return current;
+            }
             return PlaybackSnapshot::unavailable_with_code(
                 Some(PlayerKind::System),
                 PlaybackErrorCode::Unavailable,
@@ -149,19 +169,18 @@ fn choose_allowlisted_source(
             .as_deref()
             .and_then(|bundle_id| system_media.targeted_snapshot(bundle_id))
             .unwrap_or_else(|| {
-                PlaybackSnapshot::unavailable_with_code(
-                    Some(PlayerKind::System),
-                    PlaybackErrorCode::Unavailable,
-                    "指定播放器状态已过期".into(),
-                )
+                if current_allowed && current.title.is_some() {
+                    current.clone()
+                } else {
+                    PlaybackSnapshot::unavailable_with_code(
+                        Some(PlayerKind::System),
+                        PlaybackErrorCode::Unavailable,
+                        "指定播放器状态已过期".into(),
+                    )
+                }
             });
     }
-    if current_allowed
-        && current
-            .source_app_bundle_id
-            .as_deref()
-            .is_some_and(is_dedicated_player_bundle_id)
-    {
+    if current_allowed && current.title.is_some() {
         return current;
     }
     if had_error || current_allowed || previous_bundle_id.is_some() {

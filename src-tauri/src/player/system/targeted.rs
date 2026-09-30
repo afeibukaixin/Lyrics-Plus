@@ -26,6 +26,8 @@ const MAX_ARTWORK_BYTES: u64 = 8 * 1024 * 1024;
 struct WireSource {
     bundle_identifier: String,
     status: String,
+    error_code: Option<i64>,
+    error_reason: Option<String>,
     title: Option<String>,
     artist: Option<String>,
     album: Option<String>,
@@ -45,6 +47,7 @@ pub(super) struct Candidate {
 pub(super) struct QueryResult {
     pub(super) candidates: Vec<Candidate>,
     pub(super) had_error: bool,
+    pub(super) diagnostics: Vec<String>,
 }
 
 fn invoke(args: &[&str], max_bytes: u64) -> Result<Vec<u8>, String> {
@@ -89,7 +92,7 @@ fn invoke(args: &[&str], max_bytes: u64) -> Result<Vec<u8>, String> {
         return Err("指定播放器查询结果过大".into());
     }
     if !status.success() {
-        return Err("指定播放器 MediaRemote 接口不可用".into());
+        return Err(format!("指定播放器 MediaRemote 接口不可用：exit={status}"));
     }
     Ok(bytes)
 }
@@ -129,6 +132,7 @@ pub(super) fn query(applications: &[RegisteredApplication]) -> Result<QueryResul
         return Ok(QueryResult {
             candidates: Vec::new(),
             had_error: false,
+            diagnostics: vec!["no_running_applications".into()],
         });
     }
     let mut args = Vec::with_capacity(running_applications.len() + 1);
@@ -142,12 +146,34 @@ pub(super) fn query(applications: &[RegisteredApplication]) -> Result<QueryResul
     let responses: Vec<WireSource> = serde_json::from_slice(&bytes)
         .map_err(|error| format!("解析指定播放器状态失败：{error}"))?;
     let mut candidates = Vec::new();
-    let mut had_error = responses.len() != running_applications.len();
+    let expected_count = running_applications.len();
+    let received_count = responses.len();
+    let mut had_error = received_count != expected_count;
+    let mut diagnostics = Vec::with_capacity(running_applications.len());
+    if had_error {
+        diagnostics.push(format!("response_count={received_count}/{expected_count}"));
+    }
     for (application, response) in running_applications.into_iter().zip(responses) {
         if response.bundle_identifier != application.bundle_id {
             had_error = true;
+            diagnostics.push(format!("{}=bundle_mismatch", application.bundle_id));
             continue;
         }
+        let detail = response
+            .error_code
+            .map(|code| code.to_string())
+            .or(response.error_reason.clone())
+            .unwrap_or_default();
+        diagnostics.push(format!(
+            "{}={}{}",
+            application.bundle_id,
+            response.status,
+            if detail.is_empty() {
+                String::new()
+            } else {
+                format!("({detail})")
+            },
+        ));
         if response.status == "error" {
             had_error = true;
             continue;
@@ -165,6 +191,7 @@ pub(super) fn query(applications: &[RegisteredApplication]) -> Result<QueryResul
     Ok(QueryResult {
         candidates,
         had_error,
+        diagnostics,
     })
 }
 
