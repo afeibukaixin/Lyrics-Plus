@@ -91,6 +91,7 @@ The application code is released under the [MIT License](LICENSE). The MIT Licen
 - [MxIris-LyricsX-Project/LyricsX](https://github.com/MxIris-LyricsX-Project/LyricsX)
 - [ddddxxx/LyricsX](https://github.com/ddddxxx/LyricsX)
 - [ChouChiu/Lyrics-Helper](https://github.com/ChouChiu/Lyrics-Helper)
+- [MediaRemoteAdapter](https://github.com/ungive/mediaremote-adapter) by Jonas van den Berg and contributors — supports macOS System Media playback. See the [third-party notices](THIRD_PARTY_NOTICES.md) for license details.
 
 ## ❤️ Support Lyrics Plus
 
