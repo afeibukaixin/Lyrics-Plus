@@ -5,7 +5,6 @@ import { useAppLanguage } from "../../../features/i18n/I18nProvider";
 import styles from "../settings.module.scss";
 import { PageHeader, SettingsSection, ToggleRow } from "../shared/components";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -86,7 +85,7 @@ export default function DebugSettingsPage() {
   };
 
   return (
-    <>
+    <div className={debugLogs.enabled ? styles.debugPageExpanded : undefined}>
       <PageHeader title={t("settings.debug.title")} description={t("settings.debug.description")} />
       <SettingsSection id="debug-live" title={t("settings.debug.live")} trailing={debugLogs.enabled && <span className={styles.debugLogCount}>{debugLogs.entries.length} / {MAX_LOG_ENTRIES}</span>}>
         <ToggleRow label={t("settings.debug.toggle")} description={t("settings.debug.toggleHint")} value={debugLogs.enabled} onChange={debugLogs.setEnabled} />
@@ -114,14 +113,14 @@ export default function DebugSettingsPage() {
                 <Button type="button" variant="outline" size="sm" onClick={debugLogs.clear} disabled={debugLogs.entries.length === 0}>{t("settings.debug.clear")}</Button>
               </div>
             </div>
-            <ScrollArea className={styles.debugLogViewport} viewportRef={viewport} role="log" aria-live="polite">
+            <div className={styles.debugLogViewport} ref={viewport} role="log" aria-live="polite">
               {visibleEntries.length === 0 ? (
                 <p>{debugLogs.entries.length === 0 ? t("settings.debug.waiting") : t("settings.debug.filteredEmpty")}</p>
               ) : visibleEntries.map((entry) => <DebugLogEntryRow entry={entry} key={entry.id} language={language} />)}
-            </ScrollArea>
+            </div>
           </>
         ) : null}
       </SettingsSection>
-    </>
+    </div>
   );
 }

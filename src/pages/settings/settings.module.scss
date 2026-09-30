@@ -182,9 +182,13 @@
 .aboutHero div { display: grid; gap: 3px; }
 .aboutHero span { color: var(--muted-foreground); }
 
+.debugPageExpanded { height: 100%; display: flex; flex-direction: column; }
+.debugPageExpanded > .settingsSection { display: flex; flex: 1; min-height: 0; }
+.debugPageExpanded .card { flex: 1; min-height: 0; margin-bottom: 0; overflow: hidden; }
+.debugPageExpanded .cardContent { display: flex; flex: 1; min-height: 0; flex-direction: column; }
 .debugLogToolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
 .debugLogActions { display: flex; gap: 6px; }
-.debugLogViewport { height: 260px; background: var(--background); font-family: var(--font-family-mono); }
+.debugLogViewport { flex: 1; min-height: 0; overflow: auto; background: var(--background); font-family: var(--font-family-mono); }
 .debugLogViewport > p { margin: 0; padding: 18px 16px; color: var(--muted-foreground); }
 .debugLogEntry { display: grid; grid-template-columns: 72px 52px minmax(0, 1fr); gap: 8px; align-items: start; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: .75rem; }
 .debugLogEntry time, .debugLogEntry strong, .debugLogEntry code { min-width: 0; color: var(--muted-foreground); }
