@@ -129,7 +129,7 @@ export const zhHK = {
       toggleBackgroundTitle: "切換歌詞背景（目前：{{value}}）", backgroundVisible: "顯示背景", backgroundTransparent: "透明背景",
       showTrack: "顯示{{track}}", hideTrack: "關閉{{track}}",
       unsupportedLayout: "{{action}}（目前版面不顯示副歌詞）", unavailableTrack: "{{action}}（目前歌詞沒有{{track}}，啟用後會暫時顯示下一句）",
-      translationGlyph: "譯", romanizationGlyph: "音", hide: "隱藏桌面歌詞", openSettings: "開啟桌面歌詞設定",
+      translationGlyph: "譯", romanizationGlyph: "音", opacity: "調整歌詞透明度", opacityTitle: "歌詞透明度：{{value}}%", hide: "隱藏桌面歌詞", openSettings: "開啟桌面歌詞設定",
     },
   },
   notchLyrics: {

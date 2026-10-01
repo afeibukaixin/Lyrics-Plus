@@ -280,6 +280,40 @@
   flex: none; display: flex; align-items: center; gap: 1px; padding: 1px;
   border: 1px solid var(--border); border-radius: 8px; background: var(--muted);
 }
+.opacityControl {
+  position: relative; flex: none; display: flex; align-items: center; gap: 3px;
+  border: 1px solid transparent; border-radius: 8px;
+}
+.opacityControl::after { content: ""; position: absolute; z-index: 19; pointer-events: none; }
+.opacityControl:hover::after, .opacityControl:focus-within::after, .opacityControl[data-open="true"]::after { pointer-events: auto; }
+.opacityControl:hover, .opacityControl:focus-within, .opacityControl[data-open="true"] { border-color: var(--border); background: var(--muted); }
+.opacitySlider {
+  position: absolute; left: 50%; top: calc(100% + 6px); z-index: 20;
+  display: flex; align-items: center; gap: 4px; width: 104px; padding: 5px 7px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--popover);
+  box-shadow: 0 7px 24px rgb(0 0 0 / 18%); opacity: 0; pointer-events: none;
+  transform: translate(-50%, -4px); transition: opacity .16s ease, transform .16s ease;
+}
+.opacityControl:hover .opacitySlider, .opacityControl:focus-within .opacitySlider, .opacityControl[data-open="true"] .opacitySlider { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+.opacityControl::after { top: 100%; left: 0; width: 100%; height: 8px; }
+.overlay:not([data-orientation="vertical"])[data-toolbar-placement="bottom"] .opacitySlider { top: auto; bottom: calc(100% + 6px); transform: translate(-50%, 4px); }
+.overlay:not([data-orientation="vertical"])[data-toolbar-placement="bottom"] .opacityControl::after { top: auto; bottom: 100%; }
+.overlay:not([data-orientation="vertical"])[data-toolbar-placement="bottom"] .opacityControl:hover .opacitySlider,
+.overlay:not([data-orientation="vertical"])[data-toolbar-placement="bottom"] .opacityControl:focus-within .opacitySlider,
+.overlay:not([data-orientation="vertical"])[data-toolbar-placement="bottom"] .opacityControl[data-open="true"] .opacitySlider { transform: translate(-50%, 0); }
+.opacitySlider [data-slot="slider"] { width: 58px; flex: none; }
+.opacitySlider output { width: 26px; color: var(--muted-foreground); font-size: 9px; font-variant-numeric: tabular-nums; }
+.overlay[data-orientation="vertical"] .opacityControl { flex-direction: column; }
+.overlay[data-orientation="vertical"] .opacitySlider { left: auto; right: calc(100% + 6px); bottom: 50%; top: auto; width: 104px; transform: translate(-4px, 50%); }
+.overlay[data-orientation="vertical"] .opacityControl::after { top: 0; left: auto; right: 100%; width: 8px; height: 100%; }
+.overlay[data-orientation="vertical"] .opacityControl:hover .opacitySlider, .overlay[data-orientation="vertical"] .opacityControl:focus-within .opacitySlider, .overlay[data-orientation="vertical"] .opacityControl[data-open="true"] .opacitySlider { transform: translate(0, 50%); }
+.overlay[data-orientation="vertical"][data-toolbar-placement="left"] .opacitySlider { left: calc(100% + 6px); right: auto; transform: translate(4px, 50%); }
+.overlay[data-orientation="vertical"][data-toolbar-placement="left"] .opacityControl::after { left: 100%; right: auto; }
+.overlay[data-orientation="vertical"][data-toolbar-placement="left"] .opacityControl:hover .opacitySlider,
+.overlay[data-orientation="vertical"][data-toolbar-placement="left"] .opacityControl:focus-within .opacitySlider,
+.overlay[data-orientation="vertical"][data-toolbar-placement="left"] .opacityControl[data-open="true"] .opacitySlider { transform: translate(0, 50%); }
+.overlay[data-orientation="vertical"] .opacitySlider [data-slot="slider"] { width: 58px; transform: rotate(-90deg); }
+.overlay[data-orientation="vertical"] .opacityControl { display: none; }
 .overlay[data-orientation="vertical"] .offsetControl { flex-direction: column; }
 .toolbar .offsetControl > button { width: 23px; height: 22px; border-radius: 6px; }
 .toolbar .offsetValue {
@@ -298,6 +332,7 @@
   stroke-linecap: round; stroke-linejoin: round;
 }
 .toolbar::-webkit-scrollbar { display: none; }
+.toolbar:has(.opacityControl:hover, .opacityControl:focus-within, .opacityControl[data-open="true"]) { overflow: visible; }
 @keyframes marquee-once {
   0%, 12% { transform: translateX(0); }
   88%, 100% { transform: translateX(calc(0px - var(--marquee-distance))); }

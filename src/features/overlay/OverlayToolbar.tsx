@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { useState, type RefObject } from "react";
 import type { TFunction } from "i18next";
 import {
   ClockArrowLeft,
@@ -12,10 +12,12 @@ import {
   PanelsTopBottom,
   Plus,
   Settings,
+  SunDim,
   Square,
   SquareDashed,
 } from "lucide-react";
 import { ToolbarIconButton } from "@/components/ui/toolbar-icon-button";
+import { Slider } from "@/components/ui/slider";
 import type { OverlayStyle } from "../../shared/types";
 import { formatOffsetMs, nextValue } from "./OverlayLayout";
 import styles from "./Overlay.module.scss";
@@ -72,11 +74,27 @@ export function OverlayToolbar({
   toggleSupportingTrack,
   supportingToggleTitle,
 }: OverlayToolbarProps) {
+  const [opacityOpen, setOpacityOpen] = useState(false);
   return (
     <div className={styles.toolbar} data-tauri-drag-region="false" role="toolbar" aria-label={t("overlay.toolbar.label")} ref={toolbarRef}>
       <ToolbarIconButton label={t("overlay.toolbar.lock")} variant="ghost" size="icon-sm" onClick={lockOverlay}><Lock /></ToolbarIconButton>
       <ToolbarIconButton label={t("overlay.toolbar.decreaseFont")} variant="ghost" size="icon-sm" onClick={() => void updateStyle({ fontSize: style.fontSize - 2 })}><Minus /></ToolbarIconButton>
       <ToolbarIconButton label={t("overlay.toolbar.increaseFont")} variant="ghost" size="icon-sm" onClick={() => void updateStyle({ fontSize: style.fontSize + 2 })}><Plus /></ToolbarIconButton>
+      <div className={styles.opacityControl} data-open={opacityOpen} onMouseEnter={() => setOpacityOpen(true)} onMouseLeave={() => setOpacityOpen(false)}>
+        <ToolbarIconButton
+          label={t("overlay.toolbar.opacity")}
+          tooltip={t("overlay.toolbar.opacityTitle", { value: Math.round(style.opacity * 100) })}
+          variant="ghost"
+          size="icon-sm"
+          aria-expanded={opacityOpen}
+          onClick={() => setOpacityOpen((open) => !open)}
+        ><SunDim /></ToolbarIconButton>
+        <label className={styles.opacitySlider}>
+          <span className="sr-only">{t("overlay.toolbar.opacity")}</span>
+          <Slider min={0.2} max={1} step={0.05} value={style.opacity} aria-label={t("overlay.toolbar.opacity")} onValueChange={(value) => void updateStyle({ opacity: value as number })} />
+          <output>{Math.round(style.opacity * 100)}%</output>
+        </label>
+      </div>
       <div className={styles.offsetControl} role="group" aria-label={t("overlay.toolbar.offsetGroup", { value: offsetAvailable ? formatOffsetMs(offsetMs) : t("overlay.toolbar.unavailable") })}>
         <ToolbarIconButton
           label={t("overlay.toolbar.delay")}

@@ -127,7 +127,7 @@ export const enUS = {
       toggleBackgroundTitle: "Toggle lyrics background (current: {{value}})", backgroundVisible: "background visible", backgroundTransparent: "transparent background",
       showTrack: "Show {{track}}", hideTrack: "Hide {{track}}",
       unsupportedLayout: "{{action}} (secondary lyrics are hidden in this layout)", unavailableTrack: "{{action}} (the current lyrics have no {{track}}; the next line will appear instead)",
-      translationGlyph: "T", romanizationGlyph: "R", hide: "Hide desktop lyrics", openSettings: "Open desktop lyrics settings",
+      translationGlyph: "T", romanizationGlyph: "R", opacity: "Adjust lyric opacity", opacityTitle: "Lyric opacity: {{value}}%", hide: "Hide desktop lyrics", openSettings: "Open desktop lyrics settings",
     },
   },
   notchLyrics: {

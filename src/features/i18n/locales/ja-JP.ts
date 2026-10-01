@@ -128,7 +128,7 @@ export const jaJP = {
       toggleBackgroundTitle: "歌詞の背景を切り替え（現在：{{value}}）", backgroundVisible: "背景を表示", backgroundTransparent: "透明な背景",
       showTrack: "{{track}}を表示", hideTrack: "{{track}}を隠す",
       unsupportedLayout: "{{action}}（このレイアウトでは補助歌詞が非表示です）", unavailableTrack: "{{action}}（現在の歌詞には {{track}} がありません。代わりに次の行が表示されます）",
-      translationGlyph: "T", romanizationGlyph: "R", hide: "デスクトップ歌詞を隠す", openSettings: "デスクトップ歌詞の設定を開く",
+      translationGlyph: "T", romanizationGlyph: "R", opacity: "歌詞の不透明度を調整", opacityTitle: "歌詞の不透明度：{{value}}%", hide: "デスクトップ歌詞を隠す", openSettings: "デスクトップ歌詞の設定を開く",
     },
   },
   notchLyrics: {

@@ -128,7 +128,7 @@ export const koKR = {
       toggleBackgroundTitle: "가사 배경 전환(현재: {{value}})", backgroundVisible: "배경 표시", backgroundTransparent: "투명 배경",
       showTrack: "{{track}} 표시", hideTrack: "{{track}} 숨기기",
       unsupportedLayout: "{{action}} (이 레이아웃에서는 보조 가사가 숨겨집니다)", unavailableTrack: "{{action}} (현재 가사에 {{track}}이(가) 없습니다. 대신 다음 줄이 표시됩니다)",
-      translationGlyph: "T", romanizationGlyph: "R", hide: "데스크톱 가사 숨기기", openSettings: "데스크톱 가사 설정 열기",
+      translationGlyph: "T", romanizationGlyph: "R", opacity: "가사 불투명도 조정", opacityTitle: "가사 불투명도: {{value}}%", hide: "데스크톱 가사 숨기기", openSettings: "데스크톱 가사 설정 열기",
     },
   },
   notchLyrics: {
